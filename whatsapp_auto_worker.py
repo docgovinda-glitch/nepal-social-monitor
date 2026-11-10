@@ -142,7 +142,14 @@ def run_single_broadcast_cycle(
 
     dispatched_count = 0
     failed_count = 0
-    items_to_send = unbroadcasted[:max_items_per_cycle]
+
+    # If max_items_per_cycle is <= 0 or 0, send ALL fresh unbroadcasted stories from this refresh cycle
+    if max_items_per_cycle and max_items_per_cycle > 0:
+        items_to_send = unbroadcasted[:max_items_per_cycle]
+        logger.info(f"Broadcasting {len(items_to_send)} items (capped at {max_items_per_cycle})...")
+    else:
+        items_to_send = unbroadcasted
+        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories published in this interval (Unlimited mode)...")
 
     for item, itype in items_to_send:
         title = item.get("title") or item.get("text") or "Untitled"
@@ -188,12 +195,12 @@ def run_single_broadcast_cycle(
 
 def main():
     default_interval = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "1800"))
-    default_max = int(get_env_variable("MAX_BROADCAST_PER_CYCLE", "10"))
+    default_max = int(get_env_variable("MAX_BROADCAST_PER_CYCLE", "0"))  # 0 = send all stories published in cycle
     parser = argparse.ArgumentParser(description="Nepal Monitor WhatsApp Automated Dispatch Worker")
     parser.add_argument("--interval", type=int, default=default_interval, help=f"Scan interval in seconds (default: {default_interval}s / {default_interval // 60} mins)")
     parser.add_argument("--once", action="store_true", help="Run once and exit (for cron jobs)")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without sending network requests")
-    parser.add_argument("--max-per-cycle", type=int, default=default_max, help=f"Maximum stories to send per cycle (default: {default_max})")
+    parser.add_argument("--max-per-cycle", type=int, default=default_max, help=f"Maximum stories to send per cycle (0 = send all stories, default: {default_max})")
 
     args = parser.parse_args()
 
