@@ -14,7 +14,7 @@ import logging
 import argparse
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
 # Set up logging
@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger("whatsapp_auto_worker")
 
 # Import project modules
-from nepal_fetcher import fetch_top_nepal_media, fetch_nepal_in_indian_media
+from nepal_fetcher import fetch_top_nepal_media, fetch_nepal_in_indian_media, NEPAL_TZ
 from nepal_x_scanner import scan_popular_nepal_x_posts
 from nepal_fb_real_scanner import scan_real_nepal_fb_intelligence
 from whatsapp_dispatcher import (
@@ -132,24 +132,35 @@ def run_single_broadcast_cycle(
     for p in fb_posts:
         all_scanned.append((p, "fb"))
 
-    # 2. Filter for unbroadcasted items using deduplication engine
-    unbroadcasted = []
-    for item, itype in all_scanned:
-        if not is_item_broadcasted(item, itype):
-            unbroadcasted.append((item, itype))
+    # 2. Filter for items published in the 30-minute refresh window and not yet broadcasted
+    now_nepal = datetime.now(NEPAL_TZ)
+    interval_secs = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "1800"))
+    cutoff_time = now_nepal - timedelta(seconds=interval_secs + 300)
 
-    logger.info(f"Total scanned items: {len(all_scanned)} | Unsent new items: {len(unbroadcasted)}")
+    unbroadcasted_in_window = []
+    for item, itype in all_scanned:
+        pdt = item.get("published_dt")
+        # Keep items published within the refresh window (or items with no timestamp)
+        if pdt and pdt < cutoff_time:
+            continue
+        if not is_item_broadcasted(item, itype):
+            unbroadcasted_in_window.append((item, itype))
+
+    logger.info(
+        f"Total scanned: {len(all_scanned)} | "
+        f"Published in last {interval_secs // 60} mins & unsent: {len(unbroadcasted_in_window)}"
+    )
 
     dispatched_count = 0
     failed_count = 0
 
-    # If max_items_per_cycle is <= 0 or 0, send ALL fresh unbroadcasted stories from this refresh cycle
+    # If max_items_per_cycle is <= 0 or 0, broadcast ALL stories published in the 30-min window
     if max_items_per_cycle and max_items_per_cycle > 0:
-        items_to_send = unbroadcasted[:max_items_per_cycle]
+        items_to_send = unbroadcasted_in_window[:max_items_per_cycle]
         logger.info(f"Broadcasting {len(items_to_send)} items (capped at {max_items_per_cycle})...")
     else:
-        items_to_send = unbroadcasted
-        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories published in this interval (Unlimited mode)...")
+        items_to_send = unbroadcasted_in_window
+        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories published in this 30-min refresh...")
 
     for item, itype in items_to_send:
         title = item.get("title") or item.get("text") or "Untitled"
