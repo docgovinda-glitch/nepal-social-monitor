@@ -716,19 +716,23 @@ st.sidebar.subheader("📅 Date & Timestamp Filter")
 time_filter_mode = st.sidebar.selectbox(
     "Select Time Horizon:",
     [
-        "All Recent Articles (Default)",
+        "All Recent Feeds (Default: 48h for FB)",
         "Past 1 Hour",
         "Past 3 Hours",
         "Past 6 Hours",
         "Past 12 Hours",
         "Past 24 Hours",
+        "Past 48 Hours",
         "Today (Since 00:00 NPT)",
+        "Past 7 Days",
+        "All Time (Include Full Archive)",
         "Custom Date & Timestamp...",
     ],
-    help="Filters all articles published from the selected timestamp up to the current moment."
+    help="Filters all articles and social feeds published from the selected timestamp up to the current moment."
 )
 
 filter_start_dt = None
+explicit_all_time = False
 
 if time_filter_mode == "Past 1 Hour":
     filter_start_dt = now_npt - datetime.timedelta(hours=1)
@@ -740,8 +744,14 @@ elif time_filter_mode == "Past 12 Hours":
     filter_start_dt = now_npt - datetime.timedelta(hours=12)
 elif time_filter_mode == "Past 24 Hours":
     filter_start_dt = now_npt - datetime.timedelta(hours=24)
+elif time_filter_mode == "Past 48 Hours":
+    filter_start_dt = now_npt - datetime.timedelta(hours=48)
 elif time_filter_mode == "Today (Since 00:00 NPT)":
     filter_start_dt = datetime.datetime.combine(now_npt.date(), datetime.time(0, 0), tzinfo=NEPAL_TZ)
+elif time_filter_mode == "Past 7 Days":
+    filter_start_dt = now_npt - datetime.timedelta(days=7)
+elif time_filter_mode == "All Time (Include Full Archive)":
+    explicit_all_time = True
 elif time_filter_mode == "Custom Date & Timestamp...":
     col_d, col_t = st.sidebar.columns(2)
     with col_d:
@@ -762,6 +772,8 @@ elif time_filter_mode == "Custom Date & Timestamp...":
 
 if filter_start_dt:
     st.sidebar.success(f"⏱ Filtering from: **{filter_start_dt.strftime('%b %d, %I:%M %p')}** up to **Now ({now_npt.strftime('%I:%M %p')} NPT)**")
+elif explicit_all_time:
+    st.sidebar.info("📚 Showing **All Time / Full Archive** for all channels.")
 
 st.sidebar.markdown("---")
 
@@ -835,6 +847,10 @@ if filter_start_dt:
     filtered_indian = [a for a in filtered_indian if a["published_dt"] >= filter_start_dt]
     filtered_x_posts = [p for p in filtered_x_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
     filtered_fb_posts = [p for p in filtered_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
+elif not explicit_all_time:
+    # Unless filtered by user, Facebook feeds should not provide posts older than 48 hours
+    fb_default_cutoff = now_npt - datetime.timedelta(hours=48)
+    filtered_fb_posts = [p for p in filtered_fb_posts if p.get("published_dt") and p["published_dt"] >= fb_default_cutoff]
 
 # Calculate Category Counts for Nepali Media (based on time-filtered articles)
 cat_counts = Counter([a["structured_category"] for a in filtered_articles])
@@ -1407,10 +1423,14 @@ with tab4:
     st.subheader("📘 Live Facebook & Civic Intelligence Monitor")
     st.write("Aggregated live tracking of public Facebook statements, media-reported civic discourse, and verified official dispatches across the **8 Structured Categories**.")
 
-    # Top Metrics Bar
-    tab_fb_posts = all_fb_posts
+    # Top Metrics Bar (strictly adheres to 48h default unless filtered by user)
     if filter_start_dt:
-        tab_fb_posts = [p for p in tab_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
+        tab_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
+    elif explicit_all_time:
+        tab_fb_posts = all_fb_posts
+    else:
+        fb_default_cutoff = now_npt - datetime.timedelta(hours=48)
+        tab_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= fb_default_cutoff]
 
     if search_query:
         sq = search_query.lower()
@@ -1531,10 +1551,10 @@ with tab4:
     st.markdown("---")
 
     # Feed Filter & Sorting Controls
-    fbf_col1, fbf_col2, fbf_col3, fbf_col4 = st.columns([2, 1.8, 1.8, 1.4])
+    fbf_col1, fbf_col2, fbf_col3, fbf_col4, fbf_col5 = st.columns([1.8, 1.6, 1.6, 1.6, 1.2])
     with fbf_col1:
         fb_cat_filter = st.selectbox(
-            "Filter Stream by Category:",
+            "Filter Category:",
             ["All Categories (All 8)"] + [f"{CATEGORY_ICONS.get(c, '')} {c}" for c in STRUCTURED_CATEGORIES],
             key="fb_cat_filter_select"
         )
@@ -1545,27 +1565,65 @@ with tab4:
             "Official Dispatches",
             "Curated Posts"
         ]
-        selected_feed_type = st.selectbox("Filter by Intelligence Type:", feed_types, key="fb_feed_type_select")
+        selected_feed_type = st.selectbox("Intelligence Type:", feed_types, key="fb_feed_type_select")
     with fbf_col3:
+        fb_time_scope = st.selectbox(
+            "Time Horizon:",
+            [
+                "🕒 Last 48 Hours (Default)",
+                "⚡ Past 24 Hours",
+                "⏳ Past 12 Hours",
+                "📅 Past 7 Days",
+                "🏛 All Time / Full Archive"
+            ],
+            key="fb_time_scope_select"
+        )
+    with fbf_col4:
         fb_sort_mode = st.selectbox(
             "Sort Feed By:",
             ["🕒 Newest First (NPT)", "📌 High Priority Dispatches First"],
             key="fb_sort_mode_select"
         )
-    with fbf_col4:
+    with fbf_col5:
         st.write("")
         st.write("")
-        if st.button("🔄 Rescan Live FB Feed", width="stretch", key="btn_rescan_fb"):
+        if st.button("🔄 Rescan", width="stretch", key="btn_rescan_fb"):
             with st.spinner("Re-aggregating real-time media statements and official diplomatic dispatches..."):
                 st.session_state["fb_posts"] = scan_real_nepal_fb_intelligence(all_articles)
                 st.rerun()
 
-    # Apply filters
-    filtered_fb_feed = tab_fb_posts
+    # Apply filters (Strictly default to last 48 hours unless filtered by user)
+    filtered_fb_feed = all_fb_posts
+
+    # 1. Apply Time Horizon filter
+    if filter_start_dt:
+        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
+    elif fb_time_scope == "⚡ Past 24 Hours":
+        cutoff_24 = now_npt - datetime.timedelta(hours=24)
+        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_24]
+    elif fb_time_scope == "⏳ Past 12 Hours":
+        cutoff_12 = now_npt - datetime.timedelta(hours=12)
+        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_12]
+    elif fb_time_scope == "📅 Past 7 Days":
+        cutoff_7d = now_npt - datetime.timedelta(days=7)
+        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_7d]
+    elif fb_time_scope == "🏛 All Time / Full Archive" or explicit_all_time:
+        filtered_fb_feed = filtered_fb_feed
+    else:  # "🕒 Last 48 Hours (Default)"
+        cutoff_48 = now_npt - datetime.timedelta(hours=48)
+        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_48]
+
+    # 2. Apply search query
+    if search_query:
+        sq = search_query.lower()
+        filtered_fb_feed = [p for p in filtered_fb_feed if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
+
+    # 3. Apply category filter
     if fb_cat_filter != "All Categories (All 8)":
         chosen_fb_cat = fb_cat_filter.split(" ", 1)[1]
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("structured_category") == chosen_fb_cat]
 
+    # 4. Apply intelligence type filter
     if selected_feed_type != "All Stream Sources":
         if selected_feed_type == "Media Reported FB Statements":
             filtered_fb_feed = [p for p in filtered_fb_feed if "Media" in p.get("feed_type", "")]
@@ -1574,7 +1632,7 @@ with tab4:
         elif selected_feed_type == "Curated Posts":
             filtered_fb_feed = [p for p in filtered_fb_feed if p.get("feed_type") == "Curated Post"]
 
-    # Apply sorting
+    # 5. Apply sorting
     if fb_sort_mode == "🕒 Newest First (NPT)":
         min_date = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
         filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("published_dt") or min_date, reverse=True)
@@ -1582,7 +1640,13 @@ with tab4:
         filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("engagement_score", 0), reverse=True)
 
     # Display count banner
-    st.markdown(f'<div class="apple-counter-badge" style="background:#EBF5FF; color:#1877F2; border-color:#BFDBFE;">Showing <b>{len(filtered_fb_feed):,} of {len(all_fb_posts):,}</b> authentic intelligence items</div>', unsafe_allow_html=True)
+    time_badge_label = "Last 48 Hours (Default)"
+    if filter_start_dt:
+        time_badge_label = f"Filtered from {filter_start_dt.strftime('%b %d, %I:%M %p')}"
+    elif fb_time_scope != "🕒 Last 48 Hours (Default)":
+        time_badge_label = fb_time_scope.split(" ", 1)[1] if " " in fb_time_scope else fb_time_scope
+
+    st.markdown(f'<div class="apple-counter-badge" style="background:#EBF5FF; color:#1877F2; border-color:#BFDBFE;">Showing <b>{len(filtered_fb_feed):,} of {len(all_fb_posts):,}</b> authentic intelligence items · Horizon: <b>{time_badge_label}</b></div>', unsafe_allow_html=True)
     st.write("")
 
     # Render Post Cards with "Load More Feeds" button
