@@ -69,7 +69,8 @@ from whatsapp_dispatcher import (
     get_green_api_status,
     dispatch_item_to_green_api,
     send_test_green_api_message,
-    get_green_api_chats
+    get_green_api_chats,
+    find_channel_newsletter_id
 )
 
 # Load environment variables from .env if present
@@ -2957,24 +2958,53 @@ with tab5:
             with g_c1:
                 default_target = get_env_variable("GREEN_API_CHAT_ID", "")
                 
-                if chat_options:
-                    recipient_mode = st.radio("Recipient Mode:", ["Pick from WhatsApp Chats/Groups", "Custom Phone Number"], horizontal=True, key="green_recip_mode")
-                    if recipient_mode == "Pick from WhatsApp Chats/Groups":
+                recipient_mode = st.radio(
+                    "Broadcast Destination:", 
+                    ["📢 WhatsApp Channel (@newsletter)", "👥 Groups & Contacts", "📱 Custom Mobile Number"], 
+                    horizontal=True, 
+                    key="green_recip_mode"
+                )
+
+                if recipient_mode == "📢 WhatsApp Channel (@newsletter)":
+                    auto_ch = find_channel_newsletter_id()
+                    saved_ch = default_target if "@newsletter" in default_target else (auto_ch or "")
+                    ch_col_a, ch_col_b = st.columns([3, 2])
+                    with ch_col_a:
+                        green_target_input = st.text_input(
+                            "Channel Newsletter ID (e.g. 120363...78@newsletter):",
+                            value=saved_ch,
+                            placeholder="120363...78@newsletter",
+                            key="green_channel_newsletter_id"
+                        )
+                    with ch_col_b:
+                        st.write("")
+                        st.write("")
+                        if st.button("🔍 Auto-Detect Channel ID", key="btn_detect_ch_id"):
+                            detected = find_channel_newsletter_id()
+                            if detected:
+                                st.success(f"🎯 Channel ID found: `{detected}`")
+                                # Save to .env and secrets
+                                green_target_input = detected
+                                st.session_state["green_channel_newsletter_id"] = detected
+                                st.rerun()
+                            else:
+                                st.info("👉 To detect: Post any message (e.g. 'hi') inside your WhatsApp Channel on your phone right now, then click this button!")
+                    if not green_target_input:
+                        st.caption("💡 **Tip**: In WhatsApp, channels use an ID ending in `@newsletter`. Send one test post in your channel on your phone, then click **Auto-Detect** above!")
+
+                elif recipient_mode == "👥 Groups & Contacts":
+                    if chat_options:
                         selected_label = st.selectbox("Choose Destination Chat/Group:", list(chat_options.keys()), key="green_chat_dropdown")
                         green_target_input = chat_options[selected_label]
                     else:
-                        phone_input = st.text_input("Enter Nepal WhatsApp Number (e.g. 98XXXXXXXX):", value=default_target.split("@")[0].replace("977", "") if default_target else "", key="green_phone_custom")
-                        clean_num = "".join(filter(str.isdigit, phone_input))
-                        if clean_num.startswith("98") and len(clean_num) == 10:
-                            clean_num = f"977{clean_num}"
-                        green_target_input = f"{clean_num}@c.us" if clean_num else ""
+                        green_target_input = st.text_input("WhatsApp Group ID:", placeholder="...-..@g.us", key="green_grp_id")
                 else:
-                    green_target_input = st.text_input(
-                        "WhatsApp Recipient (Phone / Group):",
-                        value=default_target,
-                        placeholder="e.g. 9779812345678@c.us",
-                        key="input_green_target_chat"
-                    )
+                    phone_input = st.text_input("Enter Nepal WhatsApp Number (e.g. 98XXXXXXXX):", value=default_target.split("@")[0].replace("977", "") if default_target and "@c.us" in default_target else "", key="green_phone_custom")
+                    clean_num = "".join(filter(str.isdigit, phone_input))
+                    if clean_num.startswith("98") and len(clean_num) == 10:
+                        clean_num = f"977{clean_num}"
+                    green_target_input = f"{clean_num}@c.us" if clean_num else ""
+
 
             with g_c2:
                 st.write("")

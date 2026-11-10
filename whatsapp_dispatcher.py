@@ -430,6 +430,27 @@ def get_green_api_chats() -> List[Dict[str, Any]]:
         pass
     return []
 
+def find_channel_newsletter_id() -> Optional[str]:
+    """Scans recent outgoing and incoming messages for WhatsApp channel (@newsletter) IDs."""
+    import urllib.request
+    api_url, id_inst, token = get_green_api_credentials()
+    if not id_inst or not token:
+        return None
+
+    for endpoint in ("lastOutgoingMessages", "lastIncomingMessages"):
+        url = f"{api_url}/waInstance{id_inst}/{endpoint}/{token}?minutes=1440"
+        try:
+            with urllib.request.urlopen(url, timeout=6) as resp:
+                msgs = json.loads(resp.read().decode())
+                for m in msgs:
+                    cid = m.get("chatId", "")
+                    if cid.endswith("@newsletter"):
+                        return cid
+        except Exception:
+            pass
+    return None
+
+
 def send_test_green_api_message(chat_id: str) -> Tuple[bool, str]:
     """Sends a verification test message to the specified WhatsApp chat ID."""
     test_item = {
