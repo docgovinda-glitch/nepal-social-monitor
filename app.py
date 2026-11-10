@@ -845,8 +845,7 @@ selected_cat_filter = st.sidebar.selectbox(
     help="Default shows all news & posts unfiltered. 'All Categories' filters to the 8 predefined categories and excludes uncategorized social feeds."
 )
 
-# Quick Filter Reset Button in Sidebar
-if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters"):
+def reset_all_filters():
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
     st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
@@ -860,7 +859,9 @@ if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_f
         st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
     if "fb_cat_filter_select" in st.session_state:
         st.session_state["fb_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
-    st.rerun()
+
+# Quick Filter Reset Button in Sidebar
+st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters", on_click=reset_all_filters)
 
 lang_filter = st.sidebar.radio("Content Language:", ["All Languages", "Nepali Only", "English Only", "Hindi Only"])
 
@@ -1414,21 +1415,7 @@ if active_filter_chips:
     with af_col1:
         st.markdown(f'<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0;"><span style="font-size:0.8rem; font-weight:700; color:#64748B; letter-spacing:0.04em;">ACTIVE FILTERS:</span>{" ".join(active_filter_chips)}</div>', unsafe_allow_html=True)
     with af_col2:
-        if st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch"):
-            st.session_state["global_search_input"] = ""
-            st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-            st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
-            st.session_state["media_visible_count"] = 20
-            st.session_state["indian_visible_count"] = 20
-            st.session_state["x_visible_count"] = 20
-            st.session_state["fb_visible_count"] = 20
-            if "custom_to_use_current" in st.session_state:
-                st.session_state["custom_to_use_current"] = True
-            if "x_cat_filter_select" in st.session_state:
-                st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
-            if "fb_cat_filter_select" in st.session_state:
-                st.session_state["fb_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
-            st.rerun()
+        st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch", on_click=reset_all_filters)
 
 # 8. Navigation Tabs (Dynamic Live Counts)
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
