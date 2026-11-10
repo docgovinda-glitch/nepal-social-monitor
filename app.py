@@ -64,7 +64,10 @@ from whatsapp_dispatcher import (
     DEFAULT_CHANNEL_URL,
     get_env_variable,
     dispatch_item_to_webhook,
-    send_test_webhook_ping
+    send_test_webhook_ping,
+    get_green_api_credentials,
+    get_green_api_status,
+    dispatch_item_to_green_api
 )
 
 # Load environment variables from .env if present
@@ -2860,6 +2863,8 @@ with tab5:
 
     # Webhook & Automation Status Bar
     wh_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
+    _, green_id, _ = get_green_api_credentials()
+    green_state, green_qr = get_green_api_status() if green_id else ("notConfigured", "")
 
     st.markdown("""
     <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 16px; margin: 12px 0 14px 0;">
@@ -2869,10 +2874,33 @@ with tab5:
         f"🟢 Webhook Dispatcher Connected & Ready · <code style='font-size:0.8rem; background:#E2E8F0; padding:2px 6px; border-radius:4px;'>{wh_url[:28]}...{wh_url[-10:] if len(wh_url)>38 else ''}</code>"
         if wh_url else
         "⚪ 1-Click Broadcast Mode Active · <span style='font-weight:400; color:#64748B;'>Set <code>WHATSAPP_WEBHOOK_URL</code> in <code>.env</code> for 100% automated background posting</span>"
-    ) + """
+    ) + f"""
+        </div>
+        <div style="font-size:0.82rem; color:{'#166534' if green_state == 'authorized' else '#B45309'}; margin-top:4px;">
+            {'🟢 GREEN-API Instance Connected & Authorized' if green_state == 'authorized' else f'🟡 GREEN-API Instance {green_id}: {green_state} (Needs QR Scan below)' if green_id else '⚪ GREEN-API not configured'}
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    if green_id and green_state != "authorized" and green_qr:
+        with st.expander("📲 Scan QR Code to Authorize Green-API WhatsApp Instance", expanded=True):
+            qr_c1, qr_c2 = st.columns([1.5, 3])
+            with qr_c1:
+                try:
+                    import base64
+                    st.image(base64.b64decode(green_qr), caption="Scan with WhatsApp (Linked Devices)", width=200)
+                except Exception:
+                    st.caption("QR Code rendering unavailable.")
+            with qr_c2:
+                st.markdown("""
+                **Quick 5-Second Setup:**
+                1. Open **WhatsApp** on your mobile phone.
+                2. Tap **Settings** (or 3 dots on Android) > **Linked Devices**.
+                3. Tap **Link a Device** and point your camera at this QR code.
+                4. Once scanned, your instance status will instantly change to **Authorized**!
+                """)
+                if st.button("🔄 Refresh Status After Scanning", key="btn_refresh_green_status"):
+                    st.rerun()
 
     wb_col1, wb_col2, wb_col3 = st.columns([2, 2.5, 3.5])
     with wb_col1:

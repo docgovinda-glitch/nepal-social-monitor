@@ -283,6 +283,12 @@ def dispatch_item_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: 
     except Exception as ex:
         return False, str(ex)
 
+
+
+
+
+
+
 def send_test_webhook_ping(webhook_url: str) -> Tuple[bool, str]:
     """
     Sends a test verification ping to the webhook endpoint.
@@ -320,3 +326,90 @@ def send_test_webhook_ping(webhook_url: str) -> Tuple[bool, str]:
         return False, str(ex)
 
 
+
+
+
+
+
+
+
+
+def get_green_api_credentials() -> Tuple[str, str, str]:
+    """Returns (api_url, id_instance, api_token_instance)."""
+    api_url = get_env_variable("GREEN_API_URL", "https://7107.api.greenapi.com").rstrip("/")
+    id_instance = get_env_variable("GREEN_API_ID_INSTANCE")
+    token_instance = get_env_variable("GREEN_API_TOKEN_INSTANCE")
+    return api_url, id_instance, token_instance
+
+def get_green_api_status() -> Tuple[str, str]:
+    """
+    Checks authorization status with Green-API.
+    Returns (status_text, qr_code_base64).
+    """
+    import urllib.request
+    api_url, id_inst, token = get_green_api_credentials()
+    if not id_inst or not token:
+        return "notConfigured", ""
+
+    status = "unknown"
+    qr_code = ""
+
+    try:
+        st_url = f"{api_url}/waInstance{id_inst}/getStateInstance/{token}"
+        with urllib.request.urlopen(st_url, timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+            status = data.get("stateInstance", "unknown")
+    except Exception:
+        status = "error"
+
+    if status in ("notAuthorized", "unknown"):
+        try:
+            qr_url = f"{api_url}/waInstance{id_inst}/qr/{token}"
+            with urllib.request.urlopen(qr_url, timeout=8) as resp:
+                data = json.loads(resp.read().decode())
+                if data.get("type") == "qrCode":
+                    qr_code = data.get("message", "")
+        except Exception:
+            pass
+
+    return status, qr_code
+
+def dispatch_item_to_green_api(
+    item: Dict[str, Any],
+    item_type: str,
+    chat_id: str
+) -> Tuple[bool, str]:
+    """
+    Dispatches formatted WhatsApp message via Green-API.
+    chat_id format:
+      - Personal number: e.g. "9779812345678@c.us"
+      - Group: e.g. "12036304...8@g.us"
+      - Channel: e.g. "12036304...8@newsletter"
+    """
+    import urllib.request
+    api_url, id_inst, token = get_green_api_credentials()
+    if not id_inst or not token:
+        return False, "Green-API credentials not configured"
+
+    wa_text = format_whatsapp_message(item, item_type)
+    url = f"{api_url}/waInstance{id_inst}/sendMessage/{token}"
+    payload = {
+        "chatId": chat_id,
+        "message": wa_text
+    }
+
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            resp_data = json.loads(resp.read().decode())
+            if "idMessage" in resp_data:
+                return True, resp_data["idMessage"]
+            return False, str(resp_data)
+    except Exception as ex:
+        return False, str(ex)

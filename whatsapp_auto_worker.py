@@ -37,7 +37,10 @@ from whatsapp_dispatcher import (
     get_item_key,
     DEFAULT_CHANNEL_URL,
     get_env_variable,
-    dispatch_item_to_webhook
+    dispatch_item_to_webhook,
+    get_green_api_status,
+    dispatch_item_to_green_api,
+    get_green_api_credentials
 )
 
 def dispatch_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: str) -> bool:
