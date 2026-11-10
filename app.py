@@ -927,6 +927,10 @@ if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_f
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
     st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+    st.session_state["media_visible_count"] = 20
+    st.session_state["indian_visible_count"] = 20
+    st.session_state["x_visible_count"] = 20
+    st.session_state["fb_visible_count"] = 20
     if "custom_to_use_current" in st.session_state:
         st.session_state["custom_to_use_current"] = True
     if "x_cat_filter_select" in st.session_state:
@@ -1583,6 +1587,10 @@ if active_filter_chips:
             st.session_state["global_search_input"] = ""
             st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
             st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+            st.session_state["media_visible_count"] = 20
+            st.session_state["indian_visible_count"] = 20
+            st.session_state["x_visible_count"] = 20
+            st.session_state["fb_visible_count"] = 20
             if "custom_to_use_current" in st.session_state:
                 st.session_state["custom_to_use_current"] = True
             if "x_cat_filter_select" in st.session_state:
@@ -1618,11 +1626,31 @@ with tab1:
     if not filtered_articles:
         st.warning("No news articles found matching your filters. Try selecting 'All Recent Articles' or expanding your time window.")
     else:
+        # Incremental Loading / Pagination (20 entries initial, +20 per click)
+        if "media_visible_count" not in st.session_state:
+            st.session_state["media_visible_count"] = 20
+
+        current_media_limit = st.session_state["media_visible_count"]
+        visible_articles = filtered_articles[:current_media_limit]
+
         if auto_translate_en:
             with st.spinner("Translating Nepali headlines to English..."):
-                batch_translate_headlines(filtered_articles)
-        for item in filtered_articles:
+                batch_translate_headlines(visible_articles)
+
+        for item in visible_articles:
             st.markdown(render_apple_article_card(item, is_indian=False, auto_translate=auto_translate_en), unsafe_allow_html=True)
+
+        if len(filtered_articles) > current_media_limit:
+            remaining_media = len(filtered_articles) - current_media_limit
+            next_batch_media = min(20, remaining_media)
+            c_m1, c_m2, c_m3 = st.columns([1.5, 2, 1.5])
+            with c_m2:
+                if st.button(f"⬇️ Load More News (+{next_batch_media} stories)", width="stretch", key="btn_load_more_media"):
+                    st.session_state["media_visible_count"] += 20
+                    st.rerun()
+                st.caption(f"Showing {len(visible_articles):,} of {len(filtered_articles):,} stories ({remaining_media:,} remaining)")
+        elif len(filtered_articles) > 0:
+            st.caption(f"🏁 You've reached the end of the news feed ({len(filtered_articles):,} stories displayed).")
 
 # ==========================================
 # TAB 2: Nepal in Indian Media
@@ -1661,11 +1689,31 @@ with tab2:
     if not tab_filtered_indian:
         st.info("No articles found matching the current timeframe or filter. Try selecting 'All Recent Articles'.")
     else:
+        # Incremental Loading / Pagination (20 entries initial, +20 per click)
+        if "indian_visible_count" not in st.session_state:
+            st.session_state["indian_visible_count"] = 20
+
+        current_indian_limit = st.session_state["indian_visible_count"]
+        visible_indian = tab_filtered_indian[:current_indian_limit]
+
         if auto_translate_en:
             with st.spinner("Translating Indian press to English..."):
-                batch_translate_headlines(tab_filtered_indian)
-        for a in tab_filtered_indian:
+                batch_translate_headlines(visible_indian)
+
+        for a in visible_indian:
             st.markdown(render_apple_article_card(a, is_indian=True, auto_translate=auto_translate_en), unsafe_allow_html=True)
+
+        if len(tab_filtered_indian) > current_indian_limit:
+            remaining_indian = len(tab_filtered_indian) - current_indian_limit
+            next_batch_indian = min(20, remaining_indian)
+            c_i1, c_i2, c_i3 = st.columns([1.5, 2, 1.5])
+            with c_i2:
+                if st.button(f"⬇️ Load More Stories (+{next_batch_indian} stories)", width="stretch", key="btn_load_more_indian"):
+                    st.session_state["indian_visible_count"] += 20
+                    st.rerun()
+                st.caption(f"Showing {len(visible_indian):,} of {len(tab_filtered_indian):,} stories ({remaining_indian:,} remaining)")
+        elif len(tab_filtered_indian) > 0:
+            st.caption(f"🏁 You've reached the end of Indian press coverage ({len(tab_filtered_indian):,} stories displayed).")
 
     with st.expander("⚡ Quick Jump to Dedicated Nepal Desks in Indian Media", expanded=False):
         q1, q2, q3, q4 = st.columns(4)
