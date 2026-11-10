@@ -859,18 +859,32 @@ search_query = st.sidebar.text_input(
     help="Bilingual cross-lingual search across Nepali Media, Indian Media, X Posts, and Facebook."
 )
 
-category_options = ["All Categories (All 8)"] + [f"{CATEGORY_ICONS[c]} {c}" for c in STRUCTURED_CATEGORIES]
+CAT_FILTER_ALL_UNFILTERED = "🌐 All (No Filters / Everything)"
+CAT_FILTER_ALL_8 = "📂 All Categories (8 Predefined Categories)"
+CAT_FILTER_UNCATEGORIZED = "⚪ Uncategorized Feeds Only"
+
+CATEGORY_FILTER_OPTIONS = [
+    CAT_FILTER_ALL_UNFILTERED,
+    CAT_FILTER_ALL_8,
+    CAT_FILTER_UNCATEGORIZED,
+] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
+
 selected_cat_filter = st.sidebar.selectbox(
     "Structured Geopolitical Category:",
-    category_options,
+    CATEGORY_FILTER_OPTIONS,
+    index=0,
     key="sidebar_selected_cat_filter",
-    help="Applies category filtering seamlessly across all 4 intelligence channels."
+    help="Default shows all news & posts unfiltered. 'All Categories' filters to the 8 predefined categories and excludes uncategorized social feeds."
 )
 
 # Quick Filter Reset Button in Sidebar
 if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters"):
     st.session_state["global_search_input"] = ""
-    st.session_state["sidebar_selected_cat_filter"] = "All Categories (All 8)"
+    st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+    if "x_cat_filter_select" in st.session_state:
+        st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
+    if "fb_cat_filter_select" in st.session_state:
+        st.session_state["fb_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
     st.rerun()
 
 lang_filter = st.sidebar.radio("Content Language:", ["All Languages", "Nepali Only", "English Only", "Hindi Only"])
@@ -1395,13 +1409,70 @@ def smart_search_match(item: Dict[str, Any], query: str) -> bool:
 # 4. Monitored Facebook Posts & Insights
 # ==========================================
 
-# 1. Global Category Filter
-if selected_cat_filter != "All Categories (All 8)":
-    chosen_cat = selected_cat_filter.split(" ", 1)[1]
-    filtered_articles = [a for a in filtered_articles if a.get("structured_category") == chosen_cat]
-    filtered_indian = [a for a in filtered_indian if a.get("structured_category") == chosen_cat]
-    filtered_x_posts = [p for p in filtered_x_posts if p.get("structured_category") == chosen_cat]
-    filtered_fb_posts = [p for p in filtered_fb_posts if p.get("structured_category") == chosen_cat]
+PREDEFINED_8_CATEGORIES = set(STRUCTURED_CATEGORIES)
+CORE_7_CATEGORIES = {c for c in STRUCTURED_CATEGORIES if c != "Others"}
+
+def filter_items_by_category(items: list, selected_option: str, is_social: bool = False) -> list:
+    """
+    Refined news feed filtering mechanism according to user requirements:
+
+    1. Default / Unfiltered State (No Filters Selected):
+       Fetch and display all news and posts published by the listed Nepali media outlets across
+       all sources—including RSS feeds, X (formerly Twitter), and Facebook—regardless of whether
+       they are assigned a category.
+
+    2. "All Categories" Selected:
+       Fetch and display news items that fall under any of the 8 predefined categories.
+       (Exclude uncategorized posts/social feeds).
+
+    3. "Uncategorized" View:
+       Filter and display items that are uncategorized, unassigned, or general feeds.
+
+    4. Single Category Selected:
+       Filter and display news items exclusively belonging to the selected category.
+    """
+    if not items:
+        return []
+    if not selected_option or selected_option == CAT_FILTER_ALL_UNFILTERED or selected_option.startswith("🌐 All"):
+        return items
+
+    if selected_option == CAT_FILTER_ALL_8 or "All Categories" in selected_option:
+        res = []
+        for it in items:
+            cat = str(it.get("structured_category") or it.get("category") or "").strip()
+            if not cat or cat.lower() in ["uncategorized", "none", "null", "unassigned", ""]:
+                continue
+            if is_social:
+                # For social feeds (X, Facebook): exclude uncategorized/general social feeds (must belong to core categories)
+                if cat in CORE_7_CATEGORIES:
+                    res.append(it)
+            else:
+                # For media articles: must fall under any of the 8 predefined categories
+                if cat in PREDEFINED_8_CATEGORIES:
+                    res.append(it)
+        return res
+
+    if selected_option == CAT_FILTER_UNCATEGORIZED or "Uncategorized" in selected_option:
+        res = []
+        for it in items:
+            cat = str(it.get("structured_category") or it.get("category") or "").strip()
+            if not cat or cat.lower() in ["uncategorized", "none", "null", "unassigned", ""]:
+                res.append(it)
+            elif is_social and cat == "Others":
+                res.append(it)
+            elif not is_social and cat not in PREDEFINED_8_CATEGORIES:
+                res.append(it)
+        return res
+
+    # Single Category Selected: extract category name
+    chosen_cat = selected_option.split(" ", 1)[1] if " " in selected_option else selected_option
+    return [it for it in items if it.get("structured_category") == chosen_cat]
+
+# 1. Global Category Filter (Seamless across all 4 channels)
+filtered_articles = filter_items_by_category(filtered_articles, selected_cat_filter, is_social=False)
+filtered_indian = filter_items_by_category(filtered_indian, selected_cat_filter, is_social=False)
+filtered_x_posts = filter_items_by_category(filtered_x_posts, selected_cat_filter, is_social=True)
+filtered_fb_posts = filter_items_by_category(filtered_fb_posts, selected_cat_filter, is_social=True)
 
 # 2. Strengthened Bilingual & Cross-Channel Search Filter
 if search_query and search_query.strip():
@@ -1446,7 +1517,7 @@ st.markdown(f"""
 active_filter_chips = []
 if search_query and search_query.strip():
     active_filter_chips.append(f'<span style="background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🔍 Keyword: "{html.escape(search_query.strip())}"</span>')
-if selected_cat_filter != "All Categories (All 8)":
+if selected_cat_filter != CAT_FILTER_ALL_UNFILTERED:
     active_filter_chips.append(f'<span style="background:#F1F5F9; color:#334155; border:1px solid #CBD5E1; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🏷 {html.escape(selected_cat_filter)}</span>')
 if filter_start_dt:
     active_filter_chips.append(f'<span style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">⏱ Since: {filter_start_dt.strftime("%b %d, %I:%M %p")}</span>')
@@ -1460,7 +1531,11 @@ if active_filter_chips:
     with af_col2:
         if st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch"):
             st.session_state["global_search_input"] = ""
-            st.session_state["sidebar_selected_cat_filter"] = "All Categories (All 8)"
+            st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+            if "x_cat_filter_select" in st.session_state:
+                st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
+            if "fb_cat_filter_select" in st.session_state:
+                st.session_state["fb_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
             st.rerun()
 
 # 8. Navigation Tabs (Dynamic Live Counts)
@@ -1592,7 +1667,8 @@ with tab3:
     with xf_col1:
         x_cat_filter = st.selectbox(
             "Filter Category:",
-            ["All Categories (All 8)"] + [f"{CATEGORY_ICONS.get(c, '')} {c}" for c in STRUCTURED_CATEGORIES],
+            CATEGORY_FILTER_OPTIONS,
+            index=0,
             key="x_cat_filter_select"
         )
     with xf_col2:
@@ -1624,11 +1700,8 @@ with tab3:
                 st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
                 st.rerun()
 
-    # Apply filters
-    filtered_feed = tab_x_posts
-    if x_cat_filter != "All Categories (All 8)":
-        chosen_x_cat = x_cat_filter.split(" ", 1)[1]
-        filtered_feed = [p for p in filtered_feed if p.get("structured_category") == chosen_x_cat]
+    # Apply category filter
+    filtered_feed = filter_items_by_category(tab_x_posts, x_cat_filter, is_social=True)
 
     if selected_acc_type != "All Account Types":
         filtered_feed = [p for p in filtered_feed if p.get("author_type") == selected_acc_type]
@@ -1784,7 +1857,8 @@ with tab4:
     with fbf_col1:
         fb_cat_filter = st.selectbox(
             "Filter Category:",
-            ["All Categories (All 8)"] + [f"{CATEGORY_ICONS.get(c, '')} {c}" for c in STRUCTURED_CATEGORIES],
+            CATEGORY_FILTER_OPTIONS,
+            index=0,
             key="fb_cat_filter_select"
         )
     with fbf_col2:
@@ -1835,9 +1909,7 @@ with tab4:
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_12]
 
     # 2. Apply in-tab category filter if selected
-    if fb_cat_filter != "All Categories (All 8)":
-        chosen_fb_cat = fb_cat_filter.split(" ", 1)[1]
-        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("structured_category") == chosen_fb_cat]
+    filtered_fb_feed = filter_items_by_category(filtered_fb_feed, fb_cat_filter, is_social=True)
 
     # 4. Apply intelligence type filter
     if selected_feed_type != "All Stream Sources":
