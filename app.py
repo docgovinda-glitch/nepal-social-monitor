@@ -776,23 +776,30 @@ elif explicit_all_time:
     st.sidebar.info("📚 Showing **All Time / Full Archive** for all channels.")
 
 st.sidebar.markdown("---")
-
-# Structured Category Filter for Nepali Media
-category_options = ["All Categories (All 8)"] + [f"{CATEGORY_ICONS[c]} {c}" for c in STRUCTURED_CATEGORIES]
-selected_cat_filter = st.sidebar.selectbox("Nepali Media Structured Category:", category_options, key="sidebar_selected_cat_filter")
+st.sidebar.subheader("🔍 Global Search & Filter System")
 
 search_query = st.sidebar.text_input(
-    "Search Global Keyword",
-    placeholder="e.g. India, China, Balen, Trade, Cricket",
-    key="global_search_input"
+    "Search Global Keyword:",
+    placeholder="e.g. Balen, India, Budget, Cricket...",
+    key="global_search_input",
+    help="Bilingual cross-lingual search across Nepali Media, Indian Media, X Posts, and Facebook."
+)
+
+category_options = ["All Categories (All 8)"] + [f"{CATEGORY_ICONS[c]} {c}" for c in STRUCTURED_CATEGORIES]
+selected_cat_filter = st.sidebar.selectbox(
+    "Structured Geopolitical Category:",
+    category_options,
+    key="sidebar_selected_cat_filter",
+    help="Applies category filtering seamlessly across all 4 intelligence channels."
 )
 
 # Quick Filter Reset Button in Sidebar
 if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters"):
     st.session_state["global_search_input"] = ""
+    st.session_state["sidebar_selected_cat_filter"] = "All Categories (All 8)"
     st.rerun()
 
-lang_filter = st.sidebar.radio("Content Language", ["All Languages", "Nepali Only", "English Only", "Hindi Only"])
+lang_filter = st.sidebar.radio("Content Language:", ["All Languages", "Nepali Only", "English Only", "Hindi Only"])
 
 # Portal Filter Dropdown
 all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
@@ -1069,41 +1076,139 @@ def render_apple_fb_post_card(p):
         f'</article>'
     )
 
-# Apply Other Filters to Nepali Articles
+# ==========================================
+# BILINGUAL & CROSS-LINGUAL SEARCH ENGINE
+# ==========================================
+SEARCH_EXPANSIONS = {
+    # Key Political Figures & Leaders
+    'balen': ['balen', 'बालेन', 'बालेन्द्र'],
+    'oli': ['oli', 'ओली', 'केपी'],
+    'prachanda': ['prachanda', 'प्रचण्ड', 'दाहाल', 'पुष्पकमल'],
+    'deuba': ['deuba', 'देउवा', 'शेरबहादुर'],
+    'gagan': ['gagan', 'गगन', 'थापा'],
+    'rabi': ['rabi', 'रवि', 'लामिछाने'],
+    'swarnim': ['swarnim', 'स्वर्णिम', 'वाग्ले'],
+    'kulman': ['kulman', 'कुलमान', 'घिसिङ'],
+    'harka': ['harka', 'हर्क', 'साम्पाङ'],
+    'bhim': ['bhim', 'भीम', 'रावल'],
+    'madhav': ['madhav', 'माधव', 'नेपाल'],
+    'upendra': ['upendra', 'उपेन्द्र', 'यादव'],
+    'baburam': ['baburam', 'बाबुराम', 'भट्टराई'],
+    'sunita': ['sunita', 'सुनिता', 'डंगोल'],
+    'shekhar': ['shekhar', 'शेखर', 'कोइराला'],
+    'ishwar': ['ishwar', 'ईश्वर', 'पोखरेल'],
+    
+    # Geopolitics & Foreign Relations
+    'india': ['india', 'भारत', 'भारतीय', 'मोदी', 'delhi'],
+    'china': ['china', 'चीन', 'चिनियाँ', 'बेइजिङ', 'beijing', 'शी'],
+    'pakistan': ['pakistan', 'पाकिस्तान', 'पाकिस्तानी', 'इस्लामाबाद'],
+    'bangladesh': ['bangladesh', 'बंगलादेश', 'ढाका', 'हसिना', 'युनुस'],
+    'us': ['usa', 'america', 'अमेरिकी', 'अमेरिका', 'ट्रम्प', 'वाशिङ्टन', 'वाशिंगटन', 'दूतावास'],
+    'uk': ['britain', 'british', 'बेलायत', 'बेलायती'],
+    'border': ['border', 'सीमा', 'सिमाना', 'नाका', 'लिपुलेक', 'कालापानी', 'सुस्ता'],
+    'treaty': ['treaty', 'सन्धि', 'सम्झौता', 'सहमति'],
+    
+    # Economy, Finance & Infrastructure
+    'economy': ['economy', 'अर्थतन्त्र', 'बजेट', 'आर्थिक', 'बैंकिङ', 'मुद्रा', 'राजस्व'],
+    'budget': ['budget', 'बजेट', 'विनियोजन', 'खर्च'],
+    'inflation': ['inflation', 'महँगी', 'मूल्यवृद्धि'],
+    'remittance': ['remittance', 'रेमिट्यान्स', 'विप्रेषण'],
+    'trade': ['trade', 'व्यापार', 'निर्यात', 'आयात', 'भन्सार'],
+    'bank': ['bank', 'बैंक', 'राष्ट्र बैंक', 'मौद्रिक', 'कर्जा'],
+    'nea': ['nea', 'विद्युत', 'विद्युत्', 'प्राधिकरण', 'लोडसेडिङ', 'डेडिकेटेड'],
+    'police': ['police', 'प्रहरी', 'नेपाल प्रहरी', 'सीआईबी', 'ब्युरो'],
+    
+    # Civic, Society, Sports & Festivals
+    'cricket': ['cricket', 'क्रिकेट', 'npl', 'क्यान', 'पारस'],
+    'football': ['football', 'फुटबल', 'साफ', 'एन्फा'],
+    'tihar': ['tihar', 'तिहार', 'दिपावली', 'भाइटीका', 'लक्ष्मीपूजा'],
+    'dashain': ['dashain', 'दसैँ', 'दशैं', 'विजया'],
+    'chhath': ['chhath', 'छठ', 'सूर्य'],
+    'court': ['court', 'अदालत', 'सर्वोच्च', 'न्यायाधीश'],
+    'corruption': ['corruption', 'भ्रष्टाचार', 'सहकारी', 'ठगी', 'अख्तियार'],
+    'election': ['election', 'निर्वाचन', 'उपनिर्वाचन', 'मतदान'],
+}
+
+def smart_search_match(item: Dict[str, Any], query: str) -> bool:
+    """
+    High-performance bilingual, multi-token matching function.
+    Searches across title, summary, full content, translated headlines,
+    source outlet, author name, handle, role, hashtags, and category.
+    Supports cross-lingual expansion between English and Nepali.
+    """
+    if not query or not query.strip():
+        return True
+
+    parts = [
+        item.get("title", ""),
+        item.get("headline_english", ""),
+        item.get("summary", ""),
+        item.get("full_content", ""),
+        item.get("text", ""),
+        item.get("source", ""),
+        item.get("author_name", ""),
+        item.get("handle", ""),
+        item.get("role", ""),
+        item.get("structured_category", ""),
+        item.get("sentiment", ""),
+        item.get("feed_type", "")
+    ]
+    text_corpus = " ".join(str(p) for p in parts if p).lower()
+
+    tokens = [t.strip().lower() for t in query.strip().split() if t.strip()]
+    if not tokens:
+        return True
+
+    for token in tokens:
+        synonyms = [token]
+        for key, syn_list in SEARCH_EXPANSIONS.items():
+            if token == key or token in syn_list:
+                synonyms.extend(syn_list)
+        synonyms = list(set(synonyms))
+
+        if not any(syn in text_corpus for syn in synonyms):
+            return False
+
+    return True
+
+# ==========================================
+# UNIFIED GLOBAL FILTER PIPELINE
+# Seamlessly integrates across:
+# 1. Nepali Media (34 Portals)
+# 2. Nepal in Indian Media (18 Outlets)
+# 3. Verified Live X (Twitter) Posts
+# 4. Monitored Facebook Posts & Insights
+# ==========================================
+
+# 1. Global Category Filter
 if selected_cat_filter != "All Categories (All 8)":
     chosen_cat = selected_cat_filter.split(" ", 1)[1]
-    filtered_articles = [a for a in filtered_articles if a["structured_category"] == chosen_cat]
+    filtered_articles = [a for a in filtered_articles if a.get("structured_category") == chosen_cat]
+    filtered_indian = [a for a in filtered_indian if a.get("structured_category") == chosen_cat]
+    filtered_x_posts = [p for p in filtered_x_posts if p.get("structured_category") == chosen_cat]
+    filtered_fb_posts = [p for p in filtered_fb_posts if p.get("structured_category") == chosen_cat]
 
-if search_query:
-    q = search_query.lower()
-    filtered_articles = [
-        a for a in filtered_articles 
-        if q in a['title'].lower() or q in a['summary'].lower() or q in a['source'].lower()
-    ]
+# 2. Strengthened Bilingual & Cross-Channel Search Filter
+if search_query and search_query.strip():
+    filtered_articles = [a for a in filtered_articles if smart_search_match(a, search_query)]
+    filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
+    filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
+    filtered_fb_posts = [p for p in filtered_fb_posts if smart_search_match(p, search_query)]
 
+# 3. Language Filter (for media portals)
 if lang_filter == "Nepali Only":
     filtered_articles = [a for a in filtered_articles if a.get('language') == "Nepali"]
+    filtered_indian = []
 elif lang_filter == "English Only":
     filtered_articles = [a for a in filtered_articles if a.get('language') == "English"]
-elif lang_filter == "Hindi Only":
-    filtered_articles = []
-
-if portal_filter != "All Portals (34 Portals)":
-    filtered_articles = [a for a in filtered_articles if a.get('source') == portal_filter]
-
-# Apply Other Filters to Indian Media Articles
-if search_query:
-    q = search_query.lower()
-    filtered_indian = [
-        a for a in filtered_indian 
-        if q in a['title'].lower() or q in a['summary'].lower() or q in a['source'].lower()
-    ]
-if lang_filter == "English Only":
     filtered_indian = [a for a in filtered_indian if a.get('language') == "English"]
 elif lang_filter == "Hindi Only":
+    filtered_articles = []
     filtered_indian = [a for a in filtered_indian if a.get('language') == "Hindi"]
-elif lang_filter == "Nepali Only":
-    filtered_indian = []
+
+# 4. Portal Filter (for Nepali Media)
+if portal_filter != "All Portals (34 Portals)":
+    filtered_articles = [a for a in filtered_articles if a.get('source') == portal_filter]
 
 # Top Minimalist Header
 st.markdown(f"""
@@ -1121,6 +1226,27 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Active Filters Banner
+active_filter_chips = []
+if search_query and search_query.strip():
+    active_filter_chips.append(f'<span style="background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🔍 Keyword: "{html.escape(search_query.strip())}"</span>')
+if selected_cat_filter != "All Categories (All 8)":
+    active_filter_chips.append(f'<span style="background:#F1F5F9; color:#334155; border:1px solid #CBD5E1; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🏷 {html.escape(selected_cat_filter)}</span>')
+if filter_start_dt:
+    active_filter_chips.append(f'<span style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">⏱ Since: {filter_start_dt.strftime("%b %d, %I:%M %p")}</span>')
+if lang_filter != "All Languages":
+    active_filter_chips.append(f'<span style="background:#F3E8FF; color:#6B21A8; border:1px solid #E9D5FF; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🌐 {html.escape(lang_filter)}</span>')
+
+if active_filter_chips:
+    af_col1, af_col2 = st.columns([5.5, 1])
+    with af_col1:
+        st.markdown(f'<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0;"><span style="font-size:0.8rem; font-weight:700; color:#64748B; letter-spacing:0.04em;">ACTIVE FILTERS:</span>{" ".join(active_filter_chips)}</div>', unsafe_allow_html=True)
+    with af_col2:
+        if st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch"):
+            st.session_state["global_search_input"] = ""
+            st.session_state["sidebar_selected_cat_filter"] = "All Categories (All 8)"
+            st.rerun()
 
 # 8. Navigation Tabs (Dynamic Live Counts)
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -1213,15 +1339,8 @@ with tab2:
 # TAB 3: X (Twitter) Nepal
 # ==========================================
 with tab3:
-    # Time-filter X posts
-    tab_x_posts = all_x_posts
-    if filter_start_dt:
-        tab_x_posts = [p for p in tab_x_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
-
-    # Global search query
-    if search_query:
-        sq = search_query.lower()
-        tab_x_posts = [p for p in tab_x_posts if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
+    # Seamlessly integrated X posts (filtered by global search, category, and time)
+    tab_x_posts = filtered_x_posts
 
     with st.expander(f"🇳🇵 Verified Monitored Nepali Accounts ({len(TOP_NEPAL_X_ACCOUNTS)} Accounts)", expanded=False):
         st.write(f"Direct directory of **{len(TOP_NEPAL_X_ACCOUNTS)} verified Nepali accounts** across civic commentators, political leaders, foreign affairs analysts, and diplomatic desks:")
@@ -1345,18 +1464,8 @@ with tab3:
 # TAB 4: Facebook Trends Nepal
 # ==========================================
 with tab4:
-    # Time-filter FB posts
-    if filter_start_dt:
-        tab_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
-    elif explicit_all_time:
-        tab_fb_posts = all_fb_posts
-    else:
-        fb_default_cutoff = now_npt - datetime.timedelta(hours=48)
-        tab_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= fb_default_cutoff]
-
-    if search_query:
-        sq = search_query.lower()
-        tab_fb_posts = [p for p in tab_fb_posts if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
+    # Seamlessly integrated FB posts (filtered by global search, category, and 48h default)
+    tab_fb_posts = filtered_fb_posts
 
     # Monitored Profiles Directory (100+ Curated Profiles)
     with st.expander(f"🇳🇵 Monitored Directory of 100+ Facebook Personalities, Institutions & Embassies", expanded=False):
@@ -1511,10 +1620,9 @@ with tab4:
         cutoff_48 = now_npt - datetime.timedelta(hours=48)
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_48]
 
-    # 2. Apply search query
-    if search_query:
-        sq = search_query.lower()
-        filtered_fb_feed = [p for p in filtered_fb_feed if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
+    # 2. Apply smart search query
+    if search_query and search_query.strip():
+        filtered_fb_feed = [p for p in filtered_fb_feed if smart_search_match(p, search_query)]
 
     # 3. Apply category filter
     if fb_cat_filter != "All Categories (All 8)":
