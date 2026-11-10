@@ -40,7 +40,8 @@ from whatsapp_dispatcher import (
     dispatch_item_to_webhook,
     get_green_api_status,
     dispatch_item_to_green_api,
-    get_green_api_credentials
+    get_green_api_credentials,
+    find_channel_newsletter_id
 )
 
 def dispatch_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: str) -> bool:
@@ -103,8 +104,13 @@ def run_single_broadcast_cycle(
     meta_token = get_env_variable("WHATSAPP_ACCESS_TOKEN")
     _, green_id, _ = get_green_api_credentials()
     green_chat_id = get_env_variable("GREEN_API_CHAT_ID")
+    if not green_chat_id and green_id:
+        detected_ch = find_channel_newsletter_id()
+        if detected_ch:
+            green_chat_id = detected_ch
 
     logger.info("--- Starting Broadcast Scan Cycle ---")
+    logger.info(f"Broadcast Channel URL: {get_env_variable('WHATSAPP_CHANNEL_URL', DEFAULT_CHANNEL_URL)}")
     logger.info(f"Direct Green-API configured: {'Yes (Chat: ' + green_chat_id + ')' if green_id and green_chat_id else 'No'}")
     logger.info(f"Webhook URL configured: {'Yes' if webhook_url else 'No'}")
     logger.info(f"Meta Cloud API configured: {'Yes' if meta_token else 'No'}")
@@ -181,8 +187,9 @@ def run_single_broadcast_cycle(
     return summary
 
 def main():
+    default_interval = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "1800"))
     parser = argparse.ArgumentParser(description="Nepal Monitor WhatsApp Automated Dispatch Worker")
-    parser.add_argument("--interval", type=int, default=1800, help="Scan interval in seconds (default: 1800s / 30 mins)")
+    parser.add_argument("--interval", type=int, default=default_interval, help=f"Scan interval in seconds (default: {default_interval}s / {default_interval // 60} mins)")
     parser.add_argument("--once", action="store_true", help="Run once and exit (for cron jobs)")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without sending network requests")
     parser.add_argument("--max-per-cycle", type=int, default=10, help="Maximum stories to send per cycle")
