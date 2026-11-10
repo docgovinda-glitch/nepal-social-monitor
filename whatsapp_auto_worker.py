@@ -196,10 +196,10 @@ def run_single_broadcast_cycle(
     summary = {
         "timestamp": datetime.now().isoformat(),
         "total_scanned": len(all_scanned),
-        "unbroadcasted_found": len(unbroadcasted),
+        "unbroadcasted_found": len(unbroadcasted_in_window),
         "dispatched": dispatched_count,
         "failed": failed_count,
-        "remaining_unbroadcasted": max(0, len(unbroadcasted) - dispatched_count)
+        "remaining_unbroadcasted": max(0, len(unbroadcasted_in_window) - dispatched_count)
     }
     logger.info(f"Broadcast cycle finished: {dispatched_count} sent, {failed_count} failed.")
     return summary
