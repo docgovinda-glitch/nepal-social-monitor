@@ -28,10 +28,6 @@ from nepal_fetcher import (
     fetch_nepal_in_indian_media,
     query_x_api,
     get_live_nepal_trends,
-    batch_translate_headlines,
-    batch_translate_posts,
-    translate_headline_to_en,
-    translate_to_english_machine,
     batch_fetch_full_content,
     extract_article_full_text,
     generate_word_document,
@@ -333,78 +329,6 @@ st.markdown("""
     .card-accent-economy { border-left-color: #059669 !important; }
     .card-accent-others { border-left-color: #94A3B8 !important; }
     .card-accent-indian-press { border-left-color: #F97316 !important; }
-
-    /* Apple Minimal Translation Components */
-    .apple-trans-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        background: #EFF6FF;
-        color: #1D4ED8;
-        border: 1px solid #BFDBFE;
-        padding: 2px 7px;
-        border-radius: 5px;
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-    }
-    .apple-trans-details {
-        margin: 8px 0 6px 0;
-    }
-    .apple-trans-details summary {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 0.76rem;
-        font-weight: 600;
-        color: #2563EB;
-        background: #F1F5F9;
-        border: 1px solid #E2E8F0;
-        padding: 3px 9px;
-        border-radius: 6px;
-        cursor: pointer;
-        user-select: none;
-        transition: all 0.15s ease;
-        list-style: none;
-        width: fit-content;
-    }
-    .apple-trans-details summary::-webkit-details-marker {
-        display: none;
-    }
-    .apple-trans-details summary:hover {
-        background: #E2E8F0;
-        color: #1D4ED8;
-    }
-    .apple-trans-content {
-        margin-top: 7px;
-        padding: 9px 12px;
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-left: 3px solid #3B82F6;
-        border-radius: 6px;
-        font-size: 0.86rem;
-        color: #1E293B;
-        line-height: 1.5;
-    }
-    .apple-trans-original-details {
-        margin: 6px 0 4px 0;
-    }
-    .apple-trans-original-details summary {
-        font-size: 0.74rem;
-        color: #64748B;
-        cursor: pointer;
-        user-select: none;
-    }
-    .apple-orig-box {
-        font-size: 0.82rem;
-        color: #475569;
-        padding: 5px 9px;
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 5px;
-        margin-top: 4px;
-        line-height: 1.45;
-    }
 
     .apple-card-meta {
         display: flex;
@@ -933,6 +857,9 @@ if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_f
     st.session_state["fb_visible_count"] = 20
     if "custom_to_use_current" in st.session_state:
         st.session_state["custom_to_use_current"] = True
+    st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+    if "custom_to_use_current" in st.session_state:
+        st.session_state["custom_to_use_current"] = True
     if "x_cat_filter_select" in st.session_state:
         st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
     if "fb_cat_filter_select" in st.session_state:
@@ -940,22 +867,6 @@ if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_f
     st.rerun()
 
 lang_filter = st.sidebar.radio("Content Language:", ["All Languages", "Nepali Only", "English Only", "Hindi Only"])
-
-auto_translate_en = st.sidebar.checkbox(
-    "🌐 Auto-Translate to English",
-    value=False,
-    help="Automatically translates all non-English headlines, news reports, and social posts to English across all 4 channels."
-)
-
-with st.sidebar.expander("⚡ Translate to English Machine", expanded=False):
-    trans_input = st.text_area("Translate any Nepali or Hindi text:", height=75, placeholder="यहाँ समाचार वा स्टाटस लेख्नुहोस्...", key="trans_box_input")
-    if st.button("Translate to English ↗", width="stretch", key="btn_run_trans"):
-        if trans_input.strip():
-            with st.spinner("Translating..."):
-                out_en = translate_to_english_machine(trans_input)
-                st.markdown(f'<div style="background:#F8FAFC; border:1px solid #E2E8F0; padding:8px 12px; border-radius:6px; font-size:0.88rem; color:#0F172A; margin-top:6px;"><b>English Output:</b><br>{html.escape(out_en)}</div>', unsafe_allow_html=True)
-        else:
-            st.caption("Please paste some text above.")
 
 # Portal Filter Dropdown
 all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
@@ -1073,64 +984,24 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
     time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
 
     raw_title = item.get("title", "")
-    is_non_en = any('\u0900' <= c <= '\u097F' for c in raw_title)
-
-    # Translation resolution
-    translated_title = item.get("headline_english")
-    if is_non_en and not translated_title:
-        translated_title = translate_to_english_machine(raw_title)
-        item["headline_english"] = translated_title
-
     summary = item.get("summary", "")
     has_sum = bool(summary and summary.strip() != raw_title.strip())
-    translated_summary = item.get("summary_english")
-    if is_non_en and has_sum and not translated_summary:
-        if any('\u0900' <= c <= '\u097F' for c in summary):
-            translated_summary = translate_to_english_machine(summary)
-            item["summary_english"] = translated_summary
-        else:
-            translated_summary = summary
 
     # Language pill badge
     lang = item.get("language", "")
     lang_badge = f'<span class="time-badge" style="background:#F8FAFC; color:#475569; font-weight:600;">🌐 {lang}</span>' if lang else ""
 
     link = item.get("link", "#")
-
-    if auto_translate and is_non_en and translated_title:
-        title_display = html.escape(translated_title)
-        trans_tag = '<span class="apple-trans-tag">🌐 Translated</span>'
-        orig_toggle = f'<details class="apple-trans-original-details"><summary>View Original Headline (Nepali/Hindi)</summary><div class="apple-orig-box">{html.escape(raw_title)}</div></details>'
-        if translated_summary:
-            summary_html = f'<p class="apple-card-summary">{html.escape(translated_summary)}</p>'
-        elif has_sum:
-            summary_html = f'<p class="apple-card-summary">{html.escape(summary.strip())}</p>'
-        else:
-            summary_html = ""
-        trans_ui = orig_toggle
-    else:
-        title_display = html.escape(raw_title)
-        trans_tag = ""
-        if has_sum:
-            summary_html = f'<p class="apple-card-summary">{html.escape(summary.strip())}</p>'
-        else:
-            summary_html = ""
-        if is_non_en and translated_title and translated_title.strip().lower() != raw_title.strip().lower():
-            trans_body = f'<b>English Headline:</b> {html.escape(translated_title)}'
-            if translated_summary and translated_summary.strip() != translated_title.strip():
-                trans_body += f'<br><span style="color:#475569; font-size:0.83rem;"><b>Summary:</b> {html.escape(translated_summary)}</span>'
-            trans_ui = f'<details class="apple-trans-details"><summary>🌐 Translate to English</summary><div class="apple-trans-content">{trans_body}</div></details>'
-        else:
-            trans_ui = ""
+    title_display = html.escape(raw_title)
+    summary_html = f'<p class="apple-card-summary">{html.escape(summary.strip())}</p>' if has_sum else ""
 
     btn_label = "Read in Indian Press ↗" if is_indian else "Read Story ↗"
 
     return (
         f'<article class="apple-news-card {cat_accent_class}">'
-        f'<header class="apple-card-meta">{source_tag}{cat_badge}{lang_badge}{trans_tag}{time_badge}</header>'
+        f'<header class="apple-card-meta">{source_tag}{cat_badge}{lang_badge}{time_badge}</header>'
         f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{title_display}</a></h3>'
         f'{summary_html}'
-        f'{trans_ui}'
         f'<footer class="apple-card-footer"><a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{btn_label}</a></footer>'
         f'</article>'
     )
@@ -1156,25 +1027,8 @@ def render_apple_x_post_card(p, auto_translate=False):
         time_badge = f'<span class="time-badge">🕒 {rel_time}</span>'
 
     raw_text = p.get("text", "")
-    is_non_en = any('\u0900' <= c <= '\u097F' for c in raw_text)
-    translated_text = p.get("text_english")
-    if is_non_en and not translated_text:
-        translated_text = translate_to_english_machine(raw_text)
-        p["text_english"] = translated_text
-
-    if auto_translate and is_non_en and translated_text:
-        text = html.escape(translated_text, quote=False)
-        text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#0284C7;">\1</b>', text)
-        trans_tag = '<span class="apple-trans-tag" style="margin-left:6px;">🌐 Translated</span>'
-        trans_ui = f'<details class="apple-trans-original-details"><summary>View Original Post (Nepali)</summary><div class="apple-orig-box">{html.escape(raw_text)}</div></details>'
-    else:
-        text = html.escape(raw_text, quote=False)
-        text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#0284C7;">\1</b>', text)
-        trans_tag = ""
-        if is_non_en and translated_text and translated_text.strip().lower() != raw_text.strip().lower():
-            trans_ui = f'<details class="apple-trans-details"><summary>🌐 Translate to English</summary><div class="apple-trans-content"><b>English Translation:</b><br>{html.escape(translated_text)}</div></details>'
-        else:
-            trans_ui = ""
+    text = html.escape(raw_text, quote=False)
+    text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#0284C7;">\1</b>', text)
 
     likes = p.get("likes", 0)
     retweets = p.get("retweets", 0)
@@ -1219,10 +1073,9 @@ def render_apple_x_post_card(p, auto_translate=False):
         f'<span class="x-author-handle">{handle} · <span class="x-type-badge">{author_type}</span></span>'
         f'</div>'
         f'</div>'
-        f'<div style="display:flex; align-items:center; gap:8px;">{cat_badge}{trans_tag}{time_badge}</div>'
+        f'<div style="display:flex; align-items:center; gap:8px;">{cat_badge}{time_badge}</div>'
         f'</header>'
         f'<div class="x-post-text">{text}</div>'
-        f'{trans_ui}'
         f'<footer class="x-engagement-bar">'
         f'<div class="x-metrics-group">'
         f'<span class="x-metric-item" title="Likes">❤️ {likes_fmt}</span>'
@@ -1257,25 +1110,8 @@ def render_apple_fb_post_card(p, auto_translate=False):
         time_badge = f'<span class="time-badge">🕒 {rel_time}</span>'
 
     raw_text = p.get("text", "")
-    is_non_en = any('\u0900' <= c <= '\u097F' for c in raw_text)
-    translated_text = p.get("text_english")
-    if is_non_en and not translated_text:
-        translated_text = translate_to_english_machine(raw_text)
-        p["text_english"] = translated_text
-
-    if auto_translate and is_non_en and translated_text:
-        text = html.escape(translated_text, quote=False)
-        text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#1877F2;">\1</b>', text)
-        trans_tag = '<span class="apple-trans-tag" style="margin-left:6px; background:#EBF5FF; color:#1877F2; border-color:#BFDBFE;">🌐 Translated</span>'
-        trans_ui = f'<details class="apple-trans-original-details"><summary>View Original Post (Nepali)</summary><div class="apple-orig-box">{html.escape(raw_text)}</div></details>'
-    else:
-        text = html.escape(raw_text, quote=False)
-        text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#1877F2;">\1</b>', text)
-        trans_tag = ""
-        if is_non_en and translated_text and translated_text.strip().lower() != raw_text.strip().lower():
-            trans_ui = f'<details class="apple-trans-details"><summary>🌐 Translate to English</summary><div class="apple-trans-content"><b>English Translation:</b><br>{html.escape(translated_text)}</div></details>'
-        else:
-            trans_ui = ""
+    text = html.escape(raw_text, quote=False)
+    text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#1877F2;">\1</b>', text)
 
     feed_type = p.get("feed_type", "Facebook & Civic Intelligence")
     feed_badge = f'<span style="background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:600;">{html.escape(feed_type)}</span>'
@@ -1340,10 +1176,9 @@ def render_apple_fb_post_card(p, auto_translate=False):
         f'<span class="x-author-handle">{handle} · <span class="x-type-badge" style="background:#EBF5FF; color:#1877F2;">{author_type}</span></span>'
         f'</div>'
         f'</div>'
-        f'<div style="display:flex; align-items:center; gap:8px;">{feed_badge}{cat_badge}{trans_tag}{time_badge}</div>'
+        f'<div style="display:flex; align-items:center; gap:8px;">{feed_badge}{cat_badge}{time_badge}</div>'
         f'</header>'
         f'<div class="x-post-text">{text}</div>'
-        f'{trans_ui}'
         f'<footer class="x-engagement-bar">'
         f'<div class="x-metrics-group">'
         f'{senti_html}'
@@ -1593,6 +1428,9 @@ if active_filter_chips:
             st.session_state["fb_visible_count"] = 20
             if "custom_to_use_current" in st.session_state:
                 st.session_state["custom_to_use_current"] = True
+            st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+            if "custom_to_use_current" in st.session_state:
+                st.session_state["custom_to_use_current"] = True
             if "x_cat_filter_select" in st.session_state:
                 st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
             if "fb_cat_filter_select" in st.session_state:
@@ -1633,12 +1471,8 @@ with tab1:
         current_media_limit = st.session_state["media_visible_count"]
         visible_articles = filtered_articles[:current_media_limit]
 
-        if auto_translate_en:
-            with st.spinner("Translating Nepali headlines to English..."):
-                batch_translate_headlines(visible_articles)
-
         for item in visible_articles:
-            st.markdown(render_apple_article_card(item, is_indian=False, auto_translate=auto_translate_en), unsafe_allow_html=True)
+            st.markdown(render_apple_article_card(item, is_indian=False), unsafe_allow_html=True)
 
         if len(filtered_articles) > current_media_limit:
             remaining_media = len(filtered_articles) - current_media_limit
@@ -1696,12 +1530,8 @@ with tab2:
         current_indian_limit = st.session_state["indian_visible_count"]
         visible_indian = tab_filtered_indian[:current_indian_limit]
 
-        if auto_translate_en:
-            with st.spinner("Translating Indian press to English..."):
-                batch_translate_headlines(visible_indian)
-
         for a in visible_indian:
-            st.markdown(render_apple_article_card(a, is_indian=True, auto_translate=auto_translate_en), unsafe_allow_html=True)
+            st.markdown(render_apple_article_card(a, is_indian=True), unsafe_allow_html=True)
 
         if len(tab_filtered_indian) > current_indian_limit:
             remaining_indian = len(tab_filtered_indian) - current_indian_limit
@@ -1832,11 +1662,8 @@ with tab3:
     current_x_limit = st.session_state["x_visible_count"]
     visible_x_posts = filtered_feed[:current_x_limit]
 
-    # Pre-translate visible posts for instant on-demand or auto English display
-    batch_translate_posts(visible_x_posts)
-
     for p in visible_x_posts:
-        st.markdown(render_apple_x_post_card(p, auto_translate=auto_translate_en), unsafe_allow_html=True)
+        st.markdown(render_apple_x_post_card(p), unsafe_allow_html=True)
 
     if len(filtered_feed) > current_x_limit:
         remaining_x = len(filtered_feed) - current_x_limit
@@ -2055,11 +1882,8 @@ with tab4:
     current_fb_limit = st.session_state["fb_visible_count"]
     visible_fb_posts = filtered_fb_feed[:current_fb_limit]
 
-    # Pre-translate visible posts for instant on-demand or auto English display
-    batch_translate_posts(visible_fb_posts)
-
     for p in visible_fb_posts:
-        st.markdown(render_apple_fb_post_card(p, auto_translate=auto_translate_en), unsafe_allow_html=True)
+        st.markdown(render_apple_fb_post_card(p), unsafe_allow_html=True)
 
     if len(filtered_fb_feed) > current_fb_limit:
         remaining_fb = len(filtered_fb_feed) - current_fb_limit
@@ -2092,7 +1916,7 @@ with tab4:
 # ==========================================
 with tab5:
     st.subheader("📈 Analytics & CSV Export")
-    st.write("Inspect, filter, and export the datasets with **Extracted Full News Text** and **Original & Translated Headlines** within your selected time window.")
+    st.write("Inspect, filter, and export the datasets with **Extracted Full News Text** within your selected time window.")
 
     export_type = st.radio(
         "Choose Dataset to Inspect/Download:",
@@ -2101,21 +1925,14 @@ with tab5:
 
     if export_type == "Nepali Media (34 Portals)":
         if filtered_articles:
-            with st.spinner("Extracting full news text and preparing headline translations for export..."):
-                ready_articles = batch_translate_headlines(filtered_articles)
-                ready_articles = batch_fetch_full_content(ready_articles)
+            with st.spinner("Extracting full news text for export..."):
+                ready_articles = batch_fetch_full_content(filtered_articles)
 
             export_rows = []
             for a in ready_articles:
                 orig_title = (a.get("title") or "").strip()
-                en_trans = (a.get("headline_english") or "").strip()
-                if en_trans and en_trans != orig_title:
-                    combined_headline = f"{orig_title}\n{en_trans}"
-                else:
-                    combined_headline = orig_title
-
                 export_rows.append({
-                    "Headline (Original)": combined_headline,
+                    "Headline": orig_title,
                     "Full Content": a.get("full_content") or a.get("summary", ""),
                     "Structured Category": a.get("structured_category", "Others"),
                     "Source / Portal": a.get("source", ""),
@@ -2332,21 +2149,14 @@ with tab5:
             st.info("No articles found in the selected timeframe.")
     elif export_type == "Nepal in Indian Media (18 Outlets)":
         if filtered_indian:
-            with st.spinner("Extracting full news text and preparing headline translations for export..."):
-                ready_indian = batch_translate_headlines(filtered_indian)
-                ready_indian = batch_fetch_full_content(ready_indian)
+            with st.spinner("Extracting full news text for export..."):
+                ready_indian = batch_fetch_full_content(filtered_indian)
 
             export_rows_i = []
             for a in ready_indian:
                 orig_title = (a.get("title") or "").strip()
-                en_trans = (a.get("headline_english") or "").strip()
-                if en_trans and en_trans != orig_title:
-                    combined_headline = f"{orig_title}\n{en_trans}"
-                else:
-                    combined_headline = orig_title
-
                 export_rows_i.append({
-                    "Headline (Original)": combined_headline,
+                    "Headline": orig_title,
                     "Full Content": a.get("full_content") or a.get("summary", ""),
                     "Source / Outlet": a.get("source", ""),
                     "Exact Timestamp": a.get("exact_time", ""),
