@@ -11,6 +11,7 @@ import re
 import json
 import datetime
 import zoneinfo
+import urllib.parse
 import requests
 import urllib3
 import feedparser
@@ -141,7 +142,9 @@ def fetch_live_official_dispatches() -> List[Dict[str, Any]]:
                 "text": f"🇺🇸 U.S. Embassy Public Release: {t} — {e.get('summary', '')[:200]}...",
                 "headline_english": t,
                 "structured_category": "Nepal – External Relations (Others)",
-                "link": e.get("link", "https://np.usembassy.gov"),
+                "link": "https://www.facebook.com/nepal.usembassy",
+                "fb_link": "https://www.facebook.com/nepal.usembassy",
+                "article_link": e.get("link", "https://np.usembassy.gov"),
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -191,7 +194,9 @@ def fetch_live_official_dispatches() -> List[Dict[str, Any]]:
                 "text": f"🇬🇧 UK Government Dispatch on Nepal: {t}",
                 "headline_english": t,
                 "structured_category": "Nepal – External Relations (Others)",
-                "link": e.get("link", "https://www.gov.uk"),
+                "link": "https://www.facebook.com/ukinnepal",
+                "fb_link": "https://www.facebook.com/ukinnepal",
+                "article_link": e.get("link", "https://www.gov.uk"),
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -241,7 +246,9 @@ def fetch_live_official_dispatches() -> List[Dict[str, Any]]:
                 "text": f"🏦 Nepal Rastra Bank Public Notice: {t}",
                 "headline_english": t,
                 "structured_category": "Economy",
-                "link": e.get("link", "https://www.nrb.org.np"),
+                "link": "https://www.facebook.com/nepalrastrabank",
+                "fb_link": "https://www.facebook.com/nepalrastrabank",
+                "article_link": e.get("link", "https://www.nrb.org.np"),
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -369,6 +376,40 @@ MEDIA_SOURCE_TO_SLUG = {
 }
 
 
+def extract_real_fb_post_url(a: Dict[str, Any]) -> str:
+    """
+    Extracts authentic Facebook post, permalink, or video URL from article text, summary,
+    or embedded links.
+    """
+    content = f"{a.get('summary', '')} {a.get('full_content', '')} {a.get('raw_html', '')}"
+    if not content:
+        return ""
+
+    patterns = [
+        r'https?://(?:www\.|m\.)?facebook\.com/[^/\s"\']+/posts/(?:pfbid0)?[a-zA-Z0-9]+',
+        r'https?://(?:www\.|m\.)?facebook\.com/share/p/[a-zA-Z0-9]+',
+        r'https?://(?:www\.|m\.)?facebook\.com/share/v/[a-zA-Z0-9]+',
+        r'https?://(?:www\.|m\.)?facebook\.com/share/[a-zA-Z0-9]+',
+        r'https?://(?:www\.|m\.)?facebook\.com/permalink\.php\?[^"\s\'<>]+',
+        r'https?://(?:www\.|m\.)?facebook\.com/story\.php\?[^"\s\'<>]+',
+        r'https?://(?:www\.|m\.)?facebook\.com/[^/\s"\']+/videos/[0-9]+',
+        r'https?://fb\.watch/[a-zA-Z0-9_-]+',
+        r'https%3A%2F%2F(?:www\.)?facebook\.com%2F[^%&\s"\']+%2Fposts%2F[^%&\s"\']+',
+        r'https%3A%2F%2F(?:www\.)?facebook\.com%2Fshare%2F[^%&\s"\']+',
+    ]
+    for pat in patterns:
+        m = re.search(pat, content)
+        if m:
+            found = m.group(0)
+            if "%3A" in found or "%2F" in found:
+                found = urllib.parse.unquote(found)
+            if "sharer.php" in found or "plugins/page.php" in found:
+                continue
+            return found
+
+    return ""
+
+
 def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Combines authentic sources into a rich live Facebook & Civic Intelligence stream:
@@ -413,6 +454,10 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
 
         if matched_slug and matched_slug in slug_to_dir:
             ent = slug_to_dir[matched_slug]
+            direct_fb_post = extract_real_fb_post_url(a)
+            # Direct target: authentic post permalink if available, otherwise official verified FB page
+            target_fb_url = direct_fb_post if direct_fb_post else f"https://www.facebook.com/{matched_slug}"
+
             fb_feed.append({
                 "id": f"art_fb_{hash(link) % 1000000}",
                 "source": f"{ent['name']} (via {src})",
@@ -428,7 +473,10 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
                 "text": f"📢 {title} — {summary[:240]}",
                 "headline_english": a.get("headline_english", ""),
                 "structured_category": cat,
-                "link": link if link else f"https://facebook.com/{matched_slug}",
+                "link": target_fb_url,
+                "fb_link": target_fb_url,
+                "article_link": link,
+                "has_direct_post": bool(direct_fb_post),
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -446,6 +494,13 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
 
         # Priority 2: Articles with explicit Facebook keywords
         if any(kw in text_corp for kw in fb_keywords):
+            direct_fb_post = extract_real_fb_post_url(a)
+            if direct_fb_post:
+                target_fb_url = direct_fb_post
+            else:
+                clean_q = re.sub(r'[\"\'\(\)\[\]]', '', title)[:70].strip()
+                target_fb_url = f"https://www.facebook.com/search/posts/?q={urllib.parse.quote_plus(clean_q)}"
+
             fb_feed.append({
                 "id": f"art_fb_{hash(link) % 1000000}",
                 "source": f"{src} (Reported FB Discourse)",
@@ -461,7 +516,10 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
                 "text": f"📰 {title} — {summary[:260]}",
                 "headline_english": a.get("headline_english", ""),
                 "structured_category": cat,
-                "link": link if link else "#",
+                "link": target_fb_url,
+                "fb_link": target_fb_url,
+                "article_link": link,
+                "has_direct_post": bool(direct_fb_post),
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -481,6 +539,9 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
         matched_media_slug = MEDIA_SOURCE_TO_SLUG.get(src)
         if matched_media_slug and matched_media_slug in slug_to_dir:
             ent = slug_to_dir[matched_media_slug]
+            direct_fb_post = extract_real_fb_post_url(a)
+            target_fb_url = direct_fb_post if direct_fb_post else f"https://www.facebook.com/{matched_media_slug}"
+
             fb_feed.append({
                 "id": f"art_fb_{hash(link) % 1000000}",
                 "source": f"{ent['name']} (Monitored News Desk)",
@@ -496,7 +557,10 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
                 "text": f"🗞 {title} — {summary[:240]}",
                 "headline_english": a.get("headline_english", ""),
                 "structured_category": cat,
-                "link": link if link else f"https://facebook.com/{matched_media_slug}",
+                "link": target_fb_url,
+                "fb_link": target_fb_url,
+                "article_link": link,
+                "has_direct_post": bool(direct_fb_post),
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -523,6 +587,8 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
     manual_posts = load_manual_curated_posts()
     for mp in manual_posts:
         if mp.get("link") not in seen_links:
+            if not mp.get("fb_link"):
+                mp["fb_link"] = mp.get("link", "https://facebook.com")
             fb_feed.append(mp)
             if mp.get("link"):
                 seen_links.add(mp["link"])

@@ -1049,9 +1049,46 @@ def render_apple_fb_post_card(p):
         senti_class = "x-sentiment-neutral"
     senti_html = f'<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span>'
 
-    link = p.get("link", "https://facebook.com")
+    # Determine authentic Facebook link (guaranteeing it points to Facebook)
+    fb_link = p.get("fb_link") or p.get("link", "")
     slug = p.get("raw_handle", "")
-    cta_label = "View Full Source / Statement ↗"
+    
+    # If fb_link is not an actual FB domain, use official slug or FB fallback
+    is_fb_url = any(dom in fb_link for dom in ["facebook.com", "fb.com", "fb.watch", "fb.me"])
+    if not is_fb_url:
+        if slug and slug != "media_report":
+            fb_link = f"https://www.facebook.com/{slug}"
+        else:
+            fb_link = "https://www.facebook.com"
+
+    # Contextual CTA label for real post / page
+    if "/posts/" in fb_link or "permalink.php" in fb_link or "/share/" in fb_link or "fb.watch" in fb_link or p.get("has_direct_post"):
+        cta_label = "View Real Post on Facebook ↗"
+    elif slug and slug != "media_report":
+        cta_label = f"View {author_name}'s Facebook ↗"
+    elif "search/posts" in fb_link:
+        cta_label = "Search Post on Facebook ↗"
+    else:
+        cta_label = "View on Facebook ↗"
+
+    # Optional secondary link to the news coverage if available and distinct
+    article_link = p.get("article_link", "")
+    source_btn_html = ""
+    if article_link and article_link != fb_link and article_link.startswith("http"):
+        source_raw = p.get("source", "Media Desk")
+        if "via" in source_raw.lower():
+            desk_label = source_raw.split("via")[-1].replace(")", "").strip()
+        elif "(" in source_raw:
+            desk_label = source_raw.split("(")[0].strip()
+        else:
+            desk_label = source_raw[:24]
+        source_btn_html = (
+            f'<a href="{html.escape(article_link)}" target="_blank" rel="noopener noreferrer" '
+            f'style="font-size:0.75rem; color:#475569; text-decoration:none; padding:4px 9px; '
+            f'border-radius:6px; background:#F8FAFC; border:1px solid #CBD5E1; display:inline-flex; '
+            f'align-items:center; gap:4px; font-weight:500;" '
+            f'title="Read media coverage report on {html.escape(desk_label)}">🗞 {html.escape(desk_label)} Report ↗</a>'
+        )
 
     return (
         f'<article class="x-post-card" style="border-left: 3px solid #1877F2;">'
@@ -1069,9 +1106,12 @@ def render_apple_fb_post_card(p):
         f'<footer class="x-engagement-bar">'
         f'<div class="x-metrics-group">'
         f'{senti_html}'
-        f'<span style="font-size:0.75rem; color:#64748B;">Authentic & Verified Stream</span>'
+        f'<span style="font-size:0.75rem; color:#64748B;">Authentic Facebook Stream</span>'
         f'</div>'
-        f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="x-cta-link" style="color:#1877F2; background:#EBF5FF; border-color:#BFDBFE;">{cta_label}</a>'
+        f'<div style="display:flex; align-items:center; gap:8px;">'
+        f'{source_btn_html}'
+        f'<a href="{html.escape(fb_link)}" target="_blank" rel="noopener noreferrer" class="x-cta-link" style="color:#1877F2; background:#EBF5FF; border-color:#BFDBFE; font-weight:600;">{cta_label}</a>'
+        f'</div>'
         f'</footer>'
         f'</article>'
     )
