@@ -1352,15 +1352,27 @@ with tab3:
     st.markdown(f'<div class="apple-counter-badge">Showing <b>{len(filtered_feed):,} of {len(all_x_posts):,}</b> verified X posts</div>', unsafe_allow_html=True)
     st.write("")
 
-    # Render Post Cards (paginated / limited for smooth scrolling)
-    display_limit = st.select_slider("Posts Display Limit:", options=[15, 25, 50, 100, "All"], value=50, key="x_display_limit")
-    limit_count = len(filtered_feed) if display_limit == "All" else int(display_limit)
+    # Render Post Cards with "Load More Feeds" button
+    if "x_visible_count" not in st.session_state:
+        st.session_state["x_visible_count"] = 20
 
-    for p in filtered_feed[:limit_count]:
+    current_x_limit = st.session_state["x_visible_count"]
+    visible_x_posts = filtered_feed[:current_x_limit]
+
+    for p in visible_x_posts:
         st.markdown(render_apple_x_post_card(p), unsafe_allow_html=True)
 
-    if len(filtered_feed) > limit_count:
-        st.info(f"Showing first {limit_count} posts. Use the slider above to view all {len(filtered_feed):,} posts, or export them in Tab 5.")
+    if len(filtered_feed) > current_x_limit:
+        remaining_x = len(filtered_feed) - current_x_limit
+        next_batch_x = min(20, remaining_x)
+        c_lm1, c_lm2, c_lm3 = st.columns([1.5, 2, 1.5])
+        with c_lm2:
+            if st.button(f"⬇️ Load More Feeds (+{next_batch_x} posts)", width="stretch", key="btn_load_more_x"):
+                st.session_state["x_visible_count"] += 20
+                st.rerun()
+            st.caption(f"Showing {len(visible_x_posts):,} of {len(filtered_feed):,} posts ({remaining_x:,} remaining)")
+    elif len(filtered_feed) > 0:
+        st.caption(f"🏁 You've reached the end of the feed ({len(filtered_feed):,} posts displayed).")
 
     st.markdown("---")
 
@@ -1563,15 +1575,27 @@ with tab4:
     st.markdown(f'<div class="apple-counter-badge" style="background:#EBF5FF; color:#1877F2; border-color:#BFDBFE;">Showing <b>{len(filtered_fb_feed):,} of {len(all_fb_posts):,}</b> authentic intelligence items</div>', unsafe_allow_html=True)
     st.write("")
 
-    # Render Post Cards
-    fb_display_limit = st.select_slider("Items Display Limit:", options=[15, 25, 50, 100, "All"], value=50, key="fb_display_limit")
-    fb_limit_count = len(filtered_fb_feed) if fb_display_limit == "All" else int(fb_display_limit)
+    # Render Post Cards with "Load More Feeds" button
+    if "fb_visible_count" not in st.session_state:
+        st.session_state["fb_visible_count"] = 20
 
-    for p in filtered_fb_feed[:fb_limit_count]:
+    current_fb_limit = st.session_state["fb_visible_count"]
+    visible_fb_posts = filtered_fb_feed[:current_fb_limit]
+
+    for p in visible_fb_posts:
         st.markdown(render_apple_fb_post_card(p), unsafe_allow_html=True)
 
-    if len(filtered_fb_feed) > fb_limit_count:
-        st.info(f"Showing first {fb_limit_count} items. Use the slider above to view all {len(filtered_fb_feed):,} items, or export them in Tab 5.")
+    if len(filtered_fb_feed) > current_fb_limit:
+        remaining_fb = len(filtered_fb_feed) - current_fb_limit
+        next_batch_fb = min(20, remaining_fb)
+        c_lmf1, c_lmf2, c_lmf3 = st.columns([1.5, 2, 1.5])
+        with c_lmf2:
+            if st.button(f"⬇️ Load More Feeds (+{next_batch_fb} items)", width="stretch", key="btn_load_more_fb"):
+                st.session_state["fb_visible_count"] += 20
+                st.rerun()
+            st.caption(f"Showing {len(visible_fb_posts):,} of {len(filtered_fb_feed):,} items ({remaining_fb:,} remaining)")
+    elif len(filtered_fb_feed) > 0:
+        st.caption(f"🏁 You've reached the end of the stream ({len(filtered_fb_feed):,} items displayed).")
 
     st.markdown("---")
 
