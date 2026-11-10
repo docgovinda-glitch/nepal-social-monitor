@@ -1506,10 +1506,10 @@ if active_filter_chips:
 
 # 8. Navigation Tabs (Dynamic Live Counts)
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    f"📰 Nepali Media ({len(filtered_articles)})",
-    f"🇮🇳 Indian Media ({len(filtered_indian)})",
-    f"🐦 X (Twitter) ({len(filtered_x_posts)})",
-    f"📘 Facebook ({len(filtered_fb_posts)})",
+    f"📰 Nepali Media ({len(filtered_articles)} Stories)",
+    f"🇮🇳 Indian Media ({len(filtered_indian)} Stories)",
+    f"🐦 X (Twitter) ({len(filtered_x_posts)} Posts)",
+    f"📘 Facebook ({len(filtered_fb_posts)} Posts)",
     "📈 Analytics & Export"
 ])
 
