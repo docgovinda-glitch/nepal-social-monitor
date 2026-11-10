@@ -2096,6 +2096,840 @@ TOP_NEPAL_X_ACCOUNTS = [
         "avatar_bg": "#7c2d12",
         "initials": "MC",
         "followers": "32K"
+    },
+
+    # -------------------------------------------------------------
+    # 13. Ministers, Senior Lawmakers & Party Leadership
+    # -------------------------------------------------------------
+    {
+        "name": "Narayan Kaji Shrestha",
+        "handle": "nkshresthaoffice",
+        "type": "Political Leader",
+        "role": "Senior Vice Chairman, CPN (Maoist Centre) / Former Deputy PM & Home Minister",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "NK",
+        "followers": "380K"
+    },
+    {
+        "name": "Purna Bahadur Khadka",
+        "handle": "PurnaB_Khadka",
+        "type": "Political Leader",
+        "role": "Vice President, Nepali Congress / Former Defence Minister",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "PK",
+        "followers": "210K"
+    },
+    {
+        "name": "Dhan Raj Gurung",
+        "handle": "dhanr_gurung",
+        "type": "Political Leader",
+        "role": "Vice President, Nepali Congress / Former Law Minister",
+        "verified": True,
+        "avatar_bg": "#16a34a",
+        "initials": "DG",
+        "followers": "320K"
+    },
+    {
+        "name": "Ramesh Lekhak",
+        "handle": "RameshLekhak",
+        "type": "Political Leader",
+        "role": "Home Minister of Nepal / Senior Leader, Nepali Congress",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "RL",
+        "followers": "190K"
+    },
+    {
+        "name": "Badri Prasad Pandey",
+        "handle": "BadriPandeyNC",
+        "type": "Political Leader",
+        "role": "Minister for Culture, Tourism and Civil Aviation / NC Leader",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "BP",
+        "followers": "95K"
+    },
+    {
+        "name": "Pradeep Paudel",
+        "handle": "paudelpradeepnc",
+        "type": "Political Leader",
+        "role": "Minister for Health & Population / Youth Leader, Nepali Congress",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "PP",
+        "followers": "280K"
+    },
+    {
+        "name": "Teju Lal Chaudhary",
+        "handle": "TejulalC",
+        "type": "Political Leader",
+        "role": "Minister for Youth and Sports / Member of Parliament",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "TC",
+        "followers": "65K"
+    },
+    {
+        "name": "Damodar Bhandari",
+        "handle": "DamodarBhandar4",
+        "type": "Political Leader",
+        "role": "Minister for Industry, Commerce and Supplies / CPN (UML)",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "DB",
+        "followers": "85K"
+    },
+    {
+        "name": "Balaram Adhikari",
+        "handle": "Balaram_Adh",
+        "type": "Political Leader",
+        "role": "Minister for Land Management, Cooperatives and Poverty Alleviation",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "BA",
+        "followers": "45K"
+    },
+    {
+        "name": "Nawal Kishor Sah Sudi",
+        "handle": "NawalKishorSah",
+        "type": "Political Leader",
+        "role": "Minister for Women, Children & Senior Citizens / JSP Leader",
+        "verified": True,
+        "avatar_bg": "#ea580c",
+        "initials": "NS",
+        "followers": "55K"
+    },
+    {
+        "name": "Ain Bahadur Shahi Thakuri",
+        "handle": "AinShahi",
+        "type": "Political Leader",
+        "role": "Minister for Forest and Environment / Member of Parliament",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "AS",
+        "followers": "42K"
+    },
+    {
+        "name": "Chhabilal Bishwakarma",
+        "handle": "ChhabilalBishwa",
+        "type": "Political Leader",
+        "role": "Secretary, CPN (UML) / Member of Parliament",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "CB",
+        "followers": "95K"
+    },
+    {
+        "name": "Gokarna Bista",
+        "handle": "GokarnaBista",
+        "type": "Political Leader",
+        "role": "Secretary, CPN (UML) / Former Labor Minister & Youth Figure",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "GB",
+        "followers": "420K"
+    },
+    {
+        "name": "Raghuji Panta",
+        "handle": "RaghujiPanta",
+        "type": "Political Leader",
+        "role": "Standing Committee Member, CPN (UML) / Senior Parliamentarian",
+        "verified": True,
+        "avatar_bg": "#991b1b",
+        "initials": "RP",
+        "followers": "110K"
+    },
+    {
+        "name": "Thakur Gaire",
+        "handle": "ThakurGaire",
+        "type": "Political Leader",
+        "role": "Youth Leader, CPN (UML) / Member of Parliament",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "TG",
+        "followers": "130K"
+    },
+    {
+        "name": "Madhav Kumar Nepal",
+        "handle": "ncp_madhavnepal",
+        "type": "Political Leader",
+        "role": "Chairman, CPN (Unified Socialist) / Former Prime Minister",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "MN",
+        "followers": "280K"
+    },
+    {
+        "name": "Jhalanath Khanal",
+        "handle": "JNKhanal_Nepal",
+        "type": "Political Leader",
+        "role": "Senior Leader, CPN (Unified Socialist) / Former Prime Minister",
+        "verified": True,
+        "avatar_bg": "#991b1b",
+        "initials": "JK",
+        "followers": "160K"
+    },
+    {
+        "name": "Ghanashyam Bhusal",
+        "handle": "GhanashyamBhus1",
+        "type": "Political Leader",
+        "role": "General Secretary, CPN (Unified Socialist) / Ideologue & Former Minister",
+        "verified": True,
+        "avatar_bg": "#7c2d12",
+        "initials": "GB",
+        "followers": "240K"
+    },
+    {
+        "name": "CPN (Unified Socialist) Official",
+        "handle": "cpn_us",
+        "type": "Political Leader",
+        "role": "Official Communication Handle of CPN (Unified Socialist)",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "US",
+        "followers": "65K"
+    },
+    {
+        "name": "Chitra Bahadur KC",
+        "handle": "ChitraBahadurKC",
+        "type": "Political Leader",
+        "role": "Chairman, Rashtriya Janamorcha / Veteran Anti-Federalism Parliamentarian",
+        "verified": True,
+        "avatar_bg": "#7c2d12",
+        "initials": "CK",
+        "followers": "95K"
+    },
+    {
+        "name": "CP Gajurel",
+        "handle": "cpgajurel",
+        "type": "Political Leader",
+        "role": "Leader, Revolutionary Communist Party Nepal",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "CG",
+        "followers": "45K"
+    },
+    {
+        "name": "CP Mainali",
+        "handle": "CPMainali",
+        "type": "Political Leader",
+        "role": "General Secretary, CPN (ML) / Veteran Nationalist Leader",
+        "verified": True,
+        "avatar_bg": "#991b1b",
+        "initials": "CM",
+        "followers": "55K"
+    },
+
+    # -------------------------------------------------------------
+    # 14. Provincial Leadership & Chief Ministers
+    # -------------------------------------------------------------
+    {
+        "name": "Hikmat Kumar Karki",
+        "handle": "HikmatKarki",
+        "type": "Political Leader",
+        "role": "Chief Minister, Koshi Province / Senior UML Leader",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "HK",
+        "followers": "110K"
+    },
+    {
+        "name": "Satish Kumar Singh",
+        "handle": "SatishSingh_NP",
+        "type": "Political Leader",
+        "role": "Chief Minister, Madhesh Province / Janamat Party Leader",
+        "verified": True,
+        "avatar_bg": "#ea580c",
+        "initials": "SS",
+        "followers": "75K"
+    },
+    {
+        "name": "Saroj Kumar Yadav",
+        "handle": "SarojYadavJSP",
+        "type": "Political Leader",
+        "role": "Former Chief Minister, Madhesh Province / Senior JSP Leader",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "SY",
+        "followers": "65K"
+    },
+    {
+        "name": "Bahadur Singh Lama",
+        "handle": "BahadurSLama",
+        "type": "Political Leader",
+        "role": "Chief Minister, Bagmati Province / Nepali Congress",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "BL",
+        "followers": "85K"
+    },
+    {
+        "name": "Surendra Raj Pandey",
+        "handle": "SurendraRajP",
+        "type": "Political Leader",
+        "role": "Chief Minister, Gandaki Province / Senior NC Leader",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "SP",
+        "followers": "95K"
+    },
+    {
+        "name": "Chet Narayan Acharya",
+        "handle": "ChetNAcharya",
+        "type": "Political Leader",
+        "role": "Chief Minister, Lumbini Province / CPN (UML)",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "CA",
+        "followers": "68K"
+    },
+    {
+        "name": "Dilli Bahadur Chaudhary",
+        "handle": "DilliChaudhary",
+        "type": "Political Leader",
+        "role": "Former Chief Minister, Lumbini Province / Backward Community Reformer",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "DC",
+        "followers": "72K"
+    },
+    {
+        "name": "Yam Lal Kandel",
+        "handle": "YamLalKandel",
+        "type": "Political Leader",
+        "role": "Chief Minister, Karnali Province / CPN (UML)",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "YK",
+        "followers": "82K"
+    },
+    {
+        "name": "Kamal Bahadur Shah",
+        "handle": "KamalBShah",
+        "type": "Political Leader",
+        "role": "Chief Minister, Sudurpashchim Province / Nepali Congress",
+        "verified": True,
+        "avatar_bg": "#16a34a",
+        "initials": "KS",
+        "followers": "76K"
+    },
+
+    # -------------------------------------------------------------
+    # 15. Federal Ministries, Planning, Customs & Revenue
+    # -------------------------------------------------------------
+    {
+        "name": "Ministry of Home Affairs",
+        "handle": "mohanepal",
+        "type": "Government & Security",
+        "role": "Internal Security, Public Order, Disaster & Border Admin",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "MH",
+        "followers": "210K"
+    },
+    {
+        "name": "Ministry of Health and Population",
+        "handle": "mohpnep",
+        "type": "Government & Security",
+        "role": "Public Health Alerts, Epidemic Control & Medical Policy",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "HP",
+        "followers": "320K"
+    },
+    {
+        "name": "Ministry of Energy, Water Resources & Irrigation",
+        "handle": "MoEWRI_Nepal",
+        "type": "Government & Security",
+        "role": "Hydropower Policy, Transmission Grids & Water Treaties",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "ME",
+        "followers": "115K"
+    },
+    {
+        "name": "Ministry of Culture, Tourism & Civil Aviation",
+        "handle": "moctca_nepal",
+        "type": "Government & Security",
+        "role": "Tourism Policy, Mountaineering Regs & Airport Development",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "TC",
+        "followers": "130K"
+    },
+    {
+        "name": "Ministry of Physical Infrastructure & Transport",
+        "handle": "mopit_nepal",
+        "type": "Government & Security",
+        "role": "Highways, Bridges, Fast Track & Transport Regulatory Affairs",
+        "verified": True,
+        "avatar_bg": "#1e40af",
+        "initials": "PI",
+        "followers": "145K"
+    },
+    {
+        "name": "Ministry of Agriculture and Livestock Development",
+        "handle": "moald_nepal",
+        "type": "Government & Security",
+        "role": "Agricultural Policy, Fertilizer Supply & Food Security",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "AL",
+        "followers": "98K"
+    },
+    {
+        "name": "Ministry of Education, Science and Technology",
+        "handle": "moest_nepal",
+        "type": "Government & Security",
+        "role": "National Education Standards, School Curriculum & Tech Policy",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "ES",
+        "followers": "165K"
+    },
+    {
+        "name": "National Planning Commission Nepal",
+        "handle": "NPC_Nepal",
+        "type": "Government & Security",
+        "role": "Apex Policy Planning Body / Five-Year Development Frameworks",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "NP",
+        "followers": "85K"
+    },
+    {
+        "name": "Department of Customs Nepal",
+        "handle": "CustomsNepal",
+        "type": "Government & Security",
+        "role": "Trade Logistics, Border Checkposts & Revenue Assessment",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "DC",
+        "followers": "110K"
+    },
+    {
+        "name": "Inland Revenue Department Nepal",
+        "handle": "IRDNepal",
+        "type": "Government & Security",
+        "role": "Tax Administration, VAT, Income Tax & Fiscal Compliance",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "IR",
+        "followers": "95K"
+    },
+    {
+        "name": "Department of Roads Nepal",
+        "handle": "DOR_Nepal",
+        "type": "Government & Security",
+        "role": "National Highway Construction, Road Maintenance & Disaster Clearing",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "DR",
+        "followers": "125K"
+    },
+    {
+        "name": "Social Welfare Council Nepal",
+        "handle": "SWCNepal",
+        "type": "Government & Security",
+        "role": "Regulatory Body for INGOs & NGOs operating in Nepal",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "SW",
+        "followers": "45K"
+    },
+    {
+        "name": "National Statistics Office Nepal",
+        "handle": "NSO_Nepal",
+        "type": "Government & Security",
+        "role": "Official Census, National Demographics & Economic Surveys",
+        "verified": True,
+        "avatar_bg": "#475569",
+        "initials": "NS",
+        "followers": "65K"
+    },
+
+    # -------------------------------------------------------------
+    # 16. Additional Foreign Missions & Multilateral Platforms
+    # -------------------------------------------------------------
+    {
+        "name": "Embassy of France in Nepal",
+        "handle": "FranceinNepal",
+        "type": "Diplomatic Missions",
+        "role": "French Diplomatic Mission & Cultural Cooperation in Nepal",
+        "verified": True,
+        "avatar_bg": "#1d4ed8",
+        "initials": "FN",
+        "followers": "45K"
+    },
+    {
+        "name": "Embassy of Israel in Nepal",
+        "handle": "IsraelinNepal",
+        "type": "Diplomatic Missions",
+        "role": "Israeli Diplomatic Mission / Agriculture & Learn-and-Earn Program",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "IL",
+        "followers": "62K"
+    },
+    {
+        "name": "Embassy of Russia in Nepal",
+        "handle": "RusEmbNepal",
+        "type": "Diplomatic Missions",
+        "role": "Embassy of the Russian Federation in Kathmandu",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "RN",
+        "followers": "38K"
+    },
+    {
+        "name": "Royal Norwegian Embassy Kathmandu",
+        "handle": "NorwayinNepal",
+        "type": "Diplomatic Missions",
+        "role": "Norwegian Embassy / Clean Energy & Climate Cooperation",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "NN",
+        "followers": "42K"
+    },
+    {
+        "name": "Embassy of Switzerland in Nepal",
+        "handle": "SwissEmbassyNP",
+        "type": "Diplomatic Missions",
+        "role": "Swiss Development Cooperation (SDC) & Diplomatic Mission",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "SE",
+        "followers": "48K"
+    },
+    {
+        "name": "Embassy of Qatar in Kathmandu",
+        "handle": "Qatarembkathman",
+        "type": "Diplomatic Missions",
+        "role": "Qatari Diplomatic Mission / Labor & Bilateral Affairs",
+        "verified": True,
+        "avatar_bg": "#701a75",
+        "initials": "QE",
+        "followers": "35K"
+    },
+    {
+        "name": "Royal Embassy of Saudi Arabia Nepal",
+        "handle": "KSAembassyNepal",
+        "type": "Diplomatic Missions",
+        "role": "Saudi Arabian Diplomatic Mission in Nepal / Labor Affairs",
+        "verified": True,
+        "avatar_bg": "#14532d",
+        "initials": "SA",
+        "followers": "41K"
+    },
+    {
+        "name": "Embassy of UAE in Kathmandu",
+        "handle": "UAEinNepal",
+        "type": "Diplomatic Missions",
+        "role": "UAE Diplomatic Mission in Nepal / Trade & Expatriate Desk",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "UE",
+        "followers": "39K"
+    },
+    {
+        "name": "Sri Lanka High Commission Nepal",
+        "handle": "SLinNepal",
+        "type": "Diplomatic Missions",
+        "role": "Sri Lankan Diplomatic Mission / Buddhist Circuit & SAARC Desk",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "SL",
+        "followers": "28K"
+    },
+    {
+        "name": "SAARC Development Fund",
+        "handle": "SDF_Secretariat",
+        "type": "Diplomatic Missions",
+        "role": "SAARC Regional Economic & Infrastructure Funding Arm",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "SD",
+        "followers": "25K"
+    },
+    {
+        "name": "BIMSTEC Secretariat",
+        "handle": "BimstecInDhaka",
+        "type": "Diplomatic Missions",
+        "role": "Bay of Bengal Initiative for Multi-Sectoral Tech & Economic Coop",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "BM",
+        "followers": "45K"
+    },
+
+    # -------------------------------------------------------------
+    # 17. Corporate Titans, Fintech Innovators & Banking Leaders
+    # -------------------------------------------------------------
+    {
+        "name": "Binod Chaudhary",
+        "handle": "BinodKChaudhary",
+        "type": "Economy & Business",
+        "role": "Member of Parliament / Chairman, CG Corp Global (Wai Wai)",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "BC",
+        "followers": "490K"
+    },
+    {
+        "name": "Nirvana Chaudhary",
+        "handle": "NirvanaCG",
+        "type": "Economy & Business",
+        "role": "Managing Director, CG Corp Global / Philanthropist & Investor",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "NC",
+        "followers": "180K"
+    },
+    {
+        "name": "Anand Bagaria",
+        "handle": "anand_bagaria",
+        "type": "Economy & Business",
+        "role": "Managing Director, Nimbus Group / Agri-Business & Feed Manufacturing",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "AB",
+        "followers": "42K"
+    },
+    {
+        "name": "Saurabh Jyoti",
+        "handle": "saurabh_jyoti",
+        "type": "Economy & Business",
+        "role": "Director, Jyoti Group / Auto, Steel, Heavy Industries & Philanthropy",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "SJ",
+        "followers": "85K"
+    },
+    {
+        "name": "Asgar Ali",
+        "handle": "asgar_ali",
+        "type": "Economy & Business",
+        "role": "Fintech Pioneer / Co-Founder eSewa / Tech Entrepreneur",
+        "verified": True,
+        "avatar_bg": "#16a34a",
+        "initials": "AA",
+        "followers": "68K"
+    },
+    {
+        "name": "Biswas Dhakal",
+        "handle": "biswasdhakal",
+        "type": "Economy & Business",
+        "role": "President & Executive Chairman, F1Soft Group (eSewa / Fonepay)",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "BD",
+        "followers": "95K"
+    },
+    {
+        "name": "Subhash Sharma",
+        "handle": "subhashsharma",
+        "type": "Economy & Business",
+        "role": "CEO, F1Soft International / Digital Banking & Payment Networks",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "SS",
+        "followers": "48K"
+    },
+    {
+        "name": "Khalti Official",
+        "handle": "KhaltiOfficial",
+        "type": "Economy & Business",
+        "role": "Leading Digital Wallet & Payment Gateway Platform of Nepal",
+        "verified": True,
+        "avatar_bg": "#7c3aed",
+        "initials": "KH",
+        "followers": "145K"
+    },
+    {
+        "name": "eSewa Official",
+        "handle": "eSewaNepal",
+        "type": "Economy & Business",
+        "role": "Nepal's Pioneer Digital Wallet & Digital Payment Network",
+        "verified": True,
+        "avatar_bg": "#16a34a",
+        "initials": "ES",
+        "followers": "260K"
+    },
+    {
+        "name": "IME Pay Official",
+        "handle": "IMEPAYNepal",
+        "type": "Economy & Business",
+        "role": "Digital Financial Services Arm of IME Group",
+        "verified": True,
+        "avatar_bg": "#ea580c",
+        "initials": "IP",
+        "followers": "95K"
+    },
+    {
+        "name": "Confederation of Nepalese Teachers",
+        "handle": "CNT_Nepal",
+        "type": "Civic Voice / Public Commentator",
+        "role": "National Federation of Public & Private School Educators",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "CT",
+        "followers": "52K"
+    },
+    {
+        "name": "National Banking Institute",
+        "handle": "NBINepal",
+        "type": "Economy & Business",
+        "role": "Apex Banking Academy & Financial Training Institute of Nepal",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "NB",
+        "followers": "38K"
+    },
+
+    # -------------------------------------------------------------
+    # 18. Veteran Editors, Columnists & Investigative Analysts
+    # -------------------------------------------------------------
+    {
+        "name": "Kishor Nepal",
+        "handle": "kishor_nepal",
+        "type": "Journalist / Analyst",
+        "role": "Veteran Editor, Author & Senior Political Columnist",
+        "verified": True,
+        "avatar_bg": "#7c2d12",
+        "initials": "KN",
+        "followers": "340K"
+    },
+    {
+        "name": "Narayan Shrestha",
+        "handle": "narayan_shrest",
+        "type": "Journalist / Analyst",
+        "role": "Veteran Broadcaster / Senior Producer BBC Nepali Service",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "NS",
+        "followers": "180K"
+    },
+    {
+        "name": "Yangesh",
+        "handle": "yangesh",
+        "type": "Journalist / Analyst",
+        "role": "Author of 'Bhuyan' / Senior Feature Writer & Cultural Columnist",
+        "verified": True,
+        "avatar_bg": "#334155",
+        "initials": "YG",
+        "followers": "115K"
+    },
+    {
+        "name": "Basanta Basnet",
+        "handle": "BasantaBasnet",
+        "type": "Journalist / Analyst",
+        "role": "Editor-in-Chief Shilapatra / Author of 'Mahabhara'",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "BB",
+        "followers": "165K"
+    },
+    {
+        "name": "Babita Basnet",
+        "handle": "babitabasnet",
+        "type": "Journalist / Analyst",
+        "role": "Senior Journalist / Editor Ghatana Ra Bichar / Women Rights Advocate",
+        "verified": True,
+        "avatar_bg": "#db2777",
+        "initials": "BB",
+        "followers": "140K"
+    },
+    {
+        "name": "Manisha Ghimire",
+        "handle": "ManishaGhimire",
+        "type": "Journalist / Analyst",
+        "role": "Senior Television Anchor & Investigative Political Interviewer",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "MG",
+        "followers": "92K"
+    },
+    {
+        "name": "KP Dhungana",
+        "handle": "KPDhungana",
+        "type": "Journalist / Analyst",
+        "role": "Senior Crime & Investigative Reporter / Editor Deshsanchar",
+        "verified": True,
+        "avatar_bg": "#1e293b",
+        "initials": "KD",
+        "followers": "125K"
+    },
+    {
+        "name": "Krishna Acharya",
+        "handle": "krishna_ach",
+        "type": "Journalist / Analyst",
+        "role": "Business & Economic Bureau Chief, Kantipur Publications",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "KA",
+        "followers": "85K"
+    },
+    {
+        "name": "Jagdishor Panday",
+        "handle": "JagdishorPanday",
+        "type": "Journalist / Analyst",
+        "role": "Diplomatic & Geopolitical Affairs Reporter, Kantipur",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "JP",
+        "followers": "72K"
+    },
+    {
+        "name": "Anil Giri",
+        "handle": "al_giri",
+        "type": "Journalist / Analyst",
+        "role": "Senior Diplomatic & Strategic Correspondent, The Kathmandu Post",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "AG",
+        "followers": "98K"
+    },
+    {
+        "name": "Sanjeev Satgainya",
+        "handle": "satgainya",
+        "type": "Journalist / Analyst",
+        "role": "Senior Editor & Columnist / Former Editor The Kathmandu Post",
+        "verified": True,
+        "avatar_bg": "#475569",
+        "initials": "SS",
+        "followers": "88K"
+    },
+    {
+        "name": "Shristi Kafle",
+        "handle": "ShristiKafle",
+        "type": "Journalist / Analyst",
+        "role": "Independent Journalist covering Nepal for International Media",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "SK",
+        "followers": "45K"
+    },
+    {
+        "name": "Rajneesh Bhandari",
+        "handle": "RajneeshB",
+        "type": "Journalist / Analyst",
+        "role": "Investigative Multimedia Journalist / Coordinator NIMJN",
+        "verified": True,
+        "avatar_bg": "#334155",
+        "initials": "RB",
+        "followers": "62K"
+    },
+    {
+        "name": "Center for Data Journalism Nepal",
+        "handle": "CDJNepal",
+        "type": "Think Tank & Policy",
+        "role": "Data Journalism, Public Accountability & Open Data Advocacy",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "CD",
+        "followers": "38K"
     }
 ]
 
