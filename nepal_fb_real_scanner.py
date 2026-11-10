@@ -259,31 +259,195 @@ def fetch_live_official_dispatches() -> List[Dict[str, Any]]:
     return dispatches
 
 
+LEADER_INSTITUTION_ALIASES = {
+    # Political Leaders & Civic Figures
+    'balenofficial': ['balen shah', 'बालेन शाह', 'बालेन्द्र शाह', 'बालेन'],
+    'kpsharmaoliofficial': ['kp oli', 'केपी ओली', 'केपी शर्मा ओली', 'प्रधानमन्त्री ओली'],
+    'cmprachanda': ['prachanda', 'प्रचण्ड', 'पुष्पकमल दाहाल', 'पुष्प कमल दाहाल'],
+    'sherbdeuba': ['sher bahadur deuba', 'शेरबहादुर देउवा', 'सभापति देउवा'],
+    'thapagk': ['gagan thapa', 'गगन थापा', 'गगनकुमार थापा'],
+    'swarnimw': ['swarnim wagle', 'स्वर्णिम वाग्ले', 'स्वर्णिम'],
+    'rabi.lamichhane.nepal': ['rabi lamichhane', 'रवि लामिछाने', 'लामिछाने'],
+    'kulmanghising': ['kulman ghising', 'कुलमान घिसिङ', 'कुलमान'],
+    'harkasampang': ['harka sampang', 'हर्क साम्पाङ', 'साम्पाङ'],
+    'bhimrawal': ['bhim rawal', 'भीम रावल'],
+    'madhavnepal': ['madhav kumar nepal', 'माधवकुमार नेपाल', 'माधव नेपाल'],
+    'upendrayadav': ['upendra yadav', 'उपेन्द्र यादव'],
+    'baburambhattarai': ['baburam bhattarai', 'बाबुराम भट्टराई'],
+    'sunitadangol': ['sunita dangol', 'सुनिता डंगोल'],
+    'maheshbasnet': ['mahesh basnet', 'महेश बस्नेत'],
+    'bishnurimal': ['bishnu rimal', 'विष्णु रिमाल'],
+    'bimalendranidhi': ['bimalendra nidhi', 'विमलेन्द्र निधि'],
+    'milanpandey': ['milan pandey', 'मिलन पाण्डे'],
+    'shekharkoirala': ['shekhar koirala', 'शेखर कोइराला'],
+    'ishwarpokhrel': ['ishwar pokhrel', 'ईश्वर पोखरेल'],
+    'prithvisubbagurung': ['prithvi subba gurung', 'पृथ्वीसुब्बा गुरुङ'],
+    'surendrapandey': ['surendra pandey', 'सुरेन्द्र पाण्डे'],
+    'manishjhanepal': ['manish jha', 'मनिष झा'],
+    'nainsinghmahar': ['nainsingh mahar', 'नैनसिंह महर'],
+    'gururajghimire': ['guru raj ghimire', 'गुरुराज घिमिरे'],
+    'prakashsnehi': ['prakash rasaili', 'प्रकाश रसाइली'],
+    'RastriyaSwatantraParty': ['rastriya swatantra party', 'रास्वपा', 'राष्ट्रिय स्वतन्त्र पार्टी'],
+    'cpnuml': ['cpn uml', 'नेकपा एमाले'],
+
+    # State Regulators & Public Institutions
+    'nepalpolice': ['nepal police', 'नेपाल प्रहरी'],
+    'NepalElectricityAuthority': ['nepal electricity authority', 'विद्युत प्राधिकरण', 'विद्युत् प्राधिकरण'],
+    'mofnepal': ['ministry of finance nepal', 'अर्थ मन्त्रालय'],
+    'nepalrastrabank': ['nepal rastra bank', 'नेपाल राष्ट्र बैंक'],
+    'hellosarkar': ['hello sarkar', 'हेलो सरकार'],
+    'electioncommissionnepal': ['election commission nepal', 'निर्वाचन आयोग'],
+    'dhmfloodews': ['जल तथा मौसम विज्ञान', 'मौसम पूर्वानुमान महाशाखा'],
+    'valleytraffic': ['kathmandu valley traffic', 'उपत्यका ट्राफिक प्रहरी', 'ट्राफिक प्रहरी'],
+    'fnccinepal': ['fncci', 'उद्योग वाणिज्य महासंघ'],
+    'sejonnepal': ['sejon', 'आर्थिक पत्रकार समाज'],
+
+    # Foreign Policy & Diplomatic Missions
+    'mofanepal': ['mofa nepal', 'परराष्ट्र मन्त्रालय'],
+    'IndiaInNepal': ['embassy of india', 'भारतीय दूतावास'],
+    'ChinaEmbassyNepal': ['chinese embassy', 'चिनियाँ दूतावास'],
+    'nepal.usembassy': ['us embassy kathmandu', 'u.s. embassy nepal', 'अमेरिकी दूतावास काठमाडौं', 'अमेरिकी दूतावासले'],
+    'ukinnepal': ['british embassy kathmandu', 'बेलायती दूतावास'],
+    'EUinNepal': ['eu in nepal', 'युरोपेली युनियन'],
+    'saarcsecretariat': ['saarc secretariat', 'सार्क सचिवालय'],
+    'PakinNepal': ['embassy of pakistan', 'पाकिस्तानी दूतावास'],
+    'bdembassykathmandu': ['embassy of bangladesh', 'बंगलादेशी दूतावास'],
+    'UNinNepal': ['un in nepal', 'संयुक्त राष्ट्रसंघ नेपाल'],
+    'NepalUNNY': ['permanent mission of nepal', 'संयुक्त राष्ट्रसंघका लागि नेपालको स्थायी नियोग'],
+    'contactniice': ['niice nepal', 'नेपाल इन्स्टिच्युट फर इन्टरनेसनल'],
+
+    # Analysts & Columnists
+    'sudheerktm': ['sudheer sharma', 'सुधीर शर्मा'],
+    'amish.mulmi': ['amish raj mulmi', 'अमिश राज मुल्मी'],
+    'suryaracharya': ['surya raj acharya', 'सूर्यराज आचार्य'],
+    'dilbhusanpathak': ['dilbhusan pathak', 'दिलभूषण पाठक'],
+    'ameetdhakal': ['ameet dhakal', 'अमित ढकाल'],
+    'madhuramanacharya': ['madhu raman acharya', 'मधुरमण आचार्य'],
+    'dipakgyawali': ['dipak gyawali', 'दीपक ज्ञवाली'],
+    'kanakmanidixit': ['kanak mani dixit', 'कनक मणी दीक्षित', 'कनक दीक्षित'],
+    'yubarajghimire': ['yubaraj ghimire', 'युवराज घिमिरे'],
+    'gejasharmawagle': ['geja sharma wagle', 'गेजा शर्मा वाग्ले'],
+    'prashantjha': ['prashant jha', 'प्रशान्त झा'],
+    'akhilesh.upadhyay': ['akhilesh upadhyay', 'अखिलेश उपाध्याय'],
+    'sureshrajn': ['suresh raj neupane', 'सुरेशराज न्यौपाने'],
+    'tikapradhan': ['tika r pradhan', 'टिका प्रधान'],
+    'gbudhathoki': ['gajendra budhathoki', 'गजेन्द्र बुढाथोकी'],
+    'gunarajluitel': ['guna raj luitel', 'गुणराज लुइँटेल'],
+    'narayanwagle': ['narayan wagle', 'नारायण वाग्ले'],
+    'paswanbhola': ['bhola paswan', 'भोला पासवान'],
+    'kdbhattarai': ['kamal dev bhattarai', 'कमलदेव भट्टराई'],
+    'ashokpillar': ['ashok dahal', 'अशोक दाहाल'],
+    'biswasktm': ['biswas baral', 'विश्वास बराल'],
+    'salokya': ['salokya', 'उमेश श्रेष्ठ', 'माइसंसार'],
+    'mohnaansari': ['mohna ansari', 'मोहना अन्सारी'],
+    'dipjha': ['dipendra jha', 'दीपेन्द्र झा'],
+    'surendralabh': ['surendra labh', 'सुरेन्द्र लाभ'],
+    'rajeshahiraj': ['rajesh ahiraj', 'राजेश अहिराज'],
+    'vijaykantkarna': ['vijay kant karna', 'विजयकान्त कर्ण'],
+    'trailokyararyal': ['trailokya raj aryal', 'त्रैलोक्यराज अर्याल'],
+}
+
+MEDIA_SOURCE_TO_SLUG = {
+    'Routine of Nepal Banda': 'routineofnepalbandaofficial',
+    'OnlineKhabar (NP)': 'onlinekhabar',
+    'OnlineKhabar (EN)': 'onlinekhabar',
+    'Setopati': 'setopati',
+    'Ratopati': 'ratopati',
+    'Ratopati (EN)': 'ratopati',
+    'Nagarik News': 'nagariknews',
+    'Kathmandu Post': 'kathmandupost',
+    'Nepali Times': 'nepalitimes',
+    'Annapurna Post': 'annapurnapost',
+    'Baahrakhari': 'baahrakhari',
+    'Himal Khabar': 'himalkhabar',
+    'Ukaalo': 'ukaalonews',
+    'Bizmandu': 'bizmandu',
+    'Bizpati': 'bizpati',
+    'Artha Sarokar': 'arthasarokar',
+    'Hamro Khelkud': 'hamrokhelkud',
+    'Cricnepal': 'cricnepal'
+}
+
+
 def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Combines authentic sources into a live Facebook & Civic Intelligence stream:
-      1. Genuine news articles covering Facebook statements/status updates across Nepali leaders and analysts
-         (PRESERVES exact portal article timestamp like '15 mins ago', '1h ago', 'Nov 10').
-      2. Official live diplomatic and government releases from MoFA, US Embassy, UK Embassy, and Central Bank
-         (PRESERVES exact RSS/Atom published timestamp).
-      3. Manually pasted and curated genuine public Facebook posts.
+    Combines authentic sources into a rich live Facebook & Civic Intelligence stream:
+      1. Reports on monitored leaders, analysts, institutions, and diplomatic missions
+         (Mapped to their verified directory entry with custom avatar, handle fb.com/<slug>, role, and verified checkmark).
+      2. Genuine news articles covering Facebook statements/status updates across Nepali leaders.
+      3. Monitored Facebook news desks and digital platforms from the 102 verified directory.
+      4. Official live diplomatic and government releases from MoFA, US Embassy, UK Embassy, and Central Bank.
+      5. Manually curated public Facebook posts.
     """
     fb_feed = []
+    seen_links = set()
 
-    # 1. Filter articles for Facebook / civic statements
+    # Load 102 directory entries
+    dir_entries = load_verified_fb_directory()
+    slug_to_dir = {d.get("slug"): d for d in dir_entries if d.get("slug")}
+
     fb_keywords = [
         "फेसबुक", "facebook", "fb status", "फेसबुकमा लेखेका छन्",
         "फेसबुक स्टाटस", "फेसबुक पोस्ट", "सामाजिक सञ्जाल", "स्टाटस लेख्दै"
     ]
-    for a in all_articles:
-        text_corp = f"{a.get('title', '')} {a.get('summary', '')} {a.get('full_content', '')}".lower()
-        if any(kw in text_corp for kw in fb_keywords):
-            src = a.get("source", "Nepali Media")
-            title = a.get("title", "")
-            pub_dt = a.get("published_dt")
 
+    for a in all_articles:
+        link = a.get("link", "")
+        if link and link in seen_links:
+            continue
+
+        title = a.get("title", "")
+        summary = a.get("summary", "")
+        content = a.get("full_content", "")
+        text_corp = f"{title} {summary} {content}".lower()
+        src = a.get("source", "Nepali Media")
+        pub_dt = a.get("published_dt")
+        cat = a.get("structured_category", "Others")
+
+        # Priority 1: Match against monitored leaders, institutions, and analysts from the 102 directory
+        matched_slug = None
+        for slug, aliases in LEADER_INSTITUTION_ALIASES.items():
+            if any(al in text_corp for al in aliases):
+                matched_slug = slug
+                break
+
+        if matched_slug and matched_slug in slug_to_dir:
+            ent = slug_to_dir[matched_slug]
             fb_feed.append({
-                "id": f"art_fb_{hash(a.get('link', '')) % 1000000}",
+                "id": f"art_fb_{hash(link) % 1000000}",
+                "source": f"{ent['name']} (via {src})",
+                "author_name": ent["name"],
+                "author_type": ent.get("type", "Monitored Public Profile"),
+                "handle": f"fb.com/{matched_slug}",
+                "raw_handle": matched_slug,
+                "role": ent.get("role", "Public Figure"),
+                "verified": True,
+                "avatar_bg": ent.get("avatar_bg", "#1877F2"),
+                "initials": ent.get("initials", ent["name"][:2].upper()),
+                "title": title,
+                "text": f"📢 {title} — {summary[:240]}",
+                "headline_english": a.get("headline_english", ""),
+                "structured_category": cat,
+                "link": link if link else f"https://facebook.com/{matched_slug}",
+                "likes": 0,
+                "shares": 0,
+                "comments": 0,
+                "impressions": 0,
+                "engagement_score": 75,
+                "published_dt": pub_dt,
+                "relative_time": a.get("relative_time", "Recent"),
+                "exact_time": a.get("exact_time", ""),
+                "sentiment": "Civic Discourse",
+                "feed_type": "Monitored Page Statement / Report"
+            })
+            if link:
+                seen_links.add(link)
+            continue
+
+        # Priority 2: Articles with explicit Facebook keywords
+        if any(kw in text_corp for kw in fb_keywords):
+            fb_feed.append({
+                "id": f"art_fb_{hash(link) % 1000000}",
                 "source": f"{src} (Reported FB Discourse)",
                 "author_name": src,
                 "author_type": "Media Coverage of FB Statements",
@@ -294,10 +458,45 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
                 "avatar_bg": "#0369a1",
                 "initials": src[:2].upper(),
                 "title": title,
-                "text": f"📰 {title} — {a.get('summary', '')[:260]}",
+                "text": f"📰 {title} — {summary[:260]}",
                 "headline_english": a.get("headline_english", ""),
-                "structured_category": a.get("structured_category", "Others"),
-                "link": a.get("link", "#"),
+                "structured_category": cat,
+                "link": link if link else "#",
+                "likes": 0,
+                "shares": 0,
+                "comments": 0,
+                "impressions": 0,
+                "engagement_score": 60,
+                "published_dt": pub_dt,
+                "relative_time": a.get("relative_time", "Recent"),
+                "exact_time": a.get("exact_time", ""),
+                "sentiment": "Media Monitored Statement",
+                "feed_type": "Media Reported FB Statement"
+            })
+            if link:
+                seen_links.add(link)
+            continue
+
+        # Priority 3: Monitored News Platform FB pages in the 102 directory
+        matched_media_slug = MEDIA_SOURCE_TO_SLUG.get(src)
+        if matched_media_slug and matched_media_slug in slug_to_dir:
+            ent = slug_to_dir[matched_media_slug]
+            fb_feed.append({
+                "id": f"art_fb_{hash(link) % 1000000}",
+                "source": f"{ent['name']} (Monitored News Desk)",
+                "author_name": ent["name"],
+                "author_type": "Monitored Media Platform",
+                "handle": f"fb.com/{matched_media_slug}",
+                "raw_handle": matched_media_slug,
+                "role": ent.get("role", "Media Platform"),
+                "verified": True,
+                "avatar_bg": ent.get("avatar_bg", "#0f766e"),
+                "initials": ent.get("initials", ent["name"][:2].upper()),
+                "title": title,
+                "text": f"🗞 {title} — {summary[:240]}",
+                "headline_english": a.get("headline_english", ""),
+                "structured_category": cat,
+                "link": link if link else f"https://facebook.com/{matched_media_slug}",
                 "likes": 0,
                 "shares": 0,
                 "comments": 0,
@@ -306,17 +505,27 @@ def scan_real_nepal_fb_intelligence(all_articles: List[Dict[str, Any]]) -> List[
                 "published_dt": pub_dt,
                 "relative_time": a.get("relative_time", "Recent"),
                 "exact_time": a.get("exact_time", ""),
-                "sentiment": "Media Monitored Statement",
-                "feed_type": "Media Reported FB Statement"
+                "sentiment": "Platform Monitored News",
+                "feed_type": "Monitored News Platform Post"
             })
+            if link:
+                seen_links.add(link)
 
-    # 2. Add live official dispatches with genuine dates
+    # 4. Add live official dispatches with genuine dates
     official_dispatches = fetch_live_official_dispatches()
-    fb_feed.extend(official_dispatches)
+    for d in official_dispatches:
+        if d.get("link") not in seen_links:
+            fb_feed.append(d)
+            if d.get("link"):
+                seen_links.add(d["link"])
 
-    # 3. Add user manual curated posts
+    # 5. Add user manual curated posts
     manual_posts = load_manual_curated_posts()
-    fb_feed.extend(manual_posts)
+    for mp in manual_posts:
+        if mp.get("link") not in seen_links:
+            fb_feed.append(mp)
+            if mp.get("link"):
+                seen_links.add(mp["link"])
 
     # Sort strictly by published date (newest first, putting items with valid dates at top)
     min_date = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)

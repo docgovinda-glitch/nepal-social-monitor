@@ -1561,7 +1561,9 @@ with tab4:
     with fbf_col2:
         feed_types = [
             "All Stream Sources",
+            "Monitored Page Statements & Reports",
             "Media Reported FB Statements",
+            "Monitored News Platform Posts",
             "Official Dispatches",
             "Curated Posts"
         ]
@@ -1625,8 +1627,12 @@ with tab4:
 
     # 4. Apply intelligence type filter
     if selected_feed_type != "All Stream Sources":
-        if selected_feed_type == "Media Reported FB Statements":
-            filtered_fb_feed = [p for p in filtered_fb_feed if "Media" in p.get("feed_type", "")]
+        if selected_feed_type == "Monitored Page Statements & Reports":
+            filtered_fb_feed = [p for p in filtered_fb_feed if "Page Statement" in p.get("feed_type", "")]
+        elif selected_feed_type == "Media Reported FB Statements":
+            filtered_fb_feed = [p for p in filtered_fb_feed if "Media Reported" in p.get("feed_type", "")]
+        elif selected_feed_type == "Monitored News Platform Posts":
+            filtered_fb_feed = [p for p in filtered_fb_feed if "Platform Post" in p.get("feed_type", "")]
         elif selected_feed_type == "Official Dispatches":
             filtered_fb_feed = [p for p in filtered_fb_feed if p.get("feed_type") == "Official Dispatch"]
         elif selected_feed_type == "Curated Posts":
