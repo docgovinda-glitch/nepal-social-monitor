@@ -67,7 +67,9 @@ from whatsapp_dispatcher import (
     send_test_webhook_ping,
     get_green_api_credentials,
     get_green_api_status,
-    dispatch_item_to_green_api
+    dispatch_item_to_green_api,
+    send_test_green_api_message,
+    get_green_api_chats
 )
 
 # Load environment variables from .env if present
@@ -2936,6 +2938,46 @@ with tab5:
                - Add `WHATSAPP_WEBHOOK_URL=https://hook.make.com/...` in your `.env` or `.streamlit/secrets.toml`.
             3. **Done!** Every new scanned news, X tweet, and FB update will be automatically dispatched.
             """)
+
+    # Direct Green-API Broadcast Gateway Controls
+    if green_id:
+        with st.container():
+            st.markdown("##### 🚀 Direct Green-API Broadcast (Bypasses Make.com completely)")
+            g_c1, g_c2, g_c3 = st.columns([3, 2, 2.5])
+            with g_c1:
+                default_target = get_env_variable("GREEN_API_CHAT_ID", "")
+                green_target_input = st.text_input(
+                    "WhatsApp Recipient (Phone / Group / Channel):",
+                    value=default_target,
+                    placeholder="e.g. 9779812345678@c.us",
+                    key="input_green_target_chat"
+                )
+            with g_c2:
+                st.write("")
+                st.write("")
+                if st.button("🧪 Send Test WhatsApp Message", key="btn_green_test_msg", disabled=(green_state != "authorized" or not green_target_input.strip())):
+                    with st.spinner("Sending test message via Green-API..."):
+                        ok, res = send_test_green_api_message(green_target_input.strip())
+                        if ok:
+                            st.success(f"✅ WhatsApp message delivered! (Message ID: {res})")
+                        else:
+                            st.error(f"❌ Failed to send: {res}")
+            with g_c3:
+                st.write("")
+                st.write("")
+                if st.button("⚡ Dispatch Top 5 via Green-API", key="btn_green_dispatch_top5", disabled=(green_state != "authorized" or not green_target_input.strip())):
+                    if not pending_queue:
+                        st.info("No unsent items in pending queue.")
+                    else:
+                        g_success = 0
+                        for q_item in pending_queue[:5]:
+                            ok, _ = dispatch_item_to_green_api(q_item["item"], q_item["type"], green_target_input.strip())
+                            if ok:
+                                mark_item_broadcasted(q_item["item"], q_item["type"])
+                                g_success += 1
+                                time.sleep(1)
+                        st.success(f"✅ Delivered {g_success} story updates directly to WhatsApp!")
+                        st.rerun()
 
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:

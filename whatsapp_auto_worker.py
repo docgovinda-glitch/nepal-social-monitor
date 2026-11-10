@@ -101,8 +101,11 @@ def run_single_broadcast_cycle(
     """
     webhook_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
     meta_token = get_env_variable("WHATSAPP_ACCESS_TOKEN")
+    _, green_id, _ = get_green_api_credentials()
+    green_chat_id = get_env_variable("GREEN_API_CHAT_ID")
 
     logger.info("--- Starting Broadcast Scan Cycle ---")
+    logger.info(f"Direct Green-API configured: {'Yes (Chat: ' + green_chat_id + ')' if green_id and green_chat_id else 'No'}")
     logger.info(f"Webhook URL configured: {'Yes' if webhook_url else 'No'}")
     logger.info(f"Meta Cloud API configured: {'Yes' if meta_token else 'No'}")
 
@@ -143,13 +146,20 @@ def run_single_broadcast_cycle(
             continue
 
         success = False
-        if webhook_url:
+        if green_id and green_chat_id:
+            ok, msg = dispatch_item_to_green_api(item, itype, green_chat_id)
+            if ok:
+                logger.info(f"Successfully dispatched to Green-API: {title[:60]}")
+                success = True
+            else:
+                logger.warning(f"Green-API dispatch failed ({msg}): {title[:60]}")
+        elif webhook_url:
             success = dispatch_to_webhook(item, itype, webhook_url)
         elif meta_token:
             success = dispatch_to_meta_cloud_api(item, itype)
         else:
             logger.info(f"[NO DISPATCH CHANNEL CONFIGURED] Item queued: {title[:70]}")
-            # Without webhook or meta API, don't mark as sent so it stays in queue
+            # Without Green-API, webhook, or meta API, don't mark as sent so it stays in queue
             break
 
         if success:

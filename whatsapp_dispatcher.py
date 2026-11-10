@@ -413,3 +413,32 @@ def dispatch_item_to_green_api(
             return False, str(resp_data)
     except Exception as ex:
         return False, str(ex)
+
+def get_green_api_chats() -> List[Dict[str, Any]]:
+    """Fetches list of active chats/groups/channels from authorized Green-API instance."""
+    import urllib.request
+    api_url, id_inst, token = get_green_api_credentials()
+    if not id_inst or not token:
+        return []
+    url = f"{api_url}/waInstance{id_inst}/getChats/{token}"
+    try:
+        with urllib.request.urlopen(url, timeout=8) as resp:
+            data = json.loads(resp.read().decode())
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+    return []
+
+def send_test_green_api_message(chat_id: str) -> Tuple[bool, str]:
+    """Sends a verification test message to the specified WhatsApp chat ID."""
+    test_item = {
+        "title": "🇳🇵 Nepal Media & Intelligence Monitor - Direct WhatsApp Gateway Test",
+        "source": "Nepal Monitor Core",
+        "structured_category": "System Alert",
+        "summary": "This is a direct test confirmation from your Nepal Intelligence Monitor. Direct Green-API connection is active and ready for automated broadcasts!",
+        "link": get_env_variable("WHATSAPP_CHANNEL_URL", DEFAULT_CHANNEL_URL),
+        "exact_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    return dispatch_item_to_green_api(test_item, "article", chat_id)
+
