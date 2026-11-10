@@ -1677,17 +1677,71 @@ with tab3:
     elif len(filtered_feed) > 0:
         st.caption(f"🏁 You've reached the end of the feed ({len(filtered_feed):,} posts displayed).")
 
-    with st.expander("⚡ Quick Jump to Live X Searches & Hashtags in Nepal", expanded=False):
-        q_x = urllib.parse.quote_plus(search_query if search_query else "Nepal")
-        b1, b2, b3, b4 = st.columns(4)
-        with b1:
-            st.link_button("🔍 Search Topic on X ↗", f"https://x.com/search?q={q_x}&f=live", width='stretch')
-        with b2:
-            st.link_button("🇳🇵 #Nepal Live Stream ↗", "https://x.com/search?q=%23Nepal&f=live", width='stretch')
-        with b3:
-            st.link_button("🏏 #NepalCricket Live ↗", "https://x.com/search?q=%23NepalCricket&f=live", width='stretch')
-        with b4:
-            st.link_button("🏛 #BalenShah Live ↗", "https://x.com/search?q=%23BalenShah&f=live", width='stretch')
+    with st.expander("⚡ Quick Jump to Live X Searches Across 8 Predefined Categories", expanded=False):
+        clean_q = search_query.strip() if search_query else ""
+        if clean_q:
+            st.caption(f"Launch live X searches combining your search keyword **'{html.escape(clean_q)}'** with any of the 8 predefined categories:")
+        else:
+            st.caption("One-click direct access to real-time live posts on X (Twitter) across the 8 predefined strategic categories:")
+
+        x_cat_searches = [
+            {
+                "label": "🇮🇳 India in Nepal ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("India" OR "Modi" OR "भारत" OR "#NepalIndia")',
+                "help": "Search live X posts on India-Nepal bilateral relations, border & treaties"
+            },
+            {
+                "label": "🇨🇳 China in Nepal ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("China" OR "Beijing" OR "BRI" OR "चीन" OR "#NepalChina")',
+                "help": "Search live X posts on China-Nepal relations, BRI, and border crossings"
+            },
+            {
+                "label": "🇵🇰 Pakistan in Nepal ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("Pakistan" OR "Islamabad" OR "पाकिस्तान" OR "#NepalPakistan")',
+                "help": "Search live X posts on Pakistan-Nepal engagements and SAARC"
+            },
+            {
+                "label": "🇧🇩 Bangladesh in Nepal ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("Bangladesh" OR "Dhaka" OR "बंगलादेश" OR "#NepalBangladesh")',
+                "help": "Search live X posts on Bangladesh-Nepal energy trade and transit"
+            },
+            {
+                "label": "🏛 Internal Politics ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्" OR "राजनीति")',
+                "help": "Search live X posts on Nepal internal politics, parliament, and leaders"
+            },
+            {
+                "label": "🌐 External Relations ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("foreign" OR "diplomacy" OR "ambassador" OR "USAID" OR "MCC" OR "परराष्ट्र" OR "कूटनीति")',
+                "help": "Search live X posts on Nepal multilateral relations, US, EU, and foreign affairs"
+            },
+            {
+                "label": "💰 Economy ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र" OR "बजेट")',
+                "help": "Search live X posts on Nepal economy, remittance, inflation, and NRB policy"
+            },
+            {
+                "label": "📌 Others (Civic) ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("society" OR "civic" OR "governance" OR "जनता" OR "#Nepal")',
+                "help": "Search live X posts on broader Nepali civic, social, and governance topics"
+            },
+        ]
+
+        # Row 1: Regional Bilateral Relations (India, China, Pakistan, Bangladesh)
+        r1_cols = st.columns(4)
+        for i, item in enumerate(x_cat_searches[:4]):
+            with r1_cols[i]:
+                full_q = f"({clean_q}) AND {item['query']}" if clean_q else item["query"]
+                x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
+                st.link_button(item["label"], x_url, width="stretch", help=item["help"])
+
+        # Row 2: Domestic & Global Themes (Politics, Foreign Relations, Economy, Others)
+        r2_cols = st.columns(4)
+        for i, item in enumerate(x_cat_searches[4:]):
+            with r2_cols[i]:
+                full_q = f"({clean_q}) AND {item['query']}" if clean_q else item["query"]
+                x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
+                st.link_button(item["label"], x_url, width="stretch", help=item["help"])
 
 # ==========================================
 # TAB 4: Facebook Trends Nepal
