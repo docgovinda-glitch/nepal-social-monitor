@@ -115,12 +115,11 @@ def run_single_broadcast_cycle(
     logger.info(f"Webhook URL configured: {'Yes' if webhook_url else 'No'}")
     logger.info(f"Meta Cloud API configured: {'Yes' if meta_token else 'No'}")
 
-    # 1. Fetch latest items across all portals
-    logger.info("Scanning Nepali media, Indian press, X posts & Facebook feeds...")
+    # 1. Fetch latest items across portals (Nepali media, Indian media & X posts only)
+    logger.info("Scanning Nepali media, Indian press & X posts...")
     nepali_articles = fetch_top_nepal_media(max_workers=15)
     indian_articles = fetch_nepal_in_indian_media(max_workers=12)
     x_posts = scan_popular_nepal_x_posts(force_refresh=False)
-    fb_posts = scan_real_nepal_fb_intelligence(nepali_articles)
 
     all_scanned: List[tuple[Dict[str, Any], str]] = []
     for a in nepali_articles:
@@ -129,8 +128,6 @@ def run_single_broadcast_cycle(
         all_scanned.append((a, "article"))
     for p in x_posts:
         all_scanned.append((p, "x"))
-    for p in fb_posts:
-        all_scanned.append((p, "fb"))
 
     # 2. Filter for items published in the 30-minute refresh window and not yet broadcasted
     now_nepal = datetime.now(NEPAL_TZ)

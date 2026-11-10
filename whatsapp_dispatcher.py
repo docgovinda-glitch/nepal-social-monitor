@@ -166,71 +166,50 @@ def get_broadcasted_stats() -> Dict[str, Any]:
 def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") -> str:
     """
     Formats an individual news article, X post, or Facebook post for WhatsApp.
-    Uses bold (*text*), clean emoji tagging, and direct links.
+    Produces a clean, uncluttered template: Title -> Summary -> Full Story Link.
     """
-    cat = item.get("structured_category", "Others")
-    exact_time = item.get("exact_time") or item.get("relative_time") or "Recent"
-
     if item_type in ("x", "twitter"):
-        author = item.get("author_name", "Author")
-        handle = item.get("handle", "@user")
+        author = (item.get("author_name") or "Author").replace("*", "").strip()
+        handle = (item.get("handle") or "@user").strip()
         text = (item.get("text") or "").strip()
         link = item.get("link") or "https://x.com"
 
         msg = (
-            f"🐦 *X (Twitter) Alert* · {cat}\n"
-            f"👤 *{author}* ({handle})\n"
-            f"🕒 _{exact_time}_\n\n"
+            f"*{author}* ({handle})\n\n"
             f"{text}\n\n"
-            f"🔗 *View Post on X:* {link}\n"
-            f"🌐 *Nepal Intelligence Monitor*"
+            f"🔗 Full Story: {link}"
         )
         return msg
 
     elif item_type in ("fb", "facebook"):
-        author = item.get("author_name", "Page / Figure")
-        feed_type = item.get("feed_type", "Facebook Update")
+        author = (item.get("author_name") or "Page").replace("*", "").strip()
         text = (item.get("text") or "").strip()
         link = item.get("fb_link") or item.get("link") or "https://facebook.com"
 
         msg = (
-            f"📘 *Facebook Intelligence* · {cat}\n"
-            f"👤 *{author}* ({feed_type})\n"
-            f"🕒 _{exact_time}_\n\n"
+            f"*{author}*\n\n"
             f"{text}\n\n"
-            f"🔗 *View on Facebook:* {link}\n"
-            f"🌐 *Nepal Intelligence Monitor*"
+            f"🔗 Full Story: {link}"
         )
         return msg
 
     else:
         # News Article (Nepali or Indian Press)
-        source = item.get("source", "News Source")
-        title = (item.get("title") or "").strip()
+        title = (item.get("title") or "").replace("*", "").strip()
         summary = (item.get("summary") or "").strip()
         link = item.get("link") or "#"
-        is_indian = bool(item.get("language") and item.get("source") in [
-            "The Indian Express", "The Hindu", "India Today", "The Tribune", "Business Standard",
-            "Financial Express", "Livemint", "Moneycontrol", "ABP Live", "Outlook India",
-            "The Quint", "Swarajya", "OneIndia", "NDTV", "Amar Ujala", "Live Hindustan",
-            "Jansatta", "Prabhat Khabar"
-        ])
-        portal_tag = "🇮🇳 *Indian Press on Nepal*" if is_indian else f"📰 *{source}*"
 
         # Truncate summary if too long for a single WhatsApp snippet
         if summary and summary != title:
-            clean_sum = summary[:320] + ("..." if len(summary) > 320 else "")
+            clean_sum = summary[:350] + ("..." if len(summary) > 350 else "")
             body = f"{clean_sum}\n\n"
         else:
             body = ""
 
         msg = (
-            f"{portal_tag} · 📌 *{cat}*\n"
-            f"*{title}*\n"
-            f"🕒 _{exact_time}_\n\n"
+            f"*{title}*\n\n"
             f"{body}"
-            f"🔗 *Full Story:* {link}\n"
-            f"🌐 *Nepal Intelligence Monitor*"
+            f"🔗 Full Story: {link}"
         )
         return msg
 

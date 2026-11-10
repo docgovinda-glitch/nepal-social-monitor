@@ -2832,25 +2832,23 @@ with tab5:
     # WHATSAPP CHANNEL BROADCAST ENGINE (OPTION 2)
     # ==========================================
     st.markdown("---")
-    st.subheader("📢 WhatsApp Channel Broadcast Manager & Live Queue")
+    st.subheader("📢 WhatsApp Broadcast Manager & Live Queue")
     st.write(
-        "Manage real-time distribution of individual news stories, X tweets, and Facebook intelligence "
-        "to your **Official WhatsApp Channel subscribers** with automatic deduplication."
+        "Manage real-time distribution of individual news stories and X tweets "
+        "to your **WhatsApp Group** with automatic deduplication."
     )
 
     wa_stats = get_broadcasted_stats()
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3 = st.columns(3)
     with m1:
         st.metric("Total Broadcasted", f"{wa_stats['total_broadcasted']:,}")
     with m2:
         st.metric("📰 News Stories", f"{wa_stats['by_type']['article']:,}")
     with m3:
         st.metric("🐦 X (Twitter)", f"{wa_stats['by_type']['x']:,}")
-    with m4:
-        st.metric("📘 Facebook", f"{wa_stats['by_type']['fb']:,}")
 
-    # Deduplication Queue: Gather unscanned/unbroadcasted items from current timeframe
+    # Deduplication Queue: Gather unscanned/unbroadcasted items from current timeframe (Facebook excluded)
     pending_queue = []
     for item in filtered_articles:
         if not is_item_broadcasted(item, "article"):
@@ -2861,9 +2859,6 @@ with tab5:
     for item in filtered_x_posts:
         if not is_item_broadcasted(item, "x"):
             pending_queue.append({"item": item, "type": "x", "source_type": "X (Twitter)"})
-    for item in filtered_fb_posts:
-        if not is_item_broadcasted(item, "fb"):
-            pending_queue.append({"item": item, "type": "fb", "source_type": "Facebook"})
 
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:
@@ -2871,7 +2866,7 @@ with tab5:
     with q_col2:
         queue_filter = st.selectbox(
             "Filter Queue Source:",
-            ["All Sources", "Nepali Media", "Indian Press", "X (Twitter)", "Facebook"],
+            ["All Sources", "Nepali Media", "Indian Press", "X (Twitter)"],
             key="wa_queue_source_filter"
         )
 
