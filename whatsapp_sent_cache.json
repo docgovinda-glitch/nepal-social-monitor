@@ -1124,9 +1124,45 @@
       "link": "https://www.onlinekhabar.com/2026/11/2055190/originality-is-being-lost-in-deusi-bhailo",
       "sent_at": "2026-11-10T12:46:09.989469",
       "channel": "Official WhatsApp Channel"
+    },
+    "92c33431921b095087fdddad": {
+      "key": "92c33431921b095087fdddad",
+      "type": "article",
+      "title": "UN’s Intervention on Azad Kashmir Signals a Deepening Crisis",
+      "source": "Nepal Aaja",
+      "link": "https://nepalaaja.com/posts/uns-intervention-on-azad-kashmir-signals-a-deepening-crisis",
+      "sent_at": "2026-11-10T19:43:21.426443",
+      "channel": "Official WhatsApp Channel"
+    },
+    "d28d26f32692ca4d00cafd53": {
+      "key": "d28d26f32692ca4d00cafd53",
+      "type": "article",
+      "title": "Pilibhit News: नेपाल के हाथियों ने चार किसानों की रौंदी तीन एकड़ गन्ने की फसलPilibhit News: नेपाल से आए हाथियों के झुंड ने पूरनपुर तहसील के ",
+      "source": "Live Hindustan",
+      "link": "https://www.livehindustan.com/uttar-pradesh/pilibhit/story-elephant-herd-from-nepal-damages-sugarcane-crops-in-pilibhit-s-puranpur-201794338415189.html",
+      "sent_at": "2026-11-10T19:43:26.921305",
+      "channel": "Official WhatsApp Channel"
     }
   },
   "history": [
+    {
+      "key": "d28d26f32692ca4d00cafd53",
+      "type": "article",
+      "title": "Pilibhit News: नेपाल के हाथियों ने चार किसानों की रौंदी तीन एकड़ गन्ने की फसलPilibhit News: नेपाल से आए हाथियों के झुंड ने पूरनपुर तहसील के ",
+      "source": "Live Hindustan",
+      "link": "https://www.livehindustan.com/uttar-pradesh/pilibhit/story-elephant-herd-from-nepal-damages-sugarcane-crops-in-pilibhit-s-puranpur-201794338415189.html",
+      "sent_at": "2026-11-10T19:43:26.921305",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "92c33431921b095087fdddad",
+      "type": "article",
+      "title": "UN’s Intervention on Azad Kashmir Signals a Deepening Crisis",
+      "source": "Nepal Aaja",
+      "link": "https://nepalaaja.com/posts/uns-intervention-on-azad-kashmir-signals-a-deepening-crisis",
+      "sent_at": "2026-11-10T19:43:21.426443",
+      "channel": "Official WhatsApp Channel"
+    },
     {
       "key": "613c98bfedef13826a3d7fbc",
       "type": "article",
