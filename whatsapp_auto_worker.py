@@ -188,11 +188,12 @@ def run_single_broadcast_cycle(
 
 def main():
     default_interval = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "1800"))
+    default_max = int(get_env_variable("MAX_BROADCAST_PER_CYCLE", "10"))
     parser = argparse.ArgumentParser(description="Nepal Monitor WhatsApp Automated Dispatch Worker")
     parser.add_argument("--interval", type=int, default=default_interval, help=f"Scan interval in seconds (default: {default_interval}s / {default_interval // 60} mins)")
     parser.add_argument("--once", action="store_true", help="Run once and exit (for cron jobs)")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without sending network requests")
-    parser.add_argument("--max-per-cycle", type=int, default=10, help="Maximum stories to send per cycle")
+    parser.add_argument("--max-per-cycle", type=int, default=default_max, help=f"Maximum stories to send per cycle (default: {default_max})")
 
     args = parser.parse_args()
 
