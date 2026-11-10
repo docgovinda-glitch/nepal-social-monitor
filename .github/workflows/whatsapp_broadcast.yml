@@ -39,6 +39,7 @@ jobs:
           TWITTER_CONSUMER_KEY: ${{ secrets.TWITTER_CONSUMER_KEY || 'o3UzORYoi7dfmbBnmjaXbs3XJ' }}
           TWITTER_CONSUMER_SECRET: ${{ secrets.TWITTER_CONSUMER_SECRET || 'TkP3an7rMxArcubWX7ZqB2WiKX98gNFlRmtiTcknj1YOgnPYdi' }}
           TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN || 'AAAAAAAAAAAAAAAAAAAAAKbmAAIAAAAADmKXtTCtu6uztaV4tEowwgZNoUs=fX7rkbMSJpgLrZf4LGzlJUXS6t81DTLcgcBmsepb4tLOzRce3w' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'AQ.Ab8RN6KYwIu1NCTWx479PKYiRJPdydm6MITVvswI6ruy0OSLbA' }}
         run: |
           python whatsapp_auto_worker.py --once
 

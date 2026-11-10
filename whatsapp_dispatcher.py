@@ -12,6 +12,12 @@ import urllib.parse
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
+try:
+    from ai_summarizer import summarize_and_translate_news, translate_tweet
+except ImportError:
+    summarize_and_translate_news = None
+    translate_tweet = None
+
 SENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), "whatsapp_sent_cache.json")
 
 def get_env_variable(key: str, default: str = "") -> str:
@@ -166,16 +172,34 @@ def get_broadcasted_stats() -> Dict[str, Any]:
 def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") -> str:
     """
     Formats an individual news article, X post, or Facebook post for WhatsApp.
+    Uses Google Gemini AI to translate Nepali/Hindi to English and write
+    crisp 2-sentence executive summaries.
     Produces a clean, uncluttered template: Title -> Summary -> Full Story Link.
     """
     if item_type in ("x", "twitter"):
-        author = (item.get("author_name") or "Author").replace("*", "").strip()
+        if translate_tweet and "ai_text" not in item:
+            tr = translate_tweet(
+                author=item.get("author_name", ""),
+                handle=item.get("handle", ""),
+                text=item.get("text", "")
+            )
+            item["ai_author"] = tr.get("author") or item.get("author_name", "Author")
+            item["ai_text"] = tr.get("text") or item.get("text", "")
+
+        author = (item.get("ai_author") or item.get("author_name") or "Author").replace("*", "").strip()
         handle = (item.get("handle") or "@user").strip()
-        text = (item.get("text") or "").strip()
+        text = (item.get("ai_text") or item.get("text") or "").strip()
         link = item.get("link") or "https://x.com"
 
+        if handle and handle in author:
+            author_line = f"*{author}*"
+        elif handle:
+            author_line = f"*{author}* ({handle})"
+        else:
+            author_line = f"*{author}*"
+
         msg = (
-            f"*{author}* ({handle})\n\n"
+            f"{author_line}\n\n"
             f"{text}\n\n"
             f"🔗 Full Story: {link}"
         )
@@ -194,14 +218,23 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         return msg
 
     else:
-        # News Article (Nepali or Indian Press)
-        title = (item.get("title") or "").replace("*", "").strip()
-        summary = (item.get("summary") or "").strip()
+        # News Article (Nepali, Indian Press, or English)
+        if summarize_and_translate_news and "ai_headline" not in item:
+            raw_content = item.get("summary") or item.get("description") or item.get("content") or item.get("title", "")
+            ai_res = summarize_and_translate_news(
+                title=item.get("title", ""),
+                content=raw_content,
+                source=item.get("source", "")
+            )
+            item["ai_headline"] = ai_res.get("headline") or item.get("title", "")
+            item["ai_summary"] = ai_res.get("summary") or item.get("summary", "")
+
+        title = (item.get("ai_headline") or item.get("title") or "").replace("*", "").strip()
+        summary = (item.get("ai_summary") or item.get("summary") or "").strip()
         link = item.get("link") or "#"
 
-        # Truncate summary if too long for a single WhatsApp snippet
         if summary and summary != title:
-            clean_sum = summary[:350] + ("..." if len(summary) > 350 else "")
+            clean_sum = summary[:500] + ("..." if len(summary) > 500 else "")
             body = f"{clean_sum}\n\n"
         else:
             body = ""
