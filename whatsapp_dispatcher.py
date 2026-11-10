@@ -13,7 +13,43 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
 SENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), "whatsapp_sent_cache.json")
-DEFAULT_CHANNEL_URL = os.getenv("WHATSAPP_CHANNEL_URL", "https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38")
+
+def get_env_variable(key: str, default: str = "") -> str:
+    """
+    Fetches environment variable from os.environ, falling back to local .env
+    and .streamlit/secrets.toml if available.
+    """
+    val = os.getenv(key, "")
+    if val:
+        return val.strip()
+
+    # Fallback to local .env file
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{key}="):
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    # Fallback to .streamlit/secrets.toml
+    secrets_path = os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml")
+    if os.path.exists(secrets_path):
+        try:
+            with open(secrets_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{key}") and "=" in line:
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    return default
+
+DEFAULT_CHANNEL_URL = get_env_variable("WHATSAPP_CHANNEL_URL", "https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38")
 
 def load_sent_cache() -> Dict[str, Any]:
     """Loads the persistent set of already-broadcasted items."""
@@ -206,41 +242,6 @@ def generate_whatsapp_share_url(item: Dict[str, Any], item_type: str = "article"
     text = format_whatsapp_message(item, item_type)
     encoded = urllib.parse.quote(text)
     return f"https://api.whatsapp.com/send?text={encoded}"
-
-def get_env_variable(key: str, default: str = "") -> str:
-    """
-    Fetches environment variable from os.environ, falling back to local .env
-    and .streamlit/secrets.toml if available.
-    """
-    val = os.getenv(key, "")
-    if val:
-        return val.strip()
-
-    # Fallback to local .env file
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_path):
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"{key}="):
-                        return line.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception:
-            pass
-
-    # Fallback to .streamlit/secrets.toml
-    secrets_path = os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml")
-    if os.path.exists(secrets_path):
-        try:
-            with open(secrets_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"{key}") and "=" in line:
-                        return line.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception:
-            pass
-
-    return default
 
 def dispatch_item_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: str) -> Tuple[bool, str]:
     """
