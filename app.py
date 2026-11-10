@@ -51,6 +51,18 @@ from nepal_fb_real_scanner import (
     load_verified_fb_directory,
     save_manual_curated_post
 )
+from whatsapp_dispatcher import (
+    load_sent_cache,
+    save_sent_cache,
+    is_item_broadcasted,
+    mark_item_broadcasted,
+    unmark_item_broadcasted,
+    get_broadcasted_stats,
+    format_whatsapp_message,
+    generate_whatsapp_share_url,
+    get_item_key,
+    DEFAULT_CHANNEL_URL
+)
 
 # Load environment variables from .env if present
 def load_env():
@@ -390,6 +402,29 @@ st.markdown("""
         color: #FFFFFF !important;
         border-color: #0284C7;
         box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .apple-wa-share-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #F0FDF4;
+        color: #15803D !important;
+        border: 1px solid #BBF7D0;
+        padding: 5px 12px;
+        border-radius: var(--apple-radius-pill);
+        font-size: 0.77rem;
+        font-weight: 650;
+        text-decoration: none !important;
+        transition: all 0.2s var(--apple-ease);
+    }
+
+    .apple-wa-share-btn:hover {
+        background: #22C55E;
+        color: #FFFFFF !important;
+        border-color: #22C55E;
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        transform: translateY(-1px);
     }
 
     /* Category & Metadata Badges */
@@ -872,6 +907,37 @@ portal_filter = st.sidebar.selectbox(
     ["All Portals (34 Portals)"] + all_portal_names
 )
 
+# WhatsApp Channel Subscription Widget in Sidebar
+st.sidebar.markdown("---")
+if "wa_channel_url" not in st.session_state:
+    st.session_state["wa_channel_url"] = os.getenv("WHATSAPP_CHANNEL_URL", "https://whatsapp.com/channel/")
+
+current_wa_channel = st.session_state["wa_channel_url"]
+
+st.sidebar.markdown(f"""
+<div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px; margin-bottom:10px;">
+    <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:1.35rem;">📢</span>
+        <div>
+            <div style="font-weight:700; color:#166534; font-size:0.86rem;">Official WhatsApp Channel</div>
+            <div style="font-size:0.75rem; color:#15803D; line-height:1.35;">Instant alerts for each news story, X tweet & FB post.</div>
+        </div>
+    </div>
+    <div style="margin-top:10px;">
+        <a href="{current_wa_channel}" target="_blank" rel="noopener noreferrer" 
+           style="display:block; text-align:center; background:#22C55E; color:#FFFFFF !important; text-decoration:none !important; font-weight:700; font-size:0.8rem; padding:7px 12px; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,0.06);">
+           📲 Follow on WhatsApp ↗
+        </a>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+with st.sidebar.expander("⚙️ WhatsApp Channel Settings", expanded=False):
+    new_wa_url = st.text_input("Channel Invite Link:", value=current_wa_channel, placeholder="https://whatsapp.com/channel/...", key="input_wa_channel_link")
+    if new_wa_url != current_wa_channel:
+        st.session_state["wa_channel_url"] = new_wa_url.strip()
+    st.caption("Paste your channel invite link once created. The 'Follow on WhatsApp' buttons across the site will automatically link to it.")
+
 st.sidebar.markdown("---")
 with st.sidebar.expander("ℹ️ Monitored Sources Summary"):
     st.markdown("**🇳🇵 Nepali Media (34 Portals):** eKantipur, Setopati, Annapurna Post, Naya Patrika, NepalKhabar, Gorkhapatra, News of Nepal, Nepal Aaja, Nepal News, OnlineKhabar, Ratopati, Nagarik News, Nepal Press, Baahrakhari, Himal Press, Deshsanchar, Shilapatra, Nepal Live, Image Khabar, Khabarhub, TechPana, ArthaSarokar, The Kathmandu Post, The Himalayan Times, MyRepublica, The Annapurna Express, Rising Nepal, Nepali Times, etc.")
@@ -993,13 +1059,17 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
     summary_html = f'<p class="apple-card-summary">{html.escape(summary.strip())}</p>' if has_sum else ""
 
     btn_label = "Read in Indian Press ↗" if is_indian else "Read Story ↗"
+    wa_share_url = generate_whatsapp_share_url(item, "article")
 
     return (
         f'<article class="apple-news-card {cat_accent_class}">'
         f'<header class="apple-card-meta">{source_tag}{cat_badge}{lang_badge}{time_badge}</header>'
         f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{title_display}</a></h3>'
         f'{summary_html}'
-        f'<footer class="apple-card-footer"><a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{btn_label}</a></footer>'
+        f'<footer class="apple-card-footer" style="display:flex; justify-content:space-between; align-items:center;">'
+        f'<a href="{wa_share_url}" target="_blank" rel="noopener noreferrer" class="apple-wa-share-btn" title="Share individual story to WhatsApp">📲 WhatsApp</a>'
+        f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{btn_label}</a>'
+        f'</footer>'
         f'</article>'
     )
 
@@ -1060,6 +1130,8 @@ def render_apple_x_post_card(p, auto_translate=False):
         link = orig_link if orig_link != "#" else "https://x.com"
         cta_label = "View on X ↗"
 
+    wa_share_url = generate_whatsapp_share_url(p, "x")
+
     return (
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
@@ -1081,7 +1153,10 @@ def render_apple_x_post_card(p, auto_translate=False):
         f'<span class="x-metric-item" title="Impressions">👁️ {imp_fmt}</span>'
         f'{senti_html}'
         f'</div>'
+        f'<div style="display:flex; align-items:center; gap:8px;">'
+        f'<a href="{wa_share_url}" target="_blank" rel="noopener noreferrer" class="apple-wa-share-btn" title="Share tweet to WhatsApp">📲 WhatsApp</a>'
         f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="x-cta-link">{cta_label}</a>'
+        f'</div>'
         f'</footer>'
         f'</article>'
     )
@@ -1163,6 +1238,8 @@ def render_apple_fb_post_card(p, auto_translate=False):
             f'title="Read media coverage report on {html.escape(desk_label)}">🗞 {html.escape(desk_label)} Report ↗</a>'
         )
 
+    wa_share_url = generate_whatsapp_share_url(p, "fb")
+
     return (
         f'<article class="x-post-card" style="border-left: 3px solid #1877F2;">'
         f'<header class="x-post-header">'
@@ -1183,6 +1260,7 @@ def render_apple_fb_post_card(p, auto_translate=False):
         f'</div>'
         f'<div style="display:flex; align-items:center; gap:8px;">'
         f'{source_btn_html}'
+        f'<a href="{wa_share_url}" target="_blank" rel="noopener noreferrer" class="apple-wa-share-btn" title="Share Facebook update to WhatsApp">📲 WhatsApp</a>'
         f'<a href="{html.escape(fb_link)}" target="_blank" rel="noopener noreferrer" class="x-cta-link" style="color:#1877F2; background:#EBF5FF; border-color:#BFDBFE; font-weight:600;">{cta_label}</a>'
         f'</div>'
         f'</footer>'
@@ -2740,3 +2818,130 @@ with tab5:
                     st.warning("⚠️ No posts selected. Check the box on posts above to enable Word export.")
         else:
             st.info("No Facebook posts found matching the selected timeframe.")
+
+    # ==========================================
+    # WHATSAPP CHANNEL BROADCAST ENGINE (OPTION 2)
+    # ==========================================
+    st.markdown("---")
+    st.subheader("📢 WhatsApp Channel Broadcast Manager & Live Queue")
+    st.write(
+        "Manage real-time distribution of individual news stories, X tweets, and Facebook intelligence "
+        "to your **Official WhatsApp Channel subscribers** with automatic deduplication."
+    )
+
+    wa_stats = get_broadcasted_stats()
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Total Broadcasted", f"{wa_stats['total_broadcasted']:,}")
+    with m2:
+        st.metric("📰 News Stories", f"{wa_stats['by_type']['article']:,}")
+    with m3:
+        st.metric("🐦 X (Twitter)", f"{wa_stats['by_type']['x']:,}")
+    with m4:
+        st.metric("📘 Facebook", f"{wa_stats['by_type']['fb']:,}")
+
+    # Deduplication Queue: Gather unscanned/unbroadcasted items from current timeframe
+    pending_queue = []
+    for item in filtered_articles:
+        if not is_item_broadcasted(item, "article"):
+            pending_queue.append({"item": item, "type": "article", "source_type": "Nepali Media"})
+    for item in filtered_indian:
+        if not is_item_broadcasted(item, "article"):
+            pending_queue.append({"item": item, "type": "article", "source_type": "Indian Press"})
+    for item in filtered_x_posts:
+        if not is_item_broadcasted(item, "x"):
+            pending_queue.append({"item": item, "type": "x", "source_type": "X (Twitter)"})
+    for item in filtered_fb_posts:
+        if not is_item_broadcasted(item, "fb"):
+            pending_queue.append({"item": item, "type": "fb", "source_type": "Facebook"})
+
+    q_col1, q_col2 = st.columns([3, 1.2])
+    with q_col1:
+        st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` unsent items in timeframe)")
+    with q_col2:
+        queue_filter = st.selectbox(
+            "Filter Queue Source:",
+            ["All Sources", "Nepali Media", "Indian Press", "X (Twitter)", "Facebook"],
+            key="wa_queue_source_filter"
+        )
+
+    if queue_filter != "All Sources":
+        display_queue = [q for q in pending_queue if q["source_type"] == queue_filter]
+    else:
+        display_queue = pending_queue
+
+    if display_queue:
+        # Batch Actions Bar
+        b_c1, b_c2, b_c3 = st.columns([2, 2, 2])
+        with b_c1:
+            st.caption(f"Displaying top **{min(15, len(display_queue))}** of {len(display_queue)} pending items")
+        with b_c2:
+            if st.button("⚡ Mark Top 10 as Broadcasted", key="btn_wa_mark_top10"):
+                for q_entry in display_queue[:10]:
+                    mark_item_broadcasted(q_entry["item"], q_entry["type"])
+                st.success("✅ Top 10 items marked as sent in deduplication cache.")
+                st.rerun()
+        with b_c3:
+            if st.button("🗑 Clear Sent Cache History", key="btn_wa_clear_cache"):
+                save_sent_cache({"sent_keys": {}, "history": []})
+                st.warning("Sent cache history cleared.")
+                st.rerun()
+
+        # Display Queue Cards
+        for idx, q_item in enumerate(display_queue[:15]):
+            raw_item = q_item["item"]
+            itype = q_item["type"]
+            stype = q_item["source_type"]
+            msg_text = format_whatsapp_message(raw_item, itype)
+            wa_dispatch_url = generate_whatsapp_share_url(raw_item, itype)
+            item_title = raw_item.get("title") or raw_item.get("text") or "Untitled"
+            item_source = raw_item.get("source") or raw_item.get("author_name") or raw_item.get("handle") or "Unknown"
+            item_cat = raw_item.get("structured_category", "Others")
+            item_time = raw_item.get("exact_time") or raw_item.get("relative_time") or ""
+
+            with st.container():
+                st.markdown(f"""
+                <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #22C55E; border-radius:8px; padding:12px; margin-bottom:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="font-size:0.75rem; background:#F0FDF4; color:#166534; padding:2px 8px; border-radius:4px; font-weight:700;">{stype} · {item_cat}</span>
+                        <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(str(item_time))}</span>
+                    </div>
+                    <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
+                    <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                act_c1, act_c2, act_c3 = st.columns([2.5, 2, 1.5])
+                with act_c1:
+                    with st.expander("👁 View WhatsApp Formatted Preview", expanded=False):
+                        st.code(msg_text, language="markdown")
+                with act_c2:
+                    st.link_button(
+                        "⚡ Broadcast to WhatsApp ↗",
+                        wa_dispatch_url,
+                        width="stretch",
+                        key=f"btn_send_wa_{idx}_{get_item_key(raw_item, itype)}"
+                    )
+                with act_c3:
+                    if st.button("✓ Mark as Sent", key=f"btn_mark_sent_{idx}_{get_item_key(raw_item, itype)}", width="stretch"):
+                        mark_item_broadcasted(raw_item, itype)
+                        st.rerun()
+    else:
+        st.success("🎉 All scanned items in this timeframe have been broadcasted! Deduplication engine is up to date.")
+
+    # Recent Broadcast History
+    with st.expander("📜 Recent Broadcast History (Last 15 Dispatched Updates)", expanded=False):
+        if wa_stats["recent_history"]:
+            for h in wa_stats["recent_history"]:
+                hc1, hc2, hc3 = st.columns([4, 1.5, 1])
+                with hc1:
+                    st.markdown(f"**{html.escape(h.get('title', ''))}**\n\n_{html.escape(h.get('source', ''))}_ · `{h.get('type')}`")
+                with hc2:
+                    st.caption(f"Sent: {h.get('sent_at', '')[:16]}")
+                with hc3:
+                    if st.button("↺ Re-queue", key=f"btn_requeue_{h.get('key')}"):
+                        unmark_item_broadcasted({"link": h.get("link"), "title": h.get("title")}, h.get("type", "article"))
+                        st.rerun()
+        else:
+            st.caption("No broadcast history recorded yet.")
