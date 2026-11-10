@@ -711,53 +711,53 @@ refresh_btn = st.sidebar.button("🔄 Refresh All Feeds Now", width='stretch')
 st.sidebar.markdown("---")
 st.sidebar.subheader("📅 Date & Timestamp Filter")
 
+DEFAULT_TIME_PRESET = "🕒 Past 48 Hours (Default)"
 TIME_FILTER_PRESETS = [
-    "🕒 Past 48 Hours → Current (Default)",
-    "⚡ Past 24 Hours → Current",
-    "⏳ Past 12 Hours → Current",
-    "⏱ Past 6 Hours → Current",
-    "⏱ Past 3 Hours → Current",
-    "⏱ Past 1 Hour → Current",
-    "📅 Today (00:00 → Current NPT)",
-    "📅 Past 7 Days → Current",
-    "🗓 Custom Date & Timestamp Range (From – To)...",
-    "🏛 All Time (Include Full Archive)",
+    DEFAULT_TIME_PRESET,
+    "⚡ Past 24 Hours",
+    "⏳ Past 12 Hours",
+    "⏱ Past 6 Hours",
+    "📅 Today (Since 00:00 NPT)",
+    "📅 Past 7 Days",
+    "📆 Past 30 Days",
+    "🗓 Custom Date & Timestamp Range...",
+    "🏛 All Time (Archive)",
 ]
 
+# Ensure valid session state value across updates
+if st.session_state.get("time_filter_mode_select") not in TIME_FILTER_PRESETS:
+    st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
+
 time_filter_mode = st.sidebar.selectbox(
-    "Select Date & Timestamp Range:",
+    "Date & Time Window:",
     TIME_FILTER_PRESETS,
-    index=0,
     key="time_filter_mode_select",
-    help="Filters all articles and social feeds published within the selected time range."
+    help="Filters all articles, reports, and social feeds published within the selected timeframe in Nepal Time (NPT)."
 )
 
 filter_start_dt = None
 filter_end_dt = now_npt
 explicit_all_time = False
 
-if time_filter_mode == "⏱ Past 1 Hour → Current":
-    filter_start_dt = now_npt - datetime.timedelta(hours=1)
-elif time_filter_mode == "⏱ Past 3 Hours → Current":
-    filter_start_dt = now_npt - datetime.timedelta(hours=3)
-elif time_filter_mode == "⏱ Past 6 Hours → Current":
+if "Past 6 Hours" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(hours=6)
-elif time_filter_mode == "⏳ Past 12 Hours → Current":
+elif "Past 12 Hours" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(hours=12)
-elif time_filter_mode == "⚡ Past 24 Hours → Current":
+elif "Past 24 Hours" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(hours=24)
-elif time_filter_mode == "🕒 Past 48 Hours → Current (Default)":
+elif "Past 48 Hours" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(hours=48)
-elif time_filter_mode == "📅 Today (00:00 → Current NPT)":
+elif "Today" in time_filter_mode:
     filter_start_dt = datetime.datetime.combine(now_npt.date(), datetime.time(0, 0), tzinfo=NEPAL_TZ)
-elif time_filter_mode == "📅 Past 7 Days → Current":
+elif "Past 7 Days" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(days=7)
-elif time_filter_mode == "🏛 All Time (Include Full Archive)":
+elif "Past 30 Days" in time_filter_mode:
+    filter_start_dt = now_npt - datetime.timedelta(days=30)
+elif "All Time" in time_filter_mode:
     explicit_all_time = True
     filter_start_dt = None
     filter_end_dt = now_npt
-elif time_filter_mode == "🗓 Custom Date & Timestamp Range (From – To)...":
-    st.sidebar.markdown("**📅 Range: FROM (Start Timestamp)**")
+elif "Custom" in time_filter_mode:
     col_from_d, col_from_t = st.sidebar.columns(2)
     with col_from_d:
         from_date = st.date_input(
@@ -770,23 +770,22 @@ elif time_filter_mode == "🗓 Custom Date & Timestamp Range (From – To)...":
     with col_from_t:
         default_from_time = (now_npt - datetime.timedelta(hours=4)).time().replace(second=0, microsecond=0)
         from_time = st.time_input(
-            "From Time (NPT):",
+            "From Time:",
             value=default_from_time,
             key="custom_from_time",
             help="Starting time in Nepal Time (NPT)"
         )
     filter_start_dt = datetime.datetime.combine(from_date, from_time, tzinfo=NEPAL_TZ)
 
-    st.sidebar.markdown("**📅 Range: TO (End Timestamp)**")
     to_use_current = st.sidebar.checkbox(
         "⚡ End at Current / Now",
         value=True,
         key="custom_to_use_current",
-        help="Quick-select: Automatically ends at the exact present moment at query execution time."
+        help="Quick-select: Automatically ends at the exact present moment (NPT)."
     )
     if to_use_current:
         filter_end_dt = now_npt
-        st.sidebar.caption(f"Ending at present moment: **{now_npt.strftime('%b %d, %Y · %I:%M %p')} NPT**")
+        st.sidebar.caption(f"Ending at present moment: **{now_npt.strftime('%b %d · %I:%M %p NPT')}**")
     else:
         col_to_d, col_to_t = st.sidebar.columns(2)
         with col_to_d:
@@ -800,23 +799,23 @@ elif time_filter_mode == "🗓 Custom Date & Timestamp Range (From – To)...":
             )
         with col_to_t:
             to_time = st.time_input(
-                "To Time (NPT):",
+                "To Time:",
                 value=now_npt.time().replace(second=0, microsecond=0),
                 key="custom_to_time",
                 help="Ending time in Nepal Time (NPT)"
             )
         filter_end_dt = datetime.datetime.combine(to_date, to_time, tzinfo=NEPAL_TZ)
         if filter_end_dt < filter_start_dt:
-            st.sidebar.warning("⚠️ 'To' timestamp is earlier than 'From' timestamp. Auto-adjusting to end at 'From'.")
+            st.sidebar.warning("⚠️ 'To' timestamp is earlier than 'From'. Auto-adjusting to end at 'From'.")
             filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
 
 is_to_current = (filter_end_dt >= now_npt - datetime.timedelta(minutes=2))
-to_display_str = f"Current / Now ({filter_end_dt.strftime('%I:%M %p')} NPT)" if is_to_current else filter_end_dt.strftime("%b %d, %Y · %I:%M %p NPT")
+to_display_str = f"Current ({filter_end_dt.strftime('%I:%M %p NPT')})" if is_to_current else filter_end_dt.strftime("%b %d, %Y · %I:%M %p NPT")
 
 if filter_start_dt:
-    st.sidebar.success(f"⏱ **Range Active:**\n\n**From:** {filter_start_dt.strftime('%b %d, %Y · %I:%M %p')} NPT\n\n**To:** {to_display_str}")
+    st.sidebar.caption(f"🗓 Active Window: **{filter_start_dt.strftime('%b %d, %I:%M %p')}** → **{to_display_str}**")
 elif explicit_all_time:
-    st.sidebar.info(f"📚 Showing **All Time / Full Archive** up to **{to_display_str}**")
+    st.sidebar.caption(f"📚 Active Window: **Full Archive** up to **{to_display_str}**")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔍 Global Search & Filter System")
@@ -850,14 +849,11 @@ selected_cat_filter = st.sidebar.selectbox(
 if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters"):
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+    st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
     st.session_state["media_visible_count"] = 20
     st.session_state["indian_visible_count"] = 20
     st.session_state["x_visible_count"] = 20
     st.session_state["fb_visible_count"] = 20
-    if "custom_to_use_current" in st.session_state:
-        st.session_state["custom_to_use_current"] = True
-    st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
     if "custom_to_use_current" in st.session_state:
         st.session_state["custom_to_use_current"] = True
     if "x_cat_filter_select" in st.session_state:
@@ -1421,14 +1417,11 @@ if active_filter_chips:
         if st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch"):
             st.session_state["global_search_input"] = ""
             st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-            st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+            st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
             st.session_state["media_visible_count"] = 20
             st.session_state["indian_visible_count"] = 20
             st.session_state["x_visible_count"] = 20
             st.session_state["fb_visible_count"] = 20
-            if "custom_to_use_current" in st.session_state:
-                st.session_state["custom_to_use_current"] = True
-            st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
             if "custom_to_use_current" in st.session_state:
                 st.session_state["custom_to_use_current"] = True
             if "x_cat_filter_select" in st.session_state:
