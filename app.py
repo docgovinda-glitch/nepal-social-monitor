@@ -2943,19 +2943,44 @@ with tab5:
     if green_id:
         with st.container():
             st.markdown("##### 🚀 Direct Green-API Broadcast (Bypasses Make.com completely)")
+            
+            # Fetch recent chats if authorized for easy 1-click selection
+            recent_chats = get_green_api_chats() if green_state == "authorized" else []
+            chat_options = {}
+            if recent_chats:
+                for c in recent_chats[:60]:
+                    c_name = c.get("name") or c.get("id", "").split("@")[0]
+                    c_type = "👥 Group" if c.get("type") == "group" else "👤 Contact"
+                    chat_options[f"{c_type}: {c_name} ({c.get('id')})"] = c.get("id")
+
             g_c1, g_c2, g_c3 = st.columns([3, 2, 2.5])
             with g_c1:
                 default_target = get_env_variable("GREEN_API_CHAT_ID", "")
-                green_target_input = st.text_input(
-                    "WhatsApp Recipient (Phone / Group / Channel):",
-                    value=default_target,
-                    placeholder="e.g. 9779812345678@c.us",
-                    key="input_green_target_chat"
-                )
+                
+                if chat_options:
+                    recipient_mode = st.radio("Recipient Mode:", ["Pick from WhatsApp Chats/Groups", "Custom Phone Number"], horizontal=True, key="green_recip_mode")
+                    if recipient_mode == "Pick from WhatsApp Chats/Groups":
+                        selected_label = st.selectbox("Choose Destination Chat/Group:", list(chat_options.keys()), key="green_chat_dropdown")
+                        green_target_input = chat_options[selected_label]
+                    else:
+                        phone_input = st.text_input("Enter Nepal WhatsApp Number (e.g. 98XXXXXXXX):", value=default_target.split("@")[0].replace("977", "") if default_target else "", key="green_phone_custom")
+                        clean_num = "".join(filter(str.isdigit, phone_input))
+                        if clean_num.startswith("98") and len(clean_num) == 10:
+                            clean_num = f"977{clean_num}"
+                        green_target_input = f"{clean_num}@c.us" if clean_num else ""
+                else:
+                    green_target_input = st.text_input(
+                        "WhatsApp Recipient (Phone / Group):",
+                        value=default_target,
+                        placeholder="e.g. 9779812345678@c.us",
+                        key="input_green_target_chat"
+                    )
+
             with g_c2:
                 st.write("")
                 st.write("")
-                if st.button("🧪 Send Test WhatsApp Message", key="btn_green_test_msg", disabled=(green_state != "authorized" or not green_target_input.strip())):
+                st.write("")
+                if st.button("🧪 Send Test WhatsApp Message", key="btn_green_test_msg", disabled=(green_state != "authorized" or not bool(green_target_input.strip()))):
                     with st.spinner("Sending test message via Green-API..."):
                         ok, res = send_test_green_api_message(green_target_input.strip())
                         if ok:
@@ -2965,7 +2990,8 @@ with tab5:
             with g_c3:
                 st.write("")
                 st.write("")
-                if st.button("⚡ Dispatch Top 5 via Green-API", key="btn_green_dispatch_top5", disabled=(green_state != "authorized" or not green_target_input.strip())):
+                st.write("")
+                if st.button("⚡ Dispatch Top 5 via Green-API", key="btn_green_dispatch_top5", disabled=(green_state != "authorized" or not bool(green_target_input.strip()))):
                     if not pending_queue:
                         st.info("No unsent items in pending queue.")
                     else:
