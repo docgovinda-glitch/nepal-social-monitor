@@ -1332,6 +1332,770 @@ TOP_NEPAL_X_ACCOUNTS = [
         "avatar_bg": "#db2777",
         "initials": "JL",
         "followers": "12K"
+    },
+
+    # -------------------------------------------------------------
+    # 7. Additional Prominent Lawmakers, Leaders & Mayors
+    # -------------------------------------------------------------
+    {
+        "name": "Janardan Sharma 'Prabhakar'",
+        "handle": "JanardanSharma",
+        "type": "Political Leader",
+        "role": "Deputy General Secretary, CPN (Maoist Centre) / Former Finance Minister",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "JS",
+        "followers": "320K"
+    },
+    {
+        "name": "Barshaman Pun 'Ananta'",
+        "handle": "barshamanpun",
+        "type": "Political Leader",
+        "role": "Former Finance Minister / CPN (Maoist Centre) Standing Committee",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "BP",
+        "followers": "280K"
+    },
+    {
+        "name": "Devendra Paudel",
+        "handle": "Devendra_Maoist",
+        "type": "Political Leader",
+        "role": "Secretary, CPN (Maoist Centre) / Former Education Minister",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "DP",
+        "followers": "150K"
+    },
+    {
+        "name": "Pampha Bhusal",
+        "handle": "PamphaBhusal",
+        "type": "Political Leader",
+        "role": "Vice Chairperson, CPN (Maoist Centre) / Former Energy Minister",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "PB",
+        "followers": "190K"
+    },
+    {
+        "name": "CPN (Maoist Centre) Official",
+        "handle": "cpn_maoist",
+        "type": "Political Leader",
+        "role": "Official Handle of Communist Party of Nepal (Maoist Centre)",
+        "verified": True,
+        "avatar_bg": "#991b1b",
+        "initials": "MC",
+        "followers": "110K"
+    },
+    {
+        "name": "Rastriya Swatantra Party (RSP)",
+        "handle": "RSPNepal",
+        "type": "Political Leader",
+        "role": "Official Handle of Rastriya Swatantra Party",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "RS",
+        "followers": "240K"
+    },
+    {
+        "name": "Sobita Gautam",
+        "handle": "sobitagautam",
+        "type": "Political Leader",
+        "role": "Member of Parliament, RSP / Advocate & Youth Leader",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "SG",
+        "followers": "210K"
+    },
+    {
+        "name": "Sumana Shrestha",
+        "handle": "SumanaShrestha",
+        "type": "Political Leader",
+        "role": "MP, RSP / Former Minister of Education, Science & Technology",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "SS",
+        "followers": "195K"
+    },
+    {
+        "name": "Biraj Bhakta Shrestha",
+        "handle": "birajbhakta",
+        "type": "Political Leader",
+        "role": "MP, RSP / Former Minister of Youth & Sports",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "BS",
+        "followers": "130K"
+    },
+    {
+        "name": "Shishir Khanal",
+        "handle": "ShishirKhanal_",
+        "type": "Political Leader",
+        "role": "MP, RSP / Former Minister of Education / Founder Teach for Nepal",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "SK",
+        "followers": "145K"
+    },
+    {
+        "name": "Dr. Toshima Karki",
+        "handle": "drtoshimakarki",
+        "type": "Political Leader",
+        "role": "Member of Parliament, RSP / Health Rights Activist",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "TK",
+        "followers": "310K"
+    },
+    {
+        "name": "Rajendra Lingden",
+        "handle": "RajendraLingden",
+        "type": "Political Leader",
+        "role": "Chairman, Rastriya Prajatantra Party (RPP) / Member of Parliament",
+        "verified": True,
+        "avatar_bg": "#d97706",
+        "initials": "RL",
+        "followers": "450K"
+    },
+    {
+        "name": "Gyanendra Shahi",
+        "handle": "GyanendraShahi",
+        "type": "Political Leader",
+        "role": "Chief Whip, RPP / Anti-Corruption Activist & MP",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "GS",
+        "followers": "390K"
+    },
+    {
+        "name": "RPP Nepal Official",
+        "handle": "RPPNepalOfficial",
+        "type": "Political Leader",
+        "role": "Rastriya Prajatantra Party Nepal Official Handle",
+        "verified": True,
+        "avatar_bg": "#d97706",
+        "initials": "RP",
+        "followers": "85K"
+    },
+    {
+        "name": "Resham Lal Chaudhary",
+        "handle": "ReshamChy",
+        "type": "Political Leader",
+        "role": "Founder, Nagarik Unmukti Party (NUP) / Tharuhat Rights Leader",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "RC",
+        "followers": "120K"
+    },
+    {
+        "name": "Ranjita Shrestha",
+        "handle": "RanjitaShrestha",
+        "type": "Political Leader",
+        "role": "President, Nagarik Unmukti Party / Member of Parliament",
+        "verified": True,
+        "avatar_bg": "#16a34a",
+        "initials": "RS",
+        "followers": "95K"
+    },
+    {
+        "name": "Harka Sampang",
+        "handle": "harkasampang",
+        "type": "Political Leader",
+        "role": "Mayor of Dharan Sub-Metropolitan City / Grassroots Water Reformer",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "HS",
+        "followers": "520K"
+    },
+    {
+        "name": "Gopal Hamal",
+        "handle": "GopalHamal",
+        "type": "Political Leader",
+        "role": "Mayor of Dhangadhi Sub-Metropolitan City / Independent Civic Leader",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "GH",
+        "followers": "210K"
+    },
+    {
+        "name": "Chiribabu Maharjan",
+        "handle": "ChiribabuM",
+        "type": "Political Leader",
+        "role": "Mayor of Lalitpur Metropolitan City / Heritage & Urban Planner",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "CM",
+        "followers": "175K"
+    },
+    {
+        "name": "Padma Kumari Aryal",
+        "handle": "padmakaryal",
+        "type": "Political Leader",
+        "role": "Secretary, CPN (UML) / Former Minister of Agriculture & Land Mgmt",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "PA",
+        "followers": "160K"
+    },
+
+    # -------------------------------------------------------------
+    # 8. State Institutions, Defense, Justice & Aviation
+    # -------------------------------------------------------------
+    {
+        "name": "Office of the President of Nepal",
+        "handle": "OOP_Nepal",
+        "type": "Government & Security",
+        "role": "Official Communication Office of the President, Sheetal Niwas",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "OP",
+        "followers": "180K"
+    },
+    {
+        "name": "Nepal Army Official",
+        "handle": "Nepal_Army",
+        "type": "Government & Security",
+        "role": "Directorate of Public Relations & Information, Nepal Army HQ",
+        "verified": True,
+        "avatar_bg": "#14532d",
+        "initials": "NA",
+        "followers": "410K"
+    },
+    {
+        "name": "Armed Police Force Nepal",
+        "handle": "APF_Nepal",
+        "type": "Government & Security",
+        "role": "Armed Police Force Headquarters, Halchowk, Kathmandu",
+        "verified": True,
+        "avatar_bg": "#1e40af",
+        "initials": "AP",
+        "followers": "260K"
+    },
+    {
+        "name": "Supreme Court of Nepal",
+        "handle": "SupremeCourtNP",
+        "type": "Government & Security",
+        "role": "Apex Judicial Court of Nepal / Legal Notices & Rulings",
+        "verified": True,
+        "avatar_bg": "#334155",
+        "initials": "SC",
+        "followers": "120K"
+    },
+    {
+        "name": "CIAA Nepal",
+        "handle": "CIAA_Nepal",
+        "type": "Government & Security",
+        "role": "Commission for the Investigation of Abuse of Authority (Anti-Graft)",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "CI",
+        "followers": "190K"
+    },
+    {
+        "name": "National Human Rights Commission",
+        "handle": "NHRCNepal",
+        "type": "Government & Security",
+        "role": "National Human Rights Commission (NHRC) Nepal Official",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "NH",
+        "followers": "135K"
+    },
+    {
+        "name": "Civil Aviation Authority of Nepal",
+        "handle": "hello_caan",
+        "type": "Government & Security",
+        "role": "National Aviation Regulatory Authority of Nepal (CAAN)",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "CA",
+        "followers": "160K"
+    },
+    {
+        "name": "Tribhuvan International Airport",
+        "handle": "TIACAO_Official",
+        "type": "Government & Security",
+        "role": "TIA Civil Aviation Office, Kathmandu / Airport Operations & Flight Alerts",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "TI",
+        "followers": "140K"
+    },
+    {
+        "name": "Department of Passports Nepal",
+        "handle": "DOP_Nepal",
+        "type": "Government & Security",
+        "role": "Department of Passports, Ministry of Foreign Affairs, Tripureshwor",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "DP",
+        "followers": "210K"
+    },
+    {
+        "name": "Department of Immigration Nepal",
+        "handle": "DOINepal",
+        "type": "Government & Security",
+        "role": "Immigration & Border Management Administration of Nepal",
+        "verified": True,
+        "avatar_bg": "#1e40af",
+        "initials": "DI",
+        "followers": "170K"
+    },
+    {
+        "name": "Kathmandu Metropolitan City",
+        "handle": "Hello_KMC",
+        "type": "Government & Security",
+        "role": "KMC Urban Services, Public Works & Citizen Greivances",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "KM",
+        "followers": "290K"
+    },
+
+    # -------------------------------------------------------------
+    # 9. Economy, Banking, Energy & Capital Markets
+    # -------------------------------------------------------------
+    {
+        "name": "Maha Prasad Adhikari",
+        "handle": "MahaPrasadNRB",
+        "type": "Economy & Business",
+        "role": "Governor, Nepal Rastra Bank (Central Bank of Nepal)",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "MA",
+        "followers": "140K"
+    },
+    {
+        "name": "Chandra Prasad Dhakal",
+        "handle": "ChandraPDhakal",
+        "type": "Economy & Business",
+        "role": "President, FNCCI / Chairman, IME Group & Global IME Bank",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "CD",
+        "followers": "180K"
+    },
+    {
+        "name": "Confederation of Nepalese Industries",
+        "handle": "CNINepal",
+        "type": "Economy & Business",
+        "role": "Apex Industrial & Manufacturing Federation of Nepal",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "CN",
+        "followers": "95K"
+    },
+    {
+        "name": "Nepal Bankers' Association",
+        "handle": "BankersNepal",
+        "type": "Economy & Business",
+        "role": "Consortium of Commercial Banks in Nepal",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "NB",
+        "followers": "75K"
+    },
+    {
+        "name": "Nepal Stock Exchange Official",
+        "handle": "NEPSE_official",
+        "type": "Economy & Business",
+        "role": "National Securities & Capital Market Exchange of Nepal",
+        "verified": True,
+        "avatar_bg": "#059669",
+        "initials": "NS",
+        "followers": "165K"
+    },
+    {
+        "name": "ShareSansar",
+        "handle": "sharesansar",
+        "type": "Economy & Business",
+        "role": "Nepal's Leading Financial Portal, NEPSE Analysis & Corporate Intel",
+        "verified": True,
+        "avatar_bg": "#10b981",
+        "initials": "SS",
+        "followers": "240K"
+    },
+    {
+        "name": "MeroLagani",
+        "handle": "merolagani",
+        "type": "Economy & Business",
+        "role": "Stock Market Analytics, Company Financials & Portfolio Tracking",
+        "verified": True,
+        "avatar_bg": "#047857",
+        "initials": "ML",
+        "followers": "210K"
+    },
+    {
+        "name": "Kulman Ghising",
+        "handle": "kulmanghising",
+        "type": "Economy & Business",
+        "role": "Managing Director, Nepal Electricity Authority / Cross-Border Power Trade",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "KG",
+        "followers": "680K"
+    },
+    {
+        "name": "IPPAN Nepal",
+        "handle": "IPPAN_Nepal",
+        "type": "Economy & Business",
+        "role": "Independent Power Producers' Association, Nepal (Hydropower Umbrella)",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "IP",
+        "followers": "65K"
+    },
+    {
+        "name": "Abhyudaya Subedi",
+        "handle": "abhyudayasubedi",
+        "type": "Economy & Business",
+        "role": "Financial Analyst, Business Columnist & Capital Market Commentator",
+        "verified": True,
+        "avatar_bg": "#475569",
+        "initials": "AS",
+        "followers": "45K"
+    },
+    {
+        "name": "Sujeev Shakya",
+        "handle": "sujeevshakya",
+        "type": "Economy & Business",
+        "role": "Author, Economic Consultant & Founder CEO of beed management",
+        "verified": True,
+        "avatar_bg": "#334155",
+        "initials": "SS",
+        "followers": "85K"
+    },
+    {
+        "name": "Nepal Economic Forum",
+        "handle": "NepalEconForum",
+        "type": "Think Tank & Policy",
+        "role": "Non-profit Economic Research & Policy Analysis Platform",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "NF",
+        "followers": "55K"
+    },
+
+    # -------------------------------------------------------------
+    # 10. Diplomacy, Foreign Missions & Geopolitical Analysts
+    # -------------------------------------------------------------
+    {
+        "name": "Chinese Embassy Spokesperson",
+        "handle": "ChinaInNepal",
+        "type": "Diplomatic Missions",
+        "role": "Official Press & Media Desk of Embassy of PRC in Nepal",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "CN",
+        "followers": "85K"
+    },
+    {
+        "name": "Dean R. Thompson",
+        "handle": "USAmbNepal",
+        "type": "Diplomatic Missions",
+        "role": "U.S. Ambassador to Nepal",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "DT",
+        "followers": "95K"
+    },
+    {
+        "name": "Naveen Srivastava",
+        "handle": "AmbSrivastava",
+        "type": "Diplomatic Missions",
+        "role": "Ambassador of India to Nepal",
+        "verified": True,
+        "avatar_bg": "#ea580c",
+        "initials": "NS",
+        "followers": "75K"
+    },
+    {
+        "name": "Veronique Lorenzo",
+        "handle": "EUAmbNepal",
+        "type": "Diplomatic Missions",
+        "role": "European Union Ambassador to Nepal",
+        "verified": True,
+        "avatar_bg": "#1d4ed8",
+        "initials": "VL",
+        "followers": "42K"
+    },
+    {
+        "name": "Embassy of Japan in Nepal",
+        "handle": "JapanInNepal",
+        "type": "Diplomatic Missions",
+        "role": "Official Handle of the Embassy of Japan in Kathmandu",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "JN",
+        "followers": "65K"
+    },
+    {
+        "name": "German Embassy Kathmandu",
+        "handle": "GermanyInNepal",
+        "type": "Diplomatic Missions",
+        "role": "German Diplomatic Mission in Nepal",
+        "verified": True,
+        "avatar_bg": "#0f172a",
+        "initials": "GN",
+        "followers": "58K"
+    },
+    {
+        "name": "Australian Embassy Nepal",
+        "handle": "AusAmbNepal",
+        "type": "Diplomatic Missions",
+        "role": "Australian Diplomatic Mission & Aid Cooperation in Nepal",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "AN",
+        "followers": "72K"
+    },
+    {
+        "name": "Embassy of the Republic of Korea",
+        "handle": "KoreaInNepal",
+        "type": "Diplomatic Missions",
+        "role": "Embassy of the Republic of Korea in Nepal",
+        "verified": True,
+        "avatar_bg": "#1e3a8a",
+        "initials": "KN",
+        "followers": "38K"
+    },
+    {
+        "name": "Prof. S.D. Muni",
+        "handle": "SDMUNI",
+        "type": "Foreign Affairs Specialist",
+        "role": "Professor Emeritus JNU / Eminent Authority on Nepal-India Relations",
+        "verified": True,
+        "avatar_bg": "#7c2d12",
+        "initials": "SM",
+        "followers": "115K"
+    },
+    {
+        "name": "Suhasini Haidar",
+        "handle": "suhasinih",
+        "type": "Foreign Affairs Specialist",
+        "role": "Diplomatic Editor, The Hindu / South Asian Geopolitics Analyst",
+        "verified": True,
+        "avatar_bg": "#b45309",
+        "initials": "SH",
+        "followers": "710K"
+    },
+    {
+        "name": "Kallol Bhattacherjee",
+        "handle": "janus251",
+        "type": "Foreign Affairs Specialist",
+        "role": "Senior Diplomatic Correspondent, The Hindu / Author on Himalayan Borderlands",
+        "verified": True,
+        "avatar_bg": "#334155",
+        "initials": "KB",
+        "followers": "65K"
+    },
+    {
+        "name": "Indrani Bagchi",
+        "handle": "tibagchi",
+        "type": "Foreign Affairs Specialist",
+        "role": "CEO, Ananta Centre / Strategic Commentator on South Asia & Indo-Pacific",
+        "verified": True,
+        "avatar_bg": "#991b1b",
+        "initials": "IB",
+        "followers": "180K"
+    },
+    {
+        "name": "Brahma Chellaney",
+        "handle": "Chelaney",
+        "type": "Foreign Affairs Specialist",
+        "role": "Geostrategist & Author / Water Security, Himalayan Borders & China Expert",
+        "verified": True,
+        "avatar_bg": "#1e293b",
+        "initials": "BC",
+        "followers": "490K"
+    },
+    {
+        "name": "South Asian Voices",
+        "handle": "SAVoices",
+        "type": "Think Tank & Policy",
+        "role": "Stimson Center Platform for Strategic Analysis on South Asia",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "SV",
+        "followers": "35K"
+    },
+
+    # -------------------------------------------------------------
+    # 11. Senior Investigative Journalists, Editors & Watchdogs
+    # -------------------------------------------------------------
+    {
+        "name": "Subhash Ghimire",
+        "handle": "subhash_ktm",
+        "type": "Journalist / Analyst",
+        "role": "Former Editor-in-Chief Republica / Harvard Kennedy School Alum",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "SG",
+        "followers": "125K"
+    },
+    {
+        "name": "Shiva Gaunle",
+        "handle": "shivagaunle",
+        "type": "Journalist / Analyst",
+        "role": "Former President FNJ / Investigative Journalist at CIJ Nepal",
+        "verified": True,
+        "avatar_bg": "#334155",
+        "initials": "SG",
+        "followers": "95K"
+    },
+    {
+        "name": "Bhadra Sharma",
+        "handle": "bhadra_sharma",
+        "type": "Journalist / Analyst",
+        "role": "Reporter for The New York Times covering Nepal Politics & Security",
+        "verified": True,
+        "avatar_bg": "#0f172a",
+        "initials": "BS",
+        "followers": "85K"
+    },
+    {
+        "name": "Pradeep Bashyal",
+        "handle": "thepradeepb",
+        "type": "Journalist / Analyst",
+        "role": "BBC Nepali Journalist / Author on Himalayan & Contemporary Affairs",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "PB",
+        "followers": "165K"
+    },
+    {
+        "name": "Navin Singh Khadka",
+        "handle": "NavinSinghKhadk",
+        "type": "Journalist / Analyst",
+        "role": "BBC World Service Environment & Himalayan Climate Correspondent",
+        "verified": True,
+        "avatar_bg": "#15803d",
+        "initials": "NK",
+        "followers": "110K"
+    },
+    {
+        "name": "Deepak Adhikari",
+        "handle": "DeepakAdk",
+        "type": "Journalist / Analyst",
+        "role": "Freelance Investigative Journalist (AFP, Al Jazeera, Nikkei)",
+        "verified": True,
+        "avatar_bg": "#475569",
+        "initials": "DA",
+        "followers": "140K"
+    },
+    {
+        "name": "Prakash Rimal",
+        "handle": "PrakashRimal",
+        "type": "Journalist / Analyst",
+        "role": "Senior Journalist / Former Editor The Himalayan Times",
+        "verified": True,
+        "avatar_bg": "#1e293b",
+        "initials": "PR",
+        "followers": "78K"
+    },
+    {
+        "name": "Rishi Dhamala",
+        "handle": "RishiDhamala",
+        "type": "Journalist / Analyst",
+        "role": "President, Reporters Club Nepal / Prime Times Television Anchor",
+        "verified": True,
+        "avatar_bg": "#dc2626",
+        "initials": "RD",
+        "followers": "280K"
+    },
+    {
+        "name": "Pramod Acharya",
+        "handle": "acharya_pramod",
+        "type": "Journalist / Analyst",
+        "role": "Investigative Journalist & Fact-Checker / Migration & Labor Rights",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "PA",
+        "followers": "42K"
+    },
+    {
+        "name": "Center for Investigative Journalism Nepal",
+        "handle": "CIJNepal",
+        "type": "Media & News Curators",
+        "role": "CIJ Nepal / Investigative Reporting on Governance & Accountability",
+        "verified": True,
+        "avatar_bg": "#b91c1c",
+        "initials": "CJ",
+        "followers": "110K"
+    },
+    {
+        "name": "Federation of Nepali Journalists",
+        "handle": "FNJNepal",
+        "type": "Civic Voice / Public Commentator",
+        "role": "National Umbrella Organization of Nepali Media Professionals",
+        "verified": True,
+        "avatar_bg": "#1e40af",
+        "initials": "FN",
+        "followers": "85K"
+    },
+    {
+        "name": "South Asia Check",
+        "handle": "SouthAsiaCheck",
+        "type": "Think Tank & Policy",
+        "role": "Independent Fact-Checking Initiative on Politics & Public Statements",
+        "verified": True,
+        "avatar_bg": "#0f766e",
+        "initials": "SA",
+        "followers": "48K"
+    },
+
+    # -------------------------------------------------------------
+    # 12. Multilateral Development & Environmental Bodies
+    # -------------------------------------------------------------
+    {
+        "name": "ICIMOD",
+        "handle": "icimod",
+        "type": "Think Tank & Policy",
+        "role": "International Centre for Integrated Mountain Development (Kathmandu)",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "IC",
+        "followers": "92K"
+    },
+    {
+        "name": "World Bank Nepal",
+        "handle": "WorldBankNepal",
+        "type": "Think Tank & Policy",
+        "role": "World Bank Country Office for Nepal / Economic & Infrastructure Data",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "WB",
+        "followers": "130K"
+    },
+    {
+        "name": "Asian Development Bank Nepal",
+        "handle": "ADB_HQ",
+        "type": "Think Tank & Policy",
+        "role": "ADB Regional Development, Infrastructure & Energy Desk",
+        "verified": True,
+        "avatar_bg": "#0369a1",
+        "initials": "AD",
+        "followers": "190K"
+    },
+    {
+        "name": "UNDP Nepal",
+        "handle": "UNDP_Nepal",
+        "type": "Think Tank & Policy",
+        "role": "United Nations Development Programme Nepal Country Office",
+        "verified": True,
+        "avatar_bg": "#0284c7",
+        "initials": "UN",
+        "followers": "145K"
+    },
+    {
+        "name": "Martin Chautari",
+        "handle": "MartinChautari",
+        "type": "Think Tank & Policy",
+        "role": "Kathmandu-based Academic Research Institute & Public Policy Forum",
+        "verified": True,
+        "avatar_bg": "#7c2d12",
+        "initials": "MC",
+        "followers": "32K"
     }
 ]
 
