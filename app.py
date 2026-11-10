@@ -61,7 +61,10 @@ from whatsapp_dispatcher import (
     format_whatsapp_message,
     generate_whatsapp_share_url,
     get_item_key,
-    DEFAULT_CHANNEL_URL
+    DEFAULT_CHANNEL_URL,
+    get_env_variable,
+    dispatch_item_to_webhook,
+    send_test_webhook_ping
 )
 
 # Load environment variables from .env if present
@@ -2854,6 +2857,57 @@ with tab5:
     for item in filtered_fb_posts:
         if not is_item_broadcasted(item, "fb"):
             pending_queue.append({"item": item, "type": "fb", "source_type": "Facebook"})
+
+    # Webhook & Automation Status Bar
+    wh_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
+
+    st.markdown("""
+    <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 16px; margin: 12px 0 14px 0;">
+        <span style="font-size:0.75rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">AUTOMATION DISPATCH ENGINE</span>
+        <div style="font-size:0.92rem; font-weight:600; color:#0F172A; margin-top:2px;">
+    """ + (
+        f"🟢 Webhook Dispatcher Connected & Ready · <code style='font-size:0.8rem; background:#E2E8F0; padding:2px 6px; border-radius:4px;'>{wh_url[:28]}...{wh_url[-10:] if len(wh_url)>38 else ''}</code>"
+        if wh_url else
+        "⚪ 1-Click Broadcast Mode Active · <span style='font-weight:400; color:#64748B;'>Set <code>WHATSAPP_WEBHOOK_URL</code> in <code>.env</code> for 100% automated background posting</span>"
+    ) + """
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    wb_col1, wb_col2, wb_col3 = st.columns([2, 2.5, 3.5])
+    with wb_col1:
+        if st.button("🧪 Test Webhook Ping", key="btn_wa_ping_webhook", disabled=not bool(wh_url)):
+            with st.spinner("Pinging webhook endpoint..."):
+                ok, msg = send_test_webhook_ping(wh_url)
+                if ok:
+                    st.success(f"✅ Webhook ping successful! ({msg})")
+                else:
+                    st.error(f"❌ Webhook ping failed: {msg}")
+    with wb_col2:
+        if st.button("⚡ Dispatch Top 5 Unsent via Webhook", key="btn_wa_dispatch_webhook", disabled=not bool(wh_url)):
+            if not pending_queue:
+                st.info("No unsent items in pending queue.")
+            else:
+                success_count = 0
+                for q_item in pending_queue[:5]:
+                    ok, _ = dispatch_item_to_webhook(q_item["item"], q_item["type"], wh_url)
+                    if ok:
+                        mark_item_broadcasted(q_item["item"], q_item["type"])
+                        success_count += 1
+                        time.sleep(0.5)
+                st.success(f"✅ Dispatched {success_count} item(s) to webhook successfully.")
+                st.rerun()
+    with wb_col3:
+        with st.expander("📘 How to connect free Webhook (Make.com / n8n)", expanded=False):
+            st.markdown("""
+            **100% Free Webhook Setup:**
+            1. **Make.com (Free 1,000 runs/mo)**:
+               - Create a scenario with trigger **Webhooks > Custom webhook**.
+               - Copy the generated Webhook URL.
+            2. **Configure your project**:
+               - Add `WHATSAPP_WEBHOOK_URL=https://hook.make.com/...` in your `.env` or `.streamlit/secrets.toml`.
+            3. **Done!** Every new scanned news, X tweet, and FB update will be automatically dispatched.
+            """)
 
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:

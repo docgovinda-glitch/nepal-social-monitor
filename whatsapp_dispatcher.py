@@ -207,3 +207,116 @@ def generate_whatsapp_share_url(item: Dict[str, Any], item_type: str = "article"
     encoded = urllib.parse.quote(text)
     return f"https://api.whatsapp.com/send?text={encoded}"
 
+def get_env_variable(key: str, default: str = "") -> str:
+    """
+    Fetches environment variable from os.environ, falling back to local .env
+    and .streamlit/secrets.toml if available.
+    """
+    val = os.getenv(key, "")
+    if val:
+        return val.strip()
+
+    # Fallback to local .env file
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{key}="):
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    # Fallback to .streamlit/secrets.toml
+    secrets_path = os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml")
+    if os.path.exists(secrets_path):
+        try:
+            with open(secrets_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{key}") and "=" in line:
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+
+    return default
+
+def dispatch_item_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: str) -> Tuple[bool, str]:
+    """
+    Sends an individual item payload to the configured webhook (e.g. Make.com, n8n, Zapier).
+    Returns (success, message).
+    """
+    import urllib.request
+    import urllib.error
+
+    channel_url = get_env_variable("WHATSAPP_CHANNEL_URL", DEFAULT_CHANNEL_URL)
+    channel_id = channel_url.rstrip("/").split("/")[-1] if "/channel/" in channel_url else ""
+    wa_text = format_whatsapp_message(item, item_type)
+
+    payload = {
+        "event": "new_scanned_item",
+        "timestamp": datetime.now().isoformat(),
+        "item_type": item_type,
+        "title": item.get("title") or item.get("text") or "Untitled",
+        "source": item.get("source") or item.get("author_name") or item.get("handle") or "Unknown",
+        "category": item.get("structured_category", "Others"),
+        "link": item.get("link") or item.get("fb_link") or "",
+        "channel_url": channel_url,
+        "channel_id": channel_id,
+        "whatsapp_text": wa_text
+    }
+
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            webhook_url,
+            data=data,
+            headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "NepalMonitor-Dispatcher/1.0"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            code = resp.getcode()
+            if code in (200, 201, 202, 204):
+                return True, f"HTTP {code} OK"
+            return False, f"Unexpected HTTP status {code}"
+    except Exception as ex:
+        return False, str(ex)
+
+def send_test_webhook_ping(webhook_url: str) -> Tuple[bool, str]:
+    """
+    Sends a test verification ping to the webhook endpoint.
+    """
+    import urllib.request
+
+    channel_url = get_env_variable("WHATSAPP_CHANNEL_URL", DEFAULT_CHANNEL_URL)
+    payload = {
+        "event": "test_ping",
+        "timestamp": datetime.now().isoformat(),
+        "channel_url": channel_url,
+        "message": "✅ Nepal Media Intelligence Monitor Webhook Connection Verified Successfully!",
+        "sample_item": {
+            "title": "Prime Minister holds high-level council meeting in Singha Durbar",
+            "source": "Ekantipur",
+            "category": "Politics & Governance",
+            "whatsapp_text": "📰 *Ekantipur* · 📌 *Politics & Governance*\n*Prime Minister holds high-level council meeting in Singha Durbar*\n\n🔗 *Full Story:* https://ekantipur.com\n🌐 *Nepal Intelligence Monitor*"
+        }
+    }
+
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            webhook_url,
+            data=data,
+            headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "NepalMonitor-TestPing/1.0"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            code = resp.getcode()
+            if code in (200, 201, 202, 204):
+                return True, f"Connection verified (HTTP {code})"
+            return False, f"HTTP {code}"
+    except Exception as ex:
+        return False, str(ex)
+
+
