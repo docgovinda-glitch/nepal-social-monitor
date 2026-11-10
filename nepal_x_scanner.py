@@ -1503,13 +1503,28 @@ def _enrich_tweet_by_id(
     impressions = int(views_dict.get("count", 0)) if isinstance(views_dict, dict) and views_dict.get("count") else (likes * 16)
     
     created_at_str = tweet_json.get("created_at", "")
-    pub_dt = now_npt
+    pub_dt = None
     if created_at_str:
         try:
             from dateutil import parser as dt_parser
             pub_dt = dt_parser.parse(created_at_str).astimezone(NEPAL_TZ)
         except Exception:
             pass
+
+    # If created_at is missing, decode the tweet Snowflake ID for authentic creation timestamp
+    if not pub_dt and str(sid).isdigit() and int(sid) > 10000000000000:
+        try:
+            snowflake_ms = (int(sid) >> 22) + 1288834974657
+            pub_dt = datetime.datetime.fromtimestamp(snowflake_ms / 1000.0, tz=datetime.timezone.utc).astimezone(NEPAL_TZ)
+        except Exception:
+            pass
+
+    if not pub_dt:
+        pub_dt = now_npt
+
+    # Guarantee no future dates (clock skew clamp)
+    if pub_dt > now_npt:
+        pub_dt = now_npt
 
     clean_handle = handle.lstrip("@").strip()
     link = f"https://x.com/{clean_handle}/status/{sid}"
@@ -1684,8 +1699,22 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str 
                         if isinstance(p.get("published_dt"), str):
                             try:
                                 p["published_dt"] = dt_parser.parse(p["published_dt"])
+                                if p["published_dt"].tzinfo is None:
+                                    p["published_dt"] = p["published_dt"].replace(tzinfo=NEPAL_TZ)
+                                else:
+                                    p["published_dt"] = p["published_dt"].astimezone(NEPAL_TZ)
                             except Exception:
-                                p["published_dt"] = now_npt
+                                sid = p.get("id", "")
+                                if str(sid).isdigit() and int(sid) > 10000000000000:
+                                    ms = (int(sid) >> 22) + 1288834974657
+                                    p["published_dt"] = datetime.datetime.fromtimestamp(ms / 1000.0, tz=datetime.timezone.utc).astimezone(NEPAL_TZ)
+                                else:
+                                    p["published_dt"] = now_npt
+                        if p.get("published_dt") and p["published_dt"] > now_npt:
+                            p["published_dt"] = now_npt
+                        if p.get("published_dt"):
+                            p["relative_time"] = format_relative_time(p["published_dt"], now_npt)
+                            p["exact_time"] = p["published_dt"].strftime("%b %d, %I:%M %p NPT")
                     return cached_posts
         except Exception:
             pass

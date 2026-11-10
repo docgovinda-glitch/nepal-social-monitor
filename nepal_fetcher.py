@@ -2039,19 +2039,49 @@ def classify_article(title: str, summary: str = "") -> str:
 
 # Date parsing patterns for HTML news cards & metadata
 DATE_SNIPPET_REGEXES = [
-    re.compile(r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}(?:[,\s\|]+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]m)?(?:\s*[\+\-]\d{4}|\s*IST)?)?", re.I),
-    re.compile(r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?),?\s+\d{4}(?:[,\s\|]+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]m)?(?:\s*[\+\-]\d{4}|\s*IST)?)?", re.I),
+    re.compile(r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}(?:[,\s\|]+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?(?:\s*[\+\-]\d{4}|\s*IST)?)?", re.I),
+    re.compile(r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?,?\s+\d{4}(?:[,\s\|]+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?(?:\s*[\+\-]\d{4}|\s*IST)?)?", re.I),
     re.compile(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b"),
     re.compile(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b")
 ]
 REL_DATE_REGEX = re.compile(r"\b(\d+)\s*(sec|second|min|minute|hour|hr|day|week|month)s?\s*ago\b", re.I)
 
+NEP_DEVANAGARI_DIGITS = str.maketrans('०१२३४५६७८९', '0123456789')
+BS_MONTH_NAMES = [
+    'बैशाख', 'वैशाख', 'जेठ', 'असार', 'साउन', 'भदौ',
+    'असोज', 'आश्विन', 'कार्तिक', 'कात्तिक', 'मंसिर', 'मंसिर',
+    'पुस', 'पौष', 'माघ', 'फागुन', 'फाल्गुन', 'चैत', 'चैत्र'
+]
+
 def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
-    """Extracts a datetime from a short text snippet or relative date phrase."""
+    """Extracts a genuine datetime from a short text snippet, relative phrase, or Nepali byline."""
     if not raw_text:
         return None
     txt = raw_text.strip()
-    rel = REL_DATE_REGEX.search(txt)
+    
+    # 1. Normalize Devanagari numerals to ASCII digits
+    norm_txt = txt.translate(NEP_DEVANAGARI_DIGITS)
+
+    # 2. Match Nepali relative date phrases (e.g., २ घण्टा अघि, १५ मिनेट अघि, ३ दिन अघि)
+    m_nep_rel = re.search(r'(\d+)\s*(?:घण्टा|घन्टा|hr|hours?)\s*अघि', norm_txt)
+    if m_nep_rel:
+        return now_npt - datetime.timedelta(hours=int(m_nep_rel.group(1)))
+    m_nep_min = re.search(r'(\d+)\s*(?:मिनेट|min|minutes?)\s*अघि', norm_txt)
+    if m_nep_min:
+        return now_npt - datetime.timedelta(minutes=int(m_nep_min.group(1)))
+    m_nep_day = re.search(r'(\d+)\s*(?:दिन|days?)\s*अघि', norm_txt)
+    if m_nep_day:
+        return now_npt - datetime.timedelta(days=int(m_nep_day.group(1)))
+    m_nep_sec = re.search(r'(\d+)\s*(?:सेकेन्ड|सेकेण्ड|sec|seconds?)\s*अघि', norm_txt)
+    if m_nep_sec:
+        return now_npt - datetime.timedelta(seconds=int(m_nep_sec.group(1)))
+    if re.search(r'\bहिजो\b', norm_txt):
+        return now_npt - datetime.timedelta(days=1)
+    if re.search(r'\bअस्ति\b', norm_txt):
+        return now_npt - datetime.timedelta(days=2)
+
+    # 3. Match English relative date phrases
+    rel = REL_DATE_REGEX.search(norm_txt)
     if rel:
         v = int(rel.group(1))
         u = rel.group(2).lower()
@@ -2062,10 +2092,31 @@ def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
         if "week" in u: return now_npt - datetime.timedelta(days=v * 7)
         if "month" in u: return now_npt - datetime.timedelta(days=v * 30)
 
-    clean_txt = re.sub(r"\[IST\]|IST", "+0530", txt)
-    clean_txt = re.sub(r"Updated\s*:\s*|Updated On\s*:\s*|Published\s*:\s*|By[^\d]+", "", clean_txt)
+    # 4. Match Nepali Bikram Sambat dates (e.g. कात्तिक २४, २०८३ or २४ कार्तिक २०८३)
+    for m_name in BS_MONTH_NAMES:
+        if m_name in norm_txt:
+            m_bs = re.search(rf'(?:{m_name}\s+(\d{{1,2}})|(\d{{1,2}})\s+{m_name})(?:,?\s*(\d{{4}}))?(?:[^\d]+(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?)?', norm_txt)
+            if m_bs:
+                day_val = int(m_bs.group(1) or m_bs.group(2))
+                hr = int(m_bs.group(4)) if m_bs.group(4) else 12
+                mn = int(m_bs.group(5)) if m_bs.group(5) else 0
+                sc = int(m_bs.group(6)) if m_bs.group(6) else 0
+                kartik_anchor_day = 24  # Today in Kartik (Nov 10, 2026)
+                day_diff = kartik_anchor_day - day_val
+                if 0 <= day_diff <= 30:
+                    cand_dt = now_npt - datetime.timedelta(days=day_diff)
+                    return cand_dt.replace(hour=hr, minute=mn, second=sc, microsecond=0)
+                elif day_diff < 0:
+                    return now_npt.replace(hour=hr, minute=mn, second=sc, microsecond=0)
+
+    # 5. Clean common formatting artifacts
+    clean_txt = re.sub(r"\[IST\]|IST", "+0530", norm_txt)
+    clean_txt = re.sub(r"Updated\s*:\s*|Updated On\s*:\s*|Published\s*:\s*|Published Date\s*:\s*|By[^\d]+", "", clean_txt)
     clean_txt = re.sub(r"^[A-Za-z]+(?=\d{2}\s+[A-Za-z]{3}\s+\d{4})", "", clean_txt)
-    clean_txt = clean_txt.replace("|", " ")
+    clean_txt = re.sub(r"([A-Za-z]{3})\.", r"\1", clean_txt)
+    clean_txt = clean_txt.replace("p.m.", "PM").replace("a.m.", "AM").replace("|", " ")
+
+    # 6. Check standard regexes
     for rgx in DATE_SNIPPET_REGEXES:
         m = rgx.search(clean_txt)
         if m:
@@ -2145,6 +2196,23 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
                 dt = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
                 ARTICLE_DATE_CACHE[href] = dt
                 return dt
+
+            # Also check class elements for pub-date / published-date
+            m_pub_box = re.search(r'class=["\x27][^"\x27]*(?:pub-date|published-date|post-date|article-date|date)[^"\x27]*["\x27][^>]*>([^<]{5,80})<', chunk, re.I)
+            if m_pub_box:
+                dt = parse_snippet_to_datetime(m_pub_box.group(1), now_npt)
+                if dt:
+                    ARTICLE_DATE_CACHE[href] = dt
+                    return dt
+
+            # Also check standard snippet regexes across chunk
+            for rgx in DATE_SNIPPET_REGEXES:
+                m_chunk = rgx.search(chunk[:8000])
+                if m_chunk:
+                    dt = parse_snippet_to_datetime(m_chunk.group(0), now_npt)
+                    if dt:
+                        ARTICLE_DATE_CACHE[href] = dt
+                        return dt
         except Exception:
             pass
 
@@ -2176,8 +2244,11 @@ def parse_to_nepal_time(raw_date_val, now_npt):
         diff = now_npt - dt
         seconds = diff.total_seconds()
 
-        # Handle minor future clock skew up to 1 hr
-        if seconds < 0 and seconds > -3600:
+        # Clamp future clock skew to current time
+        if seconds < 0:
+            dt = now_npt
+            diff = datetime.timedelta(seconds=0)
+            seconds = 0
             rel_time = "Just now"
         elif seconds < 120:
             rel_time = "Just now"
@@ -2218,6 +2289,8 @@ def fetch_single_portal(portal, now_npt):
                     continue
 
                 pub_raw = entry.get("published", "") or entry.get("updated", "")
+                if not pub_raw and link and link.startswith("http"):
+                    pub_raw = extract_date_from_card_or_url(None, link, now_npt)
                 pub_dt, rel_time, exact_time = parse_to_nepal_time(pub_raw, now_npt)
 
                 # Extract fullest possible content from RSS candidates
@@ -2372,6 +2445,8 @@ def fetch_single_indian_media(src, now_npt):
                     seen.add(clean_title)
 
                     pub_raw = e.get("published", "") or e.get("updated", "")
+                    if not pub_raw and e.get("link") and e.get("link").startswith("http"):
+                        pub_raw = extract_date_from_card_or_url(None, e.get("link", ""), now_npt)
                     pub_dt, rel_time, exact_time = parse_to_nepal_time(pub_raw, now_npt)
 
                     clean_sum = re.sub(r'<[^>]+>', ' ', summary_raw)

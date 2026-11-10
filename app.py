@@ -716,14 +716,14 @@ st.sidebar.subheader("📅 Date & Timestamp Filter")
 time_filter_mode = st.sidebar.selectbox(
     "Select Time Horizon:",
     [
-        "All Recent Feeds (Default: 48h for FB)",
+        "All Recent Feeds (Past 48 Hours)",
         "Past 1 Hour",
         "Past 3 Hours",
         "Past 6 Hours",
         "Past 12 Hours",
         "Past 24 Hours",
-        "Past 48 Hours",
         "Today (Since 00:00 NPT)",
+        "Past 48 Hours",
         "Past 7 Days",
         "All Time (Include Full Archive)",
         "Custom Date & Timestamp...",
@@ -843,21 +843,31 @@ if "fb_posts" not in st.session_state or not st.session_state.get("fb_posts"):
     st.session_state["fb_posts"] = scan_real_nepal_fb_intelligence(all_articles)
 all_fb_posts = st.session_state["fb_posts"]
 
-# Apply Date & Time Range Filter
-filtered_articles = all_articles
-filtered_indian = indian_articles
-filtered_x_posts = all_x_posts
-filtered_fb_posts = all_fb_posts
+# Apply Date & Time Range Filter across ALL 4 channels
+min_date = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
 
-if filter_start_dt:
-    filtered_articles = [a for a in filtered_articles if a["published_dt"] >= filter_start_dt]
-    filtered_indian = [a for a in filtered_indian if a["published_dt"] >= filter_start_dt]
-    filtered_x_posts = [p for p in filtered_x_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
-    filtered_fb_posts = [p for p in filtered_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
-elif not explicit_all_time:
-    # Unless filtered by user, Facebook feeds should not provide posts older than 48 hours
-    fb_default_cutoff = now_npt - datetime.timedelta(hours=48)
-    filtered_fb_posts = [p for p in filtered_fb_posts if p.get("published_dt") and p["published_dt"] >= fb_default_cutoff]
+# Determine strict active cutoff for all feeds
+active_time_cutoff = filter_start_dt
+if not active_time_cutoff and not explicit_all_time:
+    # Default timeline across ALL 4 sections: Past 48 Hours
+    active_time_cutoff = now_npt - datetime.timedelta(hours=48)
+
+if active_time_cutoff:
+    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= now_npt]
+    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= now_npt]
+    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= now_npt]
+    filtered_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= now_npt]
+else:
+    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] <= now_npt]
+    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] <= now_npt]
+    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] <= now_npt]
+    filtered_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] <= now_npt]
+
+# Sort EVERY channel strictly by newest publication timestamp first
+filtered_articles.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
+filtered_indian.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
+filtered_x_posts.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
+filtered_fb_posts.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
 
 # Calculate Category Counts for Nepali Media (based on time-filtered articles)
 cat_counts = Counter([a["structured_category"] for a in filtered_articles])
@@ -1639,32 +1649,18 @@ with tab4:
                 st.session_state["fb_posts"] = scan_real_nepal_fb_intelligence(all_articles)
                 st.rerun()
 
-    # Apply filters (Strictly default to last 48 hours unless filtered by user)
-    filtered_fb_feed = all_fb_posts
+    # Inherit from filtered_fb_posts (which strictly adheres to user-specified timeline, search & category)
+    filtered_fb_feed = list(filtered_fb_posts)
 
-    # 1. Apply Time Horizon filter
-    if filter_start_dt:
-        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
-    elif fb_time_scope == "⚡ Past 24 Hours":
+    # 1. Apply in-tab tighter time scope refinement if chosen
+    if fb_time_scope == "⚡ Past 24 Hours":
         cutoff_24 = now_npt - datetime.timedelta(hours=24)
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_24]
     elif fb_time_scope == "⏳ Past 12 Hours":
         cutoff_12 = now_npt - datetime.timedelta(hours=12)
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_12]
-    elif fb_time_scope == "📅 Past 7 Days":
-        cutoff_7d = now_npt - datetime.timedelta(days=7)
-        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_7d]
-    elif fb_time_scope == "🏛 All Time / Full Archive" or explicit_all_time:
-        filtered_fb_feed = filtered_fb_feed
-    else:  # "🕒 Last 48 Hours (Default)"
-        cutoff_48 = now_npt - datetime.timedelta(hours=48)
-        filtered_fb_feed = [p for p in filtered_fb_feed if p.get("published_dt") and p["published_dt"] >= cutoff_48]
 
-    # 2. Apply smart search query
-    if search_query and search_query.strip():
-        filtered_fb_feed = [p for p in filtered_fb_feed if smart_search_match(p, search_query)]
-
-    # 3. Apply category filter
+    # 2. Apply in-tab category filter if selected
     if fb_cat_filter != "All Categories (All 8)":
         chosen_fb_cat = fb_cat_filter.split(" ", 1)[1]
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("structured_category") == chosen_fb_cat]
