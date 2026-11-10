@@ -772,7 +772,6 @@ search_query = st.sidebar.text_input(
 
 # Quick Filter Reset Button in Sidebar
 if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters"):
-    st.session_state["sidebar_selected_cat_filter"] = "All Categories (All 8)"
     st.session_state["global_search_input"] = ""
     st.rerun()
 
@@ -1310,32 +1309,117 @@ with tab3:
 # TAB 4: Facebook Trends Nepal
 # ==========================================
 with tab4:
-    st.subheader("📘 Live Facebook Nepal Monitor")
-    st.write("Monitor public posts, photos, comments, and viral discussions across Nepal's largest Facebook pages.")
+    st.subheader("📘 Live Facebook Nepal Intelligence Monitor")
+    st.write("Live tracking of public pages, senior journalists, analysts, foreign policy thinkers, multilateral bodies, and civic commentators active across the **8 Structured Categories**.")
 
+    # Facebook Category & Search Filters
+    f_filter_col1, f_filter_col2 = st.columns([2, 2])
+    with f_filter_col1:
+        fb_cat_options = ["All Categories (All 8)"] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
+        selected_fb_cat = st.selectbox("Filter Monitored Pages by Category:", fb_cat_options, key="fb_cat_selector")
+    
+    with f_filter_col2:
+        fb_search_kw = st.text_input("Search Page, Journalist, or Topic:", placeholder="e.g. Madhu Raman, China, Sudheer, Embassy, Economy", key="fb_search_box")
+
+    # Filtered accounts
+    filtered_fb_pages = POPULAR_NEPAL_FB_PAGES
+    if selected_fb_cat != "All Categories (All 8)":
+        clean_cat = selected_fb_cat.split(" ", 1)[-1]
+        filtered_fb_pages = [p for p in filtered_fb_pages if p.get("category") == clean_cat]
+
+    if fb_search_kw.strip():
+        kw = fb_search_kw.strip().lower()
+        filtered_fb_pages = [
+            p for p in filtered_fb_pages 
+            if kw in p.get("name", "").lower() 
+            or kw in p.get("role", "").lower() 
+            or kw in p.get("desc", "").lower() 
+            or kw in p.get("slug", "").lower()
+            or kw in p.get("category", "").lower()
+        ]
+
+    # Metrics Row
+    fbm1, fbm2, fbm3, fbm4 = st.columns(4)
+    with fbm1:
+        st.metric("Monitored FB Profiles", f"{len(filtered_fb_pages)} Profiles")
+    with fbm2:
+        st.metric("Covered Sectors", "8 Geopolitical / Civic Categories")
+    with fbm3:
+        st.metric("Journalists & Analysts", f"{len([p for p in filtered_fb_pages if 'Journalist' in p.get('role', '') or 'Diplomat' in p.get('role', '') or 'Analyst' in p.get('role', '') or 'Author' in p.get('role', '')])} Curated")
+    with fbm4:
+        st.metric("Live Feeds", "🟢 Connected")
+
+    st.markdown("---")
+
+    # Interactive Page Selector & Direct Embed Viewer
+    st.markdown("### 🔍 Interactive Page Inspector & Live Embed")
     col_fb_sel, col_fb_custom = st.columns([2, 2])
     with col_fb_sel:
-        fb_options = [f"{p['name']} ({p['desc']})" for p in POPULAR_NEPAL_FB_PAGES]
-        selected_fb_label = st.selectbox("Choose a Top Nepal Facebook Page to Monitor:", fb_options)
-        selected_fb_slug = POPULAR_NEPAL_FB_PAGES[fb_options.index(selected_fb_label)]['slug']
+        fb_dropdown_options = [f"{p['name']} — {p.get('role', '')}" for p in POPULAR_NEPAL_FB_PAGES]
+        selected_fb_label = st.selectbox("Select Page to View Timeline & Meta Feed:", fb_dropdown_options, key="fb_dropdown_select")
+        active_page = POPULAR_NEPAL_FB_PAGES[fb_dropdown_options.index(selected_fb_label)]
+        selected_fb_slug = active_page['slug']
     
     with col_fb_custom:
-        custom_fb = st.text_input("Or Enter Any Public Page Slug / Name:", placeholder="e.g. nepalpolice, routineofnepalbanda")
+        custom_fb = st.text_input("Or Enter Any Public Page Slug / Custom Profile URL:", placeholder="e.g. routineofnepalbanda, nepalpolice, balenshah", key="custom_fb_input")
         if custom_fb.strip():
             clean_slug = custom_fb.strip().replace("https://www.facebook.com/", "").replace("https://facebook.com/", "").strip("/ ")
             selected_fb_slug = clean_slug
+            active_page = {
+                "name": clean_slug,
+                "slug": clean_slug,
+                "role": "Custom Monitored Public Page",
+                "desc": f"Live timeline and public post stream of facebook.com/{clean_slug}",
+                "category": "Custom",
+                "avatar_bg": "#0284c7",
+                "initials": clean_slug[:2].upper()
+            }
 
-    st.markdown(f"#### 🔴 Live Facebook Feed: **facebook.com/{selected_fb_slug}**")
+    # Action Banner for Selected Page
+    fb_profile_url = f"https://www.facebook.com/{selected_fb_slug}"
+    fb_videos_url = f"https://www.facebook.com/{selected_fb_slug}/videos"
+    fb_search_url = f"https://www.facebook.com/search/posts/?q={urllib.parse.quote(active_page.get('name', selected_fb_slug))}"
 
-    fb_embed_url = f"https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2F{urllib.parse.quote(selected_fb_slug)}&tabs=timeline&width=500&height=750&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true&appId"
+    st.markdown(f"""
+    <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:14px;">
+            <div style="width:48px; height:48px; border-radius:50%; background:{active_page.get('avatar_bg', '#1877f2')}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; flex-shrink:0;">
+                {active_page.get('initials', 'FB')}
+            </div>
+            <div>
+                <div style="font-size:1.15rem; font-weight:700; color:#0f172a;">{active_page.get('name', selected_fb_slug)} <span style="color:#1877f2; font-size:1rem;">✓</span></div>
+                <div style="font-size:0.85rem; color:#64748b; margin-top:2px;">
+                    <span style="background:#f1f5f9; padding:2px 8px; border-radius:6px; font-weight:600; color:#334155;">{active_page.get('role', 'Public Profile')}</span>
+                    &nbsp;•&nbsp; <span>{active_page.get('desc', '')}</span>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{fb_profile_url}" target="_blank" style="background:#1877f2; color:#ffffff; padding:8px 16px; border-radius:8px; text-decoration:none; font-weight:650; font-size:0.88rem; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(24,119,242,0.25);">
+                Open Live Profile on FB ↗
+            </a>
+            <a href="{fb_videos_url}" target="_blank" style="background:#f0f2f5; color:#1c1e21; border:1px solid #dcdfe3; padding:8px 14px; border-radius:8px; text-decoration:none; font-weight:600; font-size:0.88rem;">
+                Watch Videos / Reels ↗
+            </a>
+            <a href="{fb_search_url}" target="_blank" style="background:#f0f2f5; color:#1c1e21; border:1px solid #dcdfe3; padding:8px 14px; border-radius:8px; text-decoration:none; font-weight:600; font-size:0.88rem;">
+                Search Discussions on FB ↗
+            </a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Live Meta SDK Page Plugin Iframe (Containerized & Fallback-friendly)
+    fb_embed_url = f"https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2F{urllib.parse.quote(selected_fb_slug)}&tabs=timeline&width=500&height=700&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true&appId"
     
+    st.info("💡 **Browser Note**: Due to Meta/Facebook security policies, if your browser has strict cookie tracking protection enabled, click **'Open Live Profile on FB ↗'** above to directly view posts without restrictions.")
+
     fb_embed_html = f"""
-    <div style="display:flex; justify-content:center; background-color:#f0f2f5; padding:15px; border-radius:8px;">
+    <div style="display:flex; justify-content:center; background-color:#f0f2f5; padding:15px; border-radius:12px; border:1px solid #e4e6eb;">
         <iframe 
             src="{fb_embed_url}" 
             width="500" 
-            height="750" 
-            style="border:none;overflow:hidden;border-radius:8px;box-shadow: 0 2px 8px rgba(0,0,0,0.1);" 
+            height="700" 
+            style="border:none;overflow:hidden;border-radius:10px;box-shadow: 0 4px 14px rgba(0,0,0,0.08);background:#ffffff;" 
             scrolling="yes" 
             frameborder="0" 
             allowfullscreen="true" 
@@ -1343,11 +1427,61 @@ with tab4:
         </iframe>
     </div>
     """
-    components.html(fb_embed_html, height=780, scrolling=True)
+    components.html(fb_embed_html, height=730, scrolling=True)
 
     st.markdown("---")
 
+    # Directory of All Monitored Analysts, Commentators & Pages
+    st.markdown("### 🇳🇵 Directory of Monitored Analysts, Commentators & Geopolitical Pages")
+    st.write(f"Showing **{len(filtered_fb_pages)} public figures, diplomatic missions, and organizations** regularly commenting on regional relations, foreign policy, and internal governance:")
 
+    fb_grid_cols = st.columns(3)
+    for idx, p in enumerate(filtered_fb_pages):
+        with fb_grid_cols[idx % 3]:
+            p_cat = p.get('category', 'Others')
+            p_badge_class = {
+                "India in Nepal": "cat-badge-india",
+                "China in Nepal": "cat-badge-china",
+                "Pakistan & Nepal": "cat-badge-pakistan",
+                "Bangladesh & Nepal": "cat-badge-bangladesh",
+                "Nepal – Internal Politics": "cat-badge-politics",
+                "Nepal – External Relations (Others)": "cat-badge-external",
+                "Economy & Trade": "cat-badge-economy",
+            }.get(p_cat, "cat-badge-others")
+            
+            p_url = f"https://www.facebook.com/{p['slug']}"
+            p_search = f"https://www.facebook.com/search/posts/?q={urllib.parse.quote(p['name'])}"
+
+            st.markdown(f"""
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,0.03); display:flex; flex-direction:column; justify-content:space-between; min-height:160px;">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                        <span class="{p_badge_class}" style="font-size:0.7rem; padding:3px 8px;">{p_cat}</span>
+                        <span style="font-size:0.75rem; color:#94a3b8; font-family:monospace;">fb.com/{p['slug']}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                        <div style="width:34px; height:34px; border-radius:50%; background:{p.get('avatar_bg', '#1877f2')}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0;">
+                            {p.get('initials', 'FB')}
+                        </div>
+                        <div>
+                            <div style="font-weight:700; font-size:14px; color:#0f172a; line-height:1.2;">{p['name']}</div>
+                            <div style="font-size:11px; font-weight:600; color:#0284c7; margin-top:2px;">{p.get('role', '')}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:11.5px; color:#475569; line-height:1.4; margin-top:6px; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                        {p.get('desc', '')}
+                    </div>
+                </div>
+                <div style="border-top:1px solid #f1f5f9; padding-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:11.5px;">
+                    <a href="{p_url}" target="_blank" style="font-weight:700; color:#1877f2; text-decoration:none;">Open Page ↗</a>
+                    <a href="{p_search}" target="_blank" style="color:#64748b; text-decoration:none;">Search Posts ↗</a>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # Quick Jump to Trending Facebook Searches in Nepal
     st.subheader("⚡ Quick Jump to Trending Facebook Searches in Nepal")
     q_fb = urllib.parse.quote_plus(f"{search_query} Nepal" if search_query else "Nepal viral")
     

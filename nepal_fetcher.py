@@ -511,14 +511,304 @@ TOP_INDIAN_MEDIA_SOURCES = [
     {"name": "Prabhat Khabar", "type": "topic_html", "url": "https://www.prabhatkhabar.com/topic/nepal", "lang": "Hindi", "desc": "Leading Hindi daily covering Bihar-Nepal border region"}
 ]
 
-# Top Facebook Pages in Nepal
+# Comprehensive Directory of Monitored Facebook Pages & Public Figures in Nepal
+# Covering Journalists, Analysts, Think Tanks, Bilateral Relations & Public Commentators
 POPULAR_NEPAL_FB_PAGES = [
-    {"name": "Routine of Nepal Banda (RONB)", "slug": "routineofnepalbanda", "desc": "Nepal's #1 viral news & community updates page (4M+ followers)"},
-    {"name": "Balen Shah (Mayor)", "slug": "balenshah", "desc": "Official page of Kathmandu Mayor Balen Shah"},
-    {"name": "OnlineKhabar", "slug": "onlinekhabar", "desc": "Leading digital news platform with highest FB engagement"},
-    {"name": "Setopati", "slug": "setopati", "desc": "Popular independent digital portal"},
-    {"name": "Kantipur TV HD", "slug": "kantipurtvhd", "desc": "Kantipur Television official updates & clips"},
-    {"name": "Ratopati Online", "slug": "ratopationline", "desc": "Real-time news and viral reports"}
+    # 1. Foreign Affairs & Geopolitics Analysts
+    {
+        "name": "Madhu Raman Acharya",
+        "slug": "madhuramanacharya",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Former Foreign Secretary & Diplomat",
+        "desc": "Authoritative commentary on diplomacy, treaties, and foreign policy",
+        "avatar_bg": "#1e3a8a",
+        "initials": "MA"
+    },
+    {
+        "name": "Sudheer Sharma",
+        "slug": "sudheerktm",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Author & Veteran Editor",
+        "desc": "Author of 'Prayogshala' analyzing Nepal's internal power shifts and regional foreign policy",
+        "avatar_bg": "#0f172a",
+        "initials": "SS"
+    },
+    {
+        "name": "Dipak Gyawali",
+        "slug": "dipak.gyawali.7",
+        "category": "India in Nepal",
+        "role": "Water Resources Expert & Former Minister",
+        "desc": "In-depth insights into Nepal-India water treaties, energy sovereignty, and geopolitics",
+        "avatar_bg": "#047857",
+        "initials": "DG"
+    },
+    {
+        "name": "Kanak Mani Dixit",
+        "slug": "kanakmanidixit",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Civil Society Leader & Writer",
+        "desc": "Senior commentator on South Asian regionalism, democracy, and cross-border relations",
+        "avatar_bg": "#334155",
+        "initials": "KD"
+    },
+    {
+        "name": "Amish Raj Mulmi",
+        "slug": "amish.mulmi",
+        "category": "China in Nepal",
+        "role": "Author & Geopolitical Columnist",
+        "desc": "Author of 'All Roads Lead North', tracking Nepal-China dynamics and Himalayan passes",
+        "avatar_bg": "#dc2626",
+        "initials": "AM"
+    },
+    {
+        "name": "Geja Sharma Wagle",
+        "slug": "geja.wagle",
+        "category": "India in Nepal",
+        "role": "Defense & Security Columnist",
+        "desc": "Strategic analysis on regional defense, border dynamics, and security policies",
+        "avatar_bg": "#475569",
+        "initials": "GW"
+    },
+    {
+        "name": "Dr. Surya Raj Acharya",
+        "slug": "surya.r.acharya",
+        "category": "Economy & Trade",
+        "role": "Public Policy & Infrastructure Analyst",
+        "desc": "Expert analysis on mega-projects, transit corridors, and economic governance",
+        "avatar_bg": "#0284c7",
+        "initials": "SA"
+    },
+    {
+        "name": "Akhilesh Upadhyay",
+        "slug": "akhilesh.upadhyay",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Senior Fellow IIDS & Foreign Affairs Analyst",
+        "desc": "Strategic analysis of Nepal's neighborhood diplomacy and global engagement",
+        "avatar_bg": "#1e40af",
+        "initials": "AU"
+    },
+    {
+        "name": "Yubaraj Ghimire",
+        "slug": "yubaraj.ghimire.12",
+        "category": "Nepal – Internal Politics",
+        "role": "Senior Editor & Political Analyst",
+        "desc": "Constitutional oversight, parliamentary dynamics, and political discourse",
+        "avatar_bg": "#7c2d12",
+        "initials": "YG"
+    },
+    {
+        "name": "Dilbhusan Pathak",
+        "slug": "dilbhusan.pathak",
+        "category": "Nepal – Internal Politics",
+        "role": "Senior Broadcast Journalist",
+        "desc": "Host of 'Tough Talk' covering governance, accountability, and national debates",
+        "avatar_bg": "#0f766e",
+        "initials": "DP"
+    },
+    {
+        "name": "Gajendra Budhathoki",
+        "slug": "gbudhathoki",
+        "category": "Economy & Trade",
+        "role": "Senior Economic Journalist",
+        "desc": "Investigative coverage of inflation, public debt, banks, and economic reform",
+        "avatar_bg": "#b45309",
+        "initials": "GB"
+    },
+    {
+        "name": "Vijay Kant Karna",
+        "slug": "vijaykantkarna",
+        "category": "Nepal – Internal Politics",
+        "role": "Political Scientist & Policy Analyst",
+        "desc": "Madhesh dynamics, federalism, inclusion, and bilateral diplomacy",
+        "avatar_bg": "#e11d48",
+        "initials": "VK"
+    },
+
+    # 2. Regional Think Tanks & Research Institutes
+    {
+        "name": "NIICE Nepal",
+        "slug": "niicenepal",
+        "category": "China in Nepal",
+        "role": "International Cooperation & Engagement Think Tank",
+        "desc": "Regular research publications on BRI, South Asian security, and China-Nepal ties",
+        "avatar_bg": "#dc2626",
+        "initials": "NI"
+    },
+    {
+        "name": "CESIF Nepal",
+        "slug": "cesifnepal",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Centre for Social Innovation & Foreign Policy",
+        "desc": "Tracking foreign policy developments, multilateralism, and geopolitical trends",
+        "avatar_bg": "#4338ca",
+        "initials": "CS"
+    },
+    {
+        "name": "IIDS Nepal",
+        "slug": "iidsnepal",
+        "category": "Economy & Trade",
+        "role": "Institute for Integrated Development Studies",
+        "desc": "Leading research institute on economic growth, South Asian trade, and policy",
+        "avatar_bg": "#0d9488",
+        "initials": "II"
+    },
+    {
+        "name": "SEJON (Society of Economic Journalists)",
+        "slug": "sejon.nepal",
+        "category": "Economy & Trade",
+        "role": "Economic Journalism Forum",
+        "desc": "Apex body tracking national fiscal policies, export-import trends, and customs",
+        "avatar_bg": "#d97706",
+        "initials": "SE"
+    },
+
+    # 3. Regional & Multilateral Missions / Embassies
+    {
+        "name": "SAARC Secretariat",
+        "slug": "saarcsecretariat",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Regional Multilateral Organization HQ",
+        "desc": "Official regional cooperation forum headquartered in Kathmandu",
+        "avatar_bg": "#0284c7",
+        "initials": "SS"
+    },
+    {
+        "name": "Embassy of India Kathmandu",
+        "slug": "IndiaInNepal",
+        "category": "India in Nepal",
+        "role": "Official Mission of India",
+        "desc": "Bilateral aid, border projects, scholarship programs, and high-level official visits",
+        "avatar_bg": "#ea580c",
+        "initials": "IN"
+    },
+    {
+        "name": "Chinese Embassy in Nepal",
+        "slug": "chinanepalembassy",
+        "category": "China in Nepal",
+        "role": "Embassy of the People's Republic of China",
+        "desc": "Bilateral exchanges, cultural diplomacy, northern border posts, and development initiatives",
+        "avatar_bg": "#b91c1c",
+        "initials": "CN"
+    },
+    {
+        "name": "Embassy of Pakistan Kathmandu",
+        "slug": "PakinNepal",
+        "category": "Pakistan & Nepal",
+        "role": "Embassy of Pakistan in Nepal",
+        "desc": "Bilateral education programs, cultural events, and diplomatic engagements",
+        "avatar_bg": "#14532d",
+        "initials": "PK"
+    },
+    {
+        "name": "Bangladesh Embassy Nepal",
+        "slug": "bdembassykathmandu",
+        "category": "Bangladesh & Nepal",
+        "role": "Embassy of Bangladesh, Kathmandu",
+        "desc": "Tripartite energy trade (Nepal-India-Bangladesh), regional transit, and trade pacts",
+        "avatar_bg": "#15803d",
+        "initials": "BD"
+    },
+    {
+        "name": "U.S. Embassy Kathmandu",
+        "slug": "usembassynepal",
+        "category": "Nepal – External Relations (Others)",
+        "role": "United States Mission in Nepal",
+        "desc": "USAID partnerships, MCC compact developments, and diplomatic announcements",
+        "avatar_bg": "#1e3a8a",
+        "initials": "US"
+    },
+    {
+        "name": "European Union in Nepal",
+        "slug": "EUinNepal",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Delegation of the European Union",
+        "desc": "Multilateral development cooperation, aviation safety, and climate initiatives",
+        "avatar_bg": "#1d4ed8",
+        "initials": "EU"
+    },
+    {
+        "name": "Ministry of Foreign Affairs, Nepal",
+        "slug": "mofanepal",
+        "category": "Nepal – External Relations (Others)",
+        "role": "Government of Nepal Diplomatic Headquarters",
+        "desc": "Official press communiques, bilateral treaties, and foreign ministerial statements",
+        "avatar_bg": "#1e40af",
+        "initials": "MF"
+    },
+
+    # 4. Civic Leaders, News Curators & Broadcasters
+    {
+        "name": "Balen Shah",
+        "slug": "balenshah",
+        "category": "Nepal – Internal Politics",
+        "role": "Mayor of Kathmandu / Civic Reformer",
+        "desc": "Kathmandu municipal governance, urban policy, and public reforms",
+        "avatar_bg": "#0284c7",
+        "initials": "BS"
+    },
+    {
+        "name": "Dr. Baburam Bhattarai",
+        "slug": "drbaburambhattarai",
+        "category": "Nepal – Internal Politics",
+        "role": "Former PM / Economist & Thinker",
+        "desc": "Long-form commentary on Nepal's political economy, federalism, and geostrategy",
+        "avatar_bg": "#7c2d12",
+        "initials": "BB"
+    },
+    {
+        "name": "Dr. Swarnim Wagle",
+        "slug": "swarnimwagleofficial",
+        "category": "Economy & Trade",
+        "role": "Vice Chairman RSP / Economist",
+        "desc": "In-depth posts on economic policy, foreign debt, and national development vision",
+        "avatar_bg": "#0369a1",
+        "initials": "SW"
+    },
+    {
+        "name": "Routine of Nepal Banda (RONB)",
+        "slug": "routineofnepalbanda",
+        "category": "Nepal – Internal Politics",
+        "role": "Nepal's #1 Social Media News Curator",
+        "desc": "Over 4M+ followers; fastest real-time community reports, viral debates, and civic alerts",
+        "avatar_bg": "#0284c7",
+        "initials": "RO"
+    },
+    {
+        "name": "OnlineKhabar",
+        "slug": "onlinekhabar",
+        "category": "Nepal – Internal Politics",
+        "role": "Leading Digital News Platform",
+        "desc": "Round-the-clock news reporting with huge public engagement and discussion",
+        "avatar_bg": "#dc2626",
+        "initials": "OK"
+    },
+    {
+        "name": "Setopati",
+        "slug": "setopati",
+        "category": "Nepal – Internal Politics",
+        "role": "Digital Newspaper & In-depth Reporting",
+        "desc": "Investigative op-eds, political discourse, and international analysis",
+        "avatar_bg": "#334155",
+        "initials": "SP"
+    },
+    {
+        "name": "Kantipur TV HD",
+        "slug": "kantipurtvhd",
+        "category": "Nepal – Internal Politics",
+        "role": "Broadcast Television Channel",
+        "desc": "Video clips, prime-time news debates, and live press briefings",
+        "avatar_bg": "#0284c7",
+        "initials": "KT"
+    },
+    {
+        "name": "Nepal Police Official",
+        "slug": "nepalpolice",
+        "category": "Nepal – Internal Politics",
+        "role": "Headquarters of Nepal Police",
+        "desc": "Official safety bulletins, public notices, and cyber alerts",
+        "avatar_bg": "#1e3a8a",
+        "initials": "NP"
+    }
 ]
 
 # Top X (Twitter) Handles in Nepal
