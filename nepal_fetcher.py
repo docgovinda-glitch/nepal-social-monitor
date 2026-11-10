@@ -6,6 +6,7 @@ High-performance news & social media fetcher for Nepal.
 3. Dedicated monitoring of Nepal coverage across Top Indian Media (English & Hindi).
 """
 
+import os
 import datetime
 import zoneinfo
 import urllib.request
@@ -28,8 +29,27 @@ DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Translation in-memory cache
-TRANSLATION_CACHE = {}
+# Translation persistent disk and in-memory cache
+TRANSLATION_CACHE_FILE = os.path.join(os.path.dirname(__file__), "nepal_translation_cache.json")
+
+def load_translation_cache():
+    if os.path.exists(TRANSLATION_CACHE_FILE):
+        try:
+            with open(TRANSLATION_CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+TRANSLATION_CACHE = load_translation_cache()
+
+def save_translation_cache():
+    try:
+        with open(TRANSLATION_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(TRANSLATION_CACHE, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
 # Full article news text in-memory cache
 FULL_ARTICLE_TEXT_CACHE = {}
 # Published date in-memory cache
@@ -43,84 +63,137 @@ MYMEMORY_EMAILS = [
 ]
 _email_idx = 0
 
-def translate_headline_to_en(text: str, lang: str = "Nepali") -> str:
+def translate_to_english_machine(text: str, lang: str = "auto") -> str:
     """
-    Translates Nepali or Hindi headline into English.
-    Returns original text if already English or if translation is unavailable.
+    Translates Nepali, Hindi, or any other non-English text to English.
+    Uses Google Translate engine with multi-tier fallback and disk caching.
     """
-    global _email_idx
-    if not text:
+    if not text or not text.strip():
         return ""
-    # If no Devanagari characters, the headline is already in English
-    if not any('\u0900' <= c <= '\u097F' for c in text):
-        return text.strip()
+    text_clean = text.strip()
+    # If no Devanagari characters, already in English
+    if not any('\u0900' <= c <= '\u097F' for c in text_clean):
+        return text_clean
 
-    if text in TRANSLATION_CACHE:
-        return TRANSLATION_CACHE[text]
+    if text_clean in TRANSLATION_CACHE:
+        return TRANSLATION_CACHE[text_clean]
 
-    # Primary translation service: MyMemory API with verified de parameter (50k words/day)
-    pair = "ne|en" if lang != "Hindi" else "hi|en"
-    email = MYMEMORY_EMAILS[_email_idx % len(MYMEMORY_EMAILS)]
-    _email_idx += 1
-    params = {
-        "q": text[:350],
-        "langpair": pair,
-        "de": email
-    }
-    url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers=DEFAULT_HEADERS)
+    # Tier 1: Google Translate single API (blisteringly fast and reliable)
     try:
-        with urllib.request.urlopen(req, context=SSL_CTX, timeout=4) as res:
+        q_url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=" + urllib.parse.quote(text_clean[:600])
+        req = urllib.request.Request(q_url, headers=DEFAULT_HEADERS)
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            res_parts = [p[0] for p in data[0] if p and p[0]]
+            if res_parts:
+                translated = "".join(res_parts).strip()
+                if translated:
+                    TRANSLATION_CACHE[text_clean] = translated
+                    save_translation_cache()
+                    return translated
+    except Exception:
+        pass
+
+    # Tier 2: MyMemory API Fallback
+    global _email_idx
+    try:
+        pair = "ne|en" if lang != "Hindi" else "hi|en"
+        email = MYMEMORY_EMAILS[_email_idx % len(MYMEMORY_EMAILS)]
+        _email_idx += 1
+        params = {"q": text_clean[:350], "langpair": pair, "de": email}
+        url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode(params)
+        req = urllib.request.Request(url, headers=DEFAULT_HEADERS)
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=3) as res:
             data = json.loads(res.read().decode())
-            status = data.get("responseStatus")
             trans = data.get("responseData", {}).get("translatedText", "")
-            if status == 200 and trans and not trans.startswith("MYMEMORY WARNING"):
+            if data.get("responseStatus") == 200 and trans and not trans.startswith("MYMEMORY WARNING"):
                 clean_trans = html.unescape(trans).strip()
-                TRANSLATION_CACHE[text] = clean_trans
+                TRANSLATION_CACHE[text_clean] = clean_trans
+                save_translation_cache()
                 return clean_trans
     except Exception:
         pass
 
-    # Fallback translation service: deep_translator (GoogleTranslator)
+    # Tier 3: deep_translator fallback
     try:
         from deep_translator import GoogleTranslator
-        trans = GoogleTranslator(source='auto', target='en').translate(text[:350])
+        trans = GoogleTranslator(source='auto', target='en').translate(text_clean[:350])
         if trans:
             clean_trans = html.unescape(trans).strip()
-            TRANSLATION_CACHE[text] = clean_trans
+            TRANSLATION_CACHE[text_clean] = clean_trans
+            save_translation_cache()
             return clean_trans
     except Exception:
         pass
 
-    return text
+    return text_clean
+
+# Alias for backwards compatibility
+translate_headline_to_en = translate_to_english_machine
 
 def batch_translate_headlines(articles: list, max_workers: int = 15) -> list:
     """
-    Translates headlines for a list of articles in parallel.
-    Populates 'headline_english' on each article dictionary.
+    Translates headlines and summaries for a list of articles in parallel.
+    Populates 'headline_english' and 'summary_english' on each article dictionary.
     """
     to_translate = []
     for art in articles:
         if not art.get("headline_english"):
             title = art.get("title", "")
             if any('\u0900' <= c <= '\u097F' for c in title):
-                to_translate.append((art, title, art.get("language", "Nepali")))
+                to_translate.append((art, title, "headline_english"))
             else:
                 art["headline_english"] = title
 
+        summary = art.get("summary", "")
+        if summary and summary.strip() != art.get("title", "").strip():
+            if not art.get("summary_english"):
+                if any('\u0900' <= c <= '\u097F' for c in summary):
+                    to_translate.append((art, summary, "summary_english"))
+                else:
+                    art["summary_english"] = summary
+
     if to_translate:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_art = {
-                executor.submit(translate_headline_to_en, title, lang): art
-                for art, title, lang in to_translate
+            future_to_task = {
+                executor.submit(translate_to_english_machine, txt): (art, field)
+                for art, txt, field in to_translate
             }
-            for fut in concurrent.futures.as_completed(future_to_art):
-                art = future_to_art[fut]
+            for fut in concurrent.futures.as_completed(future_to_task):
+                art, field = future_to_task[fut]
                 try:
-                    art["headline_english"] = fut.result()
+                    art[field] = fut.result()
                 except Exception:
-                    art["headline_english"] = art.get("title", "")
+                    art[field] = art.get("title" if field == "headline_english" else "summary", "")
     return articles
+
+def batch_translate_posts(posts: list, max_workers: int = 15) -> list:
+    """
+    Translates post texts for a list of social posts (X, FB) in parallel.
+    Populates 'text_english' on each post dictionary.
+    """
+    to_translate = []
+    for p in posts:
+        if not p.get("text_english"):
+            txt = p.get("text", "")
+            if any('\u0900' <= c <= '\u097F' for c in txt):
+                to_translate.append((p, txt))
+            else:
+                p["text_english"] = txt
+
+    if to_translate:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_post = {
+                executor.submit(translate_to_english_machine, txt): p
+                for p, txt in to_translate
+            }
+            for fut in concurrent.futures.as_completed(future_to_post):
+                p = future_to_post[fut]
+                try:
+                    p["text_english"] = fut.result()
+                except Exception:
+                    p["text_english"] = p.get("text", "")
+    return posts
 
 def extract_article_full_text(url: str, timeout: int = 6) -> str:
     """
