@@ -1144,30 +1144,6 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
-    # Structured Category Metrics (Collapsible dropdown, default hidden)
-    with st.expander("📊 Coverage Breakdown by Structured Category", expanded=False):
-        b_cols = st.columns(4)
-        for i, c_name in enumerate(STRUCTURED_CATEGORIES[:4]):
-            with b_cols[i]:
-                st.metric(f"{CATEGORY_ICONS[c_name]} {c_name}", cat_counts.get(c_name, 0))
-        
-        b_cols2 = st.columns(4)
-        for i, c_name in enumerate(STRUCTURED_CATEGORIES[4:]):
-            with b_cols2[i]:
-                st.metric(f"{CATEGORY_ICONS[c_name]} {c_name}", cat_counts.get(c_name, 0))
-
-    # Feed Summary & Freshness Metrics (Collapsible dropdown, default hidden)
-    with st.expander("📈 Feed Summary & Freshness Metrics", expanded=False):
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.metric("Total Articles Loaded", len(all_articles))
-        with m2:
-            st.metric("Filtered Results Displayed", len(filtered_articles))
-        with m3:
-            newest_time = filtered_articles[0]['relative_time'] if filtered_articles else "N/A"
-            st.metric("Latest News Freshness", f"🟢 {newest_time}")
-        st.caption("⚡ Sorted strictly by newest publication timestamp (Nepal Standard Time, UTC+5:45).")
-
     if not filtered_articles:
         st.warning("No news articles found matching your filters. Try selecting 'All Recent Articles' or expanding your time window.")
     else:
@@ -1178,9 +1154,6 @@ with tab1:
 # TAB 2: Nepal in Indian Media
 # ==========================================
 with tab2:
-    st.subheader("🇮🇳 Nepal in Indian Media (Real-Time Coverage Tracker)")
-    st.write("Live monitoring of news, editorial analysis, and reports regarding **Nepal** published across leading **Indian newspapers and digital portals**.")
-
     if filter_start_dt:
         st.markdown(f"""
         <div class="apple-filter-banner">
@@ -1189,57 +1162,25 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-    im1, im2, im3 = st.columns(3)
-    with im1:
-        st.metric("Total Nepal Stories in Indian Media", len(filtered_indian))
-    with im2:
-        st.metric("Indian Outlets Monitored", len(TOP_INDIAN_MEDIA_SOURCES))
-    with im3:
-        st.metric("Languages Covered", "English & Hindi")
-
-    st.markdown("---")
-
-
-
-    i_col1, i_col2 = st.columns([2, 2])
-    with i_col1:
-        indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
-        selected_indian_outlet = st.selectbox(
-            "Filter by Specific Indian Media Outlet:",
-            ["All Indian Outlets"] + indian_outlet_names
-        )
-    with i_col2:
-        st.caption("**18 Monitored Indian Outlets:** The Indian Express, The Hindu, India Today, The Tribune, Business Standard, Financial Express, Livemint, Moneycontrol, ABP Live, Outlook India, The Quint, Swarajya, OneIndia, NDTV, Amar Ujala (Hindi), Live Hindustan (Hindi), Jansatta (Hindi), Prabhat Khabar (Hindi).")
+    indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
 
     tab_filtered_indian = filtered_indian
-    if selected_indian_outlet != "All Indian Outlets":
+    ti_col1, ti_col2 = st.columns([2.5, 1.5])
+    with ti_col1:
+        selected_indian_outlet = st.selectbox(
+            "Filter by Specific Indian Media Outlet:",
+            ["All 18 Monitored Indian Outlets"] + indian_outlet_names,
+            key="select_indian_outlet",
+            label_visibility="collapsed"
+        )
+    
+    if selected_indian_outlet != "All 18 Monitored Indian Outlets":
         tab_filtered_indian = [a for a in tab_filtered_indian if a["source"] == selected_indian_outlet]
 
-    # Quick Jump to Indian Media Nepal Sections
-    st.markdown("##### ⚡ Quick Jump to Dedicated Nepal Desks in Indian Media")
-    q1, q2, q3, q4 = st.columns(4)
-    with q1:
-        st.link_button("🇮🇳 The Indian Express ↗", "https://indianexpress.com/about/nepal/", width='stretch')
-    with q2:
-        st.link_button("🇮🇳 The Hindu (World) ↗", "https://www.thehindu.com/news/international/", width='stretch')
-    with q3:
-        st.link_button("🇮🇳 India Today (Nepal) ↗", "https://www.indiatoday.in/topic/nepal", width='stretch')
-    with q4:
-        st.link_button("🇮🇳 Business Standard ↗", "https://www.business-standard.com/topic/nepal", width='stretch')
+    with ti_col2:
+        st.markdown(f'<div class="apple-counter-badge" style="background:#FFF7ED; color:#C2410C; border-color:#FFEDD5; margin-top:2px; height:38px; display:flex; align-items:center; justify-content:center;">Showing <b>{len(tab_filtered_indian):,}</b> stories · 18 Outlets (EN & HI)</div>', unsafe_allow_html=True)
 
-    q5, q6, q7, q8 = st.columns(4)
-    with q5:
-        st.link_button("🇮🇳 Livemint (Mint) ↗", "https://www.livemint.com/topic/nepal", width='stretch')
-    with q6:
-        st.link_button("🇮🇳 The Tribune ↗", "https://www.tribuneindia.com/topic/nepal", width='stretch')
-    with q7:
-        st.link_button("🇮🇳 Amar Ujala (नेपाल) ↗", "https://www.amarujala.com/tags/nepal", width='stretch')
-    with q8:
-        st.link_button("🇮🇳 Live Hindustan (हिन्दुस्तान) ↗", "https://www.livehindustan.com/tags/nepal/", width='stretch')
-
-    st.markdown("---")
-
-
+    st.write("")
 
     if not tab_filtered_indian:
         st.info("No articles found matching the current timeframe or filter. Try selecting 'All Recent Articles'.")
@@ -1247,13 +1188,31 @@ with tab2:
         for a in tab_filtered_indian:
             st.markdown(render_apple_article_card(a, is_indian=True), unsafe_allow_html=True)
 
+    with st.expander("⚡ Quick Jump to Dedicated Nepal Desks in Indian Media", expanded=False):
+        q1, q2, q3, q4 = st.columns(4)
+        with q1:
+            st.link_button("🇮🇳 The Indian Express ↗", "https://indianexpress.com/about/nepal/", width='stretch')
+        with q2:
+            st.link_button("🇮🇳 The Hindu (World) ↗", "https://www.thehindu.com/news/international/", width='stretch')
+        with q3:
+            st.link_button("🇮🇳 India Today (Nepal) ↗", "https://www.indiatoday.in/topic/nepal", width='stretch')
+        with q4:
+            st.link_button("🇮🇳 Business Standard ↗", "https://www.business-standard.com/topic/nepal", width='stretch')
+
+        q5, q6, q7, q8 = st.columns(4)
+        with q5:
+            st.link_button("🇮🇳 Livemint (Mint) ↗", "https://www.livemint.com/topic/nepal", width='stretch')
+        with q6:
+            st.link_button("🇮🇳 The Tribune ↗", "https://www.tribuneindia.com/topic/nepal", width='stretch')
+        with q7:
+            st.link_button("🇮🇳 Amar Ujala (नेपाल) ↗", "https://www.amarujala.com/tags/nepal", width='stretch')
+        with q8:
+            st.link_button("🇮🇳 Live Hindustan (हिन्दुस्तान) ↗", "https://www.livehindustan.com/tags/nepal/", width='stretch')
+
 # ==========================================
 # TAB 3: X (Twitter) Nepal
 # ==========================================
 with tab3:
-    st.subheader("🐦 Live X (Twitter) Intelligence Monitor")
-    st.write("Real-time automated scanning of authentic, verified X posts covering Nepal across the **8 Structured Categories**.")
-
     # Time-filter X posts
     tab_x_posts = all_x_posts
     if filter_start_dt:
@@ -1264,36 +1223,8 @@ with tab3:
         sq = search_query.lower()
         tab_x_posts = [p for p in tab_x_posts if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
 
-    # Top metrics row (4 columns)
-    xm1, xm2, xm3, xm4 = st.columns(4)
-    with xm1:
-        st.metric("Total Posts Scanned", f"{len(tab_x_posts):,}")
-    with xm2:
-        st.metric("Monitored Accounts", f"{len(TOP_NEPAL_X_ACCOUNTS)} Verified")
-    with xm3:
-        total_imp = sum(p.get("impressions", 0) for p in tab_x_posts)
-        st.metric("Tracked Impressions", f"{total_imp/1_000_000:.1f}M Views" if total_imp >= 1_000_000 else f"{total_imp:,}")
-    with xm4:
-        st.metric("Daily Engine", "🟢 100% Real Live")
-
-    # 8 Category Breakdown Cards for X Posts (collapsible expander, default open)
-    x_cat_counts = Counter([p.get("structured_category", "Others") for p in tab_x_posts])
-    with st.expander("📊 Coverage Breakdown by Structured Category (X Posts)", expanded=True):
-        col_list = st.columns(8)
-        for idx, cat_name in enumerate(STRUCTURED_CATEGORIES):
-            with col_list[idx]:
-                cnt = x_cat_counts.get(cat_name, 0)
-                icon = CATEGORY_ICONS.get(cat_name, "📌")
-                short_name = cat_name.replace(" – External Relations (Others)", " – Externals").replace(" – Internal Politics", " – Internal")
-                st.markdown(f"""
-                <div class="apple-cat-card">
-                    <div class="apple-cat-title">{icon} {short_name}</div>
-                    <div class="apple-cat-count">{cnt}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    with st.expander("🇳🇵 Verified Monitored Nepali Accounts (Frequently Posting on the 8 Sections)", expanded=False):
-        st.write(f"Direct directory of **{len(TOP_NEPAL_X_ACCOUNTS)} verified Nepali accounts** across grassroots civic voices, everyday commentators, sports curators, political leaders, foreign affairs analysts, and diplomatic desks whose posts are continuously monitored and dynamically organized across the 8 sections (including discourse on India, China, Pakistan, Bangladesh, US, EU, UN, SAARC, and BIMSTEC):")
+    with st.expander(f"🇳🇵 Verified Monitored Nepali Accounts ({len(TOP_NEPAL_X_ACCOUNTS)} Accounts)", expanded=False):
+        st.write(f"Direct directory of **{len(TOP_NEPAL_X_ACCOUNTS)} verified Nepali accounts** across civic commentators, political leaders, foreign affairs analysts, and diplomatic desks:")
         a_cols = st.columns(4)
         for i, a in enumerate(TOP_NEPAL_X_ACCOUNTS):
             with a_cols[i % 4]:
@@ -1316,13 +1247,11 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
 
-    st.markdown("---")
-
     # Filter Controls
     xf_col1, xf_col2, xf_col3, xf_col4 = st.columns([2, 1.8, 1.8, 1.4])
     with xf_col1:
         x_cat_filter = st.selectbox(
-            "Filter X Posts by Category:",
+            "Filter Category:",
             ["All Categories (All 8)"] + [f"{CATEGORY_ICONS.get(c, '')} {c}" for c in STRUCTURED_CATEGORIES],
             key="x_cat_filter_select"
         )
@@ -1340,7 +1269,7 @@ with tab3:
             "Think Tank & Policy",
             "Sports & Culture"
         ]
-        selected_acc_type = st.selectbox("Filter by Account Type:", acc_types, key="x_acc_type_select")
+        selected_acc_type = st.selectbox("Account Type:", acc_types, key="x_acc_type_select")
     with xf_col3:
         sort_mode = st.selectbox(
             "Sort Feed By:",
@@ -1350,7 +1279,7 @@ with tab3:
     with xf_col4:
         st.write("")
         st.write("")
-        if st.button("🔄 Rescan Live X Posts", width="stretch", key="btn_rescan_x"):
+        if st.button("🔄 Rescan X", width="stretch", key="btn_rescan_x"):
             with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
                 st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
                 st.rerun()
@@ -1400,30 +1329,23 @@ with tab3:
     elif len(filtered_feed) > 0:
         st.caption(f"🏁 You've reached the end of the feed ({len(filtered_feed):,} posts displayed).")
 
-    st.markdown("---")
-
-
-    st.subheader("⚡ Quick Jump to Live X Searches & Hashtags in Nepal")
-    q_x = urllib.parse.quote_plus(search_query if search_query else "Nepal")
-    
-    b1, b2, b3, b4 = st.columns(4)
-    with b1:
-        st.link_button("🔍 Search Topic on X ↗", f"https://x.com/search?q={q_x}&f=live", width='stretch')
-    with b2:
-        st.link_button("🇳🇵 #Nepal Live Stream ↗", "https://x.com/search?q=%23Nepal&f=live", width='stretch')
-    with b3:
-        st.link_button("🏏 #NepalCricket Live ↗", "https://x.com/search?q=%23NepalCricket&f=live", width='stretch')
-    with b4:
-        st.link_button("🏛 #BalenShah Live ↗", "https://x.com/search?q=%23BalenShah&f=live", width='stretch')
+    with st.expander("⚡ Quick Jump to Live X Searches & Hashtags in Nepal", expanded=False):
+        q_x = urllib.parse.quote_plus(search_query if search_query else "Nepal")
+        b1, b2, b3, b4 = st.columns(4)
+        with b1:
+            st.link_button("🔍 Search Topic on X ↗", f"https://x.com/search?q={q_x}&f=live", width='stretch')
+        with b2:
+            st.link_button("🇳🇵 #Nepal Live Stream ↗", "https://x.com/search?q=%23Nepal&f=live", width='stretch')
+        with b3:
+            st.link_button("🏏 #NepalCricket Live ↗", "https://x.com/search?q=%23NepalCricket&f=live", width='stretch')
+        with b4:
+            st.link_button("🏛 #BalenShah Live ↗", "https://x.com/search?q=%23BalenShah&f=live", width='stretch')
 
 # ==========================================
 # TAB 4: Facebook Trends Nepal
 # ==========================================
 with tab4:
-    st.subheader("📘 Live Facebook & Civic Intelligence Monitor")
-    st.write("Aggregated live tracking of public Facebook statements, media-reported civic discourse, and verified official dispatches across the **8 Structured Categories**.")
-
-    # Top Metrics Bar (strictly adheres to 48h default unless filtered by user)
+    # Time-filter FB posts
     if filter_start_dt:
         tab_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
     elif explicit_all_time:
@@ -1435,32 +1357,6 @@ with tab4:
     if search_query:
         sq = search_query.lower()
         tab_fb_posts = [p for p in tab_fb_posts if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
-
-    fbm1, fbm2, fbm3, fbm4 = st.columns(4)
-    with fbm1:
-        st.metric("Live Intelligence Items", f"{len(tab_fb_posts):,}")
-    with fbm2:
-        st.metric("Monitored FB Profiles", f"{len(verified_fb_directory):,} Profiles & Pages")
-    with fbm3:
-        st.metric("Official Dispatches", f"{len([p for p in tab_fb_posts if p.get('feed_type') == 'Official Dispatch']):,} Direct Feeds")
-    with fbm4:
-        st.metric("Coverage Integrity", "🟢 100% Real Sourced")
-
-    # 8 Category Breakdown Cards
-    fb_cat_counts = Counter([p.get("structured_category", "Others") for p in tab_fb_posts])
-    with st.expander("📊 Coverage Breakdown by Structured Category (Facebook & Civic Stream)", expanded=True):
-        col_list_fb = st.columns(8)
-        for idx, cat_name in enumerate(STRUCTURED_CATEGORIES):
-            with col_list_fb[idx]:
-                cnt = fb_cat_counts.get(cat_name, 0)
-                icon = CATEGORY_ICONS.get(cat_name, "📌")
-                short_name = cat_name.replace(" – External Relations (Others)", " – Externals").replace(" – Internal Politics", " – Internal")
-                st.markdown(f"""
-                <div class="apple-cat-card" style="border-top: 3px solid #1877F2;">
-                    <div class="apple-cat-title">{icon} {short_name}</div>
-                    <div class="apple-cat-count" style="color:#1877F2;">{cnt}</div>
-                </div>
-                """, unsafe_allow_html=True)
 
     # Monitored Profiles Directory (100+ Curated Profiles)
     with st.expander(f"🇳🇵 Monitored Directory of 100+ Facebook Personalities, Institutions & Embassies", expanded=False):
@@ -1679,23 +1575,17 @@ with tab4:
 
     st.markdown("---")
 
-    # Quick Jump to Trending Facebook Searches in Nepal
-    st.subheader("⚡ Quick Jump to Live Facebook Searches & Discussions in Nepal")
-    q_fb = urllib.parse.quote_plus(search_query if search_query else "Nepal viral")
-    
-    fcol1, fcol2, fcol3, fcol4 = st.columns(4)
-    with fcol1:
-        st.link_button("🔍 Search Keyword on FB ↗", f"https://www.facebook.com/search/posts/?q={q_fb}", width='stretch')
-    with fcol2:
-        st.link_button("📺 Watch Trending Nepal Videos ↗", "https://www.facebook.com/watch/search/?q=nepal+trending", width='stretch')
-    with fcol3:
-        st.link_button("🔥 #Nepal Viral Tag ↗", "https://www.facebook.com/hashtag/nepal", width='stretch')
-    with fcol4:
-        st.link_button("🏛 #BalenShah on FB ↗", "https://www.facebook.com/hashtag/balenshah", width='stretch')
-    with fcol3:
-        st.link_button("🔥 #Nepal Viral Tag ↗", "https://www.facebook.com/hashtag/nepal", width='stretch')
-    with fcol4:
-        st.link_button("🏛 #BalenShah on FB ↗", "https://www.facebook.com/hashtag/balenshah", width='stretch')
+    with st.expander("⚡ Quick Jump to Live Facebook Searches & Discussions in Nepal", expanded=False):
+        q_fb = urllib.parse.quote_plus(search_query if search_query else "Nepal viral")
+        fcol1, fcol2, fcol3, fcol4 = st.columns(4)
+        with fcol1:
+            st.link_button("🔍 Search Keyword on FB ↗", f"https://www.facebook.com/search/posts/?q={q_fb}", width='stretch')
+        with fcol2:
+            st.link_button("📺 Watch Trending Videos ↗", "https://www.facebook.com/watch/search/?q=nepal+trending", width='stretch')
+        with fcol3:
+            st.link_button("🔥 #Nepal Viral Tag ↗", "https://www.facebook.com/hashtag/nepal", width='stretch')
+        with fcol4:
+            st.link_button("🏛 #BalenShah on FB ↗", "https://www.facebook.com/hashtag/balenshah", width='stretch')
 
 # ==========================================
 # TAB 5: Analytics & Export
