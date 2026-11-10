@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Environment Variables & Secrets
+.env
+*.env
+
+# Cache & Data
+*.json
+!package.json
+*.docx
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE & Editor
+.DS_Store
+.idea/
+.vscode/
+.agents/
+.claude/
