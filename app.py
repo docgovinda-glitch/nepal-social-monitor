@@ -2078,7 +2078,7 @@ with tab5:
                 display_df = display_df[display_df["Source / Portal"] == filter_table_portal]
             if table_kw.strip():
                 tkw = table_kw.strip().lower()
-                display_df = display_df[display_df["Headline (Original)"].str.lower().str.contains(tkw, na=False) | display_df["Full Content"].str.lower().str.contains(tkw, na=False)]
+                display_df = display_df[display_df["Headline"].str.lower().str.contains(tkw, na=False) | display_df["Full Content"].str.lower().str.contains(tkw, na=False)]
 
             # Map the selection column from persistent session set
             display_df_with_sel = display_df.copy()
@@ -2094,8 +2094,8 @@ with tab5:
                     help="Check this box to include this news item in the Word Document export",
                     default=True
                 ),
-                "Headline (Original)": st.column_config.TextColumn(
-                    "Headline & Translation",
+                "Headline": st.column_config.TextColumn(
+                    "Headline",
                     width="large"
                 ),
                 "Structured Category": st.column_config.TextColumn(
@@ -2118,7 +2118,7 @@ with tab5:
             }
 
             edited_df = st.data_editor(
-                display_df_with_sel[["Select", "Headline (Original)", "Structured Category", "Source / Portal", "Exact Timestamp", "Article Link"]],
+                display_df_with_sel[["Select", "Headline", "Structured Category", "Source / Portal", "Exact Timestamp", "Article Link"]],
                 column_config=col_config_np,
                 disabled=[c for c in display_df_with_sel.columns if c != "Select"],
                 hide_index=True,
@@ -2270,7 +2270,7 @@ with tab5:
                 display_df_i = display_df_i[display_df_i["Source / Outlet"] == filter_table_ind]
             if table_kw_i.strip():
                 tkw_i = table_kw_i.strip().lower()
-                display_df_i = display_df_i[display_df_i["Headline (Original)"].str.lower().str.contains(tkw_i, na=False) | display_df_i["Full Content"].str.lower().str.contains(tkw_i, na=False)]
+                display_df_i = display_df_i[display_df_i["Headline"].str.lower().str.contains(tkw_i, na=False) | display_df_i["Full Content"].str.lower().str.contains(tkw_i, na=False)]
 
             display_df_i_with_sel = display_df_i.copy()
             display_df_i_with_sel.insert(
@@ -2285,8 +2285,8 @@ with tab5:
                     help="Check this box to include this news item in the Word Document export",
                     default=True
                 ),
-                "Headline (Original)": st.column_config.TextColumn(
-                    "Headline & Translation",
+                "Headline": st.column_config.TextColumn(
+                    "Headline",
                     width="large"
                 ),
                 "Source / Outlet": st.column_config.TextColumn(
@@ -2305,7 +2305,7 @@ with tab5:
             }
 
             edited_df_i = st.data_editor(
-                display_df_i_with_sel[["Select", "Headline (Original)", "Source / Outlet", "Exact Timestamp", "Article Link"]],
+                display_df_i_with_sel[["Select", "Headline", "Source / Outlet", "Exact Timestamp", "Article Link"]],
                 column_config=col_config_ind,
                 disabled=[c for c in display_df_i_with_sel.columns if c != "Select"],
                 hide_index=True,
