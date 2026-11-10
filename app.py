@@ -919,7 +919,12 @@ def render_apple_x_post_card(p):
     cat_badge = get_badge_html(cat)
     rel_time = html.escape(str(p.get("relative_time", "Recent")))
     exact_time = html.escape(str(p.get("exact_time", "")))
-    time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
+    if exact_time and rel_time and rel_time not in exact_time:
+        time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
+    elif exact_time:
+        time_badge = f'<span class="time-badge">🕒 {exact_time}</span>'
+    else:
+        time_badge = f'<span class="time-badge">🕒 {rel_time}</span>'
 
     raw_text = p.get("text", "")
     text = html.escape(raw_text, quote=False)
@@ -998,7 +1003,12 @@ def render_apple_fb_post_card(p):
     cat_badge = get_badge_html(cat)
     rel_time = html.escape(str(p.get("relative_time", "Recent")))
     exact_time = html.escape(str(p.get("exact_time", "")))
-    time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
+    if exact_time and rel_time and rel_time not in exact_time:
+        time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
+    elif exact_time:
+        time_badge = f'<span class="time-badge">🕒 {exact_time}</span>'
+    else:
+        time_badge = f'<span class="time-badge">🕒 {rel_time}</span>'
 
     raw_text = p.get("text", "")
     text = html.escape(raw_text, quote=False)
@@ -1566,8 +1576,8 @@ with tab4:
 
     # Apply sorting
     if fb_sort_mode == "🕒 Newest First (NPT)":
-        now_npt = datetime.datetime.now(NEPAL_TZ)
-        filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("published_dt") or now_npt, reverse=True)
+        min_date = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
+        filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("published_dt") or min_date, reverse=True)
     elif fb_sort_mode == "📌 High Priority Dispatches First":
         filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("engagement_score", 0), reverse=True)
 
