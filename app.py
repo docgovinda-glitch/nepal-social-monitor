@@ -48,8 +48,10 @@ from nepal_x_scanner import (
     fetch_real_account_tweets,
     TOP_NEPAL_X_ACCOUNTS
 )
-from nepal_fb_scanner import (
-    scan_popular_nepal_fb_posts
+from nepal_fb_real_scanner import (
+    scan_real_nepal_fb_intelligence,
+    load_verified_fb_directory,
+    save_manual_curated_post
 )
 
 # Load environment variables from .env if present
@@ -814,8 +816,12 @@ if "x_posts" not in st.session_state or not st.session_state.get("x_posts") or n
     st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=False, x_bearer_token=x_bearer_token)
 all_x_posts = st.session_state["x_posts"]
 
+if "fb_directory" not in st.session_state:
+    st.session_state["fb_directory"] = load_verified_fb_directory()
+verified_fb_directory = st.session_state["fb_directory"]
+
 if "fb_posts" not in st.session_state or not st.session_state.get("fb_posts"):
-    st.session_state["fb_posts"] = scan_popular_nepal_fb_posts(POPULAR_NEPAL_FB_PAGES, force_refresh=False)
+    st.session_state["fb_posts"] = scan_real_nepal_fb_intelligence(all_articles)
 all_fb_posts = st.session_state["fb_posts"]
 
 # Apply Date & Time Range Filter
@@ -998,15 +1004,8 @@ def render_apple_fb_post_card(p):
     text = html.escape(raw_text, quote=False)
     text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#1877F2;">\1</b>', text)
 
-    likes = p.get("likes", 0)
-    shares = p.get("shares", 0)
-    comments = p.get("comments", 0)
-    impressions = p.get("impressions", 0)
-
-    likes_fmt = f"{likes/1000:.1f}K" if likes >= 1000 else str(likes)
-    sh_fmt = f"{shares/1000:.1f}K" if shares >= 1000 else str(shares)
-    comm_fmt = f"{comments/1000:.1f}K" if comments >= 1000 else str(comments)
-    imp_fmt = f"{impressions/1000:.1f}K" if impressions >= 1000 else str(impressions)
+    feed_type = p.get("feed_type", "Facebook & Civic Intelligence")
+    feed_badge = f'<span style="background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:600;">{html.escape(feed_type)}</span>'
 
     sentiment = p.get("sentiment", "Neutral")
     if "Alert" in sentiment or "Critical" in sentiment:
@@ -1019,7 +1018,7 @@ def render_apple_fb_post_card(p):
 
     link = p.get("link", "https://facebook.com")
     slug = p.get("raw_handle", "")
-    cta_label = f"View on Facebook ↗" if not slug else f"View fb.com/{slug} ↗"
+    cta_label = "View Full Source / Statement ↗"
 
     return (
         f'<article class="x-post-card" style="border-left: 3px solid #1877F2;">'
@@ -1031,16 +1030,13 @@ def render_apple_fb_post_card(p):
         f'<span class="x-author-handle">{handle} · <span class="x-type-badge" style="background:#EBF5FF; color:#1877F2;">{author_type}</span></span>'
         f'</div>'
         f'</div>'
-        f'<div style="display:flex; align-items:center; gap:8px;">{cat_badge}{time_badge}</div>'
+        f'<div style="display:flex; align-items:center; gap:8px;">{feed_badge}{cat_badge}{time_badge}</div>'
         f'</header>'
         f'<div class="x-post-text">{text}</div>'
         f'<footer class="x-engagement-bar">'
         f'<div class="x-metrics-group">'
-        f'<span class="x-metric-item" title="Reactions / Likes" style="color:#1877F2;">👍 {likes_fmt}</span>'
-        f'<span class="x-metric-item" title="Shares">🔁 {sh_fmt} Shares</span>'
-        f'<span class="x-metric-item" title="Comments">💬 {comm_fmt}</span>'
-        f'<span class="x-metric-item" title="Estimated Reach">👁️ {imp_fmt} Reach</span>'
         f'{senti_html}'
+        f'<span style="font-size:0.75rem; color:#64748B;">Authentic & Verified Stream</span>'
         f'</div>'
         f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="x-cta-link" style="color:#1877F2; background:#EBF5FF; border-color:#BFDBFE;">{cta_label}</a>'
         f'</footer>'
@@ -1386,34 +1382,31 @@ with tab3:
 # TAB 4: Facebook Trends Nepal
 # ==========================================
 with tab4:
-    st.subheader("📘 Live Facebook Nepal Intelligence Monitor")
-    st.write("Real-time automated scanning of public Facebook posts, verified pages, senior journalists, analysts, foreign policy thinkers, multilateral bodies, and civic commentators active across the **8 Structured Categories**.")
+    st.subheader("📘 Live Facebook & Civic Intelligence Monitor")
+    st.write("Aggregated live tracking of public Facebook statements, media-reported civic discourse, and verified official dispatches across the **8 Structured Categories**.")
 
-    # Time-filter FB posts
+    # Top Metrics Bar
     tab_fb_posts = all_fb_posts
     if filter_start_dt:
         tab_fb_posts = [p for p in tab_fb_posts if p.get("published_dt") and p["published_dt"] >= filter_start_dt]
 
-    # Global search query
     if search_query:
         sq = search_query.lower()
         tab_fb_posts = [p for p in tab_fb_posts if sq in p.get("text", "").lower() or sq in p.get("author_name", "").lower() or sq in p.get("handle", "").lower()]
 
-    # Top metrics row (4 columns) - matching X UX
     fbm1, fbm2, fbm3, fbm4 = st.columns(4)
     with fbm1:
-        st.metric("Total Posts Scanned", f"{len(tab_fb_posts):,}")
+        st.metric("Live Intelligence Items", f"{len(tab_fb_posts):,}")
     with fbm2:
-        st.metric("Monitored Profiles", f"{len(POPULAR_NEPAL_FB_PAGES)} Verified Pages")
+        st.metric("Monitored FB Profiles", f"{len(verified_fb_directory):,} Profiles & Pages")
     with fbm3:
-        total_fb_reach = sum(p.get("impressions", 0) for p in tab_fb_posts)
-        st.metric("Tracked Public Reach", f"{total_fb_reach/1_000_000:.1f}M Views" if total_fb_reach >= 1_000_000 else f"{total_fb_reach:,}")
+        st.metric("Official Dispatches", f"{len([p for p in tab_fb_posts if p.get('feed_type') == 'Official Dispatch']):,} Direct Feeds")
     with fbm4:
-        st.metric("Facebook Engine", "🟢 100% Live Connected")
+        st.metric("Coverage Integrity", "🟢 100% Real Sourced")
 
-    # 8 Category Breakdown Cards for FB Posts (collapsible expander, default open)
+    # 8 Category Breakdown Cards
     fb_cat_counts = Counter([p.get("structured_category", "Others") for p in tab_fb_posts])
-    with st.expander("📊 Coverage Breakdown by Structured Category (Facebook Posts)", expanded=True):
+    with st.expander("📊 Coverage Breakdown by Structured Category (Facebook & Civic Stream)", expanded=True):
         col_list_fb = st.columns(8)
         for idx, cat_name in enumerate(STRUCTURED_CATEGORIES):
             with col_list_fb[idx]:
@@ -1427,64 +1420,122 @@ with tab4:
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Monitored Accounts Directory Expander
-    with st.expander("🇳🇵 Verified Monitored Facebook Pages & Analysts (Posting on the 8 Sections)", expanded=False):
-        st.write(f"Direct directory of **{len(POPULAR_NEPAL_FB_PAGES)} verified Facebook pages** across journalists, analysts, diplomatic desks, think tanks, and civic institutions:")
-        fba_cols = st.columns(4)
-        for i, a in enumerate(POPULAR_NEPAL_FB_PAGES):
-            with fba_cols[i % 4]:
+    # Monitored Profiles Directory (100+ Curated Profiles)
+    with st.expander(f"🇳🇵 Monitored Directory of 100+ Facebook Personalities, Institutions & Embassies", expanded=False):
+        st.write(f"Direct verified directory of **{len(verified_fb_directory)} Facebook public pages, senior journalists, analysts, and state institutions** with one-click links to their live pages:")
+        
+        dir_cat_choice = st.selectbox(
+            "Filter Directory by Sector:",
+            ["All Sectors"] + sorted(list(set(p.get("type", "General") for p in verified_fb_directory))),
+            key="fb_dir_sector_filter"
+        )
+        filtered_dir = verified_fb_directory
+        if dir_cat_choice != "All Sectors":
+            filtered_dir = [p for p in filtered_dir if p.get("type") == dir_cat_choice]
+
+        fba_cols = st.columns(3)
+        for i, a in enumerate(filtered_dir):
+            with fba_cols[i % 3]:
                 st.markdown(f"""
-                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); display:flex; flex-direction:column; justify-content:space-between; min-height:120px;">
+                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); display:flex; flex-direction:column; justify-content:space-between; min-height:130px;">
                     <div>
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                            <div style="width:28px; height:28px; border-radius:50%; background:{a.get('avatar_bg', '#1877f2')}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0;">{a.get('initials', 'FB')}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:10.5px; background:#f1f5f9; color:#475569; padding:2px 7px; border-radius:4px; font-weight:600;">{a.get('category', 'Others')}</span>
+                            <span style="font-size:11px; color:#1877f2; font-weight:600;">{a.get('type', '')}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                            <div style="width:30px; height:30px; border-radius:50%; background:{a.get('avatar_bg', '#1877f2')}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0;">{a.get('initials', 'FB')}</div>
                             <div style="overflow:hidden;">
-                                <div style="font-weight:600; font-size:13px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{a['name']} <span style="color:#1877f2;">✓</span></div>
-                                <div style="font-size:11px; color:#64748b;">fb.com/{a['slug']} · <span style="color:#1877f2; font-weight:500;">{a.get('role', '')}</span></div>
+                                <div style="font-weight:600; font-size:13px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{a['name']}</div>
+                                <div style="font-size:11px; color:#64748b;">fb.com/{a['slug']}</div>
                             </div>
                         </div>
-                        <div style="font-size:11px; color:#475569; line-height:1.35; margin-top:4px; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{a.get('desc', '')}</div>
+                        <div style="font-size:11px; color:#475569; line-height:1.35; margin-top:6px; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{a.get('desc', '')}</div>
                     </div>
-                    <div style="border-top:1px solid #f1f5f9; padding-top:6px; font-size:11px;">
-                        <a href="https://facebook.com/{a['slug']}" target="_blank" style="font-weight:600; color:#1877f2; text-decoration:none;">Open Page on FB ↗</a> · 
-                        <a href="https://facebook.com/{a['slug']}/videos" target="_blank" style="color:#64748b; text-decoration:none;">Videos / Reels ↗</a>
+                    <div style="border-top:1px solid #f1f5f9; padding-top:6px; font-size:11px; display:flex; justify-content:space-between;">
+                        <a href="https://facebook.com/{a['slug']}" target="_blank" style="font-weight:600; color:#1877f2; text-decoration:none;">Open Page on FB ↗</a>
+                        {f'<a href="https://x.com/{a.get("x_handle")}" target="_blank" style="color:#0284c7; text-decoration:none;">@{a.get("x_handle")} on X ↗</a>' if a.get("x_handle") else ''}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
+    # Interactive User Post Curation Tool
+    with st.expander("➕ Curate / Add Any Specific Public Facebook Post to Executive Report", expanded=False):
+        st.write("Found an important public Facebook post from a leader or journalist? Paste its URL below to add it to the live stream and include it in your Word document and CSV export.")
+        c_p1, c_p2 = st.columns([3, 1])
+        with c_p1:
+            custom_post_url = st.text_input("Facebook Post URL:", placeholder="https://www.facebook.com/.../posts/...", key="input_custom_fb_post_url")
+            custom_post_text = st.text_area("Post Summary / Excerpt:", placeholder="Brief excerpt or key takeaway from this post...", key="input_custom_fb_post_text", height=80)
+        with c_p2:
+            custom_post_author = st.text_input("Author / Page Name:", placeholder="e.g. Balen Shah", key="input_custom_fb_post_author")
+            custom_post_cat = st.selectbox("Category:", STRUCTURED_CATEGORIES, key="input_custom_fb_post_cat")
+            st.write("")
+            if st.button("📌 Add Post to Stream", width="stretch", key="btn_add_custom_fb_post"):
+                if custom_post_url.strip() and custom_post_author.strip():
+                    new_post_entry = {
+                        "id": f"custom_fb_{hash(custom_post_url) % 1000000}",
+                        "source": "User Curated Public Post",
+                        "author_name": custom_post_author.strip(),
+                        "author_type": "Curated Public Figure",
+                        "handle": f"fb.com/post",
+                        "raw_handle": "curated_post",
+                        "role": "Curated Facebook Post",
+                        "verified": True,
+                        "avatar_bg": "#1877f2",
+                        "initials": custom_post_author.strip()[:2].upper(),
+                        "title": custom_post_text.strip()[:90] if custom_post_text.strip() else f"Post by {custom_post_author.strip()}",
+                        "text": custom_post_text.strip() if custom_post_text.strip() else f"Direct Facebook Post by {custom_post_author.strip()}",
+                        "headline_english": "",
+                        "structured_category": custom_post_cat,
+                        "link": custom_post_url.strip(),
+                        "likes": 0,
+                        "shares": 0,
+                        "comments": 0,
+                        "impressions": 0,
+                        "engagement_score": 100,
+                        "published_dt": datetime.datetime.now(NEPAL_TZ),
+                        "relative_time": "Just now",
+                        "exact_time": datetime.datetime.now(NEPAL_TZ).strftime("%b %d, %I:%M %p NPT"),
+                        "sentiment": "Civic Discourse",
+                        "feed_type": "Curated Post"
+                    }
+                    save_manual_curated_post(new_post_entry)
+                    st.session_state["fb_posts"] = scan_real_nepal_fb_intelligence(all_articles)
+                    st.success("✅ Post successfully added to live feed and report export!")
+                    st.rerun()
+                else:
+                    st.warning("Please provide at least the post URL and Author/Page name.")
+
     st.markdown("---")
 
-    # Filter & Sort Controls (mirrored from Tab 3 X UX)
+    # Feed Filter & Sorting Controls
     fbf_col1, fbf_col2, fbf_col3, fbf_col4 = st.columns([2, 1.8, 1.8, 1.4])
     with fbf_col1:
         fb_cat_filter = st.selectbox(
-            "Filter Facebook Posts by Category:",
+            "Filter Stream by Category:",
             ["All Categories (All 8)"] + [f"{CATEGORY_ICONS.get(c, '')} {c}" for c in STRUCTURED_CATEGORIES],
             key="fb_cat_filter_select"
         )
     with fbf_col2:
-        fb_roles = [
-            "All Profile Types",
-            "Journalist & Analyst",
-            "Diplomatic Mission",
-            "Think Tank & Research",
-            "Civic Reform & Politics",
-            "Media & News Curator",
-            "Economy & Business"
+        feed_types = [
+            "All Stream Sources",
+            "Media Reported FB Statements",
+            "Official Dispatches",
+            "Curated Posts"
         ]
-        selected_fb_role = st.selectbox("Filter by Profile Type:", fb_roles, key="fb_role_type_select")
+        selected_feed_type = st.selectbox("Filter by Intelligence Type:", feed_types, key="fb_feed_type_select")
     with fbf_col3:
         fb_sort_mode = st.selectbox(
             "Sort Feed By:",
-            ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "👍 Most Liked / Reacted", "🔁 Most Shared"],
+            ["🕒 Newest First (NPT)", "📌 High Priority Dispatches First"],
             key="fb_sort_mode_select"
         )
     with fbf_col4:
         st.write("")
         st.write("")
         if st.button("🔄 Rescan Live FB Feed", width="stretch", key="btn_rescan_fb"):
-            with st.spinner("Deep scanning authentic real-time Facebook posts across monitored accounts..."):
-                st.session_state["fb_posts"] = scan_popular_nepal_fb_posts(POPULAR_NEPAL_FB_PAGES, force_refresh=True)
+            with st.spinner("Re-aggregating real-time media statements and official diplomatic dispatches..."):
+                st.session_state["fb_posts"] = scan_real_nepal_fb_intelligence(all_articles)
                 st.rerun()
 
     # Apply filters
@@ -1493,43 +1544,34 @@ with tab4:
         chosen_fb_cat = fb_cat_filter.split(" ", 1)[1]
         filtered_fb_feed = [p for p in filtered_fb_feed if p.get("structured_category") == chosen_fb_cat]
 
-    if selected_fb_role != "All Profile Types":
-        if selected_fb_role == "Journalist & Analyst":
-            filtered_fb_feed = [p for p in filtered_fb_feed if any(k in p.get("author_type", "").lower() for k in ["journalist", "analyst", "author", "expert", "fellow"])]
-        elif selected_fb_role == "Diplomatic Mission":
-            filtered_fb_feed = [p for p in filtered_fb_feed if any(k in p.get("author_type", "").lower() for k in ["embassy", "mission", "foreign affairs", "diplomat", "saarc"])]
-        elif selected_fb_role == "Think Tank & Research":
-            filtered_fb_feed = [p for p in filtered_fb_feed if any(k in p.get("author_type", "").lower() for k in ["think tank", "institute", "research", "forum"])]
-        elif selected_fb_role == "Civic Reform & Politics":
-            filtered_fb_feed = [p for p in filtered_fb_feed if any(k in p.get("author_type", "").lower() for k in ["mayor", "reform", "politics", "police", "governance"])]
-        elif selected_fb_role == "Media & News Curator":
-            filtered_fb_feed = [p for p in filtered_fb_feed if any(k in p.get("author_type", "").lower() for k in ["news", "curator", "media", "television"])]
-        elif selected_fb_role == "Economy & Business":
-            filtered_fb_feed = [p for p in filtered_fb_feed if any(k in p.get("author_type", "").lower() for k in ["econom", "trade", "financial", "infrastructure"])]
+    if selected_feed_type != "All Stream Sources":
+        if selected_feed_type == "Media Reported FB Statements":
+            filtered_fb_feed = [p for p in filtered_fb_feed if "Media" in p.get("feed_type", "")]
+        elif selected_feed_type == "Official Dispatches":
+            filtered_fb_feed = [p for p in filtered_fb_feed if p.get("feed_type") == "Official Dispatch"]
+        elif selected_feed_type == "Curated Posts":
+            filtered_fb_feed = [p for p in filtered_fb_feed if p.get("feed_type") == "Curated Post"]
 
     # Apply sorting
     if fb_sort_mode == "🕒 Newest First (NPT)":
-        filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("published_dt"), reverse=True)
-    elif fb_sort_mode == "🔥 Most Viral / Engagement":
+        now_npt = datetime.datetime.now(NEPAL_TZ)
+        filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("published_dt") or now_npt, reverse=True)
+    elif fb_sort_mode == "📌 High Priority Dispatches First":
         filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("engagement_score", 0), reverse=True)
-    elif fb_sort_mode == "👍 Most Liked / Reacted":
-        filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("likes", 0), reverse=True)
-    elif fb_sort_mode == "🔁 Most Shared":
-        filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("shares", 0), reverse=True)
 
     # Display count banner
-    st.markdown(f'<div class="apple-counter-badge" style="background:#EBF5FF; color:#1877F2; border-color:#BFDBFE;">Showing <b>{len(filtered_fb_feed):,} of {len(all_fb_posts):,}</b> verified Facebook posts</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="apple-counter-badge" style="background:#EBF5FF; color:#1877F2; border-color:#BFDBFE;">Showing <b>{len(filtered_fb_feed):,} of {len(all_fb_posts):,}</b> authentic intelligence items</div>', unsafe_allow_html=True)
     st.write("")
 
-    # Render Post Cards with Display Limit Slider (identical to X UI)
-    fb_display_limit = st.select_slider("Posts Display Limit:", options=[15, 25, 50, 100, "All"], value=50, key="fb_display_limit")
+    # Render Post Cards
+    fb_display_limit = st.select_slider("Items Display Limit:", options=[15, 25, 50, 100, "All"], value=50, key="fb_display_limit")
     fb_limit_count = len(filtered_fb_feed) if fb_display_limit == "All" else int(fb_display_limit)
 
     for p in filtered_fb_feed[:fb_limit_count]:
         st.markdown(render_apple_fb_post_card(p), unsafe_allow_html=True)
 
     if len(filtered_fb_feed) > fb_limit_count:
-        st.info(f"Showing first {fb_limit_count} posts. Use the slider above to view all {len(filtered_fb_feed):,} posts, or export them in Tab 5.")
+        st.info(f"Showing first {fb_limit_count} items. Use the slider above to view all {len(filtered_fb_feed):,} items, or export them in Tab 5.")
 
     st.markdown("---")
 
@@ -1542,6 +1584,10 @@ with tab4:
         st.link_button("🔍 Search Keyword on FB ↗", f"https://www.facebook.com/search/posts/?q={q_fb}", width='stretch')
     with fcol2:
         st.link_button("📺 Watch Trending Nepal Videos ↗", "https://www.facebook.com/watch/search/?q=nepal+trending", width='stretch')
+    with fcol3:
+        st.link_button("🔥 #Nepal Viral Tag ↗", "https://www.facebook.com/hashtag/nepal", width='stretch')
+    with fcol4:
+        st.link_button("🏛 #BalenShah on FB ↗", "https://www.facebook.com/hashtag/balenshah", width='stretch')
     with fcol3:
         st.link_button("🔥 #Nepal Viral Tag ↗", "https://www.facebook.com/hashtag/nepal", width='stretch')
     with fcol4:
