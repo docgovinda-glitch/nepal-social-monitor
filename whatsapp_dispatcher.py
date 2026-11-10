@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
 SENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), "whatsapp_sent_cache.json")
-DEFAULT_CHANNEL_URL = "https://whatsapp.com/channel/"  # Replaced dynamically by user's actual channel URL
+DEFAULT_CHANNEL_URL = os.getenv("WHATSAPP_CHANNEL_URL", "https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38")
 
 def load_sent_cache() -> Dict[str, Any]:
     """Loads the persistent set of already-broadcasted items."""
@@ -206,3 +206,4 @@ def generate_whatsapp_share_url(item: Dict[str, Any], item_type: str = "article"
     text = format_whatsapp_message(item, item_type)
     encoded = urllib.parse.quote(text)
     return f"https://api.whatsapp.com/send?text={encoded}"
+

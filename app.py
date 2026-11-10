@@ -909,10 +909,15 @@ portal_filter = st.sidebar.selectbox(
 
 # WhatsApp Channel Subscription Widget in Sidebar
 st.sidebar.markdown("---")
-if "wa_channel_url" not in st.session_state:
-    st.session_state["wa_channel_url"] = os.getenv("WHATSAPP_CHANNEL_URL", "https://whatsapp.com/channel/")
+wa_channel_url = os.getenv("WHATSAPP_CHANNEL_URL", "")
+try:
+    if not wa_channel_url and hasattr(st, "secrets"):
+        wa_channel_url = st.secrets.get("WHATSAPP_CHANNEL_URL", "")
+except Exception:
+    pass
 
-current_wa_channel = st.session_state["wa_channel_url"]
+if not wa_channel_url:
+    wa_channel_url = "https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38"
 
 st.sidebar.markdown(f"""
 <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px; margin-bottom:10px;">
@@ -924,19 +929,13 @@ st.sidebar.markdown(f"""
         </div>
     </div>
     <div style="margin-top:10px;">
-        <a href="{current_wa_channel}" target="_blank" rel="noopener noreferrer" 
+        <a href="{wa_channel_url}" target="_blank" rel="noopener noreferrer" 
            style="display:block; text-align:center; background:#22C55E; color:#FFFFFF !important; text-decoration:none !important; font-weight:700; font-size:0.8rem; padding:7px 12px; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,0.06);">
            📲 Follow on WhatsApp ↗
         </a>
     </div>
 </div>
 """, unsafe_allow_html=True)
-
-with st.sidebar.expander("⚙️ WhatsApp Channel Settings", expanded=False):
-    new_wa_url = st.text_input("Channel Invite Link:", value=current_wa_channel, placeholder="https://whatsapp.com/channel/...", key="input_wa_channel_link")
-    if new_wa_url != current_wa_channel:
-        st.session_state["wa_channel_url"] = new_wa_url.strip()
-    st.caption("Paste your channel invite link once created. The 'Follow on WhatsApp' buttons across the site will automatically link to it.")
 
 st.sidebar.markdown("---")
 with st.sidebar.expander("ℹ️ Monitored Sources Summary"):
