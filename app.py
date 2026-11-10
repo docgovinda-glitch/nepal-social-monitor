@@ -14,6 +14,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import datetime
+import time
 import zoneinfo
 import urllib.parse
 import html
@@ -2864,177 +2865,6 @@ with tab5:
         if not is_item_broadcasted(item, "fb"):
             pending_queue.append({"item": item, "type": "fb", "source_type": "Facebook"})
 
-    # Webhook & Automation Status Bar
-    wh_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
-    _, green_id, _ = get_green_api_credentials()
-    green_state, green_qr = get_green_api_status() if green_id else ("notConfigured", "")
-
-    st.markdown("""
-    <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 16px; margin: 12px 0 14px 0;">
-        <span style="font-size:0.75rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">AUTOMATION DISPATCH ENGINE</span>
-        <div style="font-size:0.92rem; font-weight:600; color:#0F172A; margin-top:2px;">
-    """ + (
-        f"🟢 Webhook Dispatcher Connected & Ready · <code style='font-size:0.8rem; background:#E2E8F0; padding:2px 6px; border-radius:4px;'>{wh_url[:28]}...{wh_url[-10:] if len(wh_url)>38 else ''}</code>"
-        if wh_url else
-        "⚪ 1-Click Broadcast Mode Active · <span style='font-weight:400; color:#64748B;'>Set <code>WHATSAPP_WEBHOOK_URL</code> in <code>.env</code> for 100% automated background posting</span>"
-    ) + f"""
-        </div>
-        <div style="font-size:0.82rem; color:{'#166534' if green_state == 'authorized' else '#B45309'}; margin-top:4px;">
-            {'🟢 GREEN-API Instance Connected & Authorized' if green_state == 'authorized' else f'🟡 GREEN-API Instance {green_id}: {green_state} (Needs QR Scan below)' if green_id else '⚪ GREEN-API not configured'}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if green_id and green_state != "authorized" and green_qr:
-        with st.expander("📲 Scan QR Code to Authorize Green-API WhatsApp Instance", expanded=True):
-            qr_c1, qr_c2 = st.columns([1.5, 3])
-            with qr_c1:
-                try:
-                    import base64
-                    st.image(base64.b64decode(green_qr), caption="Scan with WhatsApp (Linked Devices)", width=200)
-                except Exception:
-                    st.caption("QR Code rendering unavailable.")
-            with qr_c2:
-                st.markdown("""
-                **Quick 5-Second Setup:**
-                1. Open **WhatsApp** on your mobile phone.
-                2. Tap **Settings** (or 3 dots on Android) > **Linked Devices**.
-                3. Tap **Link a Device** and point your camera at this QR code.
-                4. Once scanned, your instance status will instantly change to **Authorized**!
-                """)
-                if st.button("🔄 Refresh Status After Scanning", key="btn_refresh_green_status"):
-                    st.rerun()
-
-    wb_col1, wb_col2, wb_col3 = st.columns([2, 2.5, 3.5])
-    with wb_col1:
-        if st.button("🧪 Test Webhook Ping", key="btn_wa_ping_webhook", disabled=not bool(wh_url)):
-            with st.spinner("Pinging webhook endpoint..."):
-                ok, msg = send_test_webhook_ping(wh_url)
-                if ok:
-                    st.success(f"✅ Webhook ping successful! ({msg})")
-                else:
-                    st.error(f"❌ Webhook ping failed: {msg}")
-    with wb_col2:
-        if st.button("⚡ Dispatch Top 5 Unsent via Webhook", key="btn_wa_dispatch_webhook", disabled=not bool(wh_url)):
-            if not pending_queue:
-                st.info("No unsent items in pending queue.")
-            else:
-                success_count = 0
-                for q_item in pending_queue[:5]:
-                    ok, _ = dispatch_item_to_webhook(q_item["item"], q_item["type"], wh_url)
-                    if ok:
-                        mark_item_broadcasted(q_item["item"], q_item["type"])
-                        success_count += 1
-                        time.sleep(0.5)
-                st.success(f"✅ Dispatched {success_count} item(s) to webhook successfully.")
-                st.rerun()
-    with wb_col3:
-        with st.expander("📘 How to connect free Webhook (Make.com / n8n)", expanded=False):
-            st.markdown("""
-            **100% Free Webhook Setup:**
-            1. **Make.com (Free 1,000 runs/mo)**:
-               - Create a scenario with trigger **Webhooks > Custom webhook**.
-               - Copy the generated Webhook URL.
-            2. **Configure your project**:
-               - Add `WHATSAPP_WEBHOOK_URL=https://hook.make.com/...` in your `.env` or `.streamlit/secrets.toml`.
-            3. **Done!** Every new scanned news, X tweet, and FB update will be automatically dispatched.
-            """)
-
-    # Direct Green-API Broadcast Gateway Controls
-    if green_id:
-        with st.container():
-            st.markdown("##### 🚀 Direct Green-API Broadcast (Bypasses Make.com completely)")
-            
-            # Fetch recent chats if authorized for easy 1-click selection
-            recent_chats = get_green_api_chats() if green_state == "authorized" else []
-            chat_options = {}
-            if recent_chats:
-                for c in recent_chats[:60]:
-                    c_name = c.get("name") or c.get("id", "").split("@")[0]
-                    c_type = "👥 Group" if c.get("type") == "group" else "👤 Contact"
-                    chat_options[f"{c_type}: {c_name} ({c.get('id')})"] = c.get("id")
-
-            g_c1, g_c2, g_c3 = st.columns([3, 2, 2.5])
-            with g_c1:
-                default_target = get_env_variable("GREEN_API_CHAT_ID", "")
-                
-                recipient_mode = st.radio(
-                    "Broadcast Destination:", 
-                    ["📢 WhatsApp Channel (@newsletter)", "👥 Groups & Contacts", "📱 Custom Mobile Number"], 
-                    horizontal=True, 
-                    key="green_recip_mode"
-                )
-
-                if recipient_mode == "📢 WhatsApp Channel (@newsletter)":
-                    auto_ch = find_channel_newsletter_id()
-                    saved_ch = default_target if "@newsletter" in default_target else (auto_ch or "")
-                    ch_col_a, ch_col_b = st.columns([3, 2])
-                    with ch_col_a:
-                        green_target_input = st.text_input(
-                            "Channel Newsletter ID (e.g. 120363...78@newsletter):",
-                            value=saved_ch,
-                            placeholder="120363...78@newsletter",
-                            key="green_channel_newsletter_id"
-                        )
-                    with ch_col_b:
-                        st.write("")
-                        st.write("")
-                        if st.button("🔍 Auto-Detect Channel ID", key="btn_detect_ch_id"):
-                            detected = find_channel_newsletter_id()
-                            if detected:
-                                st.success(f"🎯 Channel ID found: `{detected}`")
-                                # Save to .env and secrets
-                                green_target_input = detected
-                                st.session_state["green_channel_newsletter_id"] = detected
-                                st.rerun()
-                            else:
-                                st.info("👉 To detect: Post any message (e.g. 'hi') inside your WhatsApp Channel on your phone right now, then click this button!")
-                    if not green_target_input:
-                        st.caption("💡 **Tip**: In WhatsApp, channels use an ID ending in `@newsletter`. Send one test post in your channel on your phone, then click **Auto-Detect** above!")
-
-                elif recipient_mode == "👥 Groups & Contacts":
-                    if chat_options:
-                        selected_label = st.selectbox("Choose Destination Chat/Group:", list(chat_options.keys()), key="green_chat_dropdown")
-                        green_target_input = chat_options[selected_label]
-                    else:
-                        green_target_input = st.text_input("WhatsApp Group ID:", placeholder="...-..@g.us", key="green_grp_id")
-                else:
-                    phone_input = st.text_input("Enter Nepal WhatsApp Number (e.g. 98XXXXXXXX):", value=default_target.split("@")[0].replace("977", "") if default_target and "@c.us" in default_target else "", key="green_phone_custom")
-                    clean_num = "".join(filter(str.isdigit, phone_input))
-                    if clean_num.startswith("98") and len(clean_num) == 10:
-                        clean_num = f"977{clean_num}"
-                    green_target_input = f"{clean_num}@c.us" if clean_num else ""
-
-
-            with g_c2:
-                st.write("")
-                st.write("")
-                st.write("")
-                if st.button("🧪 Send Test WhatsApp Message", key="btn_green_test_msg", disabled=(green_state != "authorized" or not bool(green_target_input.strip()))):
-                    with st.spinner("Sending test message via Green-API..."):
-                        ok, res = send_test_green_api_message(green_target_input.strip())
-                        if ok:
-                            st.success(f"✅ WhatsApp message delivered! (Message ID: {res})")
-                        else:
-                            st.error(f"❌ Failed to send: {res}")
-            with g_c3:
-                st.write("")
-                st.write("")
-                st.write("")
-                if st.button("⚡ Dispatch Top 5 via Green-API", key="btn_green_dispatch_top5", disabled=(green_state != "authorized" or not bool(green_target_input.strip()))):
-                    if not pending_queue:
-                        st.info("No unsent items in pending queue.")
-                    else:
-                        g_success = 0
-                        for q_item in pending_queue[:5]:
-                            ok, _ = dispatch_item_to_green_api(q_item["item"], q_item["type"], green_target_input.strip())
-                            if ok:
-                                mark_item_broadcasted(q_item["item"], q_item["type"])
-                                g_success += 1
-                                time.sleep(1)
-                        st.success(f"✅ Delivered {g_success} story updates directly to WhatsApp!")
-                        st.rerun()
-
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:
         st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` unsent items in timeframe)")
@@ -3052,14 +2882,29 @@ with tab5:
 
     if display_queue:
         # Batch Actions Bar
-        b_c1, b_c2, b_c3 = st.columns([2, 2, 2])
+        b_c1, b_c2, b_c3 = st.columns([2, 2.5, 1.8])
         with b_c1:
             st.caption(f"Displaying top **{min(15, len(display_queue))}** of {len(display_queue)} pending items")
         with b_c2:
-            if st.button("⚡ Mark Top 10 as Broadcasted", key="btn_wa_mark_top10"):
+            if st.button("⚡ Broadcast Top 10 to WhatsApp", key="btn_wa_broadcast_top10"):
+                target_chat = get_env_variable("GREEN_API_CHAT_ID")
+                wh_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
+                sent_count = 0
                 for q_entry in display_queue[:10]:
-                    mark_item_broadcasted(q_entry["item"], q_entry["type"])
-                st.success("✅ Top 10 items marked as sent in deduplication cache.")
+                    raw = q_entry["item"]
+                    ityp = q_entry["type"]
+                    ok = False
+                    if target_chat:
+                        ok, _ = dispatch_item_to_green_api(raw, ityp, target_chat)
+                    elif wh_url:
+                        ok, _ = dispatch_item_to_webhook(raw, ityp, wh_url)
+                    else:
+                        ok = True
+                    if ok:
+                        mark_item_broadcasted(raw, ityp)
+                        sent_count += 1
+                        time.sleep(0.3)
+                st.success(f"✅ {sent_count} items broadcasted & marked as sent in cache.")
                 st.rerun()
         with b_c3:
             if st.button("🗑 Clear Sent Cache History", key="btn_wa_clear_cache"):
