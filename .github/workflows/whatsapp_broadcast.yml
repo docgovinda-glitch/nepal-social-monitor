@@ -2,8 +2,10 @@ name: 24/7 WhatsApp News Broadcast Worker
 
 on:
   schedule:
-    # Runs every 1 hour 24/7 in the cloud (720 min/month, 100% free forever)
-    - cron: '0 * * * *'
+    # Runs every 1 hour from 06:00 AM to 10:00 PM Nepal Time (OFF 10:00 PM to 06:00 AM)
+    # Nepal Time is UTC+5:45 -> 00:15 UTC = 06:00 AM NPT, 16:15 UTC = 10:00 PM NPT
+    # 17 runs/day (~510 min/month, uses only ~25% of GitHub free quota)
+    - cron: '15 0-16 * * *'
   workflow_dispatch: # Allows 1-click manual trigger anytime from GitHub Actions tab
 
 permissions:

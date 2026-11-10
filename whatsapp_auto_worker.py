@@ -129,10 +129,18 @@ def run_single_broadcast_cycle(
     for p in x_posts:
         all_scanned.append((p, "x"))
 
-    # 2. Filter for items published in the 30-minute refresh window and not yet broadcasted
+    # 2. Filter for items published in the refresh window (with overnight morning catch-up)
     now_nepal = datetime.now(NEPAL_TZ)
-    interval_secs = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "1800"))
-    cutoff_time = now_nepal - timedelta(seconds=interval_secs + 300)
+    interval_secs = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "3600"))
+
+    # If running at 6:00 AM morning cycle, catch up on news published overnight (past 8.5 hours)
+    if now_nepal.hour == 6:
+        lookback_seconds = 8 * 3600 + 1800  # 8.5 hours
+        logger.info("Morning 06:00 AM run detected: Catching up on overnight stories published since 10:00 PM...")
+    else:
+        lookback_seconds = interval_secs + 300
+
+    cutoff_time = now_nepal - timedelta(seconds=lookback_seconds)
 
     unbroadcasted_in_window = []
     for item, itype in all_scanned:
