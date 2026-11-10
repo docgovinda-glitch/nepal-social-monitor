@@ -787,67 +787,112 @@ refresh_btn = st.sidebar.button("🔄 Refresh All Feeds Now", width='stretch')
 st.sidebar.markdown("---")
 st.sidebar.subheader("📅 Date & Timestamp Filter")
 
+TIME_FILTER_PRESETS = [
+    "🕒 Past 48 Hours → Current (Default)",
+    "⚡ Past 24 Hours → Current",
+    "⏳ Past 12 Hours → Current",
+    "⏱ Past 6 Hours → Current",
+    "⏱ Past 3 Hours → Current",
+    "⏱ Past 1 Hour → Current",
+    "📅 Today (00:00 → Current NPT)",
+    "📅 Past 7 Days → Current",
+    "🗓 Custom Date & Timestamp Range (From – To)...",
+    "🏛 All Time (Include Full Archive)",
+]
+
 time_filter_mode = st.sidebar.selectbox(
-    "Select Time Horizon:",
-    [
-        "All Recent Feeds (Past 48 Hours)",
-        "Past 1 Hour",
-        "Past 3 Hours",
-        "Past 6 Hours",
-        "Past 12 Hours",
-        "Past 24 Hours",
-        "Today (Since 00:00 NPT)",
-        "Past 48 Hours",
-        "Past 7 Days",
-        "All Time (Include Full Archive)",
-        "Custom Date & Timestamp...",
-    ],
-    help="Filters all articles and social feeds published from the selected timestamp up to the current moment."
+    "Select Date & Timestamp Range:",
+    TIME_FILTER_PRESETS,
+    index=0,
+    key="time_filter_mode_select",
+    help="Filters all articles and social feeds published within the selected time range."
 )
 
 filter_start_dt = None
+filter_end_dt = now_npt
 explicit_all_time = False
 
-if time_filter_mode == "Past 1 Hour":
+if time_filter_mode == "⏱ Past 1 Hour → Current":
     filter_start_dt = now_npt - datetime.timedelta(hours=1)
-elif time_filter_mode == "Past 3 Hours":
+elif time_filter_mode == "⏱ Past 3 Hours → Current":
     filter_start_dt = now_npt - datetime.timedelta(hours=3)
-elif time_filter_mode == "Past 6 Hours":
+elif time_filter_mode == "⏱ Past 6 Hours → Current":
     filter_start_dt = now_npt - datetime.timedelta(hours=6)
-elif time_filter_mode == "Past 12 Hours":
+elif time_filter_mode == "⏳ Past 12 Hours → Current":
     filter_start_dt = now_npt - datetime.timedelta(hours=12)
-elif time_filter_mode == "Past 24 Hours":
+elif time_filter_mode == "⚡ Past 24 Hours → Current":
     filter_start_dt = now_npt - datetime.timedelta(hours=24)
-elif time_filter_mode == "Past 48 Hours":
+elif time_filter_mode == "🕒 Past 48 Hours → Current (Default)":
     filter_start_dt = now_npt - datetime.timedelta(hours=48)
-elif time_filter_mode == "Today (Since 00:00 NPT)":
+elif time_filter_mode == "📅 Today (00:00 → Current NPT)":
     filter_start_dt = datetime.datetime.combine(now_npt.date(), datetime.time(0, 0), tzinfo=NEPAL_TZ)
-elif time_filter_mode == "Past 7 Days":
+elif time_filter_mode == "📅 Past 7 Days → Current":
     filter_start_dt = now_npt - datetime.timedelta(days=7)
-elif time_filter_mode == "All Time (Include Full Archive)":
+elif time_filter_mode == "🏛 All Time (Include Full Archive)":
     explicit_all_time = True
-elif time_filter_mode == "Custom Date & Timestamp...":
-    col_d, col_t = st.sidebar.columns(2)
-    with col_d:
-        sel_date = st.date_input(
-            "Starting Date:",
-            value=now_npt.date(),
+    filter_start_dt = None
+    filter_end_dt = now_npt
+elif time_filter_mode == "🗓 Custom Date & Timestamp Range (From – To)...":
+    st.sidebar.markdown("**📅 Range: FROM (Start Timestamp)**")
+    col_from_d, col_from_t = st.sidebar.columns(2)
+    with col_from_d:
+        from_date = st.date_input(
+            "From Date:",
+            value=now_npt.date() - datetime.timedelta(days=1),
             max_value=now_npt.date(),
-            help="Select date in Nepal Time (NPT)"
+            key="custom_from_date",
+            help="Starting date in Nepal Time (NPT)"
         )
-    with col_t:
-        default_time = (now_npt - datetime.timedelta(hours=4)).time().replace(second=0, microsecond=0)
-        sel_time = st.time_input(
-            "Starting Time (NPT):",
-            value=default_time,
-            help="Select starting hour and minute in Nepal Time"
+    with col_from_t:
+        default_from_time = (now_npt - datetime.timedelta(hours=4)).time().replace(second=0, microsecond=0)
+        from_time = st.time_input(
+            "From Time (NPT):",
+            value=default_from_time,
+            key="custom_from_time",
+            help="Starting time in Nepal Time (NPT)"
         )
-    filter_start_dt = datetime.datetime.combine(sel_date, sel_time, tzinfo=NEPAL_TZ)
+    filter_start_dt = datetime.datetime.combine(from_date, from_time, tzinfo=NEPAL_TZ)
+
+    st.sidebar.markdown("**📅 Range: TO (End Timestamp)**")
+    to_use_current = st.sidebar.checkbox(
+        "⚡ End at Current / Now",
+        value=True,
+        key="custom_to_use_current",
+        help="Quick-select: Automatically ends at the exact present moment at query execution time."
+    )
+    if to_use_current:
+        filter_end_dt = now_npt
+        st.sidebar.caption(f"Ending at present moment: **{now_npt.strftime('%b %d, %Y · %I:%M %p')} NPT**")
+    else:
+        col_to_d, col_to_t = st.sidebar.columns(2)
+        with col_to_d:
+            to_date = st.date_input(
+                "To Date:",
+                value=now_npt.date(),
+                max_value=now_npt.date(),
+                min_value=from_date,
+                key="custom_to_date",
+                help="Ending date in Nepal Time (NPT)"
+            )
+        with col_to_t:
+            to_time = st.time_input(
+                "To Time (NPT):",
+                value=now_npt.time().replace(second=0, microsecond=0),
+                key="custom_to_time",
+                help="Ending time in Nepal Time (NPT)"
+            )
+        filter_end_dt = datetime.datetime.combine(to_date, to_time, tzinfo=NEPAL_TZ)
+        if filter_end_dt < filter_start_dt:
+            st.sidebar.warning("⚠️ 'To' timestamp is earlier than 'From' timestamp. Auto-adjusting to end at 'From'.")
+            filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
+
+is_to_current = (filter_end_dt >= now_npt - datetime.timedelta(minutes=2))
+to_display_str = f"Current / Now ({filter_end_dt.strftime('%I:%M %p')} NPT)" if is_to_current else filter_end_dt.strftime("%b %d, %Y · %I:%M %p NPT")
 
 if filter_start_dt:
-    st.sidebar.success(f"⏱ Filtering from: **{filter_start_dt.strftime('%b %d, %I:%M %p')}** up to **Now ({now_npt.strftime('%I:%M %p')} NPT)**")
+    st.sidebar.success(f"⏱ **Range Active:**\n\n**From:** {filter_start_dt.strftime('%b %d, %Y · %I:%M %p')} NPT\n\n**To:** {to_display_str}")
 elif explicit_all_time:
-    st.sidebar.info("📚 Showing **All Time / Full Archive** for all channels.")
+    st.sidebar.info(f"📚 Showing **All Time / Full Archive** up to **{to_display_str}**")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔍 Global Search & Filter System")
@@ -881,6 +926,9 @@ selected_cat_filter = st.sidebar.selectbox(
 if st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters"):
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+    st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+    if "custom_to_use_current" in st.session_state:
+        st.session_state["custom_to_use_current"] = True
     if "x_cat_filter_select" in st.session_state:
         st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
     if "fb_cat_filter_select" in st.session_state:
@@ -957,15 +1005,15 @@ if not active_time_cutoff and not explicit_all_time:
     active_time_cutoff = now_npt - datetime.timedelta(hours=48)
 
 if active_time_cutoff:
-    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= now_npt]
-    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= now_npt]
-    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= now_npt]
-    filtered_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= now_npt]
+    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= filter_end_dt]
+    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= filter_end_dt]
+    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= filter_end_dt]
+    filtered_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= filter_end_dt]
 else:
-    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] <= now_npt]
-    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] <= now_npt]
-    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] <= now_npt]
-    filtered_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] <= now_npt]
+    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] <= filter_end_dt]
+    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] <= filter_end_dt]
+    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] <= filter_end_dt]
+    filtered_fb_posts = [p for p in all_fb_posts if p.get("published_dt") and p["published_dt"] <= filter_end_dt]
 
 # Sort EVERY channel strictly by newest publication timestamp first
 filtered_articles.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
@@ -1519,8 +1567,10 @@ if search_query and search_query.strip():
     active_filter_chips.append(f'<span style="background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🔍 Keyword: "{html.escape(search_query.strip())}"</span>')
 if selected_cat_filter != CAT_FILTER_ALL_UNFILTERED:
     active_filter_chips.append(f'<span style="background:#F1F5F9; color:#334155; border:1px solid #CBD5E1; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🏷 {html.escape(selected_cat_filter)}</span>')
-if filter_start_dt:
-    active_filter_chips.append(f'<span style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">⏱ Since: {filter_start_dt.strftime("%b %d, %I:%M %p")}</span>')
+if filter_start_dt or not is_to_current:
+    from_chip = filter_start_dt.strftime("%b %d, %I:%M %p") if filter_start_dt else "Archive Start"
+    to_chip = "Current / Now" if is_to_current else filter_end_dt.strftime("%b %d, %I:%M %p")
+    active_filter_chips.append(f'<span style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">⏱ Range: {from_chip} → {to_chip}</span>')
 if lang_filter != "All Languages":
     active_filter_chips.append(f'<span style="background:#F3E8FF; color:#6B21A8; border:1px solid #E9D5FF; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🌐 {html.escape(lang_filter)}</span>')
 
@@ -1532,6 +1582,9 @@ if active_filter_chips:
         if st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch"):
             st.session_state["global_search_input"] = ""
             st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+            st.session_state["time_filter_mode_select"] = "🕒 Past 48 Hours → Current (Default)"
+            if "custom_to_use_current" in st.session_state:
+                st.session_state["custom_to_use_current"] = True
             if "x_cat_filter_select" in st.session_state:
                 st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
             if "fb_cat_filter_select" in st.session_state:
@@ -1552,11 +1605,13 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ==========================================
 with tab1:
     # Display Active Date-Time Filter Banner if applicable
-    if filter_start_dt:
+    if filter_start_dt or not is_to_current:
+        from_str = filter_start_dt.strftime('%b %d, %Y · %I:%M %p') if filter_start_dt else "Archive Start"
+        to_str = f"Current / Now ({filter_end_dt.strftime('%I:%M %p')} NPT)" if is_to_current else filter_end_dt.strftime('%b %d, %Y · %I:%M %p NPT')
         st.markdown(f"""
         <div class="apple-filter-banner">
             <span style="font-size:1.15rem;">⏱</span>
-            <div><b>Active Time Filter:</b> Showing articles published from <b>{filter_start_dt.strftime('%b %d, %Y · %I:%M %p')} NPT</b> up to <b>Now ({now_npt.strftime('%I:%M %p')} NPT)</b>.</div>
+            <div><b>Active Time Range:</b> Showing articles published from <b>{from_str} NPT</b> up to <b>{to_str}</b>.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1573,11 +1628,13 @@ with tab1:
 # TAB 2: Nepal in Indian Media
 # ==========================================
 with tab2:
-    if filter_start_dt:
+    if filter_start_dt or not is_to_current:
+        from_str = filter_start_dt.strftime('%b %d, %Y · %I:%M %p') if filter_start_dt else "Archive Start"
+        to_str = f"Current / Now ({filter_end_dt.strftime('%I:%M %p')} NPT)" if is_to_current else filter_end_dt.strftime('%b %d, %Y · %I:%M %p NPT')
         st.markdown(f"""
         <div class="apple-filter-banner">
             <span style="font-size:1.15rem;">⏱</span>
-            <div><b>Active Time Filter:</b> Showing Indian media stories published from <b>{filter_start_dt.strftime('%b %d, %Y · %I:%M %p')} NPT</b> up to <b>Now ({now_npt.strftime('%I:%M %p')} NPT)</b>.</div>
+            <div><b>Active Time Range:</b> Showing Indian media stories published from <b>{from_str} NPT</b> up to <b>{to_str}</b>.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1932,9 +1989,11 @@ with tab4:
         filtered_fb_feed = sorted(filtered_fb_feed, key=lambda x: x.get("engagement_score", 0), reverse=True)
 
     # Display count banner
-    time_badge_label = "Last 48 Hours (Default)"
-    if filter_start_dt:
-        time_badge_label = f"Filtered from {filter_start_dt.strftime('%b %d, %I:%M %p')}"
+    time_badge_label = "Last 48 Hours → Current (Default)"
+    if filter_start_dt or not is_to_current:
+        from_fb_lbl = filter_start_dt.strftime('%b %d, %I:%M %p') if filter_start_dt else "Start"
+        to_fb_lbl = "Current / Now" if is_to_current else filter_end_dt.strftime('%b %d, %I:%M %p')
+        time_badge_label = f"Range: {from_fb_lbl} → {to_fb_lbl}"
     elif fb_time_scope != "🕒 Last 48 Hours (Default)":
         time_badge_label = fb_time_scope.split(" ", 1)[1] if " " in fb_time_scope else fb_time_scope
 
