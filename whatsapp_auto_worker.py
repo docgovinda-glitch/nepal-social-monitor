@@ -151,13 +151,13 @@ def run_single_broadcast_cycle(
     dispatched_count = 0
     failed_count = 0
 
-    # If max_items_per_cycle is <= 0 or 0, broadcast ALL stories published in the 30-min window
+    # If max_items_per_cycle is <= 0 or 0, broadcast ALL stories published in the interval window
     if max_items_per_cycle and max_items_per_cycle > 0:
         items_to_send = unbroadcasted_in_window[:max_items_per_cycle]
         logger.info(f"Broadcasting {len(items_to_send)} items (capped at {max_items_per_cycle})...")
     else:
         items_to_send = unbroadcasted_in_window
-        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories published in this 30-min refresh...")
+        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories published in this {interval_secs // 60}-min refresh...")
 
     for item, itype in items_to_send:
         title = item.get("title") or item.get("text") or "Untitled"

@@ -2,8 +2,8 @@ name: 24/7 WhatsApp News Broadcast Worker
 
 on:
   schedule:
-    # Runs every 30 minutes 24/7 in the cloud
-    - cron: '*/30 * * * *'
+    # Runs every 1 hour 24/7 in the cloud (720 min/month, 100% free forever)
+    - cron: '0 * * * *'
   workflow_dispatch: # Allows 1-click manual trigger anytime from GitHub Actions tab
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
           GREEN_API_TOKEN_INSTANCE: ${{ secrets.GREEN_API_TOKEN_INSTANCE || '40dbc295b8de41de8b8d80f40e664537350f170c25a0456fba' }}
           GREEN_API_CHAT_ID: ${{ secrets.GREEN_API_CHAT_ID || '120363413358977926@g.us' }}
           WHATSAPP_CHANNEL_URL: ${{ secrets.WHATSAPP_CHANNEL_URL || 'https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38' }}
-          BROADCAST_INTERVAL_SECONDS: '1800'
+          BROADCAST_INTERVAL_SECONDS: '3600'
           MAX_BROADCAST_PER_CYCLE: '0'
           TWITTER_CONSUMER_KEY: ${{ secrets.TWITTER_CONSUMER_KEY || 'o3UzORYoi7dfmbBnmjaXbs3XJ' }}
           TWITTER_CONSUMER_SECRET: ${{ secrets.TWITTER_CONSUMER_SECRET || 'TkP3an7rMxArcubWX7ZqB2WiKX98gNFlRmtiTcknj1YOgnPYdi' }}

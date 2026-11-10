@@ -566,9 +566,135 @@
       "link": "https://www.ratopati.com/story/604442/the-road-that-was-supposed-to-be-completed-in-two-years-was-not-completed-even-in-four-years",
       "sent_at": "2026-11-10T16:27:53.320239",
       "channel": "Official WhatsApp Channel"
+    },
+    "89b98dc637d2a54b9aaaab90": {
+      "key": "89b98dc637d2a54b9aaaab90",
+      "type": "article",
+      "title": "बच्चैदेखिको साथी उदितनारायणबारे भुवन – अचानक भारतीय भएको देख्दा अचम्मित छु",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/10/780402/bhuvan-on-childhood-friend-udit-narayan-i-am-surprised-to-see-him-suddenly-become-an-indian/",
+      "sent_at": "2026-11-10T16:34:52.074197",
+      "channel": "Official WhatsApp Channel"
+    },
+    "1488e8195b2c1bec70558fc2": {
+      "key": "1488e8195b2c1bec70558fc2",
+      "type": "article",
+      "title": "अवैध पटका तथा विस्फोटक पदार्थ नष्ट",
+      "source": "Gorkhapatra Online",
+      "link": "https://gorkhapatraonline.com/news/228821",
+      "sent_at": "2026-11-10T16:34:53.826859",
+      "channel": "Official WhatsApp Channel"
+    },
+    "2512355533a3677a35109d10": {
+      "key": "2512355533a3677a35109d10",
+      "type": "article",
+      "title": "Tihar Festival's Economic Impact: High Imports, Low Domestic Production",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86222/business-booms-during-the-festival-of-lights-80-percent-of-which-is-foreign-goods",
+      "sent_at": "2026-11-10T16:34:55.527686",
+      "channel": "Official WhatsApp Channel"
+    },
+    "22bd696e744e920af8dd1469": {
+      "key": "22bd696e744e920af8dd1469",
+      "type": "article",
+      "title": "मोटरसाइकल दुर्घटनामा १६ वर्षीय किशोरको मृत्यु",
+      "source": "Setopati",
+      "link": "https://www.setopati.com/social/402382",
+      "sent_at": "2026-11-10T16:34:57.404692",
+      "channel": "Official WhatsApp Channel"
+    },
+    "bd99bbdcfdefc01c943b9504": {
+      "key": "bd99bbdcfdefc01c943b9504",
+      "type": "article",
+      "title": "दुई वर्षमा सक्नु पर्ने सडक चार वर्षमा पनि सकिएन",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/10/the-road-that-was-supposed-to-be-completed-in-two-years-was-not-completed-even-in-four-years/",
+      "sent_at": "2026-11-10T16:34:59.086157",
+      "channel": "Official WhatsApp Channel"
+    },
+    "2d135d4daa49e71b5e2dd9aa": {
+      "key": "2d135d4daa49e71b5e2dd9aa",
+      "type": "article",
+      "title": "उदयपुरमा माइक्रो बस सडकबाट १५ मिटर तल खस्यो, चालकसहित १० घाइते",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/microbus-falls-15-meters-off-road-in-udayapur-10-injured-including-driver-11-74.html",
+      "sent_at": "2026-11-10T16:35:00.951986",
+      "channel": "Official WhatsApp Channel"
+    },
+    "e95a6271ff941638cdfc42ca": {
+      "key": "e95a6271ff941638cdfc42ca",
+      "type": "article",
+      "title": "पाकिस्तानले नेपाललाई दियो २७६ रनको लक्ष्य",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/sports/pakistan-set-a-target-of-276-runs-for-nepal-65-93.html",
+      "sent_at": "2026-11-10T16:35:02.950525",
+      "channel": "Official WhatsApp Channel"
     }
   },
   "history": [
+    {
+      "key": "e95a6271ff941638cdfc42ca",
+      "type": "article",
+      "title": "पाकिस्तानले नेपाललाई दियो २७६ रनको लक्ष्य",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/sports/pakistan-set-a-target-of-276-runs-for-nepal-65-93.html",
+      "sent_at": "2026-11-10T16:35:02.950525",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "2d135d4daa49e71b5e2dd9aa",
+      "type": "article",
+      "title": "उदयपुरमा माइक्रो बस सडकबाट १५ मिटर तल खस्यो, चालकसहित १० घाइते",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/microbus-falls-15-meters-off-road-in-udayapur-10-injured-including-driver-11-74.html",
+      "sent_at": "2026-11-10T16:35:00.951986",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "bd99bbdcfdefc01c943b9504",
+      "type": "article",
+      "title": "दुई वर्षमा सक्नु पर्ने सडक चार वर्षमा पनि सकिएन",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/10/the-road-that-was-supposed-to-be-completed-in-two-years-was-not-completed-even-in-four-years/",
+      "sent_at": "2026-11-10T16:34:59.086157",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "22bd696e744e920af8dd1469",
+      "type": "article",
+      "title": "मोटरसाइकल दुर्घटनामा १६ वर्षीय किशोरको मृत्यु",
+      "source": "Setopati",
+      "link": "https://www.setopati.com/social/402382",
+      "sent_at": "2026-11-10T16:34:57.404692",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "2512355533a3677a35109d10",
+      "type": "article",
+      "title": "Tihar Festival's Economic Impact: High Imports, Low Domestic Production",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86222/business-booms-during-the-festival-of-lights-80-percent-of-which-is-foreign-goods",
+      "sent_at": "2026-11-10T16:34:55.527686",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "1488e8195b2c1bec70558fc2",
+      "type": "article",
+      "title": "अवैध पटका तथा विस्फोटक पदार्थ नष्ट",
+      "source": "Gorkhapatra Online",
+      "link": "https://gorkhapatraonline.com/news/228821",
+      "sent_at": "2026-11-10T16:34:53.826859",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "89b98dc637d2a54b9aaaab90",
+      "type": "article",
+      "title": "बच्चैदेखिको साथी उदितनारायणबारे भुवन – अचानक भारतीय भएको देख्दा अचम्मित छु",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/10/780402/bhuvan-on-childhood-friend-udit-narayan-i-am-surprised-to-see-him-suddenly-become-an-indian/",
+      "sent_at": "2026-11-10T16:34:52.074197",
+      "channel": "Official WhatsApp Channel"
+    },
     {
       "key": "20ebc2f3910602cba0477b2e",
       "type": "article",
