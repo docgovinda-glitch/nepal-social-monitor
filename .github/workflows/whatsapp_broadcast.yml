@@ -2,9 +2,12 @@ name: 24/7 WhatsApp News Broadcast Worker
 
 on:
   schedule:
-    # Runs automatically every 1 hour 24/7 at minute 20
-    # Jittered to :20 to bypass GitHub Actions top-of-the-hour (:00, :15, :30) traffic delays
-    - cron: '20 * * * *'
+    # Runs at minute 15 of every hour from 00:15 UTC to 16:15 UTC
+    # In Nepal Time (UTC+5:45), this corresponds exactly to 06:00 NPT to 22:00 NPT (every hour)
+    # 00:15 UTC = 06:00 NPT (Morning batch: sweeps 10 PM to 6 AM overnight stories)
+    # 16:15 UTC = 22:00 NPT (Final night cycle)
+    # No runs scheduled between 17:00 UTC and 23:59 UTC (10 PM to 6 AM quiet window)
+    - cron: '15 0-16 * * *'
   workflow_dispatch: # Allows 1-click manual trigger anytime from GitHub Actions tab
 
 permissions:

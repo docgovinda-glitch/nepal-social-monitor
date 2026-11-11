@@ -28,5 +28,6 @@ green_api_qr.png
 .DS_Store
 .idea/
 .vscode/
-.agents/
+*.log
+.agents/skills/developing-with-streamlit
 .claude/

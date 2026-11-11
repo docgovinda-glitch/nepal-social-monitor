@@ -92,14 +92,61 @@ def dispatch_to_meta_cloud_api(item: Dict[str, Any], item_type: str) -> bool:
         logger.error(f"Error posting to Meta WhatsApp Cloud API: {ex}")
         return False
 
+def is_within_broadcast_hours(dt: datetime) -> bool:
+    """
+    Checks if given time is within allowed broadcasting hours:
+    From 6:00 AM (06:00) to 10:00 PM (22:00) NPT.
+    Allows tolerance for runs starting at 22:00:00 up to 22:05:00.
+    """
+    if dt.hour < 6:
+        return False
+    if dt.hour > 22:
+        return False
+    if dt.hour == 22 and dt.minute > 5:
+        return False
+    return True
+
+def get_next_run_time(dt: datetime) -> datetime:
+    """
+    Calculates the exact next scheduled run time.
+    Operating hours: 6:00 AM to 10:00 PM NPT (hours 6 through 22).
+    Scheduled for the first minute of each hour (:00:00).
+    Night quiet window (10:00 PM to 6:00 AM): sleeps until 06:00:00 AM.
+    """
+    if dt.hour >= 22 and (dt.minute > 0 or dt.second > 0):
+        # After 10:00 PM cycle finishes, sleep until 06:00 AM tomorrow
+        return (dt + timedelta(days=1)).replace(hour=6, minute=0, second=0, microsecond=0)
+    elif dt.hour < 6:
+        # Before 6:00 AM, sleep until 06:00 AM today
+        return dt.replace(hour=6, minute=0, second=0, microsecond=0)
+    else:
+        # Between 06:00 and 21:59, next run is top of next hour (:00:00)
+        return (dt + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+
 def run_single_broadcast_cycle(
     max_items_per_cycle: int = 10,
-    dry_run: bool = False
+    dry_run: bool = False,
+    force: bool = False
 ) -> Dict[str, Any]:
     """
     Executes a single scan-and-dispatch cycle across all feeds.
     Returns summary statistics of the run.
     """
+    now_nepal = datetime.now(NEPAL_TZ)
+
+    # Operating window check: 6:00 AM to 10:00 PM NPT
+    if not is_within_broadcast_hours(now_nepal) and not force:
+        logger.info(
+            f"Current time ({now_nepal.strftime('%I:%M %p')} NPT) is outside broadcast window (06:00 AM - 10:00 PM). "
+            "Overnight news is held and will be broadcast at 06:00 AM at once. (Use --force to override)"
+        )
+        return {
+            "timestamp": now_nepal.isoformat(),
+            "status": "held_outside_hours",
+            "dispatched": 0,
+            "failed": 0
+        }
+
     webhook_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
     meta_token = get_env_variable("WHATSAPP_ACCESS_TOKEN")
     _, green_id, _ = get_green_api_credentials()
@@ -110,6 +157,7 @@ def run_single_broadcast_cycle(
             green_chat_id = detected_ch
 
     logger.info("--- Starting Broadcast Scan Cycle ---")
+    logger.info(f"Current Time: {now_nepal.strftime('%Y-%m-%d %I:%M:%S %p')} NPT")
     logger.info(f"Broadcast Channel URL: {get_env_variable('WHATSAPP_CHANNEL_URL', DEFAULT_CHANNEL_URL)}")
     logger.info(f"Direct Green-API configured: {'Yes (Chat: ' + green_chat_id + ')' if green_id and green_chat_id else 'No'}")
     logger.info(f"Webhook URL configured: {'Yes' if webhook_url else 'No'}")
@@ -129,17 +177,14 @@ def run_single_broadcast_cycle(
     for p in x_posts:
         all_scanned.append((p, "x"))
 
-    # 2. Filter for items published in the refresh window (with overnight morning catch-up)
-    now_nepal = datetime.now(NEPAL_TZ)
-    interval_secs = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "3600"))
-
-    # Robust lookback: 10-hour morning catch-up window (05:00 - 10:00 AM)
-    # and at least 4-hour window at other times so delayed cycles or sleep mode never drop news
-    if 5 <= now_nepal.hour <= 10:
-        lookback_seconds = 10 * 3600  # 10 hours
-        logger.info("Morning window detected: Checking for overnight stories published since yesterday evening...")
+    # 2. Filter for items published in the refresh window
+    # Morning window (06:00 AM): 10-hour lookback sweeps all overnight stories from 10 PM to 6 AM
+    if now_nepal.hour == 6 or now_nepal.hour < 7:
+        lookback_seconds = 10 * 3600  # 10 hours covers from 8 PM yesterday to 6 AM today
+        logger.info("🌅 6:00 AM Morning batch: Gathering and broadcasting all overnight news from 10:00 PM to 6:00 AM...")
     else:
-        lookback_seconds = max(interval_secs * 3, 4 * 3600)  # at least 4 hours
+        # Daytime hourly runs (7:00 AM to 10:00 PM): 3-hour lookback ensures no gaps
+        lookback_seconds = 3 * 3600
 
     cutoff_time = now_nepal - timedelta(seconds=lookback_seconds)
 
@@ -223,27 +268,46 @@ def run_single_broadcast_cycle(
     return summary
 
 def main():
-    default_interval = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "3600"))
     default_max = int(get_env_variable("MAX_BROADCAST_PER_CYCLE", "0"))  # 0 = send all stories published in cycle
     parser = argparse.ArgumentParser(description="Nepal Monitor WhatsApp Automated Dispatch Worker")
-    parser.add_argument("--interval", type=int, default=default_interval, help=f"Scan interval in seconds (default: {default_interval}s / {default_interval // 60} mins)")
     parser.add_argument("--once", action="store_true", help="Run once and exit (for cron jobs)")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without sending network requests")
     parser.add_argument("--max-per-cycle", type=int, default=default_max, help=f"Maximum stories to send per cycle (0 = send all stories, default: {default_max})")
+    parser.add_argument("--force", action="store_true", help="Force broadcast even outside active hours (10:00 PM - 06:00 AM)")
+    parser.add_argument("--run-now", action="store_true", help="Run an immediate cycle upon startup before syncing to hourly :00 schedule")
 
     args = parser.parse_args()
 
     if args.once:
-        run_single_broadcast_cycle(max_items_per_cycle=args.max_per_cycle, dry_run=args.dry_run)
+        run_single_broadcast_cycle(max_items_per_cycle=args.max_per_cycle, dry_run=args.dry_run, force=args.force)
     else:
-        logger.info(f"Starting continuous daemon (interval: {args.interval} seconds / {args.interval // 60} mins)...")
-        while True:
+        logger.info("==================================================================")
+        logger.info("Starting Nepal Monitor Continuous Daemon")
+        logger.info("Schedule: 06:00 AM to 10:00 PM NPT (every hour at :00)")
+        logger.info("Overnight news (10:00 PM to 06:00 AM) held and broadcast at 06:00 AM at once")
+        logger.info("==================================================================")
+
+        if args.run_now:
             try:
-                run_single_broadcast_cycle(max_items_per_cycle=args.max_per_cycle, dry_run=args.dry_run)
+                run_single_broadcast_cycle(max_items_per_cycle=args.max_per_cycle, dry_run=args.dry_run, force=args.force)
+            except Exception as ex:
+                logger.error(f"Error during startup broadcast cycle: {ex}")
+
+        while True:
+            now_nepal = datetime.now(NEPAL_TZ)
+            next_run = get_next_run_time(now_nepal)
+            sleep_secs = max(5, int((next_run - now_nepal).total_seconds()))
+
+            logger.info(
+                f"Next broadcast scheduled for: {next_run.strftime('%Y-%m-%d %I:%M:%S %p')} NPT "
+                f"(sleeping for {sleep_secs}s / {sleep_secs // 60}m)..."
+            )
+            time.sleep(sleep_secs)
+
+            try:
+                run_single_broadcast_cycle(max_items_per_cycle=args.max_per_cycle, dry_run=args.dry_run, force=args.force)
             except Exception as ex:
                 logger.error(f"Error during broadcast cycle: {ex}")
-            logger.info(f"Sleeping for {args.interval} seconds until next scan...")
-            time.sleep(args.interval)
 
 if __name__ == "__main__":
     main()
