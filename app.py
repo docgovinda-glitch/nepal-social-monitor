@@ -754,18 +754,16 @@ refresh_btn = st.sidebar.button("🔄 Refresh All Feeds Now", width='stretch')
 
 # --- Date & Time Range Filter Section ---
 st.sidebar.markdown("---")
-st.sidebar.subheader("📅 Date & Timestamp Filter")
+st.sidebar.subheader("📅 Timeframe")
 
-DEFAULT_TIME_PRESET = "🕒 Past 48 Hours (Default)"
+DEFAULT_TIME_PRESET = "🌅 Since Yesterday 6:00 PM (Default)"
 TIME_FILTER_PRESETS = [
     DEFAULT_TIME_PRESET,
-    "⚡ Past 24 Hours",
-    "⏳ Past 12 Hours",
-    "⏱ Past 6 Hours",
     "📅 Today (Since 00:00 NPT)",
-    "📅 Past 7 Days",
-    "📆 Past 30 Days",
-    "🗓 Custom Date & Timestamp Range...",
+    "⚡ Past 24 Hours",
+    "⏳ Past 48 Hours",
+    "🗓 Past 7 Days",
+    "⚙️ Custom Date/Time...",
     "🏛 All Time (Archive)",
 ]
 
@@ -774,30 +772,28 @@ if st.session_state.get("time_filter_mode_select") not in TIME_FILTER_PRESETS:
     st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
 
 time_filter_mode = st.sidebar.selectbox(
-    "Date & Time Window:",
+    "Select Range:",
     TIME_FILTER_PRESETS,
-    key="time_filter_mode_select",
-    help="Filters all articles, reports, and social feeds published within the selected timeframe in Nepal Time (NPT)."
+    key="time_filter_mode_select"
 )
 
 filter_start_dt = None
 filter_end_dt = now_npt
 explicit_all_time = False
 
-if "Past 6 Hours" in time_filter_mode:
-    filter_start_dt = now_npt - datetime.timedelta(hours=6)
-elif "Past 12 Hours" in time_filter_mode:
-    filter_start_dt = now_npt - datetime.timedelta(hours=12)
+yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
+yesterday_18 = datetime.datetime.combine(yesterday_date, datetime.time(18, 0), tzinfo=NEPAL_TZ)
+
+if "Since Yesterday" in time_filter_mode:
+    filter_start_dt = yesterday_18
+elif "Today" in time_filter_mode:
+    filter_start_dt = datetime.datetime.combine(now_npt.date(), datetime.time(0, 0), tzinfo=NEPAL_TZ)
 elif "Past 24 Hours" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(hours=24)
 elif "Past 48 Hours" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(hours=48)
-elif "Today" in time_filter_mode:
-    filter_start_dt = datetime.datetime.combine(now_npt.date(), datetime.time(0, 0), tzinfo=NEPAL_TZ)
 elif "Past 7 Days" in time_filter_mode:
     filter_start_dt = now_npt - datetime.timedelta(days=7)
-elif "Past 30 Days" in time_filter_mode:
-    filter_start_dt = now_npt - datetime.timedelta(days=30)
 elif "All Time" in time_filter_mode:
     explicit_all_time = True
     filter_start_dt = None
@@ -807,30 +803,25 @@ elif "Custom" in time_filter_mode:
     with col_from_d:
         from_date = st.date_input(
             "From Date:",
-            value=now_npt.date() - datetime.timedelta(days=1),
+            value=yesterday_date,
             max_value=now_npt.date(),
-            key="custom_from_date",
-            help="Starting date in Nepal Time (NPT)"
+            key="custom_from_date"
         )
     with col_from_t:
-        default_from_time = (now_npt - datetime.timedelta(hours=4)).time().replace(second=0, microsecond=0)
         from_time = st.time_input(
             "From Time:",
-            value=default_from_time,
-            key="custom_from_time",
-            help="Starting time in Nepal Time (NPT)"
+            value=datetime.time(18, 0),
+            key="custom_from_time"
         )
     filter_start_dt = datetime.datetime.combine(from_date, from_time, tzinfo=NEPAL_TZ)
 
     to_use_current = st.sidebar.checkbox(
         "⚡ End at Current / Now",
         value=True,
-        key="custom_to_use_current",
-        help="Quick-select: Automatically ends at the exact present moment (NPT)."
+        key="custom_to_use_current"
     )
     if to_use_current:
         filter_end_dt = now_npt
-        st.sidebar.caption(f"Ending at present moment: **{now_npt.strftime('%b %d · %I:%M %p NPT')}**")
     else:
         col_to_d, col_to_t = st.sidebar.columns(2)
         with col_to_d:
@@ -839,28 +830,28 @@ elif "Custom" in time_filter_mode:
                 value=now_npt.date(),
                 max_value=now_npt.date(),
                 min_value=from_date,
-                key="custom_to_date",
-                help="Ending date in Nepal Time (NPT)"
+                key="custom_to_date"
             )
         with col_to_t:
             to_time = st.time_input(
                 "To Time:",
                 value=now_npt.time().replace(second=0, microsecond=0),
-                key="custom_to_time",
-                help="Ending time in Nepal Time (NPT)"
+                key="custom_to_time"
             )
         filter_end_dt = datetime.datetime.combine(to_date, to_time, tzinfo=NEPAL_TZ)
         if filter_end_dt < filter_start_dt:
-            st.sidebar.warning("⚠️ 'To' timestamp is earlier than 'From'. Auto-adjusting to end at 'From'.")
+            st.sidebar.warning("⚠️ 'To' timestamp is earlier than 'From'.")
             filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
 
-is_to_current = (filter_end_dt >= now_npt - datetime.timedelta(minutes=2))
-to_display_str = f"Current ({filter_end_dt.strftime('%I:%M %p NPT')})" if is_to_current else filter_end_dt.strftime("%b %d, %Y · %I:%M %p NPT")
-
 if filter_start_dt:
-    st.sidebar.caption(f"🗓 Active Window: **{filter_start_dt.strftime('%b %d, %I:%M %p')}** → **{to_display_str}**")
+    if "Since Yesterday" in time_filter_mode:
+        st.sidebar.caption(f"🕒 Showing: **Yesterday, 6:00 PM → Now** ({now_npt.strftime('%I:%M %p')})")
+    elif "Today" in time_filter_mode:
+        st.sidebar.caption(f"🕒 Showing: **Today, 12:00 AM → Now** ({now_npt.strftime('%I:%M %p')})")
+    else:
+        st.sidebar.caption(f"🕒 Showing: **{filter_start_dt.strftime('%b %d, %I:%M %p')} → Now**")
 elif explicit_all_time:
-    st.sidebar.caption(f"📚 Active Window: **Full Archive** up to **{to_display_str}**")
+    st.sidebar.caption("🕒 Showing: **All Available Feeds**")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔍 Global Search & Filter System")
