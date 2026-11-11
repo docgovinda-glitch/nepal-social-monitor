@@ -251,7 +251,7 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         else:
             author_line = f"*{author}*"
 
-        meta_line = f"🐦 X (Twitter) • 📌 {category}"
+        meta_line = "🐦 X (Twitter)"
 
         # If translated and distinct from original text, provide English translation followed by complete original post
         if trans_text and trans_text != full_text and _is_devanagari(full_text):
@@ -275,14 +275,13 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         author = (item.get("author_name") or "Page").replace("*", "").strip()
         text = (item.get("text") or "").strip()
         link = item.get("fb_link") or item.get("link") or "https://facebook.com"
-        category = item.get("structured_category") or "Public Opinion"
 
         if len(text) > 3400:
             text = text[:3400] + "\n\n[... Full post continued on Facebook]"
 
         msg = (
             f"*{author}*\n"
-            f"📘 Facebook • 📌 {category}\n\n"
+            f"📘 Facebook\n\n"
             f"{text}\n\n"
             f"🔗 Full Story: {link}"
         )
@@ -292,8 +291,6 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         # News Article (Nepali, Indian Press, or English)
         link = item.get("link") or "#"
         source = item.get("source") or "Nepal News"
-        category = item.get("structured_category") or "General"
-        cat_icon = item.get("category_icon") or "📌"
 
         # 1. Fetch full article body if not already present or if only a short snippet
         full_content = (item.get("full_content") or "").strip()
@@ -323,8 +320,8 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         else:
             title_block = f"*{headline or original_title}*"
 
-        # Source & Category line
-        meta_line = f"📰 {source} • {cat_icon} {category}"
+        # Source line (category omitted per instructions)
+        meta_line = f"📰 {source}"
 
         # Story content: use the unabridged full story text
         story_body = full_content or item.get("summary") or ""

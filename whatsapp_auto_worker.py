@@ -170,12 +170,29 @@ def run_single_broadcast_cycle(
     x_posts = scan_popular_nepal_x_posts(force_refresh=False)
 
     all_scanned: List[tuple[Dict[str, Any], str]] = []
+    # 1. Send all news published by 34 Nepali media regardless of category
     for a in nepali_articles:
         all_scanned.append((a, "article"))
+
+    # 2. Indian media publishing anything about Nepal
     for a in indian_articles:
         all_scanned.append((a, "article"))
+
+    # 3. X posts that strictly fall under the structured categories (excluding uncategorized/generic chatter)
+    CORE_X_CATEGORIES = {
+        "India in Nepal",
+        "China in Nepal",
+        "Pakistan in Nepal",
+        "Bangladesh in Nepal",
+        "Nepal – Internal Politics",
+        "Nepal – External Relations",
+        "Nepal – External Relations (Others)",
+        "Economy"
+    }
     for p in x_posts:
-        all_scanned.append((p, "x"))
+        cat = (p.get("structured_category") or "").strip()
+        if cat in CORE_X_CATEGORIES:
+            all_scanned.append((p, "x"))
 
     # 2. Filter for items published in the refresh window
     # Morning window (06:00 AM): 10-hour lookback sweeps all overnight stories from 10 PM to 6 AM
