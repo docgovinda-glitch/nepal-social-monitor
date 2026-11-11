@@ -11,8 +11,11 @@ import hashlib
 import json
 import logging
 import datetime
+import zoneinfo
 import urllib.parse
 from typing import List, Dict, Any, Optional, Tuple
+
+NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
 
 logger = logging.getLogger("nepal_news_store")
 if not logger.handlers:
@@ -435,6 +438,14 @@ def get_stored_articles(
         articles = []
         for r in rows:
             d = dict(r)
+            if isinstance(d.get("published_dt"), str):
+                try:
+                    dt = datetime.datetime.fromisoformat(d["published_dt"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=NEPAL_TZ)
+                    d["published_dt"] = dt
+                except Exception:
+                    pass
             # Parse JSON fields
             try:
                 d["sections"] = json.loads(d.get("sections") or "[]")
@@ -503,3 +514,4 @@ def get_system_kpis() -> Dict[str, Any]:
             "articles_7d": art_row["count_7d"] or 0,
             "total_stored_articles": art_row["total_articles"] or 0
         }
+

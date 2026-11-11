@@ -2,7 +2,7 @@
 whatsapp_dispatcher.py
 ----------------------
 Deduplication, formatting, and broadcasting engine for WhatsApp Channel and
-subscriber distribution across Nepal Media, Indian Media, X (Twitter), and Facebook.
+subscriber distribution across Nepal Media, Indian Media, and X (Twitter).
 """
 
 import os
@@ -77,8 +77,6 @@ def get_item_key(item: Dict[str, Any], item_type: str = "article") -> str:
         raw = item.get("link") or (item.get("source", "") + "_" + item.get("title", ""))
     elif item_type in ("x", "twitter"):
         raw = item.get("link") or item.get("id") or (item.get("handle", "") + "_" + item.get("text", "")[:80])
-    elif item_type in ("fb", "facebook"):
-        raw = item.get("fb_link") or item.get("link") or (item.get("author_name", "") + "_" + item.get("text", "")[:80])
     else:
         raw = str(item.get("link", "")) or str(item.get("title", "")) or str(item)
 
@@ -144,15 +142,13 @@ def get_broadcasted_stats() -> Dict[str, Any]:
     sent_keys = cache.get("sent_keys", {})
     history = cache.get("history", [])
 
-    by_type = {"article": 0, "x": 0, "fb": 0}
+    by_type = {"article": 0, "x": 0}
     for item in sent_keys.values():
         t = item.get("type", "article")
         if "indian" in t or "nepali" in t or t == "article":
             by_type["article"] += 1
         elif "x" in t or "twitter" in t:
             by_type["x"] += 1
-        elif "fb" in t or "facebook" in t:
-            by_type["fb"] += 1
 
     last_sent = history[0]["sent_at"] if history else None
 
@@ -213,7 +209,7 @@ def _is_devanagari(text: str) -> bool:
 
 def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") -> str:
     """
-    Formats an individual news article, X post, or Facebook post for WhatsApp.
+    Formats an individual news article or X post for WhatsApp.
     Fast, direct formatting without AI translation overhead.
     """
     if item_type in ("x", "twitter"):
@@ -240,22 +236,6 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
             f"{meta_line}\n\n"
             f"{content_section}\n\n"
             f"🔗 Full Post: {link}"
-        )
-        return msg
-
-    elif item_type in ("fb", "facebook"):
-        author = (item.get("author_name") or "Page").replace("*", "").strip()
-        text = (item.get("text") or "").strip()
-        link = item.get("fb_link") or item.get("link") or "https://facebook.com"
-
-        if len(text) > 3400:
-            text = text[:3400] + "\n\n[... Full post continued on Facebook]"
-
-        msg = (
-            f"*{author}*\n"
-            f"📘 Facebook\n\n"
-            f"{text}\n\n"
-            f"🔗 Full Story: {link}"
         )
         return msg
 

@@ -2,7 +2,7 @@
 whatsapp_auto_worker.py
 -----------------------
 Automated background worker for Nepal Media & Intelligence Monitor.
-Periodically scans for fresh, unbroadcasted news articles, X tweets, and Facebook posts,
+Periodically scans for fresh, unbroadcasted news articles and X tweets,
 deduplicates them, and dispatches them to your WhatsApp Channel via Webhook or Cloud API.
 """
 
@@ -28,7 +28,6 @@ logger = logging.getLogger("whatsapp_auto_worker")
 # Import project modules
 from nepal_fetcher import fetch_top_nepal_media, fetch_nepal_in_indian_media, NEPAL_TZ
 from nepal_x_scanner import scan_popular_nepal_x_posts
-from nepal_fb_real_scanner import scan_real_nepal_fb_intelligence
 from whatsapp_dispatcher import (
     load_sent_cache,
     is_item_broadcasted,
@@ -213,9 +212,20 @@ def run_single_broadcast_cycle(
 
     cutoff_time = now_nepal - timedelta(seconds=lookback_seconds)
 
+    def _parse_item_dt(val):
+        if isinstance(val, datetime):
+            return val if val.tzinfo else val.replace(tzinfo=NEPAL_TZ)
+        if isinstance(val, str):
+            try:
+                dt = datetime.fromisoformat(val)
+                return dt if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+            except Exception:
+                return None
+        return None
+
     unbroadcasted_in_window = []
     for item, itype in all_scanned:
-        pdt = item.get("published_dt")
+        pdt = _parse_item_dt(item.get("published_dt"))
         # Keep items published within the refresh window (or items with no timestamp)
         if pdt and pdt < cutoff_time:
             continue
@@ -224,7 +234,7 @@ def run_single_broadcast_cycle(
 
     # Sort chronological (oldest unbroadcasted first) so messages appear in sequential order
     def _get_dt(entry):
-        dt = entry[0].get("published_dt")
+        dt = _parse_item_dt(entry[0].get("published_dt"))
         if not dt:
             return datetime.min.replace(tzinfo=NEPAL_TZ)
         return dt

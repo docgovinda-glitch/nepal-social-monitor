@@ -4,7 +4,7 @@ A real-time monitoring and classification tool designed to track:
 1. **Top 34 Leading Nepali and English Online News Portals** (with 8-category structured classification).
 2. **Nepal in Indian Media** (Dedicated monitoring of how top Indian newspapers and digital portals report on Nepal).
 3. **Date & Timestamp Filter** (Select any exact date and time in Nepal Standard Time to view articles published from that point up to now).
-4. **Live Social Media Monitors** for **Facebook** and **X (formerly Twitter)** in **Nepal**.
+4. **Live Social Media Monitor** for **X (formerly Twitter)** in **Nepal**.
 
 ---
 

@@ -13,7 +13,6 @@ This agent manages and operates the **Nepal Social Media & News Intelligence Mon
 2. **Fetchers & Scanners**:
    - `nepal_fetcher.py`: Scrapes and standardizes 34 Nepali portals + Indian press coverage of Nepal.
    - `nepal_x_scanner.py`: Scans 281+ verified Nepali Twitter/X handles.
-   - `nepal_fb_real_scanner.py`: Scans high-impact public Facebook pages.
 3. **Broadcasting & Deduplication**:
    - `whatsapp_dispatcher.py`: Message formatting (title, summary, link), Green-API gateway, webhook integration.
    - `whatsapp_sent_cache.json`: Persistent SHA256 key deduplication store (ensures 0 duplicate broadcasts).

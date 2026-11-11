@@ -24,7 +24,6 @@ Your capabilities:
    - Top 34 Nepali news portals (Kantipur, Setopati, Ratopati, etc.) via nepal_fetcher.py
    - Nepal in Indian press (The Hindu, Indian Express, India Today, etc.)
    - Popular Nepal X (Twitter) trends & 281+ verified handles via nepal_x_scanner.py
-   - Real Facebook intelligence scanner via nepal_fb_real_scanner.py
 
 2. Automated Deduplication & WhatsApp Broadcasting:
    - Manage whatsapp_sent_cache.json using SHA256 hashes to guarantee zero duplicate messages.

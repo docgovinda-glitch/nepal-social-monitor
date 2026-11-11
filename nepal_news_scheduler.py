@@ -242,3 +242,4 @@ def start_monitoring_daemon():
 def stop_monitoring_daemon():
     """Signals the monitoring daemon to stop."""
     _STOP_EVENT.set()
+
