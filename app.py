@@ -138,20 +138,25 @@ def check_password() -> bool:
     st.markdown("""
     <style>
         [data-testid="stSidebar"] { display: none !important; }
-        .login-container {
-            max-width: 380px;
-            margin: 80px auto 10px auto;
-            background: #FFFFFF;
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 20px;
-            padding: 36px 30px 28px 30px;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+
+        /* Unified Apple Modal Card */
+        .login-shell {
+            max-width: 360px;
+            margin: 70px auto 0 auto;
             text-align: center;
         }
+        .login-card-top {
+            background: #FFFFFF;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-bottom: none;
+            border-radius: 20px 20px 0 0;
+            padding: 34px 28px 16px 28px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+        }
         .login-icon {
-            font-size: 2.4rem;
+            font-size: 2.2rem;
             line-height: 1;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             display: inline-block;
         }
         .login-title {
@@ -159,34 +164,81 @@ def check_password() -> bool:
             font-weight: 700;
             color: #1D1D1F;
             letter-spacing: -0.02em;
-            margin-bottom: 6px;
+            margin-bottom: 5px;
         }
         .login-sub {
             font-size: 0.82rem;
             color: #86868B;
             line-height: 1.4;
-            margin-bottom: 20px;
+            margin: 0;
         }
-        /* Remove extra streamlit form border */
-        [data-testid="stForm"] {
+
+        /* Seamless continuation of card into the form */
+        .login-form-box [data-testid="stForm"] {
+            background: #FFFFFF !important;
+            border: 1px solid rgba(0, 0, 0, 0.08) !important;
+            border-top: none !important;
+            border-radius: 0 0 20px 20px !important;
+            padding: 8px 28px 28px 28px !important;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.04) !important;
+            margin-top: -1px !important;
+        }
+
+        /* Input styling */
+        .login-form-box div[data-baseweb="input"] > div {
+            border-radius: 10px !important;
+            border: 1px solid rgba(0, 0, 0, 0.12) !important;
+            background: #F9FAFB !important;
+            font-size: 0.92rem !important;
+            transition: all 0.2s ease !important;
+        }
+        .login-form-box div[data-baseweb="input"] > div:focus-within {
+            border-color: #0071E3 !important;
+            background: #FFFFFF !important;
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15) !important;
+        }
+
+        /* Primary Unlock Button: Premium Apple Accent Blue with White Text */
+        .login-form-box button[data-testid="baseButton-primary"],
+        .login-form-box button[kind="primary"],
+        .login-form-box div[data-testid="stFormSubmitButton"] > button {
+            background: #0071E3 !important;
+            color: #FFFFFF !important;
             border: none !important;
-            padding: 0 !important;
-            background: transparent !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            font-size: 0.92rem !important;
+            padding: 9px 18px !important;
+            box-shadow: 0 2px 6px rgba(0, 113, 227, 0.3) !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
         }
-        .login-wrapper {
-            max-width: 380px;
-            margin: 0 auto;
+        .login-form-box button[data-testid="baseButton-primary"] *,
+        .login-form-box button[kind="primary"] *,
+        .login-form-box div[data-testid="stFormSubmitButton"] > button * {
+            color: #FFFFFF !important;
+        }
+        .login-form-box button[data-testid="baseButton-primary"]:hover,
+        .login-form-box button[kind="primary"]:hover,
+        .login-form-box div[data-testid="stFormSubmitButton"] > button:hover {
+            background: #0077ED !important;
+            color: #FFFFFF !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 113, 227, 0.4) !important;
         }
     </style>
-    <div class="login-container">
-        <div class="login-icon">🇳🇵</div>
-        <div class="login-title">Media Monitor</div>
-        <div class="login-sub">Enter password to access the intelligence platform</div>
+    <div class="login-shell">
+        <div class="login-card-top">
+            <div class="login-icon">🇳🇵</div>
+            <div class="login-title">Media Monitor</div>
+            <div class="login-sub">Enter password to access the intelligence platform</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.1, 1])
+    col1, col2, col3 = st.columns([1, 1.05, 1])
     with col2:
+        st.markdown('<div class="login-form-box">', unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=False):
             pwd = st.text_input(
                 "Access Password",
@@ -195,6 +247,7 @@ def check_password() -> bool:
                 label_visibility="collapsed"
             )
             submit = st.form_submit_button("Unlock", width="stretch", type="primary")
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if submit:
             if pwd.strip() == APP_PASSWORD:
