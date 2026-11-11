@@ -129,116 +129,143 @@ def check_password() -> bool:
     if st.session_state.get("authenticated", False):
         return True
 
-    # Check query param ?key=PIC@55 for seamless direct link access if desired
     query_key = st.query_params.get("key", "")
     if query_key == APP_PASSWORD:
         st.session_state["authenticated"] = True
         return True
 
+    # Premium Light Minimalist Authentication Experience
     st.markdown("""
     <style>
         [data-testid="stSidebar"] { display: none !important; }
 
-        /* Unified Apple Modal Card */
-        .login-shell {
-            max-width: 360px;
-            margin: 70px auto 0 auto;
+        /* Background: Soft off-white */
+        [data-testid="stAppViewContainer"], .main {
+            background-color: #F5F7FA !important;
+        }
+
+        /* Centered Unified Card Container */
+        .auth-container {
+            max-width: 380px;
+            margin: 6vh auto 0 auto;
             text-align: center;
         }
-        .login-card-top {
+
+        .auth-card-header {
             background: #FFFFFF;
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            border: 1px solid #DCE5EF;
             border-bottom: none;
-            border-radius: 20px 20px 0 0;
-            padding: 34px 28px 16px 28px;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+            border-radius: 18px 18px 0 0;
+            padding: 38px 32px 14px 32px;
+            box-shadow: 0 4px 20px rgba(37, 54, 75, 0.04);
         }
-        .login-icon {
-            font-size: 2.2rem;
+
+        .auth-flag {
+            font-size: 2.1rem;
             line-height: 1;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             display: inline-block;
         }
-        .login-title {
-            font-size: 1.25rem;
+
+        .auth-title {
+            font-size: 1.35rem;
             font-weight: 700;
-            color: #1D1D1F;
-            letter-spacing: -0.02em;
-            margin-bottom: 5px;
+            color: #25364B;
+            letter-spacing: -0.025em;
+            margin: 0 0 4px 0;
+            line-height: 1.2;
         }
-        .login-sub {
-            font-size: 0.82rem;
-            color: #86868B;
-            line-height: 1.4;
+
+        .auth-subtitle {
+            font-size: 0.84rem;
+            color: #788596;
+            font-weight: 500;
+            letter-spacing: -0.01em;
             margin: 0;
         }
 
-        /* Seamless continuation of card into the form */
-        .login-form-box [data-testid="stForm"] {
+        /* Seamless continuation of card into form */
+        .auth-form-shell [data-testid="stForm"] {
             background: #FFFFFF !important;
-            border: 1px solid rgba(0, 0, 0, 0.08) !important;
+            border: 1px solid #DCE5EF !important;
             border-top: none !important;
-            border-radius: 0 0 20px 20px !important;
-            padding: 8px 28px 28px 28px !important;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.04) !important;
+            border-radius: 0 0 18px 18px !important;
+            padding: 10px 32px 28px 32px !important;
+            box-shadow: 0 8px 24px rgba(37, 54, 75, 0.04) !important;
             margin-top: -1px !important;
         }
 
-        /* Input styling */
-        .login-form-box div[data-baseweb="input"] > div {
+        /* Input Field: Light blue-grey border, soft off-white fill */
+        .auth-form-shell div[data-baseweb="input"] > div {
             border-radius: 10px !important;
-            border: 1px solid rgba(0, 0, 0, 0.12) !important;
-            background: #F9FAFB !important;
+            border: 1px solid #DCE5EF !important;
+            background: #FAFCFE !important;
             font-size: 0.92rem !important;
-            transition: all 0.2s ease !important;
-        }
-        .login-form-box div[data-baseweb="input"] > div:focus-within {
-            border-color: #0071E3 !important;
-            background: #FFFFFF !important;
-            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15) !important;
+            color: #25364B !important;
+            padding: 3px 6px !important;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
         }
 
-        /* Primary Unlock Button: Premium Apple Accent Blue with White Text */
-        .login-form-box button[data-testid="baseButton-primary"],
-        .login-form-box button[kind="primary"],
-        .login-form-box div[data-testid="stFormSubmitButton"] > button {
-            background: #0071E3 !important;
+        .auth-form-shell div[data-baseweb="input"] > div:focus-within {
+            border-color: #526A85 !important;
+            background: #FFFFFF !important;
+            box-shadow: 0 0 0 3px rgba(82, 106, 133, 0.15) !important;
+        }
+
+        /* Primary Action: Muted Slate Blue with White Text */
+        .auth-form-shell button[data-testid="baseButton-primary"],
+        .auth-form-shell button[kind="primary"],
+        .auth-form-shell div[data-testid="stFormSubmitButton"] > button {
+            background: #526A85 !important;
             color: #FFFFFF !important;
             border: none !important;
             border-radius: 10px !important;
             font-weight: 600 !important;
             font-size: 0.92rem !important;
-            padding: 9px 18px !important;
-            box-shadow: 0 2px 6px rgba(0, 113, 227, 0.3) !important;
-            transition: all 0.2s ease !important;
+            padding: 10px 18px !important;
+            box-shadow: 0 2px 6px rgba(82, 106, 133, 0.25) !important;
+            transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
             cursor: pointer !important;
+            width: 100% !important;
+            letter-spacing: -0.01em !important;
         }
-        .login-form-box button[data-testid="baseButton-primary"] *,
-        .login-form-box button[kind="primary"] *,
-        .login-form-box div[data-testid="stFormSubmitButton"] > button * {
+
+        .auth-form-shell button[data-testid="baseButton-primary"] *,
+        .auth-form-shell button[kind="primary"] *,
+        .auth-form-shell div[data-testid="stFormSubmitButton"] > button * {
             color: #FFFFFF !important;
         }
-        .login-form-box button[data-testid="baseButton-primary"]:hover,
-        .login-form-box button[kind="primary"]:hover,
-        .login-form-box div[data-testid="stFormSubmitButton"] > button:hover {
-            background: #0077ED !important;
+
+        .auth-form-shell button[data-testid="baseButton-primary"]:hover,
+        .auth-form-shell button[kind="primary"]:hover,
+        .auth-form-shell div[data-testid="stFormSubmitButton"] > button:hover {
+            background: #435870 !important;
             color: #FFFFFF !important;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 113, 227, 0.4) !important;
+            box-shadow: 0 4px 12px rgba(82, 106, 133, 0.35) !important;
+        }
+
+        /* Minimal Security Footer */
+        .auth-footer {
+            font-size: 0.72rem;
+            color: #9AA8B8;
+            margin-top: 18px;
+            letter-spacing: 0.02em;
+            text-align: center;
         }
     </style>
-    <div class="login-shell">
-        <div class="login-card-top">
-            <div class="login-icon">🇳🇵</div>
-            <div class="login-title">Media Monitor</div>
-            <div class="login-sub">Enter password to access the intelligence platform</div>
+    <div class="auth-container">
+        <div class="auth-card-header">
+            <div class="auth-flag">🇳🇵</div>
+            <h2 class="auth-title">Media Monitor</h2>
+            <p class="auth-subtitle">News Intelligence Platform</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.05, 1])
+    col1, col2, col3 = st.columns([1, 1.08, 1])
     with col2:
-        st.markdown('<div class="login-form-box">', unsafe_allow_html=True)
+        st.markdown('<div class="auth-form-shell">', unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=False):
             pwd = st.text_input(
                 "Access Password",
@@ -246,8 +273,9 @@ def check_password() -> bool:
                 placeholder="Password",
                 label_visibility="collapsed"
             )
-            submit = st.form_submit_button("Unlock", width="stretch", type="primary")
+            submit = st.form_submit_button("Unlock Platform", width="stretch", type="primary")
         st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-footer">Secure Access · Authorised Users Only</div>', unsafe_allow_html=True)
 
         if submit:
             if pwd.strip() == APP_PASSWORD:
