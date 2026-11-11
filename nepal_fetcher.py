@@ -1006,6 +1006,14 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
                 ARTICLE_DATE_CACHE[href] = dt
                 return dt
 
+            # Explicit check for specific article publication time classes first (avoid header/epaper dates)
+            m_news_time = re.search(r'class=["\x27][^"\x27]*(?:news-detail-time-text|published-date|pub-date|article-date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<\r\n]{4,80})', chunk, re.I)
+            if m_news_time and "epaper" not in m_news_time.group(0).lower():
+                dt = parse_snippet_to_datetime(m_news_time.group(1).strip(), now_npt)
+                if dt:
+                    ARTICLE_DATE_CACHE[href] = dt
+                    return dt
+
             # Explicit check for "Published: Nov. 11, 2026, 2:28 p.m." or "Published Date: 2026-11-06 19:10:51"
             m_pub_txt = re.search(r'Published(?:\s*Date)?\s*:\s*</b>\s*([A-Za-z0-9\s,\.:/\-]{6,45})', chunk, re.I)
             if not m_pub_txt:
@@ -1016,9 +1024,9 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
                     ARTICLE_DATE_CACHE[href] = dt
                     return dt
 
-            # Check class elements for pub-date / published-date / date
-            m_pub_box = re.search(r'class=["\x27][^"\x27]*(?:pub-date|published-date|post-date|post__meta-date|article-date|date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<]{5,80})', chunk, re.I)
-            if m_pub_box:
+            # Check class elements for post-date / post__meta-date / date (excluding epaper-date)
+            m_pub_box = re.search(r'class=["\x27][^"\x27]*(?:post-date|post__meta-date|date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<]{5,80})', chunk, re.I)
+            if m_pub_box and "epaper" not in m_pub_box.group(0).lower():
                 dt = parse_snippet_to_datetime(m_pub_box.group(1).strip(), now_npt)
                 if dt:
                     ARTICLE_DATE_CACHE[href] = dt
