@@ -134,100 +134,115 @@ def check_password() -> bool:
         st.session_state["authenticated"] = True
         return True
 
-    # Premium Light Minimalist Authentication Experience
+    # Exact Replica of Figma / Illustrative Design Direction
     st.markdown("""
     <style>
         [data-testid="stSidebar"] { display: none !important; }
 
-        /* Background: Soft off-white */
+        /* Light background */
         [data-testid="stAppViewContainer"], .main {
-            background-color: #F5F7FA !important;
+            background-color: #F8F9FA !important;
         }
 
         /* Centered Unified Card Container */
         .auth-container {
-            max-width: 380px;
+            max-width: 440px;
             margin: 6vh auto 0 auto;
             text-align: center;
         }
 
         .auth-card-header {
             background: #FFFFFF;
-            border: 1px solid #DCE5EF;
+            border: 1px solid #EAECEF;
             border-bottom: none;
-            border-radius: 18px 18px 0 0;
-            padding: 38px 32px 14px 32px;
-            box-shadow: 0 4px 20px rgba(37, 54, 75, 0.04);
+            border-radius: 28px 28px 0 0;
+            padding: 44px 38px 18px 38px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
         }
 
         .auth-flag {
-            font-size: 2.1rem;
+            font-size: 1.6rem;
             line-height: 1;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             display: inline-block;
         }
 
         .auth-title {
-            font-size: 1.35rem;
+            font-size: 1.55rem;
             font-weight: 700;
-            color: #25364B;
-            letter-spacing: -0.025em;
-            margin: 0 0 4px 0;
+            color: #1F242C;
+            letter-spacing: -0.02em;
+            margin: 0 0 6px 0;
             line-height: 1.2;
         }
 
         .auth-subtitle {
-            font-size: 0.84rem;
-            color: #788596;
-            font-weight: 500;
-            letter-spacing: -0.01em;
+            font-size: 0.95rem;
+            color: #6C757D;
+            font-weight: 450;
+            margin: 0 0 20px 0;
+        }
+
+        .auth-divider {
+            height: 1px;
+            background-color: #EAECEF;
+            width: 100%;
             margin: 0;
         }
 
-        /* Seamless continuation of card into form */
+        /* Form section seamless continuation */
         .auth-form-shell [data-testid="stForm"] {
             background: #FFFFFF !important;
-            border: 1px solid #DCE5EF !important;
+            border: 1px solid #EAECEF !important;
             border-top: none !important;
-            border-radius: 0 0 18px 18px !important;
-            padding: 10px 32px 28px 32px !important;
-            box-shadow: 0 8px 24px rgba(37, 54, 75, 0.04) !important;
+            border-radius: 0 0 28px 28px !important;
+            padding: 18px 38px 28px 38px !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03) !important;
             margin-top: -1px !important;
         }
 
-        /* Input Field: Light blue-grey border, soft off-white fill */
+        /* Label above input */
+        .auth-label {
+            text-align: left;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1F242C;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Input Field */
         .auth-form-shell div[data-baseweb="input"] > div {
-            border-radius: 10px !important;
-            border: 1px solid #DCE5EF !important;
-            background: #FAFCFE !important;
-            font-size: 0.92rem !important;
-            color: #25364B !important;
-            padding: 3px 6px !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            border-radius: 12px !important;
+            border: 1.5px solid #DCE1E7 !important;
+            background: #FFFFFF !important;
+            font-size: 0.95rem !important;
+            color: #1F242C !important;
+            padding: 4px 8px !important;
+            transition: all 0.2s ease !important;
         }
 
         .auth-form-shell div[data-baseweb="input"] > div:focus-within {
-            border-color: #526A85 !important;
-            background: #FFFFFF !important;
-            box-shadow: 0 0 0 3px rgba(82, 106, 133, 0.15) !important;
+            border-color: #C82D44 !important;
+            box-shadow: 0 0 0 3px rgba(200, 45, 68, 0.12) !important;
         }
 
-        /* Primary Action: Muted Slate Blue with White Text */
+        /* Unlock Platform Button: Crimson Red matching user design */
         .auth-form-shell button[data-testid="baseButton-primary"],
         .auth-form-shell button[kind="primary"],
         .auth-form-shell div[data-testid="stFormSubmitButton"] > button {
-            background: #526A85 !important;
+            background: #C82D44 !important;
             color: #FFFFFF !important;
             border: none !important;
-            border-radius: 10px !important;
-            font-weight: 600 !important;
-            font-size: 0.92rem !important;
-            padding: 10px 18px !important;
-            box-shadow: 0 2px 6px rgba(82, 106, 133, 0.25) !important;
-            transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            border-radius: 12px !important;
+            font-weight: 650 !important;
+            font-size: 1rem !important;
+            padding: 12px 20px !important;
+            transition: all 0.18s ease !important;
             cursor: pointer !important;
             width: 100% !important;
             letter-spacing: -0.01em !important;
+            margin-top: 6px !important;
         }
 
         .auth-form-shell button[data-testid="baseButton-primary"] *,
@@ -239,43 +254,51 @@ def check_password() -> bool:
         .auth-form-shell button[data-testid="baseButton-primary"]:hover,
         .auth-form-shell button[kind="primary"]:hover,
         .auth-form-shell div[data-testid="stFormSubmitButton"] > button:hover {
-            background: #435870 !important;
+            background: #B32439 !important;
             color: #FFFFFF !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(82, 106, 133, 0.35) !important;
+            box-shadow: 0 4px 14px rgba(200, 45, 68, 0.3) !important;
         }
 
-        /* Minimal Security Footer */
-        .auth-footer {
-            font-size: 0.72rem;
-            color: #9AA8B8;
-            margin-top: 18px;
-            letter-spacing: 0.02em;
+        /* Small footers */
+        .auth-card-footer {
             text-align: center;
+            font-size: 0.8rem;
+            color: #8C96A3;
+            margin-top: 14px;
+        }
+
+        .auth-bottom-caption {
+            text-align: center;
+            font-size: 0.84rem;
+            color: #8C96A3;
+            margin-top: 18px;
         }
     </style>
     <div class="auth-container">
         <div class="auth-card-header">
             <div class="auth-flag">🇳🇵</div>
             <h2 class="auth-title">Media Monitor</h2>
-            <p class="auth-subtitle">News Intelligence Platform</p>
+            <div class="auth-subtitle">News Intelligence Platform</div>
+            <div class="auth-divider"></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.08, 1])
+    col1, col2, col3 = st.columns([1, 1.25, 1])
     with col2:
         st.markdown('<div class="auth-form-shell">', unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=False):
+            st.markdown('<span class="auth-label">Password</span>', unsafe_allow_html=True)
             pwd = st.text_input(
-                "Access Password",
+                "Password",
                 type="password",
-                placeholder="Password",
+                placeholder="Enter your password",
                 label_visibility="collapsed"
             )
             submit = st.form_submit_button("Unlock Platform", width="stretch", type="primary")
+            st.markdown('<div class="auth-card-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-footer">Secure Access · Authorised Users Only</div>', unsafe_allow_html=True)
+        st.markdown('<div class="auth-bottom-caption">Illustrative design direction</div>', unsafe_allow_html=True)
 
         if submit:
             if pwd.strip() == APP_PASSWORD:
