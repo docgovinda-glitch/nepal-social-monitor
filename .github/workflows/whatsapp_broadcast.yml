@@ -33,17 +33,17 @@ jobs:
 
       - name: Run Broadcast Scan Cycle
         env:
-          GREEN_API_URL: ${{ secrets.GREEN_API_URL || 'https://7107.api.greenapi.com' }}
-          GREEN_API_ID_INSTANCE: ${{ secrets.GREEN_API_ID_INSTANCE || '710722796757' }}
-          GREEN_API_TOKEN_INSTANCE: ${{ secrets.GREEN_API_TOKEN_INSTANCE || '40dbc295b8de41de8b8d80f40e664537350f170c25a0456fba' }}
-          GREEN_API_CHAT_ID: ${{ secrets.GREEN_API_CHAT_ID || '120363413358977926@g.us' }}
-          WHATSAPP_CHANNEL_URL: ${{ secrets.WHATSAPP_CHANNEL_URL || 'https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38' }}
+          GREEN_API_URL: ${{ secrets.GREEN_API_URL }}
+          GREEN_API_ID_INSTANCE: ${{ secrets.GREEN_API_ID_INSTANCE }}
+          GREEN_API_TOKEN_INSTANCE: ${{ secrets.GREEN_API_TOKEN_INSTANCE }}
+          GREEN_API_CHAT_ID: ${{ secrets.GREEN_API_CHAT_ID }}
+          WHATSAPP_CHANNEL_URL: ${{ secrets.WHATSAPP_CHANNEL_URL }}
           BROADCAST_INTERVAL_SECONDS: '3600'
           MAX_BROADCAST_PER_CYCLE: '0'
-          TWITTER_CONSUMER_KEY: ${{ secrets.TWITTER_CONSUMER_KEY || 'o3UzORYoi7dfmbBnmjaXbs3XJ' }}
-          TWITTER_CONSUMER_SECRET: ${{ secrets.TWITTER_CONSUMER_SECRET || 'TkP3an7rMxArcubWX7ZqB2WiKX98gNFlRmtiTcknj1YOgnPYdi' }}
-          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN || 'AAAAAAAAAAAAAAAAAAAAAKbmAAIAAAAADmKXtTCtu6uztaV4tEowwgZNoUs=fX7rkbMSJpgLrZf4LGzlJUXS6t81DTLcgcBmsepb4tLOzRce3w' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'AQ.Ab8RN6KYwIu1NCTWx479PKYiRJPdydm6MITVvswI6ruy0OSLbA' }}
+          TWITTER_CONSUMER_KEY: ${{ secrets.TWITTER_CONSUMER_KEY }}
+          TWITTER_CONSUMER_SECRET: ${{ secrets.TWITTER_CONSUMER_SECRET }}
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python whatsapp_auto_worker.py --once
 
