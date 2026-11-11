@@ -887,9 +887,9 @@ search_query = st.sidebar.text_input(
     help="Bilingual cross-lingual search across Nepali Media, Indian Media, and X Posts."
 )
 
-CAT_FILTER_ALL_UNFILTERED = "🌐 All (No Filters / Everything)"
-CAT_FILTER_ALL_8 = "📂 All Categories (9 Editorial Sections)"
-CAT_FILTER_UNCATEGORIZED = "⚪ Uncategorized Feeds Only"
+CAT_FILTER_ALL_UNFILTERED = "🌐 All News"
+CAT_FILTER_ALL_8 = "📂 Classified"
+CAT_FILTER_UNCATEGORIZED = "⚪ Unclassified"
 
 CATEGORY_FILTER_OPTIONS = [
     CAT_FILTER_ALL_UNFILTERED,
@@ -1307,10 +1307,10 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
     """
     if not items:
         return []
-    if not selected_option or selected_option == CAT_FILTER_ALL_UNFILTERED or selected_option.startswith("🌐 All"):
+    if not selected_option or selected_option == CAT_FILTER_ALL_UNFILTERED or "All News" in selected_option or selected_option.startswith("🌐 All"):
         return items
 
-    if selected_option == CAT_FILTER_ALL_8 or "All Categories" in selected_option:
+    if selected_option == CAT_FILTER_ALL_8 or "Classified" in selected_option or "All Categories" in selected_option:
         res = []
         for it in items:
             cat = str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip()
@@ -1324,7 +1324,7 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
                     res.append(it)
         return res
 
-    if selected_option == CAT_FILTER_UNCATEGORIZED or "Uncategorized" in selected_option:
+    if selected_option == CAT_FILTER_UNCATEGORIZED or "Unclassified" in selected_option or "Uncategorized" in selected_option:
         res = []
         for it in items:
             cat = str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip()
