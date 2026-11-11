@@ -606,10 +606,27 @@ st.markdown("""
     }
 
     section[data-testid="stSidebar"] label {
-        font-size: 0.83rem !important;
+        font-size: 0.8rem !important;
         font-weight: 600 !important;
         color: #334155 !important;
         letter-spacing: -0.01em !important;
+        margin-bottom: 2px !important;
+    }
+
+    /* Clean Sidebar Input & Button Polish */
+    section[data-testid="stSidebar"] [data-testid="stTooltipHoverTarget"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] input,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] {
+        border-radius: 8px !important;
+        font-size: 0.85rem !important;
+    }
+    section[data-testid="stSidebar"] .stButton button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 0.82rem !important;
+        transition: all 0.15s ease !important;
     }
 
     /* Apple-Grade X (Twitter) Post Cards */
@@ -759,11 +776,30 @@ st.sidebar.markdown("##### 📅 Date & Time Range")
 yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
 yesterday_18_time = datetime.time(18, 0)
 
+# Quick Preset Buttons
+col_p1, col_p2, col_p3 = st.sidebar.columns(3)
+if col_p1.button("🌅 Yesterday", width='stretch', help="From Yesterday 18:00 NPT to Now"):
+    st.session_state["filter_start_date"] = yesterday_date
+    st.session_state["filter_start_time"] = yesterday_18_time
+    st.session_state["filter_use_current_time"] = True
+    st.rerun()
+if col_p2.button("📅 Today", width='stretch', help="From Today 00:00 NPT to Now"):
+    st.session_state["filter_start_date"] = now_npt.date()
+    st.session_state["filter_start_time"] = datetime.time(0, 0)
+    st.session_state["filter_use_current_time"] = True
+    st.rerun()
+if col_p3.button("⚡ Past 24h", width='stretch', help="From 24 Hours Ago to Now"):
+    past_24_dt = now_npt - datetime.timedelta(hours=24)
+    st.session_state["filter_start_date"] = past_24_dt.date()
+    st.session_state["filter_start_time"] = past_24_dt.time().replace(second=0, microsecond=0)
+    st.session_state["filter_use_current_time"] = True
+    st.rerun()
+
 col_start_d, col_start_t = st.sidebar.columns([3, 2])
 with col_start_d:
     start_date = st.date_input(
         "Start Date",
-        value=yesterday_date,
+        value=st.session_state.get("filter_start_date", yesterday_date),
         max_value=now_npt.date(),
         key="filter_start_date",
         help="Select start date from calendar"
@@ -771,7 +807,7 @@ with col_start_d:
 with col_start_t:
     start_time = st.time_input(
         "Start Time",
-        value=yesterday_18_time,
+        value=st.session_state.get("filter_start_time", yesterday_18_time),
         key="filter_start_time",
         help="Select start time (default 18:00 / 6:00 PM)"
     )
@@ -779,44 +815,47 @@ with col_start_t:
 filter_start_dt = datetime.datetime.combine(start_date, start_time, tzinfo=NEPAL_TZ)
 
 use_current_time = st.sidebar.checkbox(
-    "⚡ Current Time (Now)",
-    value=True,
+    "⚡ Lock to Current Time (Live)",
+    value=st.session_state.get("filter_use_current_time", True),
     key="filter_use_current_time",
-    help="Keep end time automatically synced to the current moment"
+    help="Automatically keeps feed synced to current moment"
 )
-
-col_end_d, col_end_t = st.sidebar.columns([3, 2])
-with col_end_d:
-    end_date = st.date_input(
-        "End Date",
-        value=now_npt.date(),
-        max_value=now_npt.date(),
-        min_value=start_date,
-        key="filter_end_date",
-        disabled=use_current_time,
-        help="Select end date from calendar"
-    )
-with col_end_t:
-    end_time = st.time_input(
-        "End Time",
-        value=now_npt.time().replace(second=0, microsecond=0),
-        key="filter_end_time",
-        disabled=use_current_time,
-        help="Select end time"
-    )
 
 is_to_current = use_current_time
 explicit_all_time = False
 
 if use_current_time:
     filter_end_dt = now_npt
+    st.sidebar.markdown("""
+    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #047857; padding: 6px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px 0;">
+        <span>🟢 Live Tracking Active</span>
+        <span style="background: #10B981; color: white; padding: 1px 7px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">LIVE</span>
+    </div>
+    """, unsafe_allow_html=True)
 else:
+    col_end_d, col_end_t = st.sidebar.columns([3, 2])
+    with col_end_d:
+        end_date = st.date_input(
+            "End Date",
+            value=st.session_state.get("filter_end_date", now_npt.date()),
+            max_value=now_npt.date(),
+            min_value=start_date,
+            key="filter_end_date",
+            help="Select end date from calendar"
+        )
+    with col_end_t:
+        end_time = st.time_input(
+            "End Time",
+            value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)),
+            key="filter_end_time",
+            help="Select end time"
+        )
     filter_end_dt = datetime.datetime.combine(end_date, end_time, tzinfo=NEPAL_TZ)
     if filter_end_dt < filter_start_dt:
         st.sidebar.warning("⚠️ End time cannot be earlier than start time.")
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
 
-end_label = f"Current Time ({now_npt.strftime('%I:%M %p')})" if use_current_time else filter_end_dt.strftime("%b %d, %I:%M %p")
+end_label = f"Now ({now_npt.strftime('%I:%M %p')})" if use_current_time else filter_end_dt.strftime("%b %d, %I:%M %p")
 st.sidebar.caption(f"🕒 **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_label}**")
 
 st.sidebar.markdown("---")
@@ -847,19 +886,22 @@ selected_cat_filter = st.sidebar.selectbox(
     help="Filter across predefined geopolitical and intelligence categories."
 )
 
-all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
-portal_filter = st.sidebar.selectbox(
-    "Nepali Portal:",
-    ["All Portals (34 Portals)"] + all_portal_names,
-    key="sidebar_portal_filter"
-)
+col_portal, col_lang = st.sidebar.columns(2)
+with col_portal:
+    all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+    portal_filter = st.selectbox(
+        "Nepali Portal:",
+        ["All Portals (34 Portals)"] + all_portal_names,
+        key="sidebar_portal_filter"
+    )
 
-lang_filter = st.sidebar.selectbox(
-    "Content Language:",
-    ["All Languages", "Nepali Only", "English Only", "Hindi Only"],
-    index=0,
-    key="sidebar_lang_filter"
-)
+with col_lang:
+    lang_filter = st.selectbox(
+        "Language:",
+        ["All Languages", "Nepali Only", "English Only", "Hindi Only"],
+        index=0,
+        key="sidebar_lang_filter"
+    )
 
 def reset_all_filters():
     st.session_state["global_search_input"] = ""
