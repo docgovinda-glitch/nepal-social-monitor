@@ -1122,8 +1122,30 @@ elif lang_filter == "Hindi Only":
     filtered_indian = [a for a in filtered_indian if a.get('language') == "Hindi"]
 
 # 4. Portal Filter (for Nepali Media)
+portal_fallback_notice = None
 if portal_filter not in ["All Portals (34)", "All Portals (34 Portals)"]:
     filtered_articles = [a for a in filtered_articles if a.get('source') == portal_filter]
+    # If a specific portal is selected and has 0 articles in the active window (e.g., Tihar holiday break),
+    # fall back to that portal's latest stored articles from all_articles so the user sees its latest dispatches.
+    if not filtered_articles:
+        portal_recent_all = [
+            a for a in all_articles
+            if a.get("source") == portal_filter
+            and (not search_query or not search_query.strip() or smart_search_match(a, search_query))
+        ]
+        portal_recent_all = filter_items_by_category(portal_recent_all, selected_cat_filter, is_social=False)
+        if lang_filter == "Nepali Only":
+            portal_recent_all = [a for a in portal_recent_all if a.get("language") == "Nepali"]
+        elif lang_filter == "English Only":
+            portal_recent_all = [a for a in portal_recent_all if a.get("language") == "English"]
+        portal_recent_all.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
+        if portal_recent_all:
+            filtered_articles = portal_recent_all
+            latest_dt_str = portal_recent_all[0]["published_dt"].strftime("%d %b %Y, %I:%M %p NPT") if portal_recent_all[0].get("published_dt") else "recently"
+            portal_fallback_notice = (
+                f"**{portal_filter}** has not published new dispatches inside the `{from_str} → {to_str}` window "
+                f"(last published on **{latest_dt_str}**). Showing its **{len(portal_recent_all)}** most recent stored articles below."
+            )
 
 # Top Minimalist Header
 st.markdown(f"""
@@ -1177,7 +1199,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: Nepali Media (Top 34 Portals)
 # ==========================================
 with tab1:
-
+    if portal_fallback_notice:
+        st.info(f"ℹ️ {portal_fallback_notice}")
 
     if not filtered_articles:
         st.warning("No news articles found matching your filters. Try selecting 'All Recent Articles' or expanding your time window.")

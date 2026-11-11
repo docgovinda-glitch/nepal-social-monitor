@@ -1380,10 +1380,10 @@ def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
         for f in concurrent.futures.as_completed(futures):
             all_articles.extend(f.result())
 
-    # Reconcile with persistent stored articles from past 48 hours to prevent any missed articles
+    # Reconcile with persistent stored articles from past 7 days to prevent any missed articles
     try:
-        since_dt = now_npt - datetime.timedelta(hours=48)
-        stored_articles = get_stored_articles(start_dt=since_dt, limit=1200)
+        since_dt = now_npt - datetime.timedelta(days=7)
+        stored_articles = get_stored_articles(start_dt=since_dt, limit=1500)
         seen_ids = {a.get("canonical_id") or a.get("link") for a in all_articles}
         for sa in stored_articles:
             cid = sa.get("canonical_id") or sa.get("link")
