@@ -138,51 +138,63 @@ def check_password() -> bool:
     st.markdown("""
     <style>
         [data-testid="stSidebar"] { display: none !important; }
-        .login-card {
-            max-width: 440px;
-            margin: 60px auto 20px auto;
+        .login-container {
+            max-width: 380px;
+            margin: 80px auto 10px auto;
             background: #FFFFFF;
-            border: 1px solid #E2E8F0;
-            border-radius: 18px;
-            padding: 32px 28px;
-            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 20px;
+            padding: 36px 30px 28px 30px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
             text-align: center;
         }
-        .login-logo {
-            font-size: 2.8rem;
-            margin-bottom: 8px;
+        .login-icon {
+            font-size: 2.4rem;
+            line-height: 1;
+            margin-bottom: 14px;
+            display: inline-block;
         }
         .login-title {
-            font-size: 1.35rem;
+            font-size: 1.25rem;
             font-weight: 700;
-            color: #0F172A;
-            margin-bottom: 6px;
+            color: #1D1D1F;
             letter-spacing: -0.02em;
+            margin-bottom: 6px;
         }
         .login-sub {
-            font-size: 0.88rem;
-            color: #64748B;
-            margin-bottom: 24px;
-            line-height: 1.5;
+            font-size: 0.82rem;
+            color: #86868B;
+            line-height: 1.4;
+            margin-bottom: 20px;
+        }
+        /* Remove extra streamlit form border */
+        [data-testid="stForm"] {
+            border: none !important;
+            padding: 0 !important;
+            background: transparent !important;
+        }
+        .login-wrapper {
+            max-width: 380px;
+            margin: 0 auto;
         }
     </style>
-    <div class="login-card">
-        <div class="login-logo">🇳🇵 🔐</div>
-        <div class="login-title">Media Monitor Access</div>
-        <div class="login-sub">Enter the access password to view the Nepal Media & Geo-Political Intelligence Dashboard.</div>
+    <div class="login-container">
+        <div class="login-icon">🇳🇵</div>
+        <div class="login-title">Media Monitor</div>
+        <div class="login-sub">Enter password to access the intelligence platform</div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    col1, col2, col3 = st.columns([1, 1.1, 1])
     with col2:
         with st.form("auth_form", clear_on_submit=False):
             pwd = st.text_input(
                 "Access Password",
                 type="password",
-                placeholder="Enter password...",
+                placeholder="Password",
                 label_visibility="collapsed"
             )
-            submit = st.form_submit_button("Unlock Dashboard 🔓", width="stretch", type="primary")
+            submit = st.form_submit_button("Unlock", width="stretch", type="primary")
 
         if submit:
             if pwd.strip() == APP_PASSWORD:
