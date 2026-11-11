@@ -805,6 +805,9 @@ with col_end_t:
         help="Select end time"
     )
 
+is_to_current = use_current_time
+explicit_all_time = False
+
 if use_current_time:
     filter_end_dt = now_npt
 else:
