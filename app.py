@@ -785,6 +785,84 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# AUTHENTICATION GATEWAY (PASSWORD PROTECTION)
+# ==========================================
+APP_PASSWORD = os.getenv("APP_PASSWORD", "PIC@55")
+
+def check_password() -> bool:
+    """Returns True if the user entered the correct password."""
+    if st.session_state.get("authenticated", False):
+        return True
+
+    # Check query param ?key=PIC@55 for seamless direct link access if desired
+    query_key = st.query_params.get("key", "")
+    if query_key == APP_PASSWORD:
+        st.session_state["authenticated"] = True
+        return True
+
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] { display: none !important; }
+        .login-card {
+            max-width: 440px;
+            margin: 60px auto 20px auto;
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 18px;
+            padding: 32px 28px;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+            text-align: center;
+        }
+        .login-logo {
+            font-size: 2.8rem;
+            margin-bottom: 8px;
+        }
+        .login-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #0F172A;
+            margin-bottom: 6px;
+            letter-spacing: -0.02em;
+        }
+        .login-sub {
+            font-size: 0.88rem;
+            color: #64748B;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+    </style>
+    <div class="login-card">
+        <div class="login-logo">🇳🇵 🔐</div>
+        <div class="login-title">Media Monitor Access</div>
+        <div class="login-sub">Enter the access password to view the Nepal Media & Geo-Political Intelligence Dashboard.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        with st.form("auth_form", clear_on_submit=False):
+            pwd = st.text_input(
+                "Access Password",
+                type="password",
+                placeholder="Enter password...",
+                label_visibility="collapsed"
+            )
+            submit = st.form_submit_button("Unlock Dashboard 🔓", width="stretch", type="primary")
+
+        if submit:
+            if pwd.strip() == APP_PASSWORD:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Incorrect password. Please try again.")
+
+    st.stop()
+    return False
+
+if not check_password():
+    st.stop()
+
 # 3. Time Reference
 now_npt = datetime.datetime.now(NEPAL_TZ)
 formatted_now_time = now_npt.strftime("%I:%M %p NPT")
