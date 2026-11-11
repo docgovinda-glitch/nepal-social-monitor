@@ -133,12 +133,13 @@ def run_single_broadcast_cycle(
     now_nepal = datetime.now(NEPAL_TZ)
     interval_secs = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "3600"))
 
-    # If running at 6:00 AM morning cycle, catch up on news published overnight (past 8.5 hours)
-    if now_nepal.hour == 6:
-        lookback_seconds = 8 * 3600 + 1800  # 8.5 hours
-        logger.info("Morning 06:00 AM run detected: Catching up on overnight stories published since 10:00 PM...")
+    # Robust lookback: 10-hour morning catch-up window (05:00 - 10:00 AM)
+    # and at least 4-hour window at other times so delayed cycles or sleep mode never drop news
+    if 5 <= now_nepal.hour <= 10:
+        lookback_seconds = 10 * 3600  # 10 hours
+        logger.info("Morning window detected: Checking for overnight stories published since yesterday evening...")
     else:
-        lookback_seconds = interval_secs + 300
+        lookback_seconds = max(interval_secs * 3, 4 * 3600)  # at least 4 hours
 
     cutoff_time = now_nepal - timedelta(seconds=lookback_seconds)
 
@@ -151,9 +152,18 @@ def run_single_broadcast_cycle(
         if not is_item_broadcasted(item, itype):
             unbroadcasted_in_window.append((item, itype))
 
+    # Sort chronological (oldest unbroadcasted first) so messages appear in sequential order
+    def _get_dt(entry):
+        dt = entry[0].get("published_dt")
+        if not dt:
+            return datetime.min.replace(tzinfo=NEPAL_TZ)
+        return dt
+
+    unbroadcasted_in_window.sort(key=_get_dt)
+
     logger.info(
         f"Total scanned: {len(all_scanned)} | "
-        f"Published in last {interval_secs // 60} mins & unsent: {len(unbroadcasted_in_window)}"
+        f"Unsent within lookback ({lookback_seconds // 3600}h): {len(unbroadcasted_in_window)}"
     )
 
     dispatched_count = 0
@@ -165,7 +175,7 @@ def run_single_broadcast_cycle(
         logger.info(f"Broadcasting {len(items_to_send)} items (capped at {max_items_per_cycle})...")
     else:
         items_to_send = unbroadcasted_in_window
-        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories published in this {interval_secs // 60}-min refresh...")
+        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories in this cycle...")
 
     for item, itype in items_to_send:
         title = item.get("title") or item.get("text") or "Untitled"
@@ -175,21 +185,24 @@ def run_single_broadcast_cycle(
             continue
 
         success = False
-        if green_id and green_chat_id:
-            ok, msg = dispatch_item_to_green_api(item, itype, green_chat_id)
-            if ok:
-                logger.info(f"Successfully dispatched to Green-API: {title[:60]}")
-                success = True
+        try:
+            if green_id and green_chat_id:
+                ok, msg = dispatch_item_to_green_api(item, itype, green_chat_id)
+                if ok:
+                    logger.info(f"Successfully dispatched to Green-API: {title[:60]}")
+                    success = True
+                else:
+                    logger.warning(f"Green-API dispatch failed ({msg}): {title[:60]}")
+            elif webhook_url:
+                success = dispatch_to_webhook(item, itype, webhook_url)
+            elif meta_token:
+                success = dispatch_to_meta_cloud_api(item, itype)
             else:
-                logger.warning(f"Green-API dispatch failed ({msg}): {title[:60]}")
-        elif webhook_url:
-            success = dispatch_to_webhook(item, itype, webhook_url)
-        elif meta_token:
-            success = dispatch_to_meta_cloud_api(item, itype)
-        else:
-            logger.info(f"[NO DISPATCH CHANNEL CONFIGURED] Item queued: {title[:70]}")
-            # Without Green-API, webhook, or meta API, don't mark as sent so it stays in queue
-            break
+                logger.info(f"[NO DISPATCH CHANNEL CONFIGURED] Item queued: {title[:70]}")
+                # Without Green-API, webhook, or meta API, don't mark as sent so it stays in queue
+                break
+        except Exception as ex:
+            logger.error(f"Error dispatching item '{title[:50]}': {ex}")
 
         if success:
             mark_item_broadcasted(item, itype)
@@ -210,7 +223,7 @@ def run_single_broadcast_cycle(
     return summary
 
 def main():
-    default_interval = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "1800"))
+    default_interval = int(get_env_variable("BROADCAST_INTERVAL_SECONDS", "3600"))
     default_max = int(get_env_variable("MAX_BROADCAST_PER_CYCLE", "0"))  # 0 = send all stories published in cycle
     parser = argparse.ArgumentParser(description="Nepal Monitor WhatsApp Automated Dispatch Worker")
     parser.add_argument("--interval", type=int, default=default_interval, help=f"Scan interval in seconds (default: {default_interval}s / {default_interval // 60} mins)")

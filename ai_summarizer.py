@@ -51,12 +51,25 @@ def get_gemini_api_key() -> str:
     # Ambient environment variable fallback
     return os.getenv("GEMINI_API_KEY", "").strip()
 
+_CIRCUIT_BREAKER_UNTIL = 0.0
+_CIRCUIT_BREAKER_REASON = ""
+
 def _is_devanagari(text: str) -> bool:
     """Checks if text contains Devanagari script (Nepali or Hindi)."""
     return bool(re.search(r'[\u0900-\u097F]', text or ""))
 
 def _call_gemini(prompt: str, api_key: str, max_retries: int = 2) -> Optional[Dict[str, Any]]:
-    """Calls Gemini API with JSON response format and retry with backoff."""
+    """Calls Gemini API with JSON response format and retry with backoff, with circuit breaker on quota exhaustion."""
+    global _CIRCUIT_BREAKER_UNTIL, _CIRCUIT_BREAKER_REASON
+
+    # If circuit breaker is tripped (e.g. 429 quota exhaustion), skip Gemini immediately
+    now = time.time()
+    if now < _CIRCUIT_BREAKER_UNTIL:
+        return None
+
+    if not api_key:
+        return None
+
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -72,13 +85,25 @@ def _call_gemini(prompt: str, api_key: str, max_retries: int = 2) -> Optional[Di
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=14) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
                 return json.loads(raw_text)
+        except urllib.error.HTTPError as he:
+            if he.code == 429:
+                # Quota / rate limit exceeded: trip circuit breaker for 15 minutes and don't retry
+                _CIRCUIT_BREAKER_UNTIL = time.time() + 900
+                _CIRCUIT_BREAKER_REASON = "429 Quota Exceeded"
+                logger.warning("Gemini 429 Quota Exceeded: tripping circuit breaker for 15 mins, using clean text fallback.")
+                return None
+            if attempt < max_retries:
+                time.sleep(1.0 * (attempt + 1))
+            else:
+                logger.warning(f"Gemini call failed after {max_retries} retries: {he}")
+                return None
         except Exception as e:
             if attempt < max_retries:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(1.0 * (attempt + 1))
             else:
                 logger.warning(f"Gemini call failed after {max_retries} retries: {e}")
                 return None
