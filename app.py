@@ -2059,7 +2059,7 @@ with tab5:
                     plot_bgcolor='rgba(0,0,0,0)',
                     yaxis=dict(autorange="reversed")
                 )
-                st.plotly_chart(fig_cat, use_container_width=True)
+                st.plotly_chart(fig_cat, width="stretch")
 
             with c_src:
                 st.write("**Top Portals by Volume:**")
@@ -2079,7 +2079,7 @@ with tab5:
                     showlegend=True,
                     legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0)
                 )
-                st.plotly_chart(fig_src, use_container_width=True)
+                st.plotly_chart(fig_src, width="stretch")
 
             # Category & Source Filter for Selection Table
             st.markdown("##### 📌 Select Articles to Export to Word Document")
@@ -2279,7 +2279,7 @@ with tab5:
                 plot_bgcolor='rgba(0,0,0,0)',
                 yaxis=dict(autorange="reversed")
             )
-            st.plotly_chart(fig_ind, use_container_width=True)
+            st.plotly_chart(fig_ind, width="stretch")
 
             # Selection Controls for Indian Media Word Export
             if "editor_ver_ind" not in st.session_state:
@@ -2458,7 +2458,7 @@ with tab5:
                     plot_bgcolor='rgba(0,0,0,0)',
                     yaxis=dict(autorange="reversed")
                 )
-                st.plotly_chart(fig_xcat, use_container_width=True)
+                st.plotly_chart(fig_xcat, width="stretch")
 
             with cx_type:
                 st.write("**X Posts by Account Category:**")
@@ -2478,7 +2478,7 @@ with tab5:
                     showlegend=True,
                     legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0)
                 )
-                st.plotly_chart(fig_xtype, use_container_width=True)
+                st.plotly_chart(fig_xtype, width="stretch")
 
             # Selection Controls for X Posts Word Export
             if "editor_ver_x" not in st.session_state:
@@ -2671,7 +2671,7 @@ with tab5:
                     plot_bgcolor='rgba(0,0,0,0)',
                     yaxis=dict(autorange="reversed")
                 )
-                st.plotly_chart(fig_fbcat, use_container_width=True)
+                st.plotly_chart(fig_fbcat, width="stretch")
 
             with cfb_type:
                 st.write("**Facebook Posts by Profile Sector:**")
@@ -2691,7 +2691,7 @@ with tab5:
                     showlegend=True,
                     legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0)
                 )
-                st.plotly_chart(fig_fbtype, use_container_width=True)
+                st.plotly_chart(fig_fbtype, width="stretch")
 
             # Selection Controls for Facebook Posts Word Export
             if "editor_ver_fb" not in st.session_state:
@@ -2759,7 +2759,7 @@ with tab5:
                 },
                 disabled=["Post Content", "Page / Author", "Profile Role", "Structured Category", "Likes / Reactions", "Shares", "Comments", "Estimated Reach", "Exact Timestamp", "Post Link"],
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 key=f"fb_editor_{st.session_state['editor_ver_fb']}"
             )
 

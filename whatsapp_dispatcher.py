@@ -12,12 +12,6 @@ import urllib.parse
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
-try:
-    from ai_summarizer import summarize_and_translate_news, translate_tweet
-except ImportError:
-    summarize_and_translate_news = None
-    translate_tweet = None
-
 SENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), "whatsapp_sent_cache.json")
 
 def get_env_variable(key: str, default: str = "") -> str:
@@ -220,29 +214,13 @@ def _is_devanagari(text: str) -> bool:
 def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") -> str:
     """
     Formats an individual news article, X post, or Facebook post for WhatsApp.
-    Ensures complete, unabridged contents are broadcast:
-    - News articles: Fetches the full story body directly from the publisher webpage.
-    - X (Twitter) posts: Includes complete tweet text, long-form notes, and context.
-    - Caps text at 3,400 chars to strictly stay within WhatsApp / Green-API 4,096 char limits.
+    Fast, direct formatting without AI translation overhead.
     """
     if item_type in ("x", "twitter"):
         link = item.get("link") or "https://x.com"
         handle = (item.get("handle") or "@user").strip()
-        category = item.get("structured_category") or "Public Opinion"
+        author = (item.get("author_name") or "Author").replace("*", "").strip()
         full_text = (item.get("text") or "").strip()
-
-        # If Devanagari and Gemini is available, provide English translation
-        if translate_tweet and "ai_text" not in item:
-            tr = translate_tweet(
-                author=item.get("author_name", ""),
-                handle=handle,
-                text=full_text
-            )
-            item["ai_author"] = tr.get("author") or item.get("author_name", "Author")
-            item["ai_text"] = tr.get("text") or full_text
-
-        author = (item.get("ai_author") or item.get("author_name") or "Author").replace("*", "").strip()
-        trans_text = (item.get("ai_text") or "").strip()
 
         if handle and handle in author:
             author_line = f"*{author}*"
@@ -253,13 +231,7 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
 
         meta_line = "🐦 X (Twitter)"
 
-        # If translated and distinct from original text, provide English translation followed by complete original post
-        if trans_text and trans_text != full_text and _is_devanagari(full_text):
-            content_section = f"{trans_text}\n\n_Original Post:_\n{full_text}"
-        else:
-            content_section = full_text
-
-        # Ensure message stays safely within WhatsApp limits
+        content_section = full_text
         if len(content_section) > 3400:
             content_section = content_section[:3400] + "\n\n[... Full post continued on X]"
 
@@ -292,7 +264,6 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         link = item.get("link") or "#"
         source = item.get("source") or "Nepal News"
 
-        # 1. Fetch full article body if not already present or if only a short snippet
         full_content = (item.get("full_content") or "").strip()
         if len(full_content) < 300 and link and link.startswith("http"):
             fetched_body = fetch_article_full_text(link)
@@ -300,34 +271,13 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
                 full_content = fetched_body
                 item["full_content"] = full_content
 
-        # 2. AI Headline translation / enhancement if available
-        if summarize_and_translate_news and "ai_headline" not in item:
-            raw_content = full_content or item.get("summary") or item.get("title", "")
-            ai_res = summarize_and_translate_news(
-                title=item.get("title", ""),
-                content=raw_content[:2000],
-                source=source
-            )
-            item["ai_headline"] = ai_res.get("headline") or item.get("title", "")
-            item["ai_summary"] = ai_res.get("summary") or item.get("summary", "")
-
-        headline = (item.get("ai_headline") or item.get("title") or "").replace("*", "").strip()
-        original_title = (item.get("title") or "").replace("*", "").strip()
-
-        # Headline presentation: show English translation + original if different
-        if headline and original_title and headline.lower() != original_title.lower():
-            title_block = f"*{headline}*\n_({original_title})_"
-        else:
-            title_block = f"*{headline or original_title}*"
-
-        # Source line (category omitted per instructions)
+        headline = (item.get("title") or "").replace("*", "").strip()
+        title_block = f"*{headline}*"
         meta_line = f"📰 {source}"
 
-        # Story content: use the unabridged full story text
         story_body = full_content or item.get("summary") or ""
         story_body = story_body.strip()
 
-        # Keep safely within WhatsApp single-message 4,096 char limit
         max_body_chars = 3300
         if len(story_body) > max_body_chars:
             cut_idx = story_body[:max_body_chars].rfind("\n\n")
@@ -349,11 +299,21 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
 
 def generate_whatsapp_share_url(item: Dict[str, Any], item_type: str = "article") -> str:
     """
-    Returns a direct universal `https://api.whatsapp.com/send?text=...` URL
-    so visitors can 1-click share any individual post to WhatsApp.
+    Returns an instantaneous direct universal WhatsApp share link without network calls.
     """
-    text = format_whatsapp_message(item, item_type)
-    encoded = urllib.parse.quote(text)
+    title = (item.get("title") or item.get("text") or "").strip()
+    link = item.get("link") or item.get("fb_link") or ""
+    source = item.get("source") or item.get("author_name") or "Nepal Media"
+    
+    parts = []
+    if title:
+        parts.append(f"*{title}*")
+    if source:
+        parts.append(f"📰 {source}")
+    if link:
+        parts.append(f"🔗 {link}")
+    
+    encoded = urllib.parse.quote("\n\n".join(parts))
     return f"https://api.whatsapp.com/send?text={encoded}"
 
 def dispatch_item_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: str) -> Tuple[bool, str]:
