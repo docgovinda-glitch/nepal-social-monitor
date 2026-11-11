@@ -420,7 +420,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* Primary and Secondary Buttons */
-    .stButton>button {
+    .stButton>button,
+    div[data-testid="stDownloadButton"]>button {
         border-radius: 10px !important;
         font-weight: 600 !important;
         font-size: 0.85rem !important;
@@ -429,21 +430,38 @@ APPLE_DESIGN_SYSTEM_CSS = """
         border: 1px solid rgba(0, 0, 0, 0.08) !important;
     }
 
-    .stButton>button[kind="primary"] {
-        background: var(--apple-accent) !important;
+    .stButton>button[kind="primary"],
+    div[data-testid="stDownloadButton"]>button[kind="primary"],
+    button[data-testid="baseButton-primary"],
+    button[data-testid="stBaseButton-primary"] {
+        background-color: #526A85 !important;
+        background: #526A85 !important;
         color: #FFFFFF !important;
         border: none !important;
-        box-shadow: 0 1px 3px rgba(0, 113, 227, 0.25) !important;
+        box-shadow: 0 1px 3px rgba(82, 106, 133, 0.25) !important;
     }
 
-    .stButton>button[kind="primary"]:hover {
-        background: var(--apple-accent-hover) !important;
+    .stButton>button[kind="primary"] *,
+    div[data-testid="stDownloadButton"]>button[kind="primary"] *,
+    button[data-testid="baseButton-primary"] *,
+    button[data-testid="stBaseButton-primary"] * {
+        color: #FFFFFF !important;
+    }
+
+    .stButton>button[kind="primary"]:hover,
+    div[data-testid="stDownloadButton"]>button[kind="primary"]:hover,
+    button[data-testid="baseButton-primary"]:hover,
+    button[data-testid="stBaseButton-primary"]:hover {
+        background-color: #405872 !important;
+        background: #405872 !important;
+        color: #FFFFFF !important;
         transform: translateY(-1px);
-        box-shadow: 0 3px 8px rgba(0, 113, 227, 0.35) !important;
+        box-shadow: 0 3px 8px rgba(64, 88, 114, 0.35) !important;
     }
 
-    /* X Posts Card */
-    .apple-x-card {
+    /* X Posts Card - Matching render_apple_x_post_card() DOM classes */
+    .apple-x-card,
+    .x-post-card {
         background: #FFFFFF;
         border-radius: var(--apple-radius-md);
         border: 1px solid rgba(0, 0, 0, 0.06);
@@ -453,45 +471,191 @@ APPLE_DESIGN_SYSTEM_CSS = """
         transition: all 0.2s var(--apple-ease);
     }
 
-    .apple-x-card:hover {
+    .apple-x-card:hover,
+    .x-post-card:hover {
         box-shadow: var(--apple-shadow-hover);
-        border-color: rgba(29, 155, 240, 0.3);
+        border-color: rgba(82, 106, 133, 0.28);
     }
 
-    .x-author-avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
+    .x-post-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .x-author-box {
         display: flex;
         align-items: center;
-        justify-content: center;
-        color: #FFFFFF;
-        font-weight: 700;
-        font-size: 0.88rem;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .x-author-avatar,
+    .x-avatar {
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        border-radius: 50% !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        font-size: 0.78rem !important;
+        letter-spacing: 0.02em;
+        flex-shrink: 0 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+
+    .x-author-meta {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+        min-width: 0;
+    }
+
+    .x-author-name {
+        font-size: 0.92rem;
+        font-weight: 650;
+        color: var(--apple-text-primary);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .x-author-handle {
+        font-size: 0.76rem;
+        color: var(--apple-text-secondary);
+        font-weight: 450;
+    }
+
+    .x-type-badge {
+        color: #526A85;
+        font-weight: 600;
     }
 
     .x-verified-badge {
-        color: #1D9BF0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: #1D9BF0;
+        color: #FFFFFF;
         font-weight: 700;
-        font-size: 0.85rem;
+        font-size: 0.62rem;
+        line-height: 1;
     }
 
     .x-post-text {
-        font-size: 0.94rem;
-        line-height: 1.5;
+        font-size: 0.93rem;
+        line-height: 1.55;
         color: var(--apple-text-primary);
         margin: 10px 0 12px 0;
         white-space: pre-wrap;
         word-break: break-word;
     }
 
-    .x-stat-chip {
+    .x-engagement-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 10px;
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .x-metrics-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .x-stat-chip,
+    .x-metric-item {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        color: var(--apple-text-secondary);
-        font-size: 0.74rem;
-        font-weight: 500;
+        color: #64748B;
+        font-size: 0.75rem;
+        font-weight: 550;
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        padding: 2px 8px;
+        border-radius: 999px;
+    }
+
+    .x-sentiment-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2.5px 9px;
+        border-radius: 999px;
+        font-size: 0.71rem;
+        font-weight: 650;
+        letter-spacing: 0.01em;
+    }
+    .x-sentiment-neutral {
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #CBD5E1;
+    }
+    .x-sentiment-positive {
+        background: #ECFDF5;
+        color: #047857;
+        border: 1px solid #A7F3D0;
+    }
+    .x-sentiment-alert {
+        background: #FEF2F2;
+        color: #B91C1C;
+        border: 1px solid #FECACA;
+    }
+
+    .x-cta-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #F5F5F7;
+        color: var(--apple-text-primary) !important;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        padding: 4.5px 12px;
+        border-radius: var(--apple-radius-pill);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-decoration: none !important;
+        transition: all 0.16s var(--apple-ease);
+    }
+    .x-cta-link:hover {
+        background: #526A85;
+        color: #FFFFFF !important;
+        border-color: #526A85;
+    }
+
+    .apple-counter-badge {
+        display: inline-block;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 0.78rem;
+        color: #475569;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    }
+
+    /* Hide noisy (?) help tooltip icons inside compact sidebar labels */
+    section[data-testid="stSidebar"] [data-testid="stTooltipIcon"] {
+        display: none !important;
+    }
+
+    /* Ensure all sidebar inner input/select surfaces are pure crisp white (#FFFFFF) */
+    section[data-testid="stSidebar"] div[data-baseweb="base-input"],
+    section[data-testid="stSidebar"] div[data-baseweb="input"],
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        background-color: #FFFFFF !important;
     }
 
     /* ==========================================
@@ -546,7 +710,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
         color: #64748B;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        margin: 6px 0 2px 0;
+        margin: 8px 0 6px 0;
     }
 
     .cp-divider {
@@ -639,50 +803,50 @@ APPLE_DESIGN_SYSTEM_CSS = """
         box-shadow: 0 2px 6px rgba(64, 88, 114, 0.3) !important;
     }
 
-    /* Segmented Control (Timeframe Presets) */
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"],
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] {
-        width: 100% !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] > div,
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] > div {
+    /* Segmented Control & Radio (Timeframe Presets - Single Row 4-Segment Bar) */
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] {
         background-color: #EDF2F7 !important;
         padding: 3px !important;
         border-radius: 8px !important;
         border: 1px solid #E2E8F0 !important;
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
         gap: 2px !important;
+        width: 100% !important;
+        margin-top: 2px !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button,
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button {
-        flex: 1 1 0% !important;
-        min-width: 0 !important;
-        min-height: 28px !important;
-        height: 28px !important;
-        padding: 2px 3px !important;
-        font-size: 0.71rem !important;
-        font-weight: 550 !important;
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label {
+        margin: 0 !important;
+        padding: 4px 2px !important;
+        min-height: 27px !important;
+        height: 27px !important;
         border-radius: 6px !important;
-        border: none !important;
-        color: #475569 !important;
-        background: transparent !important;
-        white-space: nowrap !important;
-        overflow: visible !important;
+        display: flex !important;
+        align-items: center !important;
         justify-content: center !important;
+        cursor: pointer !important;
+        background: transparent !important;
+        border: none !important;
+        transition: all 0.15s ease !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-checked="true"],
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[data-selected="true"],
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-pressed="true"],
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-checked="true"],
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-selected="true"],
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-pressed="true"],
-    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"] {
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label p {
+        font-size: 0.72rem !important;
+        font-weight: 550 !important;
+        color: #475569 !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+        line-height: 1 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) {
         background-color: #FFFFFF !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) p {
         color: #1E293B !important;
         font-weight: 650 !important;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
     }
 
     /* Live Tracking Toggle Switch - Muted Slate Blue (#526A85) instead of default red */

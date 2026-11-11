@@ -416,13 +416,13 @@ def on_custom_datetime_edit():
 if "cp_timeframe_segment" not in st.session_state:
     st.session_state["cp_timeframe_segment"] = "Yesterday"
 
-st.sidebar.segmented_control(
+st.sidebar.radio(
     "Timeframe Preset",
     options=["Yesterday", "Today", "Last 24h", "Custom"],
     key="cp_timeframe_segment",
     on_change=on_timeframe_preset_change,
-    label_visibility="collapsed",
-    width="stretch"
+    horizontal=True,
+    label_visibility="collapsed"
 )
 
 col_start_d, col_start_t = st.sidebar.columns([1.35, 1])
@@ -2286,40 +2286,21 @@ with tab4:
             raw_item = q_item["item"]
             itype = q_item["type"]
             stype = q_item["source_type"]
-            msg_text = format_whatsapp_message(raw_item, itype)
-            wa_dispatch_url = generate_whatsapp_share_url(raw_item, itype)
             item_title = raw_item.get("title") or raw_item.get("text") or "Untitled"
             item_source = raw_item.get("source") or raw_item.get("author_name") or raw_item.get("handle") or "Unknown"
             item_cat = raw_item.get("structured_category", "Others")
             item_time = raw_item.get("exact_time") or raw_item.get("relative_time") or ""
 
-            with st.container():
-                st.markdown(f"""
-                <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #22C55E; border-radius:8px; padding:12px; margin-bottom:10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <span style="font-size:0.75rem; background:#F0FDF4; color:#166534; padding:2px 8px; border-radius:4px; font-weight:700;">{stype} · {item_cat}</span>
-                        <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(str(item_time))}</span>
-                    </div>
-                    <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
-                    <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b></div>
+            st.markdown(f"""
+            <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:12px; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype} · {item_cat}</span>
+                    <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(str(item_time))}</span>
                 </div>
-                """, unsafe_allow_html=True)
-
-                act_c1, act_c2, act_c3 = st.columns([2.5, 2, 1.5])
-                with act_c1:
-                    with st.expander("👁 View WhatsApp Formatted Preview", expanded=False):
-                        st.code(msg_text, language="markdown")
-                with act_c2:
-                    st.link_button(
-                        "⚡ Broadcast to WhatsApp ↗",
-                        wa_dispatch_url,
-                        width="stretch",
-                        key=f"btn_send_wa_{idx}_{get_item_key(raw_item, itype)}"
-                    )
-                with act_c3:
-                    if st.button("✓ Mark as Sent", key=f"btn_mark_sent_{idx}_{get_item_key(raw_item, itype)}", width="stretch"):
-                        mark_item_broadcasted(raw_item, itype)
-                        st.rerun()
+                <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
+                <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b></div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.success("🎉 All scanned items in this timeframe have been broadcasted! Deduplication engine is up to date.")
 
@@ -2338,30 +2319,6 @@ with tab4:
                         st.rerun()
         else:
             st.caption("No broadcast history recorded yet.")
-
-    # Source-Wise Broadcast Distribution Matrix & Monitoring Logs
-    with st.expander("📊 Source-Wise WhatsApp Distribution Matrix & Audit Logs", expanded=False):
-        src_stats = get_source_broadcast_stats()
-        if src_stats:
-            df_src = pd.DataFrame(src_stats)
-            df_src.columns = ["Source / Handle", "Content Stream", "Total Dispatches", "Delivered", "Failed", "Last Dispatched At"]
-            st.dataframe(df_src, width="stretch", hide_index=True)
-        else:
-            cache_src = wa_stats.get("source_stats", {})
-            if cache_src:
-                rows = []
-                for sname, sdata in cache_src.items():
-                    rows.append({
-                        "Source / Handle": sname,
-                        "Content Stream": sdata.get("stream", "General"),
-                        "Total Dispatches": sdata.get("total_sent", 0),
-                        "Delivered": sdata.get("delivered", sdata.get("total_sent", 0)),
-                        "Failed": sdata.get("failed", 0),
-                        "Last Dispatched At": sdata.get("last_sent_at", "")
-                    })
-                st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-            else:
-                st.info("No distribution records logged yet. As automated hourly cycles execute, source-wise dispatches will be tracked here.")
 
 # ==========================================
 # TAB 5: Nepali Media Monitoring & Control (Chief Admin)
