@@ -917,36 +917,6 @@ portal_filter = st.sidebar.selectbox(
     ["All Portals (34 Portals)"] + all_portal_names
 )
 
-# WhatsApp Channel Subscription Widget in Sidebar
-st.sidebar.markdown("---")
-wa_channel_url = os.getenv("WHATSAPP_CHANNEL_URL", "")
-try:
-    if not wa_channel_url and hasattr(st, "secrets"):
-        wa_channel_url = st.secrets.get("WHATSAPP_CHANNEL_URL", "")
-except Exception:
-    pass
-
-if not wa_channel_url:
-    wa_channel_url = "https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38"
-
-st.sidebar.markdown(f"""
-<div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px; margin-bottom:10px;">
-    <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:1.35rem;">📢</span>
-        <div>
-            <div style="font-weight:700; color:#166534; font-size:0.86rem;">Official WhatsApp Channel</div>
-            <div style="font-size:0.75rem; color:#15803D; line-height:1.35;">Instant alerts for each news story, X tweet & FB post.</div>
-        </div>
-    </div>
-    <div style="margin-top:10px;">
-        <a href="{wa_channel_url}" target="_blank" rel="noopener noreferrer" 
-           style="display:block; text-align:center; background:#22C55E; color:#FFFFFF !important; text-decoration:none !important; font-weight:700; font-size:0.8rem; padding:7px 12px; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,0.06);">
-           📲 Follow on WhatsApp ↗
-        </a>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
 st.sidebar.markdown("---")
 with st.sidebar.expander("ℹ️ Monitored Sources Summary"):
     st.markdown("**🇳🇵 Nepali Media (34 Portals):** eKantipur, Setopati, Annapurna Post, Naya Patrika, NepalKhabar, Gorkhapatra, News of Nepal, Nepal Aaja, Nepal News, OnlineKhabar, Ratopati, Nagarik News, Nepal Press, Baahrakhari, Himal Press, Deshsanchar, Shilapatra, Nepal Live, Image Khabar, Khabarhub, TechPana, ArthaSarokar, The Kathmandu Post, The Himalayan Times, MyRepublica, The Annapurna Express, Rising Nepal, Nepali Times, etc.")
