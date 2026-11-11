@@ -870,6 +870,11 @@ formatted_now_time = now_npt.strftime("%I:%M %p NPT")
 # 4. Sidebar Controls & Date/Time Filter
 st.sidebar.markdown("### 🎛️ Control Panel")
 refresh_btn = st.sidebar.button("🔄 Refresh All Feeds", width='stretch', type="primary")
+if refresh_btn:
+    st.cache_data.clear()
+    if "x_posts" in st.session_state:
+        del st.session_state["x_posts"]
+    st.rerun()
 
 # --- Date & Time Range Filter Section ---
 st.sidebar.markdown("---")
@@ -1037,13 +1042,27 @@ except Exception:
     pass
 x_bearer_token = default_bearer
 
-# 6. Fetch Data in Parallel
-with st.spinner("Fetching breaking news across 34 Nepal portals, 18 Indian outlets & scanning live verified X posts..."):
-    all_articles = fetch_top_nepal_media(max_workers=25)
-    indian_articles = fetch_nepal_in_indian_media(max_workers=18)
+# 6. High-Performance Cached Data Pipeline (5-minute TTL, sub-second reload)
+@st.cache_data(ttl=300, show_spinner=False)
+def get_cached_nepal_media():
+    """Fetches and caches Nepali media with 5-minute TTL. Instant load on filter/tab changes."""
+    return fetch_top_nepal_media(max_workers=25)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_cached_indian_media():
+    """Fetches and caches Nepal-relevant Indian media with 5-minute TTL."""
+    return fetch_nepal_in_indian_media(max_workers=18)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_cached_x_posts(bearer_token: str = ""):
+    """Fetches and caches X posts with 5-minute TTL."""
+    return scan_popular_nepal_x_posts(force_refresh=False, x_bearer_token=bearer_token)
+
+all_articles = get_cached_nepal_media()
+indian_articles = get_cached_indian_media()
 
 if "x_posts" not in st.session_state or not st.session_state.get("x_posts") or not any(p.get("is_real_api") for p in st.session_state.get("x_posts", [])):
-    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=False, x_bearer_token=x_bearer_token)
+    st.session_state["x_posts"] = get_cached_x_posts(x_bearer_token)
 all_x_posts = st.session_state["x_posts"]
 
 # Apply Date & Time Range Filter across ALL channels

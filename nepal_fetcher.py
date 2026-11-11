@@ -1168,7 +1168,7 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
     try:
         if portal["type"] == "rss":
             req = urllib.request.Request(portal["url"], headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as response:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=3.5) as response:
                 content = response.read()
             items.extend(process_rss_content(content, portal))
 
@@ -1179,7 +1179,7 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
                         break
                     try:
                         alt_req = urllib.request.Request(alt_url, headers=DEFAULT_HEADERS)
-                        with urllib.request.urlopen(alt_req, context=SSL_CTX, timeout=5) as alt_resp:
+                        with urllib.request.urlopen(alt_req, context=SSL_CTX, timeout=2.5) as alt_resp:
                             alt_content = alt_resp.read()
                         items.extend(process_rss_content(alt_content, portal))
                     except Exception:
@@ -1187,7 +1187,7 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
         else:
             # HTML discovery mode (eKantipur, The Himalayan Times, Setopati EN, Nepal Aaja)
             req = urllib.request.Request(portal["url"], headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as response:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=3.5) as response:
                 html_raw = response.read().decode("utf-8", errors="ignore")
 
             soup = BeautifulSoup(html_raw, "html.parser")
@@ -1555,7 +1555,7 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
     excluded_kept = 0
     try:
         req = urllib.request.Request(src["url"], headers=DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as resp:
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=3.5) as resp:
             data = resp.read()
 
         if src.get("type") == "rss":
