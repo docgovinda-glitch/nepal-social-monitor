@@ -1142,9 +1142,1161 @@
       "link": "https://www.livehindustan.com/uttar-pradesh/pilibhit/story-elephant-herd-from-nepal-damages-sugarcane-crops-in-pilibhit-s-puranpur-201794338415189.html",
       "sent_at": "2026-11-10T19:43:26.921305",
       "channel": "Official WhatsApp Channel"
+    },
+    "2fc815a23a3ffc6bcc5f5563": {
+      "key": "2fc815a23a3ffc6bcc5f5563",
+      "type": "article",
+      "title": "मोटरसाइकल दुर्घटना हुँदा पछाडि बस्ने किशोरको मृत्यु, चालक गम्भीर घाइते",
+      "source": "NepalKhabar",
+      "link": "https://nepalkhabar.com/society/291492-2026-11-11-1-18-12",
+      "sent_at": "2026-11-11T01:33:40.121195",
+      "channel": "Official WhatsApp Channel"
+    },
+    "afdce7d58ad5444132fbbc00": {
+      "key": "afdce7d58ad5444132fbbc00",
+      "type": "article",
+      "title": "२ वर्षमा सक्नुपर्ने सडक निर्माण कार्य ४ वर्षमा पनि सकिएन",
+      "source": "NepalKhabar",
+      "link": "https://nepalkhabar.com/economy/291491-2026-11-11-0-48-34",
+      "sent_at": "2026-11-11T01:33:45.018593",
+      "channel": "Official WhatsApp Channel"
+    },
+    "aa31bc8836e85f0e876680ad": {
+      "key": "aa31bc8836e85f0e876680ad",
+      "type": "article",
+      "title": "पर्वतीय मुद्दा कोप-३१ को अन्तिम निर्णयमा समेटिने नेपालको अपेक्षा",
+      "source": "NepalKhabar",
+      "link": "https://nepalkhabar.com/society/291490-2026-11-11-0-5-42",
+      "sent_at": "2026-11-11T01:33:56.234651",
+      "channel": "Official WhatsApp Channel"
+    },
+    "45f71f81791e2d3d78536ab3": {
+      "key": "45f71f81791e2d3d78536ab3",
+      "type": "article",
+      "title": "ममता काफ्ले हत्यामा पति नरेश भट्ट दोषी ठहर",
+      "source": "eKantipur",
+      "link": "https://ekantipur.com/diaspora/2026/11/11/husband-naresh-bhatt-found-guilty-in-mamta-kafles-murder-47-33.html",
+      "sent_at": "2026-11-11T01:34:01.577592",
+      "channel": "Official WhatsApp Channel"
+    },
+    "663e13a56f64369018135118": {
+      "key": "663e13a56f64369018135118",
+      "type": "article",
+      "title": "US jury finds Naresh Bhatt guilty of murdering wife Mamta Kafle",
+      "source": "The Kathmandu Post",
+      "link": "https://kathmandupost.com/nepali-diaspora/2026/11/11/us-jury-finds-naresh-bhatt-guilty-of-murdering-wife-mamta-kafle",
+      "sent_at": "2026-11-11T01:34:06.505416",
+      "channel": "Official WhatsApp Channel"
+    },
+    "1eda7257bcd2b82d6fd42dc7": {
+      "key": "1eda7257bcd2b82d6fd42dc7",
+      "type": "article",
+      "title": "विपद्पछिको सञ्चार पूर्वाधार पुनर्निर्माणमा अन्तर्राष्ट्रिय सहयोग आवश्यक : मन्त्री तिमिल्सिना",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046794/",
+      "sent_at": "2026-11-11T01:34:12.826960",
+      "channel": "Official WhatsApp Channel"
+    },
+    "e703334bc3eea6c576907ad5": {
+      "key": "e703334bc3eea6c576907ad5",
+      "type": "article",
+      "title": "भाइटीकाको दिन उपत्यकामा आवतजावत गर्न सशस्त्रका नि:शुल्क बस",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/free-buses-from-the-armed-forces-to-travel-around-the-valley-on-bhai-tika-day/",
+      "sent_at": "2026-11-11T01:34:19.052940",
+      "channel": "Official WhatsApp Channel"
+    },
+    "8c44a1c4cae4292c9efbcd09": {
+      "key": "8c44a1c4cae4292c9efbcd09",
+      "type": "article",
+      "title": "भाइटीकाको दिन काठमाडौँ र भक्तपुरमा सशस्त्र प्रहरी बल, नेपालद्वारा निःशुल्क बस सेवा",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/11/780466/armed-police-force-nepal-provide-free-bus-service-in-kathmandu-and-bhaktapur-on-bhaitika-day/",
+      "sent_at": "2026-11-11T01:34:25.331645",
+      "channel": "Official WhatsApp Channel"
+    },
+    "1fd226c8283f897a314aed27": {
+      "key": "1fd226c8283f897a314aed27",
+      "type": "article",
+      "title": "आज भाइटीका, बिहान ११:०७ बजे उत्तम साइत",
+      "source": "Image Khabar",
+      "link": "https://www.imagekhabar.com/news/563246/",
+      "sent_at": "2026-11-11T01:34:31.580809",
+      "channel": "Official WhatsApp Channel"
+    },
+    "c2a67baa73b258155d71a3d4": {
+      "key": "c2a67baa73b258155d71a3d4",
+      "type": "article",
+      "title": "थानीमाई मन्दिरमा एकै दिन भित्रिए ९१ डोली",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/91-dolis-entered-thanimai-temple-in-a-single-day/",
+      "sent_at": "2026-11-11T01:34:37.818690",
+      "channel": "Official WhatsApp Channel"
+    },
+    "bc202ee304f641542d071e63": {
+      "key": "bc202ee304f641542d071e63",
+      "type": "article",
+      "title": "ममता काफ्ले हत्या प्रकरण : पति नरेश भट्ट दोषी ठहर",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/mamta-kafle-murder-case-husband-naresh-bhatt-found-guilty/",
+      "sent_at": "2026-11-11T01:34:44.075117",
+      "channel": "Official WhatsApp Channel"
+    },
+    "22a97613330cd099c24827a0": {
+      "key": "22a97613330cd099c24827a0",
+      "type": "article",
+      "title": "यमराजलाई समेत रोक्ने बहिनीको प्रेम, कसरी सुरु भयो भाइटीकाको परम्परा ?",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046791/",
+      "sent_at": "2026-11-11T01:34:50.302671",
+      "channel": "Official WhatsApp Channel"
+    },
+    "9b2920c281a71ec3f8e26a40": {
+      "key": "9b2920c281a71ec3f8e26a40",
+      "type": "article",
+      "title": "Minister Timilsina calls for global support to rebuild disaster-hit communication infrastructure",
+      "source": "Nepal News (EN)",
+      "link": "https://english.nepalnews.com/s/diplomacy/minister-timilsina-calls-for-global-support-to-rebuild-disaster-hit-communication-infrastructure/",
+      "sent_at": "2026-11-11T01:34:56.574764",
+      "channel": "Official WhatsApp Channel"
+    },
+    "b10366b18713199b75f82b5c": {
+      "key": "b10366b18713199b75f82b5c",
+      "type": "article",
+      "title": "भाइटीकाको दिन काठमाडौं र भक्तपुरमा सशस्त्र प्रहरीको निःशुल्क बस सेवा",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604530/armed-police-force-provides-free-bus-service-in-kathmandu-and-bhaktapur-on-bhai-tika-day",
+      "sent_at": "2026-11-11T01:35:02.897104",
+      "channel": "Official WhatsApp Channel"
+    },
+    "8051e15fa5dc57da44477efa": {
+      "key": "8051e15fa5dc57da44477efa",
+      "type": "article",
+      "title": "ममता काफ्ले प्रकरणः नरेश भट्ट प्रथम श्रेणीको हत्यामा दोषी ठहर, के सजाय हुनेछ ?",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/11/780464/mamta-kafle-case-naresh-bhatt-found-guilty-of-first-degree-murder-what-will-be-the-punishment/",
+      "sent_at": "2026-11-11T01:35:09.210804",
+      "channel": "Official WhatsApp Channel"
+    },
+    "fbae89cac7a20a5d5b5d1b05": {
+      "key": "fbae89cac7a20a5d5b5d1b05",
+      "type": "article",
+      "title": "स्वरूप परिवर्तन गरी ठुलो आवाज निकाल्ने ५२ मोटरसाइकल नियन्त्रणमा",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604529/52-motorcycles-seized-for-making-loud-noises-by-changing-their-appearance",
+      "sent_at": "2026-11-11T01:35:15.469544",
+      "channel": "Official WhatsApp Channel"
+    },
+    "2fd33cd57aa97744aec4bedc": {
+      "key": "2fd33cd57aa97744aec4bedc",
+      "type": "article",
+      "title": "Police Seize 52 Modified Motorcycles for Loud Noise in Kathmandu",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86260/52-motorcycles-seized-for-making-loud-noises-by-changing-their-appearance",
+      "sent_at": "2026-11-11T01:35:21.705735",
+      "channel": "Official WhatsApp Channel"
+    },
+    "b42066c0573c21e7dd9d55a7": {
+      "key": "b42066c0573c21e7dd9d55a7",
+      "type": "article",
+      "title": "गुलियोमा लुकेको जोखिम",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/the-hidden-danger-in-sweets/",
+      "sent_at": "2026-11-11T01:35:27.952735",
+      "channel": "Official WhatsApp Channel"
+    },
+    "cdd38a92fee3fcabff6edeef": {
+      "key": "cdd38a92fee3fcabff6edeef",
+      "type": "article",
+      "title": "ममता काफ्लेको हत्या प्रकारणमा श्रीमान् नरेश भट्ट दोषी ठहर",
+      "source": "Shilapatra",
+      "link": "https://shilapatra.com/detail/198448",
+      "sent_at": "2026-11-11T01:35:34.266641",
+      "channel": "Official WhatsApp Channel"
+    },
+    "4b0655ed36a9aede56f4ede4": {
+      "key": "4b0655ed36a9aede56f4ede4",
+      "type": "article",
+      "title": "जलविद्युत आयोजनाको सहयोगमा सडक मर्मत सुरु",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/road-repairs-begin-with-support-from-hydropower-project/",
+      "sent_at": "2026-11-11T01:35:40.465619",
+      "channel": "Official WhatsApp Channel"
+    },
+    "7deee71417e36dfa23fb5273": {
+      "key": "7deee71417e36dfa23fb5273",
+      "type": "article",
+      "title": "आजको राशिफलः कुन राशिलाई कस्तो छ ?",
+      "source": "Image Khabar",
+      "link": "https://www.imagekhabar.com/news/563244/",
+      "sent_at": "2026-11-11T01:35:46.723044",
+      "channel": "Official WhatsApp Channel"
+    },
+    "5ee3c2f2e4e0098bc04d451a": {
+      "key": "5ee3c2f2e4e0098bc04d451a",
+      "type": "article",
+      "title": "भाइटीकाका दिन बालगोपालेश्वर मन्दिर खुला",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/balgopaleshwar-temple-opens-on-bhai-tika-day/",
+      "sent_at": "2026-11-11T01:35:52.913785",
+      "channel": "Official WhatsApp Channel"
+    },
+    "69a134c58e32ef52ea869de1": {
+      "key": "69a134c58e32ef52ea869de1",
+      "type": "article",
+      "title": "भिरबाट लडेर रुखको जरामा अड्किएकी वृद्धाको सकुशल उद्धार",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604528/elderly-woman-rescued-after-falling-from-cliff-and-getting-stuck-in-tree-roots",
+      "sent_at": "2026-11-11T01:35:59.146657",
+      "channel": "Official WhatsApp Channel"
+    },
+    "9e5d72fc5a1884f6c8bf4d18": {
+      "key": "9e5d72fc5a1884f6c8bf4d18",
+      "type": "article",
+      "title": "Elderly Woman Rescued After Falling Down Cliff",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86259/elderly-woman-rescued-after-falling-from-cliff-and-getting-stuck-in-tree-roots",
+      "sent_at": "2026-11-11T01:36:05.365006",
+      "channel": "Official WhatsApp Channel"
+    },
+    "e1ca06f243b4e4aa61b230d5": {
+      "key": "e1ca06f243b4e4aa61b230d5",
+      "type": "article",
+      "title": "बालगोपालेश्वर मन्दिरमा भक्तजनको भीड",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/crowd-of-devotees-at-balgopaleshwar-temple/",
+      "sent_at": "2026-11-11T01:36:11.607252",
+      "channel": "Official WhatsApp Channel"
+    },
+    "765bb7beb3a46915b6f730fd": {
+      "key": "765bb7beb3a46915b6f730fd",
+      "type": "article",
+      "title": "फाल्गुनन्दका विचार आज पनि उत्तिकै सान्दर्भिक : उपराष्ट्रपति",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604527/falgunandas-thoughts-are-equally-relevant-today-vice-president",
+      "sent_at": "2026-11-11T01:36:17.816615",
+      "channel": "Official WhatsApp Channel"
+    },
+    "8f1d17776a43b2c369915d1f": {
+      "key": "8f1d17776a43b2c369915d1f",
+      "type": "article",
+      "title": "Vice President Yadav Extends Greetings on Mahaguru Falgunanda's Birth Anniversary",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86258/falgunandas-thoughts-are-equally-relevant-today-vice-president",
+      "sent_at": "2026-11-11T01:36:24.111072",
+      "channel": "Official WhatsApp Channel"
+    },
+    "ca6e7f7f4c1705f7ad8efd73": {
+      "key": "ca6e7f7f4c1705f7ad8efd73",
+      "type": "article",
+      "title": "झापामा ४० लाख मूल्यका अवैध भारतीय फूलमाला बरामद",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/illegal-indian-flower-garlands-worth-rs-4-million-seized-in-jhapa/",
+      "sent_at": "2026-11-11T01:36:30.572263",
+      "channel": "Official WhatsApp Channel"
+    },
+    "3339f1944ac3433022cbf3f2": {
+      "key": "3339f1944ac3433022cbf3f2",
+      "type": "article",
+      "title": "सेलरोटीको स्वादमा नेपाली संस्कृति जोगाउने प्रयास",
+      "source": "Nepal Live",
+      "link": "https://nepallive.com/story/352809",
+      "sent_at": "2026-11-11T01:36:36.880980",
+      "channel": "Official WhatsApp Channel"
+    },
+    "fd8b018bf1798d0fe17b91ee": {
+      "key": "fd8b018bf1798d0fe17b91ee",
+      "type": "article",
+      "title": "यस्तो छ विदेशी मुद्राको विनिमयदर, डलरको भाउ कति छ ?",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604526/this-is-the-foreign-currency-exchange-rate-what-is-the-value-of-the-dollar",
+      "sent_at": "2026-11-11T01:36:43.175326",
+      "channel": "Official WhatsApp Channel"
+    },
+    "19f2356b45b56a4167fb9cf6": {
+      "key": "19f2356b45b56a4167fb9cf6",
+      "type": "article",
+      "title": "आज देशभर भाइटीका मनाइँदै, ११:०७ बजे उत्तम साइत",
+      "source": "News of Nepal",
+      "link": "https://newsofnepal.com/2026/11/11/793744/",
+      "sent_at": "2026-11-11T01:36:49.364709",
+      "channel": "Official WhatsApp Channel"
+    },
+    "a006e3f965cdcef7a28c78be": {
+      "key": "a006e3f965cdcef7a28c78be",
+      "type": "article",
+      "title": "हसिना बंगलादेश फर्किए मृत्युदण्ड कार्यान्वयन गरिने चेतावनी",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507068",
+      "sent_at": "2026-11-11T01:36:55.569219",
+      "channel": "Official WhatsApp Channel"
+    },
+    "f3478f98be1363303257adcc": {
+      "key": "f3478f98be1363303257adcc",
+      "type": "article",
+      "title": "कति छ डलरको भाउ?",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/how-much-is-the-dollar-worth-45/",
+      "sent_at": "2026-11-11T01:37:01.886714",
+      "channel": "Official WhatsApp Channel"
+    },
+    "d6f495fb9ca1836c37d120df": {
+      "key": "d6f495fb9ca1836c37d120df",
+      "type": "article",
+      "title": "भाइटीकाका दिन तीन प्रदेशमा वर्षाको सम्भावना",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/rain-likely-in-three-provinces-on-bhai-tika-day/",
+      "sent_at": "2026-11-11T01:37:08.166058",
+      "channel": "Official WhatsApp Channel"
+    },
+    "048e963e34ddc5f365059401": {
+      "key": "048e963e34ddc5f365059401",
+      "type": "article",
+      "title": "आज भाइटीका, कति बजेलाई छ उत्तम साइत?",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/today-is-bhai-tika-what-time-is-the-best-time/",
+      "sent_at": "2026-11-11T01:37:14.369117",
+      "channel": "Official WhatsApp Channel"
+    },
+    "b4ab8756463a926100369bb8": {
+      "key": "b4ab8756463a926100369bb8",
+      "type": "article",
+      "title": "दिदीबहिनी र दाजुभाइ नहुनेहरूका लागि टीका लगाउन बालगोपाल मन्दिर खुला रहने",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/balgopal-temple-will-remain-open-for-those-who-do-not-have-sisters-or-brothers-to-receive-tika/",
+      "sent_at": "2026-11-11T01:37:20.567341",
+      "channel": "Official WhatsApp Channel"
+    },
+    "53568fa170849340103b9002": {
+      "key": "53568fa170849340103b9002",
+      "type": "article",
+      "title": "बबई नदीमा १५ किलोमिटर तटबन्ध",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604524/15-km-embankment-on-the-babai-river",
+      "sent_at": "2026-11-11T01:37:26.817634",
+      "channel": "Official WhatsApp Channel"
+    },
+    "9ace312e1a2a7526c2c552aa": {
+      "key": "9ace312e1a2a7526c2c552aa",
+      "type": "article",
+      "title": "अमेरिकी रक्षामन्त्री हेगसेथविरुद्धको महाभियोग प्रस्ताव असफल",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507067",
+      "sent_at": "2026-11-11T01:37:32.992208",
+      "channel": "Official WhatsApp Channel"
+    },
+    "aa6271f50482e4ccb82ad65f": {
+      "key": "aa6271f50482e4ccb82ad65f",
+      "type": "article",
+      "title": "Weather turns cloudy as westerly winds influence Nepal",
+      "source": "Khabarhub (EN)",
+      "link": "https://english.khabarhub.com/2026/11/575219/",
+      "sent_at": "2026-11-11T01:37:39.168153",
+      "channel": "Official WhatsApp Channel"
+    },
+    "b97905174a4dfab2df4be37c": {
+      "key": "b97905174a4dfab2df4be37c",
+      "type": "article",
+      "title": "आज भाइटीका, उत्तम साइत बिहान ११ः०७ बजे",
+      "source": "OnlineKhabar (NP)",
+      "link": "https://www.onlinekhabar.com/2026/11/2055459/today-is-bhai-tika-best-time-at-1107-am",
+      "sent_at": "2026-11-11T01:37:45.332190",
+      "channel": "Official WhatsApp Channel"
+    },
+    "763c2062c48179183ebca831": {
+      "key": "763c2062c48179183ebca831",
+      "type": "article",
+      "title": "जलविद्युत आयोजनाको सहयोगमा बालौटेमा सडक मर्मत सुरु",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046787/",
+      "sent_at": "2026-11-11T01:37:51.550891",
+      "channel": "Official WhatsApp Channel"
+    },
+    "7faa654530d90a2985555099": {
+      "key": "7faa654530d90a2985555099",
+      "type": "article",
+      "title": "ममता काफ्ले हत्यामा दोषी ठहर भएका नरेश भट्टको सजाय निर्धारण कहिले हुन्छ ?",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604523/when-will-the-sentence-for-naresh-bhatt-who-was-convicted-of-the-murder-of-mamta-kafle-be-determined",
+      "sent_at": "2026-11-11T01:37:57.779869",
+      "channel": "Official WhatsApp Channel"
+    },
+    "f9c9c0222d49cc6d898960ba": {
+      "key": "f9c9c0222d49cc6d898960ba",
+      "type": "article",
+      "title": "Naresh Bhat Found Guilty in Mamta Kafle Murder Case, Sentencing Set for March 12",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86256/when-will-the-sentence-for-naresh-bhatt-who-was-convicted-of-the-murder-of-mamta-kafle-be-determined",
+      "sent_at": "2026-11-11T01:38:04.154281",
+      "channel": "Official WhatsApp Channel"
+    },
+    "1c12d85527bbd3ebb5d805e4": {
+      "key": "1c12d85527bbd3ebb5d805e4",
+      "type": "article",
+      "title": "भाइटीका आज, उत्तम साइत बिहान ११:०७ बजे",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/bhaitika-today-uttam-sait-at-1107-am/",
+      "sent_at": "2026-11-11T01:38:10.457963",
+      "channel": "Official WhatsApp Channel"
+    },
+    "9eeb9c0689082548303f2fb3": {
+      "key": "9eeb9c0689082548303f2fb3",
+      "type": "article",
+      "title": "एनभिडियाका मुख्य कार्यकारी र कथित चिनियाँ जासुसको सम्बन्धबारे उच्चस्तरीय छानबिन सुरु",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604522/high-level-investigation-launched-into-ties-between-nvidia-ceo-and-alleged-chinese-spy",
+      "sent_at": "2026-11-11T01:38:18.356274",
+      "channel": "Official WhatsApp Channel"
+    },
+    "64d30ef9f1e3600ce9d9eaeb": {
+      "key": "64d30ef9f1e3600ce9d9eaeb",
+      "type": "article",
+      "title": "Nvidia CEO Investigates Personal Relationship Amidst Espionage Allegations",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86255/high-level-investigation-launched-into-ties-between-nvidia-ceo-and-alleged-chinese-spy",
+      "sent_at": "2026-11-11T01:38:24.649098",
+      "channel": "Official WhatsApp Channel"
+    },
+    "2aeb42515db13e631305ed34": {
+      "key": "2aeb42515db13e631305ed34",
+      "type": "article",
+      "title": "Balgopaleshwar Temple at Ranipokhari opens on Bhai Tika",
+      "source": "Khabarhub (EN)",
+      "link": "https://english.khabarhub.com/2026/11/575216/",
+      "sent_at": "2026-11-11T01:38:30.850137",
+      "channel": "Official WhatsApp Channel"
+    },
+    "ffda6ced685998bc0f3429d3": {
+      "key": "ffda6ced685998bc0f3429d3",
+      "type": "article",
+      "title": "मिथिला क्षेत्रमा आज भैयादुज : दाजुभाइको दीर्घायु र कल्याणको कामना",
+      "source": "OnlineKhabar (NP)",
+      "link": "https://www.onlinekhabar.com/2026/11/2055458/today-is-bhaiyaduj-in-mithila-region-wishing-brothers-long-life-and-prosperity",
+      "sent_at": "2026-11-11T01:38:37.070693",
+      "channel": "Official WhatsApp Channel"
+    },
+    "7a223c8f3c53992325bc9f99": {
+      "key": "7a223c8f3c53992325bc9f99",
+      "type": "article",
+      "title": "अवैध फूलमाला भित्र्याउने प्रयास, ३९ लाख ७८ हजारको बरामद",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/attempt-to-import-illegal-flower-garlands-rs-3-978-million-seized-63-43.html",
+      "sent_at": "2026-11-11T01:38:43.321581",
+      "channel": "Official WhatsApp Channel"
+    },
+    "9a1057500556c2612a39d9c2": {
+      "key": "9a1057500556c2612a39d9c2",
+      "type": "article",
+      "title": "ममता काफ्लेको हत्या अभियोगमा नरेश भट्ट दोषी ठहर",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604520/naresh-bhatt-found-guilty-in-mamta-kafles-murder-case",
+      "sent_at": "2026-11-11T01:38:49.562102",
+      "channel": "Official WhatsApp Channel"
+    },
+    "5136f20fc80bb20575185b82": {
+      "key": "5136f20fc80bb20575185b82",
+      "type": "article",
+      "title": "Naresh Bhatt Convicted of Murder in Virginia Court",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86253/naresh-bhatt-found-guilty-in-mamta-kafles-murder-case",
+      "sent_at": "2026-11-11T01:38:55.883654",
+      "channel": "Official WhatsApp Channel"
+    },
+    "3073202b2732b77c6aad4285": {
+      "key": "3073202b2732b77c6aad4285",
+      "type": "article",
+      "title": "थानीमाई मन्दिरमा एकै दिन भित्रिए ९१ डोली",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/11/780461/91-dolis-entered-thanimai-temple-in-a-single-day/",
+      "sent_at": "2026-11-11T01:39:07.216461",
+      "channel": "Official WhatsApp Channel"
+    },
+    "d83bb5a5797971c7caaef402": {
+      "key": "d83bb5a5797971c7caaef402",
+      "type": "article",
+      "title": "वाग्मतीसहित यी प्रदेशमा हुनेछ आज वर्षा र हिमपात",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507066",
+      "sent_at": "2026-11-11T01:39:13.464492",
+      "channel": "Official WhatsApp Channel"
+    },
+    "afa22fd0e13c77ee7269e6c6": {
+      "key": "afa22fd0e13c77ee7269e6c6",
+      "type": "article",
+      "title": "आज दिनभरको मौसम कस्तो रहला ?",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046785/",
+      "sent_at": "2026-11-11T01:39:19.767177",
+      "channel": "Official WhatsApp Channel"
+    },
+    "93ccb9766259b1439a2b7eff": {
+      "key": "93ccb9766259b1439a2b7eff",
+      "type": "article",
+      "title": "आज भाइटीका : उत्तम साइत बिहान ११:०७ बजे, दिनभर टीका लगाउन सकिने",
+      "source": "OnlineKhabar (NP)",
+      "link": "https://www.onlinekhabar.com/2026/11/2055456/todays-bhai-tika-best-time-is-1107-am-tika-can-be-done-throughout-the-day",
+      "sent_at": "2026-11-11T01:39:25.965915",
+      "channel": "Official WhatsApp Channel"
+    },
+    "1b2c340f451fade34034e88a": {
+      "key": "1b2c340f451fade34034e88a",
+      "type": "article",
+      "title": "अवैध रूपमा भित्र्याइएका ३९ लाख मूल्यका फूलमाला बरामद",
+      "source": "Shilapatra",
+      "link": "https://shilapatra.com/detail/198447",
+      "sent_at": "2026-11-11T01:39:32.178020",
+      "channel": "Official WhatsApp Channel"
+    },
+    "25a5d37ec190ded8ef9915b8": {
+      "key": "25a5d37ec190ded8ef9915b8",
+      "type": "article",
+      "title": "बिहानैदेखि बालगोपालेश्वर मन्दिर खुला",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/balgopaleshwar-temple-open-since-morning-br-59-69.html",
+      "sent_at": "2026-11-11T01:39:38.492261",
+      "channel": "Official WhatsApp Channel"
+    },
+    "dd2107e7b919cc720c8e72f0": {
+      "key": "dd2107e7b919cc720c8e72f0",
+      "type": "article",
+      "title": "ममता काफ्ले हत्या प्रकरण: अमेरिकी अदालतद्वारा नरेश दाेषी ठहर",
+      "source": "Nepal Live",
+      "link": "https://nepallive.com/story/352808",
+      "sent_at": "2026-11-11T01:39:44.721978",
+      "channel": "Official WhatsApp Channel"
+    },
+    "073fd591f1ec1f08d12b3b4d": {
+      "key": "073fd591f1ec1f08d12b3b4d",
+      "type": "article",
+      "title": "नेपालमा पश्चिमी वायुको आंशिक प्रभाव, हिमाली र पहाडी क्षेत्रमा हल्का वर्षा र हिमपातको सम्भावना",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/partial-influence-of-westerly-winds-in-nepal-possibility-of-light-rain-and-snowfall-in-the-himalayan-and-hilly-areas/",
+      "sent_at": "2026-11-11T01:39:50.913586",
+      "channel": "Official WhatsApp Channel"
+    },
+    "2b6e6b375fc29350bb278b25": {
+      "key": "2b6e6b375fc29350bb278b25",
+      "type": "article",
+      "title": "कार्तिक २५ गते बुधबार ,यस्तो छ तपाईंको राशिफल",
+      "source": "News of Nepal",
+      "link": "https://newsofnepal.com/2026/11/11/793742/",
+      "sent_at": "2026-11-11T01:39:57.165310",
+      "channel": "Official WhatsApp Channel"
+    },
+    "ad6ade200894a9d8209fd474": {
+      "key": "ad6ade200894a9d8209fd474",
+      "type": "article",
+      "title": "आज भाइटीका, उत्तम साइत बिहान ११ः०७ बजे",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046782/",
+      "sent_at": "2026-11-11T01:40:03.450059",
+      "channel": "Official WhatsApp Channel"
+    },
+    "1fb5da98a833f48ebb368760": {
+      "key": "1fb5da98a833f48ebb368760",
+      "type": "article",
+      "title": "दिदीबहिनी एवं दाजुभाइ नहुनेले बालगोपालेश्वरमा टीका लगाउँदै",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507065",
+      "sent_at": "2026-11-11T01:40:09.675222",
+      "channel": "Official WhatsApp Channel"
+    },
+    "09c5495ab361e45de34db10a": {
+      "key": "09c5495ab361e45de34db10a",
+      "type": "article",
+      "title": "भाइटीका आज, उत्तम साइत बिहान ११:०७ बजे",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/bhaitika-today-uttam-sait-at-11-07-am-45-83.html",
+      "sent_at": "2026-11-11T01:40:15.897592",
+      "channel": "Official WhatsApp Channel"
+    },
+    "085006d31e68c17b8b062179": {
+      "key": "085006d31e68c17b8b062179",
+      "type": "article",
+      "title": "ऊर्जा नेतृत्वको होडमा अमेरिका र चीन, उपभोक्तालाई राहत कहिले ?",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604517/america-and-china-in-a-race-for-energy-leadership-when-will-consumers-get-relief",
+      "sent_at": "2026-11-11T01:40:25.128208",
+      "channel": "Official WhatsApp Channel"
     }
   },
   "history": [
+    {
+      "key": "085006d31e68c17b8b062179",
+      "type": "article",
+      "title": "ऊर्जा नेतृत्वको होडमा अमेरिका र चीन, उपभोक्तालाई राहत कहिले ?",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604517/america-and-china-in-a-race-for-energy-leadership-when-will-consumers-get-relief",
+      "sent_at": "2026-11-11T01:40:25.128208",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "09c5495ab361e45de34db10a",
+      "type": "article",
+      "title": "भाइटीका आज, उत्तम साइत बिहान ११:०७ बजे",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/bhaitika-today-uttam-sait-at-11-07-am-45-83.html",
+      "sent_at": "2026-11-11T01:40:15.897592",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "1fb5da98a833f48ebb368760",
+      "type": "article",
+      "title": "दिदीबहिनी एवं दाजुभाइ नहुनेले बालगोपालेश्वरमा टीका लगाउँदै",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507065",
+      "sent_at": "2026-11-11T01:40:09.675222",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "ad6ade200894a9d8209fd474",
+      "type": "article",
+      "title": "आज भाइटीका, उत्तम साइत बिहान ११ः०७ बजे",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046782/",
+      "sent_at": "2026-11-11T01:40:03.450059",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "2b6e6b375fc29350bb278b25",
+      "type": "article",
+      "title": "कार्तिक २५ गते बुधबार ,यस्तो छ तपाईंको राशिफल",
+      "source": "News of Nepal",
+      "link": "https://newsofnepal.com/2026/11/11/793742/",
+      "sent_at": "2026-11-11T01:39:57.165310",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "073fd591f1ec1f08d12b3b4d",
+      "type": "article",
+      "title": "नेपालमा पश्चिमी वायुको आंशिक प्रभाव, हिमाली र पहाडी क्षेत्रमा हल्का वर्षा र हिमपातको सम्भावना",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/partial-influence-of-westerly-winds-in-nepal-possibility-of-light-rain-and-snowfall-in-the-himalayan-and-hilly-areas/",
+      "sent_at": "2026-11-11T01:39:50.913586",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "dd2107e7b919cc720c8e72f0",
+      "type": "article",
+      "title": "ममता काफ्ले हत्या प्रकरण: अमेरिकी अदालतद्वारा नरेश दाेषी ठहर",
+      "source": "Nepal Live",
+      "link": "https://nepallive.com/story/352808",
+      "sent_at": "2026-11-11T01:39:44.721978",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "25a5d37ec190ded8ef9915b8",
+      "type": "article",
+      "title": "बिहानैदेखि बालगोपालेश्वर मन्दिर खुला",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/balgopaleshwar-temple-open-since-morning-br-59-69.html",
+      "sent_at": "2026-11-11T01:39:38.492261",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "1b2c340f451fade34034e88a",
+      "type": "article",
+      "title": "अवैध रूपमा भित्र्याइएका ३९ लाख मूल्यका फूलमाला बरामद",
+      "source": "Shilapatra",
+      "link": "https://shilapatra.com/detail/198447",
+      "sent_at": "2026-11-11T01:39:32.178020",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "93ccb9766259b1439a2b7eff",
+      "type": "article",
+      "title": "आज भाइटीका : उत्तम साइत बिहान ११:०७ बजे, दिनभर टीका लगाउन सकिने",
+      "source": "OnlineKhabar (NP)",
+      "link": "https://www.onlinekhabar.com/2026/11/2055456/todays-bhai-tika-best-time-is-1107-am-tika-can-be-done-throughout-the-day",
+      "sent_at": "2026-11-11T01:39:25.965915",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "afa22fd0e13c77ee7269e6c6",
+      "type": "article",
+      "title": "आज दिनभरको मौसम कस्तो रहला ?",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046785/",
+      "sent_at": "2026-11-11T01:39:19.767177",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "d83bb5a5797971c7caaef402",
+      "type": "article",
+      "title": "वाग्मतीसहित यी प्रदेशमा हुनेछ आज वर्षा र हिमपात",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507066",
+      "sent_at": "2026-11-11T01:39:13.464492",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "3073202b2732b77c6aad4285",
+      "type": "article",
+      "title": "थानीमाई मन्दिरमा एकै दिन भित्रिए ९१ डोली",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/11/780461/91-dolis-entered-thanimai-temple-in-a-single-day/",
+      "sent_at": "2026-11-11T01:39:07.216461",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "5136f20fc80bb20575185b82",
+      "type": "article",
+      "title": "Naresh Bhatt Convicted of Murder in Virginia Court",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86253/naresh-bhatt-found-guilty-in-mamta-kafles-murder-case",
+      "sent_at": "2026-11-11T01:38:55.883654",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "9a1057500556c2612a39d9c2",
+      "type": "article",
+      "title": "ममता काफ्लेको हत्या अभियोगमा नरेश भट्ट दोषी ठहर",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604520/naresh-bhatt-found-guilty-in-mamta-kafles-murder-case",
+      "sent_at": "2026-11-11T01:38:49.562102",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "7a223c8f3c53992325bc9f99",
+      "type": "article",
+      "title": "अवैध फूलमाला भित्र्याउने प्रयास, ३९ लाख ७८ हजारको बरामद",
+      "source": "Nagarik News",
+      "link": "https://nagariknews.nagariknetwork.com/social-affairs/attempt-to-import-illegal-flower-garlands-rs-3-978-million-seized-63-43.html",
+      "sent_at": "2026-11-11T01:38:43.321581",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "ffda6ced685998bc0f3429d3",
+      "type": "article",
+      "title": "मिथिला क्षेत्रमा आज भैयादुज : दाजुभाइको दीर्घायु र कल्याणको कामना",
+      "source": "OnlineKhabar (NP)",
+      "link": "https://www.onlinekhabar.com/2026/11/2055458/today-is-bhaiyaduj-in-mithila-region-wishing-brothers-long-life-and-prosperity",
+      "sent_at": "2026-11-11T01:38:37.070693",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "2aeb42515db13e631305ed34",
+      "type": "article",
+      "title": "Balgopaleshwar Temple at Ranipokhari opens on Bhai Tika",
+      "source": "Khabarhub (EN)",
+      "link": "https://english.khabarhub.com/2026/11/575216/",
+      "sent_at": "2026-11-11T01:38:30.850137",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "64d30ef9f1e3600ce9d9eaeb",
+      "type": "article",
+      "title": "Nvidia CEO Investigates Personal Relationship Amidst Espionage Allegations",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86255/high-level-investigation-launched-into-ties-between-nvidia-ceo-and-alleged-chinese-spy",
+      "sent_at": "2026-11-11T01:38:24.649098",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "9eeb9c0689082548303f2fb3",
+      "type": "article",
+      "title": "एनभिडियाका मुख्य कार्यकारी र कथित चिनियाँ जासुसको सम्बन्धबारे उच्चस्तरीय छानबिन सुरु",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604522/high-level-investigation-launched-into-ties-between-nvidia-ceo-and-alleged-chinese-spy",
+      "sent_at": "2026-11-11T01:38:18.356274",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "1c12d85527bbd3ebb5d805e4",
+      "type": "article",
+      "title": "भाइटीका आज, उत्तम साइत बिहान ११:०७ बजे",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/bhaitika-today-uttam-sait-at-1107-am/",
+      "sent_at": "2026-11-11T01:38:10.457963",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "f9c9c0222d49cc6d898960ba",
+      "type": "article",
+      "title": "Naresh Bhat Found Guilty in Mamta Kafle Murder Case, Sentencing Set for March 12",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86256/when-will-the-sentence-for-naresh-bhatt-who-was-convicted-of-the-murder-of-mamta-kafle-be-determined",
+      "sent_at": "2026-11-11T01:38:04.154281",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "7faa654530d90a2985555099",
+      "type": "article",
+      "title": "ममता काफ्ले हत्यामा दोषी ठहर भएका नरेश भट्टको सजाय निर्धारण कहिले हुन्छ ?",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604523/when-will-the-sentence-for-naresh-bhatt-who-was-convicted-of-the-murder-of-mamta-kafle-be-determined",
+      "sent_at": "2026-11-11T01:37:57.779869",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "763c2062c48179183ebca831",
+      "type": "article",
+      "title": "जलविद्युत आयोजनाको सहयोगमा बालौटेमा सडक मर्मत सुरु",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046787/",
+      "sent_at": "2026-11-11T01:37:51.550891",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "b97905174a4dfab2df4be37c",
+      "type": "article",
+      "title": "आज भाइटीका, उत्तम साइत बिहान ११ः०७ बजे",
+      "source": "OnlineKhabar (NP)",
+      "link": "https://www.onlinekhabar.com/2026/11/2055459/today-is-bhai-tika-best-time-at-1107-am",
+      "sent_at": "2026-11-11T01:37:45.332190",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "aa6271f50482e4ccb82ad65f",
+      "type": "article",
+      "title": "Weather turns cloudy as westerly winds influence Nepal",
+      "source": "Khabarhub (EN)",
+      "link": "https://english.khabarhub.com/2026/11/575219/",
+      "sent_at": "2026-11-11T01:37:39.168153",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "9ace312e1a2a7526c2c552aa",
+      "type": "article",
+      "title": "अमेरिकी रक्षामन्त्री हेगसेथविरुद्धको महाभियोग प्रस्ताव असफल",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507067",
+      "sent_at": "2026-11-11T01:37:32.992208",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "53568fa170849340103b9002",
+      "type": "article",
+      "title": "बबई नदीमा १५ किलोमिटर तटबन्ध",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604524/15-km-embankment-on-the-babai-river",
+      "sent_at": "2026-11-11T01:37:26.817634",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "b4ab8756463a926100369bb8",
+      "type": "article",
+      "title": "दिदीबहिनी र दाजुभाइ नहुनेहरूका लागि टीका लगाउन बालगोपाल मन्दिर खुला रहने",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/balgopal-temple-will-remain-open-for-those-who-do-not-have-sisters-or-brothers-to-receive-tika/",
+      "sent_at": "2026-11-11T01:37:20.567341",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "048e963e34ddc5f365059401",
+      "type": "article",
+      "title": "आज भाइटीका, कति बजेलाई छ उत्तम साइत?",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/today-is-bhai-tika-what-time-is-the-best-time/",
+      "sent_at": "2026-11-11T01:37:14.369117",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "d6f495fb9ca1836c37d120df",
+      "type": "article",
+      "title": "भाइटीकाका दिन तीन प्रदेशमा वर्षाको सम्भावना",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/rain-likely-in-three-provinces-on-bhai-tika-day/",
+      "sent_at": "2026-11-11T01:37:08.166058",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "f3478f98be1363303257adcc",
+      "type": "article",
+      "title": "कति छ डलरको भाउ?",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/how-much-is-the-dollar-worth-45/",
+      "sent_at": "2026-11-11T01:37:01.886714",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "a006e3f965cdcef7a28c78be",
+      "type": "article",
+      "title": "हसिना बंगलादेश फर्किए मृत्युदण्ड कार्यान्वयन गरिने चेतावनी",
+      "source": "Baahrakhari",
+      "link": "https://baahrakhari.com/detail/507068",
+      "sent_at": "2026-11-11T01:36:55.569219",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "19f2356b45b56a4167fb9cf6",
+      "type": "article",
+      "title": "आज देशभर भाइटीका मनाइँदै, ११:०७ बजे उत्तम साइत",
+      "source": "News of Nepal",
+      "link": "https://newsofnepal.com/2026/11/11/793744/",
+      "sent_at": "2026-11-11T01:36:49.364709",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "fd8b018bf1798d0fe17b91ee",
+      "type": "article",
+      "title": "यस्तो छ विदेशी मुद्राको विनिमयदर, डलरको भाउ कति छ ?",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604526/this-is-the-foreign-currency-exchange-rate-what-is-the-value-of-the-dollar",
+      "sent_at": "2026-11-11T01:36:43.175326",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "3339f1944ac3433022cbf3f2",
+      "type": "article",
+      "title": "सेलरोटीको स्वादमा नेपाली संस्कृति जोगाउने प्रयास",
+      "source": "Nepal Live",
+      "link": "https://nepallive.com/story/352809",
+      "sent_at": "2026-11-11T01:36:36.880980",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "ca6e7f7f4c1705f7ad8efd73",
+      "type": "article",
+      "title": "झापामा ४० लाख मूल्यका अवैध भारतीय फूलमाला बरामद",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/illegal-indian-flower-garlands-worth-rs-4-million-seized-in-jhapa/",
+      "sent_at": "2026-11-11T01:36:30.572263",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "8f1d17776a43b2c369915d1f",
+      "type": "article",
+      "title": "Vice President Yadav Extends Greetings on Mahaguru Falgunanda's Birth Anniversary",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86258/falgunandas-thoughts-are-equally-relevant-today-vice-president",
+      "sent_at": "2026-11-11T01:36:24.111072",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "765bb7beb3a46915b6f730fd",
+      "type": "article",
+      "title": "फाल्गुनन्दका विचार आज पनि उत्तिकै सान्दर्भिक : उपराष्ट्रपति",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604527/falgunandas-thoughts-are-equally-relevant-today-vice-president",
+      "sent_at": "2026-11-11T01:36:17.816615",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "e1ca06f243b4e4aa61b230d5",
+      "type": "article",
+      "title": "बालगोपालेश्वर मन्दिरमा भक्तजनको भीड",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/crowd-of-devotees-at-balgopaleshwar-temple/",
+      "sent_at": "2026-11-11T01:36:11.607252",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "9e5d72fc5a1884f6c8bf4d18",
+      "type": "article",
+      "title": "Elderly Woman Rescued After Falling Down Cliff",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86259/elderly-woman-rescued-after-falling-from-cliff-and-getting-stuck-in-tree-roots",
+      "sent_at": "2026-11-11T01:36:05.365006",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "69a134c58e32ef52ea869de1",
+      "type": "article",
+      "title": "भिरबाट लडेर रुखको जरामा अड्किएकी वृद्धाको सकुशल उद्धार",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604528/elderly-woman-rescued-after-falling-from-cliff-and-getting-stuck-in-tree-roots",
+      "sent_at": "2026-11-11T01:35:59.146657",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "5ee3c2f2e4e0098bc04d451a",
+      "type": "article",
+      "title": "भाइटीकाका दिन बालगोपालेश्वर मन्दिर खुला",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/balgopaleshwar-temple-opens-on-bhai-tika-day/",
+      "sent_at": "2026-11-11T01:35:52.913785",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "7deee71417e36dfa23fb5273",
+      "type": "article",
+      "title": "आजको राशिफलः कुन राशिलाई कस्तो छ ?",
+      "source": "Image Khabar",
+      "link": "https://www.imagekhabar.com/news/563244/",
+      "sent_at": "2026-11-11T01:35:46.723044",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "4b0655ed36a9aede56f4ede4",
+      "type": "article",
+      "title": "जलविद्युत आयोजनाको सहयोगमा सडक मर्मत सुरु",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/road-repairs-begin-with-support-from-hydropower-project/",
+      "sent_at": "2026-11-11T01:35:40.465619",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "cdd38a92fee3fcabff6edeef",
+      "type": "article",
+      "title": "ममता काफ्लेको हत्या प्रकारणमा श्रीमान् नरेश भट्ट दोषी ठहर",
+      "source": "Shilapatra",
+      "link": "https://shilapatra.com/detail/198448",
+      "sent_at": "2026-11-11T01:35:34.266641",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "b42066c0573c21e7dd9d55a7",
+      "type": "article",
+      "title": "गुलियोमा लुकेको जोखिम",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/the-hidden-danger-in-sweets/",
+      "sent_at": "2026-11-11T01:35:27.952735",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "2fd33cd57aa97744aec4bedc",
+      "type": "article",
+      "title": "Police Seize 52 Modified Motorcycles for Loud Noise in Kathmandu",
+      "source": "Ratopati (EN)",
+      "link": "http://english.ratopati.com/story/86260/52-motorcycles-seized-for-making-loud-noises-by-changing-their-appearance",
+      "sent_at": "2026-11-11T01:35:21.705735",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "fbae89cac7a20a5d5b5d1b05",
+      "type": "article",
+      "title": "स्वरूप परिवर्तन गरी ठुलो आवाज निकाल्ने ५२ मोटरसाइकल नियन्त्रणमा",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604529/52-motorcycles-seized-for-making-loud-noises-by-changing-their-appearance",
+      "sent_at": "2026-11-11T01:35:15.469544",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "8051e15fa5dc57da44477efa",
+      "type": "article",
+      "title": "ममता काफ्ले प्रकरणः नरेश भट्ट प्रथम श्रेणीको हत्यामा दोषी ठहर, के सजाय हुनेछ ?",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/11/780464/mamta-kafle-case-naresh-bhatt-found-guilty-of-first-degree-murder-what-will-be-the-punishment/",
+      "sent_at": "2026-11-11T01:35:09.210804",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "b10366b18713199b75f82b5c",
+      "type": "article",
+      "title": "भाइटीकाको दिन काठमाडौं र भक्तपुरमा सशस्त्र प्रहरीको निःशुल्क बस सेवा",
+      "source": "Ratopati",
+      "link": "https://www.ratopati.com/story/604530/armed-police-force-provides-free-bus-service-in-kathmandu-and-bhaktapur-on-bhai-tika-day",
+      "sent_at": "2026-11-11T01:35:02.897104",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "9b2920c281a71ec3f8e26a40",
+      "type": "article",
+      "title": "Minister Timilsina calls for global support to rebuild disaster-hit communication infrastructure",
+      "source": "Nepal News (EN)",
+      "link": "https://english.nepalnews.com/s/diplomacy/minister-timilsina-calls-for-global-support-to-rebuild-disaster-hit-communication-infrastructure/",
+      "sent_at": "2026-11-11T01:34:56.574764",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "22a97613330cd099c24827a0",
+      "type": "article",
+      "title": "यमराजलाई समेत रोक्ने बहिनीको प्रेम, कसरी सुरु भयो भाइटीकाको परम्परा ?",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046791/",
+      "sent_at": "2026-11-11T01:34:50.302671",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "bc202ee304f641542d071e63",
+      "type": "article",
+      "title": "ममता काफ्ले हत्या प्रकरण : पति नरेश भट्ट दोषी ठहर",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/mamta-kafle-murder-case-husband-naresh-bhatt-found-guilty/",
+      "sent_at": "2026-11-11T01:34:44.075117",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "c2a67baa73b258155d71a3d4",
+      "type": "article",
+      "title": "थानीमाई मन्दिरमा एकै दिन भित्रिए ९१ डोली",
+      "source": "Nepal News",
+      "link": "https://nepalnews.com/2026/11/11/91-dolis-entered-thanimai-temple-in-a-single-day/",
+      "sent_at": "2026-11-11T01:34:37.818690",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "1fd226c8283f897a314aed27",
+      "type": "article",
+      "title": "आज भाइटीका, बिहान ११:०७ बजे उत्तम साइत",
+      "source": "Image Khabar",
+      "link": "https://www.imagekhabar.com/news/563246/",
+      "sent_at": "2026-11-11T01:34:31.580809",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "8c44a1c4cae4292c9efbcd09",
+      "type": "article",
+      "title": "भाइटीकाको दिन काठमाडौँ र भक्तपुरमा सशस्त्र प्रहरी बल, नेपालद्वारा निःशुल्क बस सेवा",
+      "source": "Nepal Press",
+      "link": "https://www.nepalpress.com/2026/11/11/780466/armed-police-force-nepal-provide-free-bus-service-in-kathmandu-and-bhaktapur-on-bhaitika-day/",
+      "sent_at": "2026-11-11T01:34:25.331645",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "e703334bc3eea6c576907ad5",
+      "type": "article",
+      "title": "भाइटीकाको दिन उपत्यकामा आवतजावत गर्न सशस्त्रका नि:शुल्क बस",
+      "source": "Himal Press",
+      "link": "https://himalpress.com/2026/11/free-buses-from-the-armed-forces-to-travel-around-the-valley-on-bhai-tika-day/",
+      "sent_at": "2026-11-11T01:34:19.052940",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "1eda7257bcd2b82d6fd42dc7",
+      "type": "article",
+      "title": "विपद्पछिको सञ्चार पूर्वाधार पुनर्निर्माणमा अन्तर्राष्ट्रिय सहयोग आवश्यक : मन्त्री तिमिल्सिना",
+      "source": "Khabarhub (NP)",
+      "link": "https://khabarhub.com/2026/11/1046794/",
+      "sent_at": "2026-11-11T01:34:12.826960",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "663e13a56f64369018135118",
+      "type": "article",
+      "title": "US jury finds Naresh Bhatt guilty of murdering wife Mamta Kafle",
+      "source": "The Kathmandu Post",
+      "link": "https://kathmandupost.com/nepali-diaspora/2026/11/11/us-jury-finds-naresh-bhatt-guilty-of-murdering-wife-mamta-kafle",
+      "sent_at": "2026-11-11T01:34:06.505416",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "45f71f81791e2d3d78536ab3",
+      "type": "article",
+      "title": "ममता काफ्ले हत्यामा पति नरेश भट्ट दोषी ठहर",
+      "source": "eKantipur",
+      "link": "https://ekantipur.com/diaspora/2026/11/11/husband-naresh-bhatt-found-guilty-in-mamta-kafles-murder-47-33.html",
+      "sent_at": "2026-11-11T01:34:01.577592",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "aa31bc8836e85f0e876680ad",
+      "type": "article",
+      "title": "पर्वतीय मुद्दा कोप-३१ को अन्तिम निर्णयमा समेटिने नेपालको अपेक्षा",
+      "source": "NepalKhabar",
+      "link": "https://nepalkhabar.com/society/291490-2026-11-11-0-5-42",
+      "sent_at": "2026-11-11T01:33:56.234651",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "afdce7d58ad5444132fbbc00",
+      "type": "article",
+      "title": "२ वर्षमा सक्नुपर्ने सडक निर्माण कार्य ४ वर्षमा पनि सकिएन",
+      "source": "NepalKhabar",
+      "link": "https://nepalkhabar.com/economy/291491-2026-11-11-0-48-34",
+      "sent_at": "2026-11-11T01:33:45.018593",
+      "channel": "Official WhatsApp Channel"
+    },
+    {
+      "key": "2fc815a23a3ffc6bcc5f5563",
+      "type": "article",
+      "title": "मोटरसाइकल दुर्घटना हुँदा पछाडि बस्ने किशोरको मृत्यु, चालक गम्भीर घाइते",
+      "source": "NepalKhabar",
+      "link": "https://nepalkhabar.com/society/291492-2026-11-11-1-18-12",
+      "sent_at": "2026-11-11T01:33:40.121195",
+      "channel": "Official WhatsApp Channel"
+    },
     {
       "key": "d28d26f32692ca4d00cafd53",
       "type": "article",
