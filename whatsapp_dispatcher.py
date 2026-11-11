@@ -9,8 +9,39 @@ import os
 import json
 import hashlib
 import urllib.parse
+import re
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
+
+# Comprehensive regex to ensure Indian media coverage is substantially related to Nepal
+NEPAL_SUBSTANTIVE_KEYWORDS = re.compile(
+    r'\b('
+    r'nepal|nepali|nepalese|kathmandu|pokhara|birgunj|biratnagar|everest|sagarmatha|'
+    r'kp oli|k\.p\. oli|oli|prachanda|pushpa kamal dahal|deuba|sher bahadur|'
+    r'balen|balen shah|rabi lamichhane|kulman|singha durbar|'
+    r'indo-nepal|nepal-india|india-nepal|'
+    r'kalapani|lipulekh|limpiyadhura|susta|pancheshwar|mahakali|koshi|gandak|'
+    r'gorkha|gurkha|madhesh|terai|janakpur|lumbini|buddha was born in nepal|'
+    r'1950 treaty|open border|ssb border|cross-border transmission|gorakhpur-butwal|'
+    r'arun iii|nepal electricity|power trade agreement|pta|'
+    r'नेपाल|काठमांडू|काठमाडौँ|ओली|प्रचण्ड|देउवा|बालेन|मधेस|लिपुलेक|कालापानी|महाकाली|गोरखा'
+    r')\b',
+    re.IGNORECASE
+)
+
+def is_substantially_related_to_nepal(item: Dict[str, Any]) -> bool:
+    """
+    Evaluates whether an article is substantially related to Nepal,
+    including its politics, diplomacy, economy, security, and bilateral relations.
+    Filters out generic Indian domestic news or unrelated portal sidebar items.
+    """
+    title = str(item.get("title") or "")
+    summary = str(item.get("summary") or "")
+    full_content = str(item.get("full_content") or "")
+    link = str(item.get("link") or "").lower()
+
+    text_corpus = f"{title} {summary} {full_content[:1500]} {link}"
+    return bool(NEPAL_SUBSTANTIVE_KEYWORDS.search(text_corpus))
 
 SENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), "whatsapp_sent_cache.json")
 
@@ -91,14 +122,21 @@ def is_item_broadcasted(item: Dict[str, Any], item_type: str = "article") -> boo
 def mark_item_broadcasted(
     item: Dict[str, Any],
     item_type: str = "article",
-    channel_name: str = "Official WhatsApp Channel"
+    channel_name: str = "Official WhatsApp Channel",
+    message_id: str = "",
+    status: str = "delivered"
 ) -> bool:
-    """Marks an item as sent in the persistent deduplication cache."""
+    """
+    Marks an item as sent in the persistent deduplication cache,
+    tracks per-source delivery distribution metrics, and logs to SQLite audit store.
+    """
     cache = load_sent_cache()
     if "sent_keys" not in cache:
         cache["sent_keys"] = {}
     if "history" not in cache:
         cache["history"] = []
+    if "source_stats" not in cache:
+        cache["source_stats"] = {}
 
     key = get_item_key(item, item_type)
     if key in cache["sent_keys"]:
@@ -107,14 +145,25 @@ def mark_item_broadcasted(
     title = item.get("title") or item.get("text") or "Untitled"
     source = item.get("source") or item.get("author_name") or item.get("handle") or "Unknown"
 
+    # Identify clean stream classification
+    if item_type in ("x", "twitter"):
+        stream_name = "X (Twitter)"
+    elif item.get("portal_category") == "Indian Press" or "Indian" in str(item.get("source_type", "")):
+        stream_name = "Indian Media"
+    else:
+        stream_name = "Nepali Media"
+
     entry = {
         "key": key,
         "type": item_type,
+        "stream": stream_name,
         "title": title[:140],
         "source": source,
-        "link": item.get("link") or item.get("fb_link") or "",
+        "link": item.get("link") or "",
         "sent_at": datetime.now().isoformat(),
-        "channel": channel_name
+        "channel": channel_name,
+        "message_id": message_id,
+        "status": status
     }
 
     cache["sent_keys"][key] = entry
@@ -122,7 +171,44 @@ def mark_item_broadcasted(
     # Keep history bounded to latest 500 records
     cache["history"] = cache["history"][:500]
 
+    # Update Source-Wise Distribution Aggregates
+    src_stat = cache["source_stats"].get(source, {
+        "source": source,
+        "stream": stream_name,
+        "total_sent": 0,
+        "delivered": 0,
+        "failed": 0,
+        "last_sent_at": None,
+        "last_title": ""
+    })
+    src_stat["total_sent"] = src_stat.get("total_sent", 0) + 1
+    if status == "delivered":
+        src_stat["delivered"] = src_stat.get("delivered", 0) + 1
+    else:
+        src_stat["failed"] = src_stat.get("failed", 0) + 1
+    src_stat["last_sent_at"] = entry["sent_at"]
+    src_stat["last_title"] = title[:100]
+    cache["source_stats"][source] = src_stat
+
     save_sent_cache(cache)
+
+    # Durable audit logging in SQLite store
+    try:
+        from nepal_news_store import log_broadcast_delivery
+        log_broadcast_delivery(
+            item_key=key,
+            source_name=source,
+            stream_type=stream_name,
+            title=title,
+            link=item.get("link") or "",
+            status=status,
+            message_id=message_id,
+            attempts=1,
+            channel_id=channel_name
+        )
+    except Exception:
+        pass
+
     return True
 
 def unmark_item_broadcasted(item: Dict[str, Any], item_type: str = "article") -> bool:
@@ -137,26 +223,37 @@ def unmark_item_broadcasted(item: Dict[str, Any], item_type: str = "article") ->
     return False
 
 def get_broadcasted_stats() -> Dict[str, Any]:
-    """Returns statistics of the broadcast engine."""
+    """Returns comprehensive statistics and source-wise delivery metrics."""
     cache = load_sent_cache()
     sent_keys = cache.get("sent_keys", {})
     history = cache.get("history", [])
+    source_stats = cache.get("source_stats", {})
 
     by_type = {"article": 0, "x": 0}
+    by_stream = {"nepali_media": 0, "indian_media": 0, "x": 0}
+
     for item in sent_keys.values():
         t = item.get("type", "article")
-        if "indian" in t or "nepali" in t or t == "article":
+        stream = item.get("stream", "")
+        if "indian" in t or stream == "Indian Media":
+            by_stream["indian_media"] += 1
             by_type["article"] += 1
-        elif "x" in t or "twitter" in t:
+        elif "x" in t or "twitter" in t or stream == "X (Twitter)":
+            by_stream["x"] += 1
             by_type["x"] += 1
+        else:
+            by_stream["nepali_media"] += 1
+            by_type["article"] += 1
 
     last_sent = history[0]["sent_at"] if history else None
 
     return {
         "total_broadcasted": len(sent_keys),
         "by_type": by_type,
+        "by_stream": by_stream,
+        "source_stats": source_stats,
         "last_broadcast_at": last_sent,
-        "recent_history": history[:15]
+        "recent_history": history[:25]
     }
 
 def fetch_article_full_text(url: str, timeout: int = 5) -> str:
@@ -210,8 +307,17 @@ def _is_devanagari(text: str) -> bool:
 def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") -> str:
     """
     Formats an individual news article or X post for WhatsApp.
+    Preserves original headlines, post content, source attribution, timestamps, and URLs.
     Fast, direct formatting without AI translation overhead.
     """
+    time_str = str(item.get("exact_time") or item.get("relative_time") or "").strip()
+    if not time_str and item.get("published_dt"):
+        pdt = item["published_dt"]
+        if isinstance(pdt, datetime):
+            time_str = pdt.strftime("%b %d, %Y · %I:%M %p NPT")
+        elif isinstance(pdt, str):
+            time_str = pdt
+
     if item_type in ("x", "twitter"):
         link = item.get("link") or "https://x.com"
         handle = (item.get("handle") or "@user").strip()
@@ -225,7 +331,10 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         else:
             author_line = f"*{author}*"
 
-        meta_line = "🐦 X (Twitter)"
+        meta_parts = ["🐦 X (Twitter)"]
+        if time_str:
+            meta_parts.append(f"🕒 {time_str}")
+        meta_line = " · ".join(meta_parts)
 
         content_section = full_text
         if len(content_section) > 3400:
@@ -240,9 +349,10 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         return msg
 
     else:
-        # News Article (Nepali, Indian Press, or English)
+        # News Article (Nepali Media or Indian Media)
         link = item.get("link") or "#"
         source = item.get("source") or "Nepal News"
+        category = str(item.get("structured_category") or item.get("primary_section") or "").strip()
 
         full_content = (item.get("full_content") or "").strip()
         if len(full_content) < 300 and link and link.startswith("http"):
@@ -253,7 +363,13 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
 
         headline = (item.get("title") or "").replace("*", "").strip()
         title_block = f"*{headline}*"
-        meta_line = f"📰 {source}"
+
+        meta_parts = [f"📰 {source}"]
+        if category and category not in ("Others", "Nepal – Others"):
+            meta_parts.append(f"📌 {category}")
+        if time_str:
+            meta_parts.append(f"🕒 {time_str}")
+        meta_line = " · ".join(meta_parts)
 
         story_body = full_content or item.get("summary") or ""
         story_body = story_body.strip()
@@ -431,16 +547,20 @@ def get_green_api_status() -> Tuple[str, str]:
 def dispatch_item_to_green_api(
     item: Dict[str, Any],
     item_type: str,
-    chat_id: str
+    chat_id: str,
+    max_retries: int = 3
 ) -> Tuple[bool, str]:
     """
-    Dispatches formatted WhatsApp message via Green-API.
+    Dispatches formatted WhatsApp message via Green-API with automatic retries and delivery tracking.
     chat_id format:
       - Personal number: e.g. "9779812345678@c.us"
       - Group: e.g. "12036304...8@g.us"
       - Channel: e.g. "12036304...8@newsletter"
     """
     import urllib.request
+    import urllib.error
+    import time
+
     api_url, id_inst, token = get_green_api_credentials()
     if not id_inst or not token:
         return False, "Green-API credentials not configured"
@@ -452,21 +572,31 @@ def dispatch_item_to_green_api(
         "message": wa_text
     }
 
-    try:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={"Content-Type": "application/json; charset=utf-8"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            resp_data = json.loads(resp.read().decode())
-            if "idMessage" in resp_data:
-                return True, resp_data["idMessage"]
-            return False, str(resp_data)
-    except Exception as ex:
-        return False, str(ex)
+    last_error = ""
+    for attempt in range(1, max_retries + 1):
+        try:
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers={"Content-Type": "application/json; charset=utf-8"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                resp_data = json.loads(resp.read().decode())
+                if "idMessage" in resp_data:
+                    return True, resp_data["idMessage"]
+                last_error = f"Response missing idMessage: {resp_data}"
+        except urllib.error.HTTPError as he:
+            last_error = f"HTTP {he.code}: {he.reason}"
+            if attempt < max_retries:
+                time.sleep(attempt * 1.5)
+        except Exception as ex:
+            last_error = str(ex)
+            if attempt < max_retries:
+                time.sleep(attempt)
+
+    return False, last_error
 
 def get_green_api_chats() -> List[Dict[str, Any]]:
     """Fetches list of active chats/groups/channels from authorized Green-API instance."""

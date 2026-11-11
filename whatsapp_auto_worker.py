@@ -40,7 +40,8 @@ from whatsapp_dispatcher import (
     get_green_api_status,
     dispatch_item_to_green_api,
     get_green_api_credentials,
-    find_channel_newsletter_id
+    find_channel_newsletter_id,
+    is_substantially_related_to_nepal
 )
 
 def dispatch_to_webhook(item: Dict[str, Any], item_type: str, webhook_url: str) -> bool:
@@ -169,37 +170,40 @@ def run_single_broadcast_cycle(
     x_posts = scan_popular_nepal_x_posts(force_refresh=False)
 
     all_scanned: List[tuple[Dict[str, Any], str]] = []
-    # 1. Send all news published by 34 Nepali media regardless of category
+
+    # 1. Nepali Media: Every newly published article from all enabled portals in the existing Nepali Media registry, irrespective of category
+    try:
+        from nepal_news_store import get_all_source_health
+        enabled_portals = {h["name"] for h in get_all_source_health() if h.get("enabled", 1)}
+    except Exception:
+        enabled_portals = set()
+
+    nepali_count = 0
     for a in nepali_articles:
+        src = a.get("source", "")
+        if enabled_portals and src and src not in enabled_portals:
+            continue
         all_scanned.append((a, "article"))
+        nepali_count += 1
 
-    # 2. Indian media publishing anything about Nepal
+    # 2. Indian Media: All articles substantially related to Nepal, including its politics, diplomacy, economy, security, and bilateral relations
+    indian_count = 0
     for a in indian_articles:
-        all_scanned.append((a, "article"))
+        if is_substantially_related_to_nepal(a):
+            all_scanned.append((a, "article"))
+            indian_count += 1
 
-    # 3. X posts that strictly fall under the structured categories (excluding uncategorized/generic chatter)
-    CORE_X_CATEGORIES = {
-        "India Section",
-        "China Section",
-        "Pakistan Section",
-        "Bangladesh Section",
-        "Nepal – Internal",
-        "Nepal – External",
-        "Nepal – Economy",
-        "International News",
-        # Backward compatibility aliases
-        "India in Nepal",
-        "China in Nepal",
-        "Pakistan in Nepal",
-        "Bangladesh in Nepal",
-        "Nepal – Internal Politics",
-        "Nepal – External Relations (Others)",
-        "Economy"
-    }
+    # 3. X (Twitter): Every accessible new post from all X handles in the existing monitoring registry, without relevance filtering
+    x_count = 0
     for p in x_posts:
-        cat = (p.get("structured_category") or "").strip()
-        if cat in CORE_X_CATEGORIES:
-            all_scanned.append((p, "x"))
+        all_scanned.append((p, "x"))
+        x_count += 1
+
+    logger.info(
+        f"Ingested streams: {nepali_count} Nepali Media stories, "
+        f"{indian_count} Nepal-related Indian Media stories, "
+        f"{x_count} X (Twitter) posts."
+    )
 
     # 2. Filter for items published in the refresh window
     # Morning window (06:00 AM): 10-hour lookback sweeps all overnight stories from 10 PM to 6 AM
@@ -285,7 +289,14 @@ def run_single_broadcast_cycle(
             logger.error(f"Error dispatching item '{title[:50]}': {ex}")
 
         if success:
-            mark_item_broadcasted(item, itype)
+            msg_id = msg if (green_id and green_chat_id) else ""
+            mark_item_broadcasted(
+                item,
+                itype,
+                channel_name=green_chat_id or "WhatsApp Group",
+                message_id=msg_id,
+                status="delivered"
+            )
             dispatched_count += 1
             time.sleep(1)  # 1-second pacing between posts to respect rate limits
         else:

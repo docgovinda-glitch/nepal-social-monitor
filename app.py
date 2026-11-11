@@ -51,7 +51,8 @@ from nepal_news_store import (
     get_system_kpis,
     set_source_enabled,
     set_source_interval,
-    get_stored_articles
+    get_stored_articles,
+    get_source_broadcast_stats
 )
 from nepal_news_scheduler import (
     run_single_source_discovery,
@@ -84,7 +85,8 @@ from whatsapp_dispatcher import (
     dispatch_item_to_green_api,
     send_test_green_api_message,
     get_green_api_chats,
-    find_channel_newsletter_id
+    find_channel_newsletter_id,
+    is_substantially_related_to_nepal
 )
 
 # Load environment variables from .env if present
@@ -2362,22 +2364,29 @@ with tab4:
 
     wa_stats = get_broadcasted_stats()
 
-    m1, m2, m3 = st.columns(3)
+    by_stream = wa_stats.get("by_stream", {})
+    m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric("Total Broadcasted", f"{wa_stats['total_broadcasted']:,}")
     with m2:
-        st.metric("📰 News Stories", f"{wa_stats['by_type']['article']:,}")
+        st.metric("📰 Nepali Media", f"{by_stream.get('nepali_media', 0):,}")
     with m3:
-        st.metric("🐦 X (Twitter)", f"{wa_stats['by_type']['x']:,}")
+        st.metric("🇮🇳 Indian Media (Nepal)", f"{by_stream.get('indian_media', 0):,}")
+    with m4:
+        st.metric("🐦 X (Twitter)", f"{by_stream.get('x', 0):,}")
 
     # Deduplication Queue: Gather unscanned/unbroadcasted items from current timeframe
     pending_queue = []
+    # 1. Nepali Media: every article irrespective of category
     for item in filtered_articles:
         if not is_item_broadcasted(item, "article"):
             pending_queue.append({"item": item, "type": "article", "source_type": "Nepali Media"})
+    # 2. Indian Media: all articles substantially related to Nepal
     for item in filtered_indian:
-        if not is_item_broadcasted(item, "article"):
-            pending_queue.append({"item": item, "type": "article", "source_type": "Indian Press"})
+        if is_substantially_related_to_nepal(item):
+            if not is_item_broadcasted(item, "article"):
+                pending_queue.append({"item": item, "type": "article", "source_type": "Indian Press"})
+    # 3. X (Twitter): every accessible new post without relevance filtering
     for item in filtered_x_posts:
         if not is_item_broadcasted(item, "x"):
             pending_queue.append({"item": item, "type": "x", "source_type": "X (Twitter)"})
@@ -2472,12 +2481,12 @@ with tab4:
         st.success("🎉 All scanned items in this timeframe have been broadcasted! Deduplication engine is up to date.")
 
     # Recent Broadcast History
-    with st.expander("📜 Recent Broadcast History (Last 15 Dispatched Updates)", expanded=False):
+    with st.expander("📜 Recent Broadcast History (Last 25 Dispatched Updates)", expanded=False):
         if wa_stats["recent_history"]:
-            for h in wa_stats["recent_history"]:
+            for h in wa_stats["recent_history"][:15]:
                 hc1, hc2, hc3 = st.columns([4, 1.5, 1])
                 with hc1:
-                    st.markdown(f"**{html.escape(h.get('title', ''))}**\n\n_{html.escape(h.get('source', ''))}_ · `{h.get('type')}`")
+                    st.markdown(f"**{html.escape(h.get('title', ''))}**\n\n_{html.escape(h.get('source', ''))}_ · `{h.get('stream', h.get('type'))}`")
                 with hc2:
                     st.caption(f"Sent: {h.get('sent_at', '')[:16]}")
                 with hc3:
@@ -2486,6 +2495,30 @@ with tab4:
                         st.rerun()
         else:
             st.caption("No broadcast history recorded yet.")
+
+    # Source-Wise Broadcast Distribution Matrix & Monitoring Logs
+    with st.expander("📊 Source-Wise WhatsApp Distribution Matrix & Audit Logs", expanded=False):
+        src_stats = get_source_broadcast_stats()
+        if src_stats:
+            df_src = pd.DataFrame(src_stats)
+            df_src.columns = ["Source / Handle", "Content Stream", "Total Dispatches", "Delivered", "Failed", "Last Dispatched At"]
+            st.dataframe(df_src, width="stretch", hide_index=True)
+        else:
+            cache_src = wa_stats.get("source_stats", {})
+            if cache_src:
+                rows = []
+                for sname, sdata in cache_src.items():
+                    rows.append({
+                        "Source / Handle": sname,
+                        "Content Stream": sdata.get("stream", "General"),
+                        "Total Dispatches": sdata.get("total_sent", 0),
+                        "Delivered": sdata.get("delivered", sdata.get("total_sent", 0)),
+                        "Failed": sdata.get("failed", 0),
+                        "Last Dispatched At": sdata.get("last_sent_at", "")
+                    })
+                st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+            else:
+                st.info("No distribution records logged yet. As automated hourly cycles execute, source-wise dispatches will be tracked here.")
 
 # ==========================================
 # TAB 5: Nepali Media Monitoring & Control (Chief Admin)

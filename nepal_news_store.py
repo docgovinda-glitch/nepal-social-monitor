@@ -150,12 +150,33 @@ def init_news_store():
             )
         """)
 
+        # Broadcast distribution logs for WhatsApp Group & Channel
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_key TEXT NOT NULL,
+                source_name TEXT NOT NULL,
+                stream_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                link TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'delivered',
+                message_id TEXT,
+                attempts INTEGER DEFAULT 1,
+                channel_id TEXT,
+                dispatched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                error_msg TEXT
+            )
+        """)
+
         # Indexes for fast querying, filtering, and metrics
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_art_published ON articles(published_dt DESC);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_art_source ON articles(source);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_art_primary ON articles(primary_section);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_art_ingested ON articles(ingested_at DESC);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_logs_source_time ON discovery_logs(source_name, timestamp DESC);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_bcast_key ON broadcast_logs(item_key);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_bcast_src ON broadcast_logs(source_name);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_bcast_time ON broadcast_logs(dispatched_at DESC);")
 
         conn.commit()
 
@@ -514,4 +535,81 @@ def get_system_kpis() -> Dict[str, Any]:
             "articles_7d": art_row["count_7d"] or 0,
             "total_stored_articles": art_row["total_articles"] or 0
         }
+
+def log_broadcast_delivery(
+    item_key: str,
+    source_name: str,
+    stream_type: str,
+    title: str,
+    link: str,
+    status: str = "delivered",
+    message_id: str = "",
+    attempts: int = 1,
+    channel_id: str = "",
+    error_msg: str = ""
+):
+    """Records a single message broadcast attempt and status in durable SQLite audit log."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO broadcast_logs 
+                (item_key, source_name, stream_type, title, link, status, message_id, attempts, channel_id, error_msg)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                item_key,
+                source_name,
+                stream_type,
+                title[:250],
+                link,
+                status,
+                message_id,
+                attempts,
+                channel_id,
+                error_msg
+            ))
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Error logging broadcast delivery to database: {e}")
+
+def get_source_broadcast_stats() -> List[Dict[str, Any]]:
+    """Fetches source-wise WhatsApp broadcast volume, latest dispatch, and success counts."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    source_name,
+                    stream_type,
+                    COUNT(*) as total_dispatches,
+                    SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as delivered_count,
+                    SUM(CASE WHEN status != 'delivered' THEN 1 ELSE 0 END) as failed_count,
+                    MAX(dispatched_at) as last_dispatched_at
+                FROM broadcast_logs
+                GROUP BY source_name, stream_type
+                ORDER BY total_dispatches DESC
+            """)
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        logger.warning(f"Error reading broadcast source stats: {e}")
+        return []
+
+def get_recent_broadcast_logs(limit: int = 50) -> List[Dict[str, Any]]:
+    """Retrieves the latest broadcast audit entries."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    id, item_key, source_name, stream_type, title, link, status, message_id, attempts, channel_id, dispatched_at, error_msg
+                FROM broadcast_logs
+                ORDER BY dispatched_at DESC
+                LIMIT ?
+            """, (limit,))
+            rows = cursor.fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        logger.warning(f"Error fetching recent broadcast logs: {e}")
+        return []
 

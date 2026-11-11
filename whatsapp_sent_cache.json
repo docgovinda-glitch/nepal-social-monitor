@@ -5147,9 +5147,33 @@
       "link": "https://khabarhub.com/2026/11/1046868/",
       "sent_at": "2026-11-11T13:03:36.273352",
       "channel": "Official WhatsApp Channel"
+    },
+    "074aae5e167e26d59c82ff87": {
+      "key": "074aae5e167e26d59c82ff87",
+      "type": "article",
+      "stream": "Nepali Media",
+      "title": "नेपाल-भारत ऊर्जा व्यापार तथा जलविद्युत् विकासमा नयाँ समझदारी",
+      "source": "Setopati",
+      "link": "https://setopati.com/kinmel/economy/sample-energy-test",
+      "sent_at": "2026-11-11T13:26:44.190069",
+      "channel": "120363413358977926@g.us",
+      "message_id": "3EB071CB8BF9DD8A27D258",
+      "status": "delivered"
     }
   },
   "history": [
+    {
+      "key": "074aae5e167e26d59c82ff87",
+      "type": "article",
+      "stream": "Nepali Media",
+      "title": "नेपाल-भारत ऊर्जा व्यापार तथा जलविद्युत् विकासमा नयाँ समझदारी",
+      "source": "Setopati",
+      "link": "https://setopati.com/kinmel/economy/sample-energy-test",
+      "sent_at": "2026-11-11T13:26:44.190069",
+      "channel": "120363413358977926@g.us",
+      "message_id": "3EB071CB8BF9DD8A27D258",
+      "status": "delivered"
+    },
     {
       "key": "1820707cd8775fabd2e9e252",
       "type": "article",
@@ -9587,5 +9611,16 @@
       "sent_at": "2026-11-10T16:12:23.514652",
       "channel": "Official WhatsApp Channel"
     }
-  ]
+  ],
+  "source_stats": {
+    "Setopati": {
+      "source": "Setopati",
+      "stream": "Nepali Media",
+      "total_sent": 1,
+      "delivered": 1,
+      "failed": 0,
+      "last_sent_at": "2026-11-11T13:26:44.190069",
+      "last_title": "नेपाल-भारत ऊर्जा व्यापार तथा जलविद्युत् विकासमा नयाँ समझदारी"
+    }
+  }
 }
