@@ -116,883 +116,8 @@ st.set_page_config(
 )
 
 # 2. Modern Apple-Grade Design System & Custom Styling
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=SF+Pro+Display:wght@400;500;600;700&display=swap');
-
-    :root {
-        --apple-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", sans-serif;
-        --apple-bg: #F5F5F7;
-        --apple-card-bg: rgba(255, 255, 255, 0.85);
-        --apple-card-solid: #FFFFFF;
-        --apple-border: rgba(0, 0, 0, 0.08);
-        --apple-border-subtle: rgba(0, 0, 0, 0.04);
-        --apple-text-primary: #1D1D1F;
-        --apple-text-secondary: #515154;
-        --apple-text-tertiary: #86868B;
-        --apple-accent: #0071E3;
-        --apple-accent-hover: #0077ED;
-        --apple-accent-soft: rgba(0, 113, 227, 0.08);
-        --apple-glass-bg: rgba(255, 255, 255, 0.72);
-        --apple-glass-blur: blur(20px) saturate(180%);
-        --apple-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-        --apple-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
-        --apple-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
-        --apple-radius-sm: 8px;
-        --apple-radius-md: 12px;
-        --apple-radius-lg: 16px;
-        --apple-radius-xl: 20px;
-        --apple-radius-pill: 9999px;
-        --apple-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-
-    /* Global Typography & Smoothing */
-    html, body, .stMarkdown, p, label, h1, h2, h3, h4, h5, h6 {
-        font-family: var(--apple-font) !important;
-        -webkit-font-smoothing: antialiased !important;
-        -moz-osx-font-smoothing: grayscale !important;
-        color: var(--apple-text-primary);
-    }
-
-    /* Clean App Background */
-    [data-testid="stAppViewContainer"], .main {
-        background-color: var(--apple-bg) !important;
-    }
-
-    /* Streamlit Main Container */
-    .block-container {
-        padding-top: 1.2rem !important;
-        padding-bottom: 4rem !important;
-        max-width: 1300px !important;
-    }
-
-    hr {
-        border-color: rgba(0, 0, 0, 0.06) !important;
-        margin: 1.5rem 0 !important;
-    }
-
-    /* Apple Top Navigation / Header Bar */
-    .apple-top-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 24px;
-        margin-bottom: 20px;
-        background: var(--apple-glass-bg);
-        backdrop-filter: var(--apple-glass-blur);
-        -webkit-backdrop-filter: var(--apple-glass-blur);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: var(--apple-radius-xl);
-        box-shadow: var(--apple-shadow-md);
-    }
-
-    .apple-top-title-group {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-
-    .apple-flag-icon {
-        font-size: 2.2rem;
-        line-height: 1;
-        display: inline-block;
-        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.12));
-    }
-
-    .apple-top-title {
-        font-size: 1.38rem !important;
-        font-weight: 700 !important;
-        color: var(--apple-text-primary) !important;
-        letter-spacing: -0.025em !important;
-        margin: 0 !important;
-        line-height: 1.15 !important;
-    }
-
-    .apple-top-subtitle {
-        font-size: 0.84rem !important;
-        color: var(--apple-text-secondary) !important;
-        font-weight: 450 !important;
-        margin: 3px 0 0 0 !important;
-        line-height: 1.3 !important;
-    }
-
-    .apple-top-status {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: rgba(16, 185, 129, 0.08);
-        border: 1px solid rgba(16, 185, 129, 0.2);
-        padding: 6px 14px;
-        border-radius: var(--apple-radius-pill);
-    }
-
-    .apple-live-pulse {
-        width: 7px;
-        height: 7px;
-        background-color: #10B981;
-        border-radius: 50%;
-        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-        animation: applePulse 2s infinite;
-    }
-
-    @keyframes applePulse {
-        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-
-    .apple-status-text {
-        font-size: 0.76rem;
-        font-weight: 650;
-        color: #047857;
-        letter-spacing: 0.02em;
-    }
-
-    /* Apple Segmented Control (Tabs) */
-    div[data-baseweb="tab-list"], div[role="tablist"] {
-        background: rgba(0, 0, 0, 0.05) !important;
-        padding: 4px !important;
-        border-radius: 14px !important;
-        gap: 4px !important;
-        border: none !important;
-        margin-bottom: 22px !important;
-        display: flex !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-
-    button[data-baseweb="tab"], div[data-testid="stTab"], [role="tab"] {
-        font-family: var(--apple-font) !important;
-        border-radius: 10px !important;
-        padding: 9px 16px !important;
-        font-weight: 550 !important;
-        font-size: 0.88rem !important;
-        color: var(--apple-text-secondary) !important;
-        border: none !important;
-        background: transparent !important;
-        transition: all 0.2s var(--apple-ease) !important;
-        cursor: pointer !important;
-        flex: 1 1 auto !important;
-        text-align: center !important;
-        justify-content: center !important;
-        white-space: nowrap !important;
-    }
-
-    button[data-baseweb="tab"]:hover, div[data-testid="stTab"]:hover, [role="tab"]:hover {
-        color: var(--apple-text-primary) !important;
-        background: rgba(255, 255, 255, 0.5) !important;
-    }
-
-    button[data-baseweb="tab"][aria-selected="true"], 
-    div[data-testid="stTab"][aria-selected="true"], 
-    [role="tab"][aria-selected="true"] {
-        background: #FFFFFF !important;
-        color: var(--apple-text-primary) !important;
-        font-weight: 650 !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-    }
-
-    div[data-baseweb="tab-border"], div[data-baseweb="tab-highlight"], [data-testid="stTabHighlight"] {
-        display: none !important;
-    }
-
-    /* Apple Metric Cards */
-    div[data-testid="stMetric"] {
-        background: #FFFFFF !important;
-        border: 1px solid rgba(0, 0, 0, 0.06) !important;
-        border-radius: var(--apple-radius-lg) !important;
-        padding: 18px 22px !important;
-        box-shadow: var(--apple-shadow-sm) !important;
-        transition: all 0.25s var(--apple-ease) !important;
-    }
-
-    div[data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--apple-shadow-md) !important;
-        border-color: rgba(0, 113, 227, 0.3) !important;
-    }
-
-    div[data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
-        font-weight: 600 !important;
-        color: var(--apple-text-tertiary) !important;
-        letter-spacing: -0.01em !important;
-        text-transform: uppercase !important;
-    }
-
-    div[data-testid="stMetricValue"] {
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.025em !important;
-        color: var(--apple-text-primary) !important;
-    }
-
-    /* Apple News Article Card (Refined macOS Sonoma / iOS 18 Aesthetic) */
-    .apple-news-card {
-        background: #FFFFFF;
-        border-radius: var(--apple-radius-lg);
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        border-left: 4px solid #CBD5E1;
-        box-shadow: var(--apple-shadow-sm);
-        padding: 20px 24px;
-        margin-bottom: 16px;
-        transition: all 0.25s var(--apple-ease);
-        position: relative;
-    }
-
-    .apple-news-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--apple-shadow-hover);
-        border-color: rgba(0, 113, 227, 0.25);
-    }
-
-    .card-accent-india { border-left-color: #F59E0B !important; }
-    .card-accent-china { border-left-color: #EF4444 !important; }
-    .card-accent-pakistan { border-left-color: #10B981 !important; }
-    .card-accent-bangladesh { border-left-color: #06B6D4 !important; }
-    .card-accent-internal, .card-accent-politics { border-left-color: #6366F1 !important; }
-    .card-accent-external { border-left-color: #8B5CF6 !important; }
-    .card-accent-economy { border-left-color: #059669 !important; }
-    .card-accent-others { border-left-color: #94A3B8 !important; }
-    .card-accent-international { border-left-color: #7C3AED !important; }
-    .card-accent-indian-press { border-left-color: #F97316 !important; }
-
-    .apple-card-meta {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 12px;
-    }
-
-    .apple-card-title {
-        margin: 0 0 10px 0 !important;
-        font-size: 1.18rem !important;
-        font-weight: 650 !important;
-        line-height: 1.45 !important;
-        letter-spacing: -0.02em !important;
-    }
-
-    .apple-card-title a {
-        color: var(--apple-text-primary) !important;
-        text-decoration: none !important;
-        transition: color 0.15s ease;
-    }
-
-    .apple-card-title a:hover {
-        color: var(--apple-accent) !important;
-    }
-
-    .apple-card-summary {
-        color: var(--apple-text-secondary);
-        font-size: 0.92rem;
-        line-height: 1.6;
-        margin: 0 0 14px 0;
-    }
-
-    /* Refined Apple Buttons */
-    .apple-card-cta {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #F5F5F7;
-        color: var(--apple-text-primary) !important;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        padding: 6px 14px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.8rem;
-        font-weight: 600;
-        text-decoration: none !important;
-        transition: all 0.2s var(--apple-ease);
-    }
-
-    .apple-card-cta:hover {
-        background: var(--apple-accent);
-        color: #FFFFFF !important;
-        border-color: var(--apple-accent);
-        box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
-    }
-
-    .apple-wa-share-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: rgba(34, 197, 94, 0.08);
-        color: #15803D !important;
-        border: 1px solid rgba(34, 197, 94, 0.2);
-        padding: 6px 13px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.78rem;
-        font-weight: 650;
-        text-decoration: none !important;
-        transition: all 0.2s var(--apple-ease);
-    }
-
-    .apple-wa-share-btn:hover {
-        background: #22C55E;
-        color: #FFFFFF !important;
-        border-color: #22C55E;
-        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.25);
-    }
-
-    /* Tags & Badges */
-    .portal-tag {
-        background: #1D1D1F;
-        color: #FFFFFF;
-        padding: 4px 12px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.74rem;
-        font-weight: 650;
-        letter-spacing: -0.01em;
-    }
-
-    .indian-portal-tag {
-        background: #FFF7ED;
-        color: #C2410C;
-        border: 1px solid #FFEDD5;
-        padding: 4px 12px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.74rem;
-        font-weight: 650;
-    }
-
-    .time-badge {
-        background: #F5F5F7;
-        color: var(--apple-text-secondary);
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        padding: 4px 11px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.74rem;
-        font-weight: 550;
-    }
-
-    /* Sidebar Refinement */
-    section[data-testid="stSidebar"] {
-        background-color: #FAFAFC !important;
-        border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
-    }
-
-    /* Buttons in Streamlit */
-    .stButton>button {
-        border-radius: 12px !important;
-        font-weight: 600 !important;
-        font-size: 0.88rem !important;
-        padding: 9px 20px !important;
-        transition: all 0.2s var(--apple-ease) !important;
-        border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    }
-
-    .stButton>button[kind="primary"] {
-        background: var(--apple-accent) !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        box-shadow: 0 2px 8px rgba(0, 113, 227, 0.3) !important;
-    }
-
-    .stButton>button[kind="primary"]:hover {
-        background: var(--apple-accent-hover) !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 16px rgba(0, 113, 227, 0.4) !important;
-    }
-
-    /* Input & Select fields */
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-        border-radius: 12px !important;
-        border-color: rgba(0, 0, 0, 0.12) !important;
-        background-color: #FFFFFF !important;
-        transition: all 0.2s var(--apple-ease) !important;
-    }
-
-    div[data-baseweb="input"] > div:focus-within, div[data-baseweb="select"] > div:focus-within {
-        border-color: var(--apple-accent) !important;
-        box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15) !important;
-    }
-        color: #0F172A !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
-    }
-
-    div[data-baseweb="tab-border"], div[data-baseweb="tab-highlight"], div[role="tablist"]::after, [data-testid="stTabHighlight"] {
-        display: none !important;
-    }
-
-    /* Apple Metric Cards */
-    div[data-testid="stMetric"] {
-        background: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
-        border-radius: 12px !important;
-        padding: 14px 18px !important;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
-        transition: all 0.25s var(--apple-ease) !important;
-    }
-
-    div[data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06) !important;
-        border-color: #93C5FD !important;
-    }
-
-    div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] * {
-        font-size: 0.82rem !important;
-        font-weight: 650 !important;
-        color: #64748B !important;
-        letter-spacing: -0.01em !important;
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
-    }
-
-    div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * {
-        font-size: 1.45rem !important;
-        font-weight: 750 !important;
-        letter-spacing: -0.02em !important;
-        color: #0F172A !important;
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
-    }
-
-    /* Apple News Article Card */
-    .apple-news-card {
-        background: #FFFFFF;
-        border-radius: var(--apple-radius-lg);
-        border: 1px solid var(--apple-card-border);
-        border-left: 4px solid #CBD5E1;
-        box-shadow: var(--apple-card-shadow);
-        padding: 18px 22px;
-        margin-bottom: 16px;
-        transition: all 0.25s var(--apple-ease);
-        position: relative;
-    }
-
-    .apple-news-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--apple-card-shadow-hover);
-        border-color: #93C5FD;
-    }
-
-    .card-accent-india { border-left-color: #F59E0B !important; }
-    .card-accent-china { border-left-color: #EF4444 !important; }
-    .card-accent-pakistan { border-left-color: #10B981 !important; }
-    .card-accent-bangladesh { border-left-color: #06B6D4 !important; }
-    .card-accent-internal, .card-accent-politics { border-left-color: #6366F1 !important; }
-    .card-accent-external { border-left-color: #8B5CF6 !important; }
-    .card-accent-economy { border-left-color: #059669 !important; }
-    .card-accent-others { border-left-color: #94A3B8 !important; }
-    .card-accent-international { border-left-color: #7C3AED !important; }
-    .card-accent-indian-press { border-left-color: #F97316 !important; }
-
-    .apple-card-meta {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 10px;
-    }
-
-    .apple-card-title {
-        margin: 0 0 10px 0 !important;
-        font-size: 1.15rem !important;
-        font-weight: 650 !important;
-        line-height: 1.45 !important;
-        letter-spacing: -0.018em !important;
-    }
-
-    .apple-card-title a {
-        color: #0F172A !important;
-        text-decoration: none !important;
-        transition: color 0.15s ease;
-    }
-
-    .apple-card-title a:hover {
-        color: #0284C7 !important;
-    }
-
-    .apple-card-summary {
-        color: #475569;
-        font-size: 0.91rem;
-        line-height: 1.6;
-        margin: 0 0 14px 0;
-    }
-
-    .apple-card-footer {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        margin-top: 4px;
-    }
-
-    .apple-card-cta {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: #F0F9FF;
-        color: #0284C7 !important;
-        border: 1px solid #BAE6FD;
-        padding: 5px 15px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.8rem;
-        font-weight: 650;
-        text-decoration: none !important;
-        transition: all 0.2s var(--apple-ease);
-    }
-
-    .apple-card-cta:hover {
-        background: #0284C7;
-        color: #FFFFFF !important;
-        border-color: #0284C7;
-        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
-    }
-
-    .apple-wa-share-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: #F0FDF4;
-        color: #15803D !important;
-        border: 1px solid #BBF7D0;
-        padding: 5px 12px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.77rem;
-        font-weight: 650;
-        text-decoration: none !important;
-        transition: all 0.2s var(--apple-ease);
-    }
-
-    .apple-wa-share-btn:hover {
-        background: #22C55E;
-        color: #FFFFFF !important;
-        border-color: #22C55E;
-        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-        transform: translateY(-1px);
-    }
-
-    /* Category & Metadata Badges */
-    .portal-tag {
-        background: #0F172A;
-        color: #FFFFFF;
-        padding: 4px 11px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.74rem;
-        font-weight: 650;
-        letter-spacing: -0.01em;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1);
-    }
-
-    .indian-portal-tag {
-        background: #FFF7ED;
-        color: #C2410C;
-        border: 1px solid #FFEDD5;
-        padding: 4px 11px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.74rem;
-        font-weight: 650;
-        letter-spacing: -0.01em;
-    }
-
-    .time-badge {
-        background: #F1F5F9;
-        color: #64748B;
-        border: 1px solid #E2E8F0;
-        padding: 4px 10px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.74rem;
-        font-weight: 550;
-    }
-
-    .cat-badge-india { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-china { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-pakistan { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-bangladesh { background: #CFFAFE; color: #155E75; border: 1px solid #A5F3FC; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-internal, .cat-badge-politics { background: #EEF2FF; color: #3730A3; border: 1px solid #C7D2FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-external { background: #F5F3FF; color: #5B21B6; border: 1px solid #DDD6FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-economy { background: #ECFDF5; color: #047857; border: 1px solid #6EE7B7; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-others { background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-international { background: #EDE9FE; color: #5B21B6; border: 1px solid #DDD6FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .sec-tag-chip { background: #F8FAFC; color: #475569; border: 1px solid #E2E8F0; padding: 2px 7px; border-radius: 6px; font-size: 0.70rem; font-weight: 550; display: inline-flex; align-items: center; }
-    .conf-review-badge { background: #FFFBEB; color: #B45309; border: 1px solid #FCD34D; padding: 2px 8px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; }
-
-    /* Apple Filter Banner */
-    .apple-filter-banner {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        background: #F0F9FF;
-        border: 1px solid #BAE6FD;
-        border-radius: var(--apple-radius-md);
-        padding: 10px 16px;
-        margin-bottom: 16px;
-        font-size: 0.88rem;
-        color: #0369A1;
-    }
-
-    /* Apple Counter Badge */
-    .apple-counter-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #F0F9FF;
-        color: #0284C7;
-        border: 1px solid #BAE6FD;
-        border-radius: var(--apple-radius-pill);
-        padding: 6px 14px;
-        font-size: 0.85rem;
-        font-weight: 650;
-    }
-
-    /* Streamlit Buttons Styled to Apple HIG */
-    .stButton>button {
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        font-size: 0.88rem !important;
-        padding: 8px 18px !important;
-        transition: all 0.2s var(--apple-ease) !important;
-        background-color: #FFFFFF !important;
-        color: #0F172A !important;
-        border: 1px solid #CBD5E1 !important;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
-    }
-
-    .stButton>button:hover {
-        background-color: #F8FAFC !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
-        border-color: #94A3B8 !important;
-    }
-
-    .stDownloadButton>button {
-        border-radius: 10px !important;
-        font-weight: 650 !important;
-        font-size: 0.88rem !important;
-        padding: 10px 20px !important;
-        background: linear-gradient(180deg, #0284C7 0%, #0369A1 100%) !important;
-        color: #FFFFFF !important;
-        border: 1px solid rgba(2, 132, 199, 0.4) !important;
-        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25) !important;
-        transition: all 0.2s var(--apple-ease) !important;
-    }
-
-    .stDownloadButton>button:hover {
-        background: linear-gradient(180deg, #0369A1 0%, #075985 100%) !important;
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35) !important;
-    }
-
-    /* Apple Expanders / Disclosures */
-    div[data-testid="stExpander"] {
-        background: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
-        border-radius: var(--apple-radius-md) !important;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
-        margin-bottom: 12px !important;
-        overflow: hidden !important;
-        transition: all 0.2s var(--apple-ease) !important;
-    }
-
-    div[data-testid="stExpander"]:hover {
-        border-color: #CBD5E1 !important;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05) !important;
-    }
-
-    div[data-testid="stExpander"] summary {
-        padding: 12px 18px !important;
-        font-weight: 650 !important;
-        font-size: 0.9rem !important;
-        color: #1E293B !important;
-    }
-
-    div[data-testid="stExpander"] summary:hover {
-        background-color: #F8FAFC !important;
-    }
-
-    div[data-testid="stExpanderDetails"] {
-        padding: 16px 20px 20px 20px !important;
-        border-top: 1px solid #F1F5F9 !important;
-    }
-
-    /* Apple Input Fields & Dropdowns */
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-        border-radius: 10px !important;
-        border-color: #CBD5E1 !important;
-        background-color: #FFFFFF !important;
-        transition: all 0.2s var(--apple-ease) !important;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02) !important;
-    }
-
-    div[data-baseweb="input"] > div:focus-within, div[data-baseweb="select"] > div:focus-within {
-        border-color: var(--apple-blue) !important;
-        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15) !important;
-    }
-
-    /* Sidebar Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #F8FAFC !important;
-        border-right: 1px solid #E2E8F0 !important;
-    }
-
-    section[data-testid="stSidebar"] h1,
-    section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3 {
-        letter-spacing: -0.02em !important;
-        font-weight: 700 !important;
-        color: #0F172A !important;
-    }
-
-    section[data-testid="stSidebar"] label {
-        font-size: 0.8rem !important;
-        font-weight: 600 !important;
-        color: #334155 !important;
-        letter-spacing: -0.01em !important;
-        margin-bottom: 2px !important;
-    }
-
-    /* Clean Sidebar Input & Button Polish */
-    section[data-testid="stSidebar"] [data-testid="stTooltipHoverTarget"] {
-        display: none !important;
-    }
-    section[data-testid="stSidebar"] input,
-    section[data-testid="stSidebar"] div[data-baseweb="select"] {
-        border-radius: 8px !important;
-        font-size: 0.85rem !important;
-    }
-    section[data-testid="stSidebar"] .stButton button {
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        font-size: 0.82rem !important;
-        transition: all 0.15s ease !important;
-    }
-
-    /* Apple-Grade X (Twitter) Post Cards */
-    .x-post-card {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: var(--apple-radius-lg);
-        padding: 20px 24px;
-        margin-bottom: 14px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
-        transition: all 0.22s var(--apple-ease);
-    }
-    .x-post-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
-        border-color: #CBD5E1;
-    }
-    .x-post-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 12px;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    .x-author-box {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .x-avatar {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #FFFFFF;
-        font-weight: 700;
-        font-size: 0.95rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.12);
-        flex-shrink: 0;
-    }
-    .x-author-meta {
-        display: flex;
-        flex-direction: column;
-    }
-    .x-author-name {
-        font-weight: 700;
-        font-size: 0.96rem;
-        color: #0F172A;
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    .x-verified-badge {
-        color: #1D9BF0;
-        font-size: 0.9rem;
-        font-weight: 800;
-    }
-    .x-author-handle {
-        font-size: 0.8rem;
-        color: #64748B;
-        font-weight: 500;
-    }
-    .x-type-badge {
-        background: #F1F5F9;
-        color: #475569;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-size: 0.72rem;
-        font-weight: 600;
-    }
-    .x-post-text {
-        font-size: 1rem;
-        color: #1E293B;
-        line-height: 1.62;
-        margin-bottom: 14px;
-        word-break: break-word;
-    }
-    .x-engagement-bar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 12px;
-        border-top: 1px solid #F1F5F9;
-        font-size: 0.82rem;
-        color: #64748B;
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-    .x-metrics-group {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-    }
-    .x-metric-item {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        font-weight: 600;
-    }
-    .x-sentiment-badge {
-        padding: 3px 9px;
-        border-radius: 9999px;
-        font-size: 0.72rem;
-        font-weight: 650;
-    }
-    .x-sentiment-positive { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
-    .x-sentiment-alert { background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA; }
-    .x-sentiment-neutral { background: #F8FAFC; color: #475569; border: 1px solid #E2E8F0; }
-    .x-cta-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        color: #0284C7;
-        font-weight: 650;
-        text-decoration: none;
-        font-size: 0.84rem;
-        padding: 4px 12px;
-        border-radius: var(--apple-radius-pill);
-        background: #F0F9FF;
-        border: 1px solid #BAE6FD;
-        transition: all 0.18s var(--apple-ease);
-    }
-    .x-cta-link:hover {
-        background: #E0F2FE;
-        border-color: #7DD3FC;
-        text-decoration: none;
-        transform: translateY(-1px);
-    }
-</style>
-""", unsafe_allow_html=True)
+from apple_theme import APPLE_DESIGN_SYSTEM_CSS
+st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
 
 # ==========================================
 # AUTHENTICATION GATEWAY (PASSWORD PROTECTION)
@@ -1077,8 +202,8 @@ now_npt = datetime.datetime.now(NEPAL_TZ)
 formatted_now_time = now_npt.strftime("%I:%M %p NPT")
 
 # 4. Sidebar Controls & Date/Time Filter
-st.sidebar.markdown("### 🎛️ Control Panel")
-refresh_btn = st.sidebar.button("🔄 Refresh All Feeds", width='stretch', type="primary")
+st.sidebar.markdown("#### Control Panel")
+refresh_btn = st.sidebar.button("↻ Refresh Feeds", width='stretch', type="primary")
 if refresh_btn:
     st.cache_data.clear()
     if "x_posts" in st.session_state:
@@ -1087,24 +212,24 @@ if refresh_btn:
 
 # --- Date & Time Range Filter Section ---
 st.sidebar.markdown("---")
-st.sidebar.markdown("##### 📅 Date & Time Range")
+st.sidebar.markdown("##### Timeframe")
 
 yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
 yesterday_18_time = datetime.time(18, 0)
 
 # Quick Preset Buttons
 col_p1, col_p2, col_p3 = st.sidebar.columns(3)
-if col_p1.button("🌅 Yesterday", width='stretch', help="From Yesterday 18:00 NPT to Now"):
+if col_p1.button("Yesterday", width='stretch', help="Yesterday 18:00 to Current"):
     st.session_state["filter_start_date"] = yesterday_date
     st.session_state["filter_start_time"] = yesterday_18_time
     st.session_state["filter_use_current_time"] = True
     st.rerun()
-if col_p2.button("📅 Today", width='stretch', help="From Today 00:00 NPT to Now"):
+if col_p2.button("Today", width='stretch', help="Today 00:00 to Current"):
     st.session_state["filter_start_date"] = now_npt.date()
     st.session_state["filter_start_time"] = datetime.time(0, 0)
     st.session_state["filter_use_current_time"] = True
     st.rerun()
-if col_p3.button("⚡ Past 24h", width='stretch', help="From 24 Hours Ago to Now"):
+if col_p3.button("24h", width='stretch', help="Past 24 Hours to Current"):
     past_24_dt = now_npt - datetime.timedelta(hours=24)
     st.session_state["filter_start_date"] = past_24_dt.date()
     st.session_state["filter_start_time"] = past_24_dt.time().replace(second=0, microsecond=0)
@@ -1175,13 +300,13 @@ end_label = f"Now ({now_npt.strftime('%I:%M %p')})" if use_current_time else fil
 st.sidebar.caption(f"🕒 **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_label}**")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("##### 🔍 Search & Filters")
+st.sidebar.markdown("##### Filters")
 
 search_query = st.sidebar.text_input(
-    "Search Keyword:",
-    placeholder="e.g. Balen, India, Budget, Cricket...",
+    "Search:",
+    placeholder="Search headline or topic...",
     key="global_search_input",
-    help="Bilingual cross-lingual search across Nepali Media, Indian Media, and X Posts."
+    label_visibility="collapsed"
 )
 
 CAT_FILTER_ALL_UNFILTERED = "🌐 All News"
@@ -1235,7 +360,7 @@ def reset_all_filters():
     if "x_cat_filter_select" in st.session_state:
         st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
 
-st.sidebar.button("🔄 Reset Filters", width='stretch', key="btn_reset_filters", on_click=reset_all_filters)
+st.sidebar.button("Reset Filters", width='stretch', key="btn_reset_filters", on_click=reset_all_filters)
 
 st.sidebar.markdown("---")
 with st.sidebar.expander("ℹ️ Monitored Sources (52 Sources)", expanded=False):
@@ -1719,13 +844,13 @@ st.markdown(f"""
     <div class="apple-top-title-group">
         <span class="apple-flag-icon">🇳🇵</span>
         <div>
-            <h1 class="apple-top-title">Nepal Media & Intelligence Monitor</h1>
-            <p class="apple-top-subtitle">Real-time intelligence across 34 top Nepali portals & 18 Indian outlets</p>
+            <h1 class="apple-top-title">Nepal Media Monitor</h1>
+            <p class="apple-top-subtitle">34 Nepali · 18 Indian · Live</p>
         </div>
     </div>
     <div class="apple-top-status">
         <span class="apple-live-pulse"></span>
-        <span class="apple-status-text">LIVE · 34 PORTALS & 18 INDIAN OUTLETS · {formatted_now_time}</span>
+        <span class="apple-status-text">LIVE · {formatted_now_time}</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1746,17 +871,17 @@ if lang_filter != "All Languages":
 if active_filter_chips:
     af_col1, af_col2 = st.columns([5.5, 1])
     with af_col1:
-        st.markdown(f'<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0;"><span style="font-size:0.8rem; font-weight:700; color:#64748B; letter-spacing:0.04em;">ACTIVE FILTERS:</span>{" ".join(active_filter_chips)}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0;"><span style="font-size:0.75rem; font-weight:600; color:#86868B; letter-spacing:0.02em;">FILTERS:</span>{" ".join(active_filter_chips)}</div>', unsafe_allow_html=True)
     with af_col2:
         st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch", on_click=reset_all_filters)
 
 # 8. Navigation Tabs (Dynamic Live Counts)
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    f"📰 Nepali Media ({len(filtered_articles)} Stories)",
-    f"🇮🇳 Indian Media ({len(filtered_indian)} Stories)",
-    f"🐦 X (Twitter) ({len(filtered_x_posts)} Posts)",
-    "📈 Analytics & Export",
-    "📡 Source Monitoring & Admin"
+    f"Nepali Media ({len(filtered_articles)})",
+    f"Indian Press ({len(filtered_indian)})",
+    f"X Intel ({len(filtered_x_posts)})",
+    "Analytics & Export",
+    "Sources & Health"
 ])
 
 # ==========================================
@@ -2115,8 +1240,7 @@ with tab3:
 # TAB 4: Analytics & Export
 # ==========================================
 with tab4:
-    st.subheader("📈 Analytics & CSV Export")
-    st.write("Inspect, filter, and export the datasets with **Extracted Full News Text** within your selected time window.")
+    st.subheader("Analytics & Export")
 
     export_type = st.radio(
         "Choose Dataset to Inspect/Download:",
@@ -2739,11 +1863,7 @@ with tab4:
     # WHATSAPP CHANNEL BROADCAST ENGINE (OPTION 2)
     # ==========================================
     st.markdown("---")
-    st.subheader("📢 WhatsApp Broadcast Manager & Live Queue")
-    st.write(
-        "Manage real-time distribution of individual news stories and X tweets "
-        "to your **WhatsApp Group** with automatic deduplication."
-    )
+    st.subheader("WhatsApp Distribution Console")
 
     wa_stats = get_broadcasted_stats()
 
@@ -2921,8 +2041,7 @@ with tab4:
 # TAB 5: Nepali Media Monitoring & Control (Chief Admin)
 # ==========================================
 with tab5:
-    st.subheader("📡 Nepali Media Continuous Monitoring & Admin Control")
-    st.caption("Comprehensive, independently tracked news discovery across all 34 Nepalese media portals with adaptive scheduling, real-time health matrices, historical backfill, and zero-drop coverage guarantees.")
+    st.subheader("Sources & Diagnostics")
 
     # 1. System-Wide Monitoring KPIs
     try:
