@@ -2549,11 +2549,13 @@ with tab4:
     with m4:
         st.metric("🐦 X (Twitter)", f"{by_stream.get('x', 0):,}")
 
-    # Deduplication Queue: Align strictly with the active broadcast window (Past 3 Hours during daytime, 10 Hours morning)
-    # This excludes older historical stories from cluttering the pending broadcast queue.
+    # Deduplication Queue: Align strictly with the active hourly broadcast window
+    # 75 minutes (1h 15m) during daytime (covers preceding 1 hour + 15m buffer); 10 hours morning window
     now_dt = datetime.datetime.now(NEPAL_TZ)
-    worker_lookback_hours = 10 if (now_dt.hour == 6 or now_dt.hour < 7) else 3
-    broadcast_cutoff = now_dt - datetime.timedelta(hours=worker_lookback_hours)
+    is_morning_window = (now_dt.hour == 6 or now_dt.hour < 7)
+    worker_lookback_mins = 600 if is_morning_window else 75
+    broadcast_cutoff = now_dt - datetime.timedelta(minutes=worker_lookback_mins)
+    lookback_display_label = "overnight window (10h)" if is_morning_window else "past hour"
 
     def is_within_broadcast_window(it):
         pdt = it.get("published_dt")
@@ -2579,7 +2581,7 @@ with tab4:
 
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:
-        st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` fresh unsent items in past {worker_lookback_hours}h)")
+        st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` fresh unsent items in {lookback_display_label})")
     with q_col2:
         queue_filter = st.selectbox(
             "Filter Queue Source:",

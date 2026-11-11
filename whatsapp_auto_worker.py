@@ -211,8 +211,9 @@ def run_single_broadcast_cycle(
         lookback_seconds = 10 * 3600  # 10 hours covers from 8 PM yesterday to 6 AM today
         logger.info("🌅 6:00 AM Morning batch: Gathering and broadcasting all overnight news from 10:00 PM to 6:00 AM...")
     else:
-        # Daytime hourly runs (7:00 AM to 10:00 PM): 3-hour lookback ensures no gaps
-        lookback_seconds = 3 * 3600
+        # Daytime hourly runs (7:00 AM to 10:00 PM): 75 minutes (1h 15m) lookback
+        # Exactly covers the preceding 1 hour plus a 15-minute jitter buffer for cron and portal delays.
+        lookback_seconds = int(1.25 * 3600)
 
     cutoff_time = now_nepal - timedelta(seconds=lookback_seconds)
 
