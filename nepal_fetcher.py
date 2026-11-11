@@ -1246,16 +1246,19 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
             soup = BeautifulSoup(html_raw, "html.parser")
             seen_titles = set()
             for a in soup.find_all("a", href=True):
-                txt = a.get_text(strip=True)
-                href = a["href"]
+                txt = " ".join(a.get_text(" ", strip=True).split())
+                href = a["href"].strip()
                 if len(txt) >= 20 and txt not in seen_titles:
-                    # Skip links inside search overlays, trending search drawers, or author/tag pages
+                    # Skip links inside navbars, headers, footers, search overlays, or trending search drawers
+                    anc_tags = {p.name for p in a.parents if hasattr(p, "name")}
+                    if "nav" in anc_tags or "header" in anc_tags or "footer" in anc_tags:
+                        continue
                     anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
-                    if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll"]):
+                    if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll", "navbar", "nav-menu", "main-menu", "header-menu", "footer"]):
                         continue
-                    if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/"]):
+                    if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/", "/morearticles/", "/page/", "/hong-kong-home", "/entertainment"]):
                         continue
-                    if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login"]):
+                    if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login", "more articles", "see more"]):
                         continue
                     if href.startswith("/"):
                         href = portal["url"].rstrip("/") + href
