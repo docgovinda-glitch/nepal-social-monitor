@@ -754,111 +754,67 @@ refresh_btn = st.sidebar.button("🔄 Refresh All Feeds Now", width='stretch')
 
 # --- Date & Time Range Filter Section ---
 st.sidebar.markdown("---")
-st.sidebar.subheader("📅 Timeframe")
-
-DEFAULT_TIME_PRESET = "🌅 Since Yesterday 6:00 PM (Default)"
-TIME_FILTER_PRESETS = [
-    DEFAULT_TIME_PRESET,
-    "📅 Today (Since 00:00 NPT)",
-    "⚡ Past 24 Hours",
-    "⏳ Past 48 Hours",
-    "🗓 Past 7 Days",
-    "🗓️ Custom Calendar & Time Picker...",
-    "🏛 All Time (Archive)",
-]
-
-# Ensure valid session state value across updates
-if st.session_state.get("time_filter_mode_select") not in TIME_FILTER_PRESETS:
-    st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
-
-time_filter_mode = st.sidebar.selectbox(
-    "Select Range:",
-    TIME_FILTER_PRESETS,
-    key="time_filter_mode_select"
-)
-
-filter_start_dt = None
-filter_end_dt = now_npt
-explicit_all_time = False
+st.sidebar.subheader("📅 Date & Time Filter")
 
 yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
-yesterday_18 = datetime.datetime.combine(yesterday_date, datetime.time(18, 0), tzinfo=NEPAL_TZ)
+yesterday_18_time = datetime.time(18, 0)
 
-if "Since Yesterday" in time_filter_mode:
-    filter_start_dt = yesterday_18
-elif "Today" in time_filter_mode:
-    filter_start_dt = datetime.datetime.combine(now_npt.date(), datetime.time(0, 0), tzinfo=NEPAL_TZ)
-elif "Past 24 Hours" in time_filter_mode:
-    filter_start_dt = now_npt - datetime.timedelta(hours=24)
-elif "Past 48 Hours" in time_filter_mode:
-    filter_start_dt = now_npt - datetime.timedelta(hours=48)
-elif "Past 7 Days" in time_filter_mode:
-    filter_start_dt = now_npt - datetime.timedelta(days=7)
-elif "All Time" in time_filter_mode:
-    explicit_all_time = True
-    filter_start_dt = None
-    filter_end_dt = now_npt
-elif "Custom" in time_filter_mode:
-    st.sidebar.markdown("##### 🗓️ Calendar & Time Picker")
-    col_from_d, col_from_t = st.sidebar.columns([3, 2])
-    with col_from_d:
-        from_date = st.date_input(
-            "Start Date:",
-            value=yesterday_date,
-            max_value=now_npt.date(),
-            key="custom_from_date",
-            help="Click to open interactive calendar"
-        )
-    with col_from_t:
-        from_time = st.time_input(
-            "Start Time:",
-            value=datetime.time(18, 0),
-            key="custom_from_time",
-            help="Select starting hour and minute"
-        )
-    filter_start_dt = datetime.datetime.combine(from_date, from_time, tzinfo=NEPAL_TZ)
-
-    to_use_current = st.sidebar.checkbox(
-        "⚡ Up to Current / Now",
-        value=True,
-        key="custom_to_use_current",
-        help="Automatically tracks the latest news up to the present moment"
+col_start_d, col_start_t = st.sidebar.columns([3, 2])
+with col_start_d:
+    start_date = st.date_input(
+        "Start Date",
+        value=yesterday_date,
+        max_value=now_npt.date(),
+        key="filter_start_date",
+        help="Select start date from calendar"
     )
-    if to_use_current:
-        filter_end_dt = now_npt
-    else:
-        col_to_d, col_to_t = st.sidebar.columns([3, 2])
-        with col_to_d:
-            to_date = st.date_input(
-                "End Date:",
-                value=now_npt.date(),
-                max_value=now_npt.date(),
-                min_value=from_date,
-                key="custom_to_date",
-                help="Click to open calendar for end date"
-            )
-        with col_to_t:
-            to_time = st.time_input(
-                "End Time:",
-                value=now_npt.time().replace(second=0, microsecond=0),
-                key="custom_to_time",
-                help="Select ending hour and minute"
-            )
-        filter_end_dt = datetime.datetime.combine(to_date, to_time, tzinfo=NEPAL_TZ)
-        if filter_end_dt < filter_start_dt:
-            st.sidebar.warning("⚠️ End timestamp cannot be earlier than start.")
-            filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
+with col_start_t:
+    start_time = st.time_input(
+        "Start Time",
+        value=yesterday_18_time,
+        key="filter_start_time",
+        help="Select start time (default 18:00 / 6:00 PM)"
+    )
 
-if filter_start_dt:
-    if "Since Yesterday" in time_filter_mode:
-        st.sidebar.caption(f"🕒 Showing: **Yesterday, 6:00 PM → Now** ({now_npt.strftime('%I:%M %p')})")
-    elif "Today" in time_filter_mode:
-        st.sidebar.caption(f"🕒 Showing: **Today, 12:00 AM → Now** ({now_npt.strftime('%I:%M %p')})")
-    else:
-        end_caption = "Now" if filter_end_dt >= now_npt - datetime.timedelta(minutes=2) else filter_end_dt.strftime("%b %d, %I:%M %p")
-        st.sidebar.caption(f"🕒 Showing: **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_caption}**")
-elif explicit_all_time:
-    st.sidebar.caption("🕒 Showing: **All Available Feeds**")
+filter_start_dt = datetime.datetime.combine(start_date, start_time, tzinfo=NEPAL_TZ)
+
+use_current_time = st.sidebar.checkbox(
+    "⚡ Current Time (Now)",
+    value=True,
+    key="filter_use_current_time",
+    help="Keep end time automatically synced to the current moment"
+)
+
+col_end_d, col_end_t = st.sidebar.columns([3, 2])
+with col_end_d:
+    end_date = st.date_input(
+        "End Date",
+        value=now_npt.date(),
+        max_value=now_npt.date(),
+        min_value=start_date,
+        key="filter_end_date",
+        disabled=use_current_time,
+        help="Select end date from calendar"
+    )
+with col_end_t:
+    end_time = st.time_input(
+        "End Time",
+        value=now_npt.time().replace(second=0, microsecond=0),
+        key="filter_end_time",
+        disabled=use_current_time,
+        help="Select end time"
+    )
+
+if use_current_time:
+    filter_end_dt = now_npt
+else:
+    filter_end_dt = datetime.datetime.combine(end_date, end_time, tzinfo=NEPAL_TZ)
+    if filter_end_dt < filter_start_dt:
+        st.sidebar.warning("⚠️ End time cannot be earlier than start time.")
+        filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
+
+end_label = f"Current Time ({now_npt.strftime('%I:%M %p')})" if use_current_time else filter_end_dt.strftime("%b %d, %I:%M %p")
+st.sidebar.caption(f"🕒 Active Window: **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_label}**")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔍 Global Search & Filter System")
@@ -891,13 +847,15 @@ selected_cat_filter = st.sidebar.selectbox(
 def reset_all_filters():
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["time_filter_mode_select"] = DEFAULT_TIME_PRESET
+    st.session_state["filter_start_date"] = yesterday_date
+    st.session_state["filter_start_time"] = yesterday_18_time
+    st.session_state["filter_end_date"] = now_npt.date()
+    st.session_state["filter_end_time"] = now_npt.time().replace(second=0, microsecond=0)
+    st.session_state["filter_use_current_time"] = True
     st.session_state["media_visible_count"] = 20
     st.session_state["indian_visible_count"] = 20
     st.session_state["x_visible_count"] = 20
     st.session_state["fb_visible_count"] = 20
-    if "custom_to_use_current" in st.session_state:
-        st.session_state["custom_to_use_current"] = True
     if "x_cat_filter_select" in st.session_state:
         st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
     if "fb_cat_filter_select" in st.session_state:
