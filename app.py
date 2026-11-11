@@ -134,178 +134,202 @@ def check_password() -> bool:
         st.session_state["authenticated"] = True
         return True
 
-    # Exact Replica of Figma / Illustrative Design Direction
+    # Single Unified Authentication Card – Light Minimalist Design
     st.markdown("""
     <style>
-        [data-testid="stSidebar"] { display: none !important; }
+        /* Hide sidebar and header chrome during login */
+        [data-testid="stSidebar"], [data-testid="collapsedControl"], header[data-testid="stHeader"] {
+            display: none !important;
+        }
 
-        /* Light background */
+        /* Page background: #F5F7FA */
         [data-testid="stAppViewContainer"], .main {
-            background-color: #F8F9FA !important;
+            background-color: #F5F7FA !important;
         }
 
-        /* Centered Unified Card Container */
-        .auth-container {
-            max-width: 440px;
-            margin: 6vh auto 0 auto;
+        /* Centre the card vertically and horizontally */
+        .block-container {
+            padding-top: 12vh !important;
+            padding-bottom: 4vh !important;
+            max-width: 440px !important;
+            margin: 0 auto !important;
+        }
+
+        /* Style the SINGLE stForm as the ONE unified white authentication card */
+        div[data-testid="stForm"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #DCE5EF !important;
+            border-radius: 16px !important;
+            padding: 36px 32px 28px 32px !important;
+            box-shadow: 0 4px 20px rgba(37, 54, 75, 0.05), 0 1px 3px rgba(37, 54, 75, 0.03) !important;
+            max-width: 440px !important;
+            margin: 0 auto !important;
+        }
+
+        /* Header branding inside the single form */
+        .auth-header-block {
             text-align: center;
+            margin-bottom: 22px;
         }
 
-        .auth-card-header {
-            background: #FFFFFF;
-            border: 1px solid #EAECEF;
-            border-bottom: none;
-            border-radius: 28px 28px 0 0;
-            padding: 44px 38px 18px 38px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-        }
-
-        .auth-flag {
-            font-size: 1.6rem;
+        .auth-flag-icon {
+            font-size: 28px;
             line-height: 1;
             margin-bottom: 12px;
             display: inline-block;
         }
 
-        .auth-title {
-            font-size: 1.55rem;
-            font-weight: 700;
-            color: #1F242C;
-            letter-spacing: -0.02em;
-            margin: 0 0 6px 0;
-            line-height: 1.2;
+        .auth-main-heading {
+            font-size: 31px !important;
+            font-weight: 700 !important;
+            color: #25364B !important;
+            letter-spacing: -0.025em !important;
+            margin: 0 0 6px 0 !important;
+            line-height: 1.2 !important;
         }
 
-        .auth-subtitle {
-            font-size: 0.95rem;
-            color: #6C757D;
-            font-weight: 450;
-            margin: 0 0 20px 0;
+        .auth-sub-heading {
+            font-size: 14.5px !important;
+            font-weight: 450 !important;
+            color: #788596 !important;
+            margin: 0 !important;
+            line-height: 1.4 !important;
         }
 
-        .auth-divider {
-            height: 1px;
-            background-color: #EAECEF;
-            width: 100%;
-            margin: 0;
+        /* Password Input Field: height ~52-54px, background #FFFFFF, border #DCE5EF */
+        div[data-testid="stForm"] div[data-baseweb="input"] {
+            background-color: #FFFFFF !important;
+            border-radius: 10px !important;
         }
 
-        /* Form section seamless continuation */
-        .auth-form-shell [data-testid="stForm"] {
-            background: #FFFFFF !important;
-            border: 1px solid #EAECEF !important;
-            border-top: none !important;
-            border-radius: 0 0 28px 28px !important;
-            padding: 18px 38px 28px 38px !important;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03) !important;
-            margin-top: -1px !important;
+        div[data-testid="stForm"] div[data-baseweb="input"] > div {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid #DCE5EF !important;
+            border-radius: 10px !important;
+            min-height: 52px !important;
+            height: 52px !important;
+            padding: 0 12px !important;
+            box-shadow: none !important;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
         }
 
-        /* Label above input */
-        .auth-label {
-            text-align: left;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #1F242C;
-            margin-bottom: 8px;
-            display: block;
+        div[data-testid="stForm"] div[data-baseweb="input"] > div:focus-within {
+            border-color: #526A85 !important;
+            box-shadow: 0 0 0 3px rgba(82, 106, 133, 0.14) !important;
         }
 
-        /* Input Field */
-        .auth-form-shell div[data-baseweb="input"] > div {
-            border-radius: 12px !important;
-            border: 1.5px solid #DCE1E7 !important;
-            background: #FFFFFF !important;
-            font-size: 0.95rem !important;
-            color: #1F242C !important;
-            padding: 4px 8px !important;
-            transition: all 0.2s ease !important;
+        div[data-testid="stForm"] input[type="password"],
+        div[data-testid="stForm"] input[type="text"] {
+            color: #25364B !important;
+            font-size: 15px !important;
+            background-color: transparent !important;
         }
 
-        .auth-form-shell div[data-baseweb="input"] > div:focus-within {
-            border-color: #C82D44 !important;
-            box-shadow: 0 0 0 3px rgba(200, 45, 68, 0.12) !important;
+        div[data-testid="stForm"] input::placeholder {
+            color: #788596 !important;
+            opacity: 0.85 !important;
         }
 
-        /* Unlock Platform Button: Crimson Red matching user design */
-        .auth-form-shell button[data-testid="baseButton-primary"],
-        .auth-form-shell button[kind="primary"],
-        .auth-form-shell div[data-testid="stFormSubmitButton"] > button {
-            background: #C82D44 !important;
-            color: #FFFFFF !important;
-            border: none !important;
-            border-radius: 12px !important;
-            font-weight: 650 !important;
-            font-size: 1rem !important;
-            padding: 12px 20px !important;
-            transition: all 0.18s ease !important;
-            cursor: pointer !important;
-            width: 100% !important;
-            letter-spacing: -0.01em !important;
+        /* Hide "Press Enter to submit form" instruction overlay */
+        div[data-testid="InputInstructions"] {
+            display: none !important;
+        }
+
+        /* Unlock Platform Button: Muted Slate Blue #526A85, Hover #405872, Text #FFFFFF, Height ~52px */
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] {
             margin-top: 6px !important;
         }
 
-        .auth-form-shell button[data-testid="baseButton-primary"] *,
-        .auth-form-shell button[kind="primary"] *,
-        .auth-form-shell div[data-testid="stFormSubmitButton"] > button * {
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button,
+        div[data-testid="stForm"] button[kind="primaryFormSubmit"],
+        div[data-testid="stForm"] button[data-testid="baseButton-primary"],
+        div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
+            background-color: #526A85 !important;
+            background: #526A85 !important;
             color: #FFFFFF !important;
+            border: none !important;
+            border-radius: 10px !important;
+            min-height: 52px !important;
+            height: 52px !important;
+            width: 100% !important;
+            font-size: 15.5px !important;
+            font-weight: 600 !important;
+            letter-spacing: -0.01em !important;
+            box-shadow: 0 2px 6px rgba(82, 106, 133, 0.2) !important;
+            transition: background-color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease !important;
+            cursor: pointer !important;
         }
 
-        .auth-form-shell button[data-testid="baseButton-primary"]:hover,
-        .auth-form-shell button[kind="primary"]:hover,
-        .auth-form-shell div[data-testid="stFormSubmitButton"] > button:hover {
-            background: #B32439 !important;
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button *,
+        div[data-testid="stForm"] button[kind="primaryFormSubmit"] *,
+        div[data-testid="stForm"] button[data-testid="baseButton-primary"] *,
+        div[data-testid="stForm"] button[data-testid="baseButton-secondary"] * {
             color: #FFFFFF !important;
-            box-shadow: 0 4px 14px rgba(200, 45, 68, 0.3) !important;
+            font-weight: 600 !important;
         }
 
-        /* Small footers */
-        .auth-card-footer {
-            text-align: center;
-            font-size: 0.8rem;
-            color: #8C96A3;
-            margin-top: 14px;
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:hover,
+        div[data-testid="stForm"] button[kind="primaryFormSubmit"]:hover,
+        div[data-testid="stForm"] button[data-testid="baseButton-primary"]:hover,
+        div[data-testid="stForm"] button[data-testid="baseButton-secondary"]:hover {
+            background-color: #405872 !important;
+            background: #405872 !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 4px 12px rgba(64, 88, 114, 0.28) !important;
+            transform: translateY(-1px) !important;
         }
 
-        .auth-bottom-caption {
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:active,
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:focus {
+            background-color: #405872 !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 0 0 3px rgba(82, 106, 133, 0.25) !important;
+            outline: none !important;
+        }
+
+        /* Security Footer inside the card */
+        .auth-security-footer {
             text-align: center;
-            font-size: 0.84rem;
-            color: #8C96A3;
-            margin-top: 18px;
+            font-size: 12.5px;
+            color: #788596;
+            margin-top: 16px;
+            margin-bottom: 0;
+            font-weight: 450;
+            letter-spacing: 0.01em;
         }
     </style>
-    <div class="auth-container">
-        <div class="auth-card-header">
-            <div class="auth-flag">🇳🇵</div>
-            <h2 class="auth-title">Media Monitor</h2>
-            <div class="auth-subtitle">News Intelligence Platform</div>
-            <div class="auth-divider"></div>
-        </div>
-    </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1.25, 1])
-    with col2:
-        st.markdown('<div class="auth-form-shell">', unsafe_allow_html=True)
-        with st.form("auth_form", clear_on_submit=False):
-            st.markdown('<span class="auth-label">Password</span>', unsafe_allow_html=True)
-            pwd = st.text_input(
-                "Password",
-                type="password",
-                placeholder="Enter your password",
-                label_visibility="collapsed"
-            )
-            submit = st.form_submit_button("Unlock Platform", width="stretch", type="primary")
-            st.markdown('<div class="auth-card-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="auth-bottom-caption">Illustrative design direction</div>', unsafe_allow_html=True)
+    # ONE Single Unified Card containing all 6 required elements in exact order
+    with st.form("auth_form", clear_on_submit=False):
+        st.markdown("""
+        <div class="auth-header-block">
+            <div class="auth-flag-icon">🇳🇵</div>
+            <h1 class="auth-main-heading">Media Monitor</h1>
+            <p class="auth-sub-heading">News Intelligence Platform</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        if submit:
-            if pwd.strip() == APP_PASSWORD:
-                st.session_state["authenticated"] = True
-                st.rerun()
-            else:
-                st.error("Incorrect password. Please try again.")
+        pwd = st.text_input(
+            "Password",
+            type="password",
+            placeholder="Enter password",
+            label_visibility="collapsed"
+        )
+
+        submit = st.form_submit_button("Unlock Platform", width="stretch", type="primary")
+
+        st.markdown(
+            '<div class="auth-security-footer">Secure Access · Authorised Users Only</div>',
+            unsafe_allow_html=True
+        )
+
+    if submit:
+        if pwd.strip() == APP_PASSWORD:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Incorrect password. Please try again.")
 
     st.stop()
     return False
