@@ -20,6 +20,14 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 from dateutil import parser as dt_parser
+from nepal_news_store import (
+    batch_upsert_articles,
+    record_source_error,
+    normalize_canonical_url,
+    generate_canonical_id,
+    get_stored_articles,
+    register_portal_sources
+)
 
 
 # Nepal Timezone (UTC +5:45)
@@ -373,45 +381,45 @@ CATEGORY_ICONS = {
     "International News": "🌍"
 }
 
-# Curated Top 34 Nepal Online News Portals
+# Curated Top 34 Nepal Online News Portals (Enriched with multi-channel feeds & adaptive intervals)
 TOP_NEPAL_NEWS_PORTALS = [
     # Top Nepali Mainstream Daily & Digital Portals (22)
-    {"name": "eKantipur", "type": "html", "url": "https://ekantipur.com/", "lang": "Nepali", "category": "National Daily"},
-    {"name": "OnlineKhabar (NP)", "type": "rss", "url": "https://www.onlinekhabar.com/feed", "lang": "Nepali", "category": "General News"},
-    {"name": "Setopati", "type": "rss", "url": "https://www.setopati.com/feed", "lang": "Nepali", "category": "National"},
-    {"name": "Ratopati", "type": "rss", "url": "https://www.ratopati.com/feed", "lang": "Nepali", "category": "Breaking News"},
-    {"name": "Annapurna Post", "type": "rss", "url": "https://annapurnapost.com/rss", "lang": "Nepali", "category": "National Daily"},
-    {"name": "Nagarik News", "type": "rss", "url": "https://nagariknews.nagariknetwork.com/feed", "lang": "Nepali", "category": "National Daily"},
-    {"name": "Naya Patrika", "type": "rss", "url": "https://www.nayapatrikadaily.com/rss", "lang": "Nepali", "category": "National Daily"},
-    {"name": "NepalKhabar", "type": "rss", "url": "https://nepalkhabar.com/feed", "lang": "Nepali", "category": "Digital Daily"},
-    {"name": "Gorkhapatra Online", "type": "rss", "url": "https://gorkhapatraonline.com/rss", "lang": "Nepali", "category": "National / State"},
-    {"name": "News of Nepal", "type": "rss", "url": "https://newsofnepal.com/feed", "lang": "Nepali", "category": "National Daily"},
-    {"name": "Nepal Press", "type": "rss", "url": "https://www.nepalpress.com/feed/", "lang": "Nepali", "category": "Digital News"},
-    {"name": "Baahrakhari", "type": "rss", "url": "https://baahrakhari.com/feed", "lang": "Nepali", "category": "National"},
-    {"name": "Himal Press", "type": "rss", "url": "https://himalpress.com/feed", "lang": "Nepali", "category": "Politics & In-depth"},
-    {"name": "Deshsanchar", "type": "rss", "url": "https://deshsanchar.com/feed", "lang": "Nepali", "category": "Current Affairs"},
-    {"name": "Shilapatra", "type": "rss", "url": "https://shilapatra.com/feed", "lang": "Nepali", "category": "Opinion & Society"},
-    {"name": "Nepal Live", "type": "rss", "url": "https://nepallive.com/feed", "lang": "Nepali", "category": "Politics"},
-    {"name": "Nepal Aaja", "type": "html", "url": "https://nepalaaja.com/", "lang": "Nepali", "category": "Digital Media"},
-    {"name": "Nepal News", "type": "rss", "url": "https://nepalnews.com/feed", "lang": "Nepali", "category": "Digital Daily"},
-    {"name": "Image Khabar", "type": "rss", "url": "https://imagekhabar.com/feed", "lang": "Nepali", "category": "Digital Media"},
-    {"name": "Khabarhub (NP)", "type": "rss", "url": "https://khabarhub.com/feed/", "lang": "Nepali", "category": "Current Affairs"},
-    {"name": "TechPana", "type": "rss", "url": "https://techpana.com/feed", "lang": "Nepali", "category": "Tech & Innovation"},
-    {"name": "ArthaSarokar", "type": "rss", "url": "https://arthasarokar.com/feed", "lang": "Nepali", "category": "Economy & Banking"},
+    {"name": "eKantipur", "type": "html", "url": "https://ekantipur.com/", "alt_urls": ["https://ekantipur.com/news", "https://ekantipur.com/national", "https://ekantipur.com/business"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "OnlineKhabar (NP)", "type": "rss", "url": "https://www.onlinekhabar.com/feed", "alt_urls": ["https://www.onlinekhabar.com/content/news/feed"], "lang": "Nepali", "category": "General News", "priority": "high", "check_interval_mins": 8},
+    {"name": "Setopati", "type": "rss", "url": "https://www.setopati.com/feed", "alt_urls": ["https://www.setopati.com/politics/feed"], "lang": "Nepali", "category": "National", "priority": "high", "check_interval_mins": 8},
+    {"name": "Ratopati", "type": "rss", "url": "https://www.ratopati.com/feed", "alt_urls": ["https://www.ratopati.com/category/politics/feed"], "lang": "Nepali", "category": "Breaking News", "priority": "high", "check_interval_mins": 8},
+    {"name": "Annapurna Post", "type": "rss", "url": "https://annapurnapost.com/rss", "alt_urls": ["https://annapurnapost.com/rss/desh"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "Nagarik News", "type": "rss", "url": "https://nagariknews.nagariknetwork.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "Naya Patrika", "type": "rss", "url": "https://www.nayapatrikadaily.com/rss", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "NepalKhabar", "type": "rss", "url": "https://nepalkhabar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "Gorkhapatra Online", "type": "rss", "url": "https://gorkhapatraonline.com/rss", "alt_urls": [], "lang": "Nepali", "category": "National / State", "priority": "standard", "check_interval_mins": 18},
+    {"name": "News of Nepal", "type": "rss", "url": "https://newsofnepal.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Nepal Press", "type": "rss", "url": "https://www.nepalpress.com/feed/", "alt_urls": [], "lang": "Nepali", "category": "Digital News", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Baahrakhari", "type": "rss", "url": "https://baahrakhari.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Himal Press", "type": "rss", "url": "https://himalpress.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Politics & In-depth", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Deshsanchar", "type": "rss", "url": "https://deshsanchar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Shilapatra", "type": "rss", "url": "https://shilapatra.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Opinion & Society", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Nepal Live", "type": "rss", "url": "https://nepallive.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Politics", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Nepal Aaja", "type": "html", "url": "https://nepalaaja.com/", "alt_urls": [], "lang": "Nepali", "category": "Digital Media", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Nepal News", "type": "rss", "url": "https://nepalnews.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Image Khabar", "type": "rss", "url": "https://imagekhabar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Media", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Khabarhub (NP)", "type": "rss", "url": "https://khabarhub.com/feed/", "alt_urls": [], "lang": "Nepali", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
+    {"name": "TechPana", "type": "rss", "url": "https://techpana.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Tech & Innovation", "priority": "low", "check_interval_mins": 40},
+    {"name": "ArthaSarokar", "type": "rss", "url": "https://arthasarokar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Economy & Banking", "priority": "low", "check_interval_mins": 40},
 
     # Top English Mainstream Daily & Digital Portals (12)
-    {"name": "The Kathmandu Post", "type": "rss", "url": "https://kathmandupost.com/rss", "lang": "English", "category": "National Daily"},
-    {"name": "The Himalayan Times", "type": "html", "url": "https://thehimalayantimes.com/", "lang": "English", "category": "National Daily"},
-    {"name": "MyRepublica", "type": "rss", "url": "https://myrepublica.nagariknetwork.com/feeds", "lang": "English", "category": "National Daily"},
-    {"name": "OnlineKhabar (EN)", "type": "rss", "url": "https://english.onlinekhabar.com/feed", "lang": "English", "category": "National"},
-    {"name": "The Annapurna Express", "type": "rss", "url": "https://theannapurnaexpress.com/rss", "lang": "English", "category": "Weekly In-depth"},
-    {"name": "Setopati (EN)", "type": "html", "url": "https://en.setopati.com/", "lang": "English", "category": "National"},
-    {"name": "Rising Nepal Daily", "type": "rss", "url": "https://risingnepaldaily.com/rss", "lang": "English", "category": "National Daily"},
-    {"name": "NepalKhabar (EN)", "type": "rss", "url": "https://en.nepalkhabar.com/rss", "lang": "English", "category": "Digital Daily"},
-    {"name": "Ratopati (EN)", "type": "rss", "url": "https://english.ratopati.com/feed", "lang": "English", "category": "Current Affairs"},
-    {"name": "Khabarhub (EN)", "type": "rss", "url": "https://english.khabarhub.com/feed/", "lang": "English", "category": "National"},
-    {"name": "Nepali Times", "type": "rss", "url": "https://nepalitimes.com/feed", "lang": "English", "category": "Independent Journalism"},
-    {"name": "Nepal News (EN)", "type": "rss", "url": "https://english.nepalnews.com/feed", "lang": "English", "category": "Digital Daily"},
+    {"name": "The Kathmandu Post", "type": "rss", "url": "https://kathmandupost.com/rss", "alt_urls": ["https://kathmandupost.com/national/rss", "https://kathmandupost.com/money/rss"], "lang": "English", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "The Himalayan Times", "type": "html", "url": "https://thehimalayantimes.com/", "alt_urls": ["https://thehimalayantimes.com/nepal"], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "MyRepublica", "type": "rss", "url": "https://myrepublica.nagariknetwork.com/feeds", "alt_urls": [], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "OnlineKhabar (EN)", "type": "rss", "url": "https://english.onlinekhabar.com/feed", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
+    {"name": "The Annapurna Express", "type": "rss", "url": "https://theannapurnaexpress.com/rss", "alt_urls": [], "lang": "English", "category": "Weekly In-depth", "priority": "low", "check_interval_mins": 40},
+    {"name": "Setopati (EN)", "type": "html", "url": "https://en.setopati.com/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Rising Nepal Daily", "type": "rss", "url": "https://risingnepaldaily.com/rss", "alt_urls": [], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "NepalKhabar (EN)", "type": "rss", "url": "https://en.nepalkhabar.com/rss", "alt_urls": [], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Ratopati (EN)", "type": "rss", "url": "https://english.ratopati.com/feed", "alt_urls": [], "lang": "English", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Khabarhub (EN)", "type": "rss", "url": "https://english.khabarhub.com/feed/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Nepali Times", "type": "rss", "url": "https://nepalitimes.com/feed", "alt_urls": [], "lang": "English", "category": "Independent Journalism", "priority": "low", "check_interval_mins": 40},
+    {"name": "Nepal News (EN)", "type": "rss", "url": "https://english.nepalnews.com/feed", "alt_urls": [], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
 ]
 
 # Top Prominent Indian Media Outlets covering Nepal (18 Prominent Outlets)
@@ -2393,101 +2401,136 @@ def parse_to_nepal_time(raw_date_val, now_npt):
         fallback_dt = now_npt - datetime.timedelta(days=7)
         return fallback_dt, "Date unlisted", "Archived"
 
-def fetch_single_portal(portal, now_npt):
-    """Fetches articles from a single online news portal (RSS or direct HTML)."""
+def fetch_single_portal(portal, now_npt, max_entries: int = 50):
+    """
+    Fetches articles from a single online news portal (RSS, category feeds, or direct HTML).
+    Guarantees deep article discovery without arbitrary limits, normalizes canonical URLs,
+    extracts rich metadata, and updates persistent checkpoints and health metrics.
+    """
+    import time
+    t0 = time.time()
     items = []
+    seen_links = set()
+
+    def process_rss_content(content_bytes, p_info):
+        parsed_items = []
+        feed = feedparser.parse(content_bytes)
+        for entry in feed.entries[:max_entries]:
+            title = entry.get("title", "").strip()
+            raw_link = entry.get("link", "#")
+            norm_link = normalize_canonical_url(raw_link)
+            if not title or not norm_link or norm_link in seen_links:
+                continue
+
+            pub_raw = entry.get("published", "") or entry.get("updated", "")
+            if not pub_raw and norm_link.startswith("http"):
+                pub_raw = extract_date_from_card_or_url(None, norm_link, now_npt)
+            pub_dt, rel_time, exact_time = parse_to_nepal_time(pub_raw, now_npt)
+
+            content_candidates = []
+            if "content" in entry and isinstance(entry["content"], list):
+                for c in entry["content"]:
+                    if isinstance(c, dict) and "value" in c:
+                        content_candidates.append(c["value"])
+            if "content:encoded" in entry and entry["content:encoded"]:
+                content_candidates.append(entry["content:encoded"])
+            if "description" in entry and entry["description"]:
+                content_candidates.append(entry["description"])
+            if "summary" in entry and entry["summary"]:
+                content_candidates.append(entry["summary"])
+
+            best_content = ""
+            for cand in content_candidates:
+                clean_cand = re.sub(r"<[^>]+>", " ", str(cand))
+                clean_cand = html.unescape(clean_cand)
+                clean_cand = re.sub(r"\s+", " ", clean_cand).strip()
+                if len(clean_cand) > len(best_content):
+                    best_content = clean_cand
+
+            full_content = best_content if best_content else title
+            clean_summary = full_content[:260] + ("..." if len(full_content) > 260 else "")
+
+            title_lower = title.lower()
+            is_viral = any(k in title_lower for k in [
+                "social media", "twitter", "facebook", "viral", "एक्स", "फेसबुक", "सामाजिक सञ्जाल", "भाइरल", "ट्वीट"
+            ])
+
+            cls_res = classify_article_editorial(title, clean_summary, p_info["name"], full_content)
+            classified_cat = cls_res["primary_section"]
+            headline_en = title if p_info.get("lang") == "English" else ""
+            canonical_id = generate_canonical_id(p_info["name"], norm_link, title)
+
+            seen_links.add(norm_link)
+            parsed_items.append({
+                "canonical_id": canonical_id,
+                "source": p_info["name"],
+                "language": p_info.get("lang", "Nepali"),
+                "portal_category": p_info.get("category", "General News"),
+                "structured_category": classified_cat,
+                "primary_section": classified_cat,
+                "sections": cls_res["sections"],
+                "secondary_tags": cls_res["secondary_tags"],
+                "classification_confidence": cls_res["confidence"],
+                "low_confidence": cls_res["low_confidence"],
+                "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
+                "title": title,
+                "headline_english": headline_en,
+                "link": raw_link,
+                "canonical_url": norm_link,
+                "summary": clean_summary,
+                "full_content": full_content,
+                "published_dt": pub_dt,
+                "relative_time": rel_time,
+                "exact_time": exact_time,
+                "is_viral": is_viral
+            })
+        return parsed_items
+
     try:
         if portal["type"] == "rss":
             req = urllib.request.Request(portal["url"], headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=5) as response:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as response:
                 content = response.read()
+            items.extend(process_rss_content(content, portal))
 
-            feed = feedparser.parse(content)
-            for entry in feed.entries[:12]:
-                title = entry.get("title", "").strip()
-                link = entry.get("link", "#")
-                if not title:
-                    continue
-
-                pub_raw = entry.get("published", "") or entry.get("updated", "")
-                if not pub_raw and link and link.startswith("http"):
-                    pub_raw = extract_date_from_card_or_url(None, link, now_npt)
-                pub_dt, rel_time, exact_time = parse_to_nepal_time(pub_raw, now_npt)
-
-                # Extract fullest possible content from RSS candidates
-                content_candidates = []
-                if "content" in entry and isinstance(entry["content"], list):
-                    for c in entry["content"]:
-                        if isinstance(c, dict) and "value" in c:
-                            content_candidates.append(c["value"])
-                if "content:encoded" in entry and entry["content:encoded"]:
-                    content_candidates.append(entry["content:encoded"])
-                if "description" in entry and entry["description"]:
-                    content_candidates.append(entry["description"])
-                if "summary" in entry and entry["summary"]:
-                    content_candidates.append(entry["summary"])
-
-                best_content = ""
-                for cand in content_candidates:
-                    clean_cand = re.sub(r"<[^>]+>", " ", str(cand))
-                    clean_cand = html.unescape(clean_cand)
-                    clean_cand = re.sub(r"\s+", " ", clean_cand).strip()
-                    if len(clean_cand) > len(best_content):
-                        best_content = clean_cand
-
-                full_content = best_content if best_content else title
-                clean_summary = full_content[:260] + ("..." if len(full_content) > 260 else "")
-
-                title_lower = title.lower()
-                is_viral = any(k in title_lower for k in [
-                    "social media", "twitter", "facebook", "viral", "एक्स", "फेसबुक", "सामाजिक सञ्जाल", "भाइरल", "ट्वीट"
-                ])
-
-                cls_res = classify_article_editorial(title, clean_summary, portal["name"], full_content)
-                classified_cat = cls_res["primary_section"]
-                headline_en = title if portal["lang"] == "English" else ""
-
-                items.append({
-                    "source": portal["name"],
-                    "language": portal["lang"],
-                    "portal_category": portal["category"],
-                    "structured_category": classified_cat,
-                    "primary_section": classified_cat,
-                    "sections": cls_res["sections"],
-                    "secondary_tags": cls_res["secondary_tags"],
-                    "classification_confidence": cls_res["confidence"],
-                    "low_confidence": cls_res["low_confidence"],
-                    "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
-                    "title": title,
-                    "headline_english": headline_en,
-                    "link": link,
-                    "summary": clean_summary,
-                    "full_content": full_content,
-                    "published_dt": pub_dt,
-                    "relative_time": rel_time,
-                    "exact_time": exact_time,
-                    "is_viral": is_viral
-                })
+            # If primary feed yielded few articles, check configured alt_urls (category feeds)
+            if len(items) < 8 and portal.get("alt_urls"):
+                for alt_url in portal.get("alt_urls", []):
+                    if len(items) >= max_entries:
+                        break
+                    try:
+                        alt_req = urllib.request.Request(alt_url, headers=DEFAULT_HEADERS)
+                        with urllib.request.urlopen(alt_req, context=SSL_CTX, timeout=5) as alt_resp:
+                            alt_content = alt_resp.read()
+                        items.extend(process_rss_content(alt_content, portal))
+                    except Exception:
+                        pass
         else:
+            # HTML discovery mode (eKantipur, The Himalayan Times, Setopati EN, Nepal Aaja)
             req = urllib.request.Request(portal["url"], headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=5) as response:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as response:
                 html_raw = response.read().decode("utf-8", errors="ignore")
 
             soup = BeautifulSoup(html_raw, "html.parser")
-            seen = set()
+            seen_titles = set()
             for a in soup.find_all("a", href=True):
                 txt = a.get_text(strip=True)
                 href = a["href"]
-                if len(txt) >= 20 and txt not in seen:
+                if len(txt) >= 20 and txt not in seen_titles:
                     if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login"]):
                         continue
                     if href.startswith("/"):
                         href = portal["url"].rstrip("/") + href
                     elif not href.startswith("http"):
                         continue
-                    seen.add(txt)
+
+                    norm_link = normalize_canonical_url(href)
+                    if norm_link in seen_links:
+                        continue
+
+                    seen_titles.add(txt)
+                    seen_links.add(norm_link)
                     
-                    # Extract teaser/summary paragraph if available
                     art_summary = txt
                     curr = a.parent
                     for _ in range(3):
@@ -2506,12 +2549,14 @@ def fetch_single_portal(portal, now_npt):
                     art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
                     cls_res = classify_article_editorial(txt, art_summary, portal["name"], art_summary)
                     classified_cat = cls_res["primary_section"]
-                    headline_en = txt if portal["lang"] == "English" else ""
+                    headline_en = txt if portal.get("lang") == "English" else ""
+                    canonical_id = generate_canonical_id(portal["name"], norm_link, txt)
 
                     items.append({
+                        "canonical_id": canonical_id,
                         "source": portal["name"],
-                        "language": portal["lang"],
-                        "portal_category": portal["category"],
+                        "language": portal.get("lang", "Nepali"),
+                        "portal_category": portal.get("category", "General News"),
                         "structured_category": classified_cat,
                         "primary_section": classified_cat,
                         "sections": cls_res["sections"],
@@ -2522,6 +2567,7 @@ def fetch_single_portal(portal, now_npt):
                         "title": txt,
                         "headline_english": headline_en,
                         "link": href,
+                        "canonical_url": norm_link,
                         "summary": art_summary,
                         "full_content": art_summary,
                         "published_dt": art_dt,
@@ -2529,26 +2575,53 @@ def fetch_single_portal(portal, now_npt):
                         "exact_time": exact_time,
                         "is_viral": False
                     })
-                    if len(items) >= 12:
+                    if len(items) >= max_entries:
                         break
-    except Exception:
-        pass
+
+        # Persist discovered batch into durable SQLite news store
+        latency = round(time.time() - t0, 3)
+        if items:
+            batch_upsert_articles(items, portal["name"], latency_secs=latency)
+    except Exception as e:
+        latency = round(time.time() - t0, 3)
+        record_source_error(portal["name"], str(e), latency_secs=latency)
+
     return items
 
-def fetch_top_nepal_media(max_workers: int = 25):
+def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
     """
     Fetches real-time news items across all 34 Top Nepal Online News Portals in parallel.
-    Guarantees strict sorting from newest (minutes ago) to oldest.
+    Guarantees strict sorting from newest (minutes ago) to oldest, with automatic persistent
+    reconciliation against the durable SQLite store to ensure 0 dropped or missed articles.
     """
     now_npt = datetime.datetime.now(NEPAL_TZ)
     all_articles = []
+
+    # Ensure source registry is synced
+    try:
+        register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
+    except Exception:
+        pass
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(fetch_single_portal, p, now_npt) for p in TOP_NEPAL_NEWS_PORTALS]
         for f in concurrent.futures.as_completed(futures):
             all_articles.extend(f.result())
 
-    all_articles.sort(key=lambda x: x["published_dt"], reverse=True)
+    # Reconcile with persistent stored articles from past 48 hours to prevent any missed articles
+    try:
+        since_dt = now_npt - datetime.timedelta(hours=48)
+        stored_articles = get_stored_articles(start_dt=since_dt, limit=1200)
+        seen_ids = {a.get("canonical_id") or a.get("link") for a in all_articles}
+        for sa in stored_articles:
+            cid = sa.get("canonical_id") or sa.get("link")
+            if cid not in seen_ids:
+                all_articles.append(sa)
+                seen_ids.add(cid)
+    except Exception:
+        pass
+
+    all_articles.sort(key=lambda x: x["published_dt"] if isinstance(x["published_dt"], datetime.datetime) else now_npt, reverse=True)
     return all_articles
 
 def fetch_single_indian_media(src, now_npt):

@@ -20,6 +20,9 @@ ENV/
 !whatsapp_sent_cache.json
 *.docx
 green_api_qr.png
+*.db
+*.sqlite
+*.sqlite3
 
 # Streamlit
 .streamlit/secrets.toml
