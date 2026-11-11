@@ -29,19 +29,38 @@ NEPAL_SUBSTANTIVE_KEYWORDS = re.compile(
     re.IGNORECASE
 )
 
-def is_substantially_related_to_nepal(item: Dict[str, Any]) -> bool:
+def is_substantially_related_to_nepal(item: Dict[str, Any], threshold: Optional[float] = None) -> bool:
     """
     Evaluates whether an article is substantially related to Nepal,
-    including its politics, diplomacy, economy, security, and bilateral relations.
-    Filters out generic Indian domestic news or unrelated portal sidebar items.
+    including its politics, diplomacy, economy, security, and bilateral relations,
+    using contextual AI/semantic relevance classification rather than simple keyword matching.
     """
-    title = str(item.get("title") or "")
-    summary = str(item.get("summary") or "")
-    full_content = str(item.get("full_content") or "")
-    link = str(item.get("link") or "").lower()
+    effective_threshold = threshold if threshold is not None else float(os.getenv("INDIA_MEDIA_RELEVANCE_THRESHOLD", "0.65"))
+    if "nepal_relevance_score" in item and item.get("nepal_relevance_score") is not None:
+        return float(item["nepal_relevance_score"]) >= effective_threshold
 
-    text_corpus = f"{title} {summary} {full_content[:1500]} {link}"
-    return bool(NEPAL_SUBSTANTIVE_KEYWORDS.search(text_corpus))
+    try:
+        from nepal_fetcher import evaluate_indian_article_nepal_relevance
+        res = evaluate_indian_article_nepal_relevance(
+            title=str(item.get("title") or ""),
+            summary=str(item.get("summary") or ""),
+            full_content=str(item.get("full_content") or ""),
+            link=str(item.get("link") or ""),
+            source=str(item.get("source") or ""),
+            threshold=effective_threshold,
+        )
+        item["nepal_relevance_score"] = res["nepal_relevance_score"]
+        item["relevance_status"] = res["relevance_status"]
+        item["relevance_reason"] = res["relevance_reason"]
+        item["nepal_dimensions"] = res["nepal_dimensions"]
+        return bool(res["is_substantive"])
+    except Exception:
+        title = str(item.get("title") or "")
+        summary = str(item.get("summary") or "")
+        full_content = str(item.get("full_content") or "")
+        link = str(item.get("link") or "").lower()
+        text_corpus = f"{title} {summary} {full_content[:1500]} {link}"
+        return bool(NEPAL_SUBSTANTIVE_KEYWORDS.search(text_corpus))
 
 SENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), "whatsapp_sent_cache.json")
 

@@ -27,6 +27,9 @@ from nepal_fetcher import (
     fetch_top_nepal_media,
     fetch_all_nepal_posts,
     fetch_nepal_in_indian_media,
+    evaluate_indian_article_nepal_relevance,
+    DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
+    BORDERLINE_NEPAL_RELEVANCE_FLOOR,
     query_x_api,
     get_live_nepal_trends,
     batch_fetch_full_content,
@@ -52,7 +55,9 @@ from nepal_news_store import (
     set_source_enabled,
     set_source_interval,
     get_stored_articles,
-    get_source_broadcast_stats
+    get_source_broadcast_stats,
+    get_stored_indian_articles,
+    get_indian_media_audit_stats
 )
 from nepal_news_scheduler import (
     run_single_source_discovery,
@@ -1049,14 +1054,29 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
         source_tag = f'<span class="portal-tag">{source_name}</span>'
         cat_badge = get_badge_html(cat)
 
-    # Low confidence warning flag
-    review_flag = '<span class="conf-review-badge" title="Classification confidence < 0.60 - Pending Editorial Verification">⚠️ Review</span>' if item.get("low_confidence") else ''
+    # Low confidence warning flag or Nepal relevance badge for Indian media
+    if is_indian:
+        rel_score = float(item.get("nepal_relevance_score", 0.75))
+        rel_status = item.get("relevance_status", "substantive")
+        rel_reason = html.escape(str(item.get("relevance_reason", "Substantive Nepal connection")))
+        pct = int(round(rel_score * 100))
+        if rel_status == "borderline_review":
+            review_flag = f'<span class="conf-review-badge" title="{rel_reason}">⚠️ Borderline Review ({pct}% Relevance)</span>'
+        else:
+            review_flag = f'<span class="time-badge" style="background:#ECFDF5; color:#047857; border-color:#A7F3D0; font-weight:650;" title="{rel_reason}">🎯 {pct}% Nepal Relevance</span>'
+    else:
+        review_flag = '<span class="conf-review-badge" title="Classification confidence < 0.60 - Pending Editorial Verification">⚠️ Review</span>' if item.get("low_confidence") else ''
 
-    # Secondary tags chips
-    sec_tags = item.get("secondary_tags", [])
+    # Secondary tags chips & Nepal thematic dimensions
+    sec_tags = list(item.get("secondary_tags", []) or [])
+    if is_indian:
+        dims = item.get("nepal_dimensions", []) or []
+        for d in dims:
+            if d not in sec_tags:
+                sec_tags.insert(0, d)
     sec_tags_html = ""
     if sec_tags and isinstance(sec_tags, list):
-        chips = [f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:4]]
+        chips = [f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:5]]
         sec_tags_html = f'<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">{" ".join(chips)}</div>'
 
     rel_time = html.escape(str(item.get('relative_time', 'Recent')))
@@ -1489,8 +1509,7 @@ with tab2:
 
     indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
 
-    tab_filtered_indian = filtered_indian
-    ti_col1, ti_col2 = st.columns([2.5, 1.5])
+    ti_col1, ti_col2, ti_col3 = st.columns([2.1, 1.5, 1.4])
     with ti_col1:
         selected_indian_outlet = st.selectbox(
             "Filter by Specific Indian Media Outlet:",
@@ -1498,17 +1517,35 @@ with tab2:
             key="select_indian_outlet",
             label_visibility="collapsed"
         )
-    
+    with ti_col2:
+        india_rel_threshold = st.slider(
+            "Nepal Relevance Threshold",
+            min_value=0.50,
+            max_value=0.90,
+            value=float(DEFAULT_NEPAL_RELEVANCE_THRESHOLD),
+            step=0.05,
+            key="slider_india_nepal_relevance_threshold",
+            help="Configurable AI/semantic relevance-confidence threshold. Only Indian media articles scoring at or above this threshold appear in the main feed."
+        )
+
+    tab_filtered_indian = [
+        a for a in filtered_indian
+        if float(a.get("nepal_relevance_score", 0.75)) >= india_rel_threshold
+    ]
     if selected_indian_outlet != "All 18 Monitored Indian Outlets":
         tab_filtered_indian = [a for a in tab_filtered_indian if a["source"] == selected_indian_outlet]
 
-    with ti_col2:
-        st.markdown(f'<div class="apple-counter-badge" style="background:#FFF7ED; color:#C2410C; border-color:#FFEDD5; margin-top:2px; height:38px; display:flex; align-items:center; justify-content:center;">Showing <b>{len(tab_filtered_indian):,}</b> stories · 18 Outlets (EN & HI)</div>', unsafe_allow_html=True)
+    with ti_col3:
+        st.markdown(
+            f'<div class="apple-counter-badge" style="background:#FFF7ED; color:#C2410C; border-color:#FFEDD5; margin-top:2px; height:38px; display:flex; align-items:center; justify-content:center;">'
+            f'Showing <b>{len(tab_filtered_indian):,}</b> Nepal-relevant stories (≥{int(india_rel_threshold*100)}%)</div>',
+            unsafe_allow_html=True
+        )
 
     st.write("")
 
     if not tab_filtered_indian:
-        st.info("No articles found matching the current timeframe or filter. Try selecting 'All Recent Articles'.")
+        st.info("No Indian media articles met the strict Nepal-relevance threshold for the current timeframe or filter. Try lowering the threshold slightly or selecting 'All Recent Articles'.")
     else:
         # Incremental Loading / Pagination (20 entries initial, +20 per click)
         if "indian_visible_count" not in st.session_state:
@@ -1530,7 +1567,47 @@ with tab2:
                     st.rerun()
                 st.caption(f"Showing {len(visible_indian):,} of {len(tab_filtered_indian):,} stories ({remaining_indian:,} remaining)")
         elif len(tab_filtered_indian) > 0:
-            st.caption(f"🏁 You've reached the end of Indian press coverage ({len(tab_filtered_indian):,} stories displayed).")
+            st.caption(f"🏁 You've reached the end of Nepal-focused Indian press coverage ({len(tab_filtered_indian):,} stories displayed).")
+
+    # Flagged Borderline Articles for Editorial Review & Central DB Retention Audit
+    try:
+        ind_audit = get_indian_media_audit_stats()
+        borderline_candidates = get_stored_indian_articles(status_filter=None, min_score=BORDERLINE_NEPAL_RELEVANCE_FLOOR, limit=100)
+        borderline_items = []
+        for bc in borderline_candidates:
+            re_ev = evaluate_indian_article_nepal_relevance(
+                title=bc.get("title", ""),
+                summary=bc.get("summary", ""),
+                full_content=bc.get("full_content", ""),
+                link=bc.get("link", ""),
+                source=bc.get("source", ""),
+                threshold=india_rel_threshold,
+            )
+            if BORDERLINE_NEPAL_RELEVANCE_FLOOR <= re_ev["nepal_relevance_score"] < india_rel_threshold:
+                bc["nepal_relevance_score"] = re_ev["nepal_relevance_score"]
+                bc["relevance_status"] = "borderline_review"
+                bc["relevance_reason"] = re_ev["relevance_reason"]
+                bc["nepal_dimensions"] = re_ev["nepal_dimensions"]
+                borderline_items.append(bc)
+    except Exception:
+        ind_audit = {"total": 0, "substantive": 0, "borderline_review": 0, "excluded": 0}
+        borderline_items = []
+
+    with st.expander(f"⚠️ Flagged Borderline Articles for Editorial Review ({len(borderline_items)}) & Central Database Retention", expanded=False):
+        st.caption(
+            "Borderline articles (scoring between 40% and the active relevance threshold) and excluded domestic Indian articles are retained in the central SQLite database (`indian_media_articles`) without cluttering the main India Media feed."
+        )
+        m_c1, m_c2, m_c3, m_c4 = st.columns(4)
+        m_c1.metric("Substantive (Displayed)", f"{len(tab_filtered_indian):,}")
+        m_c2.metric("Flagged Borderline (Review)", f"{len(borderline_items):,}")
+        m_c3.metric("Excluded Domestic (DB Archived)", f"{ind_audit.get('excluded', 0):,}")
+        m_c4.metric("Total Retained in Central DB", f"{ind_audit.get('total', 0):,}")
+
+        if borderline_items:
+            for b_art in borderline_items[:15]:
+                st.markdown(render_apple_article_card(b_art, is_indian=True), unsafe_allow_html=True)
+        else:
+            st.success("No borderline articles currently pending editorial review.")
 
     with st.expander("⚡ Quick Jump to Dedicated Nepal Desks in Indian Media", expanded=False):
         q1, q2, q3, q4 = st.columns(4)

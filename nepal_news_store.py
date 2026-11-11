@@ -168,6 +168,33 @@ def init_news_store():
             )
         """)
 
+        # Central archive for all scraped Indian Media articles (retains relevant, borderline, and excluded items)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS indian_media_articles (
+                canonical_id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                title TEXT NOT NULL,
+                headline_english TEXT,
+                link TEXT NOT NULL,
+                canonical_url TEXT NOT NULL,
+                summary TEXT,
+                full_content TEXT,
+                published_dt TIMESTAMP NOT NULL,
+                relative_time TEXT,
+                exact_time TEXT,
+                language TEXT NOT NULL DEFAULT 'English',
+                primary_section TEXT NOT NULL DEFAULT 'India Section',
+                sections TEXT NOT NULL DEFAULT '["India Section"]',
+                secondary_tags TEXT NOT NULL DEFAULT '[]',
+                classification_confidence REAL NOT NULL DEFAULT 0.85,
+                nepal_relevance_score REAL NOT NULL DEFAULT 0.0,
+                relevance_status TEXT NOT NULL DEFAULT 'excluded',
+                relevance_reason TEXT,
+                nepal_dimensions TEXT,
+                ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Indexes for fast querying, filtering, and metrics
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_art_published ON articles(published_dt DESC);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_art_source ON articles(source);")
@@ -177,6 +204,8 @@ def init_news_store():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bcast_key ON broadcast_logs(item_key);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bcast_src ON broadcast_logs(source_name);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_bcast_time ON broadcast_logs(dispatched_at DESC);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ind_rel_status ON indian_media_articles(relevance_status, published_dt DESC);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ind_rel_score ON indian_media_articles(nepal_relevance_score DESC);")
 
         conn.commit()
 
@@ -612,4 +641,153 @@ def get_recent_broadcast_logs(limit: int = 50) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"Error fetching recent broadcast logs: {e}")
         return []
+
+def ingest_indian_articles_batch(articles: List[Dict[str, Any]]) -> Dict[str, int]:
+    """
+    Persists all scraped Indian media articles (including substantive, borderline_review, and excluded)
+    into the central SQLite database while preserving original headlines, sources, dates, and URLs.
+    """
+    counts = {"substantive": 0, "borderline_review": 0, "excluded": 0}
+    if not articles:
+        return counts
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            for a in articles:
+                title = (a.get("title") or "").strip()
+                link = (a.get("link") or "").strip()
+                source = (a.get("source") or "Indian Media").strip()
+                if not title or not link:
+                    continue
+                cid = generate_canonical_id(title, link, source)
+                canon_url = normalize_canonical_url(link)
+                pub_dt = a.get("published_dt")
+                if isinstance(pub_dt, datetime.datetime):
+                    pub_dt_str = pub_dt.isoformat()
+                else:
+                    pub_dt_str = str(pub_dt or datetime.datetime.now(NEPAL_TZ).isoformat())
+
+                rel_score = float(a.get("nepal_relevance_score", 0.0))
+                rel_status = str(a.get("relevance_status", "excluded"))
+                rel_reason = str(a.get("relevance_reason", ""))
+                dims_json = json.dumps(a.get("nepal_dimensions", []), ensure_ascii=False)
+                sections_json = json.dumps(a.get("sections", ["India Section"]), ensure_ascii=False)
+                tags_json = json.dumps(a.get("secondary_tags", []), ensure_ascii=False)
+
+                if rel_status in counts:
+                    counts[rel_status] += 1
+
+                cursor.execute("""
+                    INSERT INTO indian_media_articles (
+                        canonical_id, source, title, headline_english, link, canonical_url,
+                        summary, full_content, published_dt, relative_time, exact_time,
+                        language, primary_section, sections, secondary_tags,
+                        classification_confidence, nepal_relevance_score,
+                        relevance_status, relevance_reason, nepal_dimensions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(canonical_id) DO UPDATE SET
+                        nepal_relevance_score = excluded.nepal_relevance_score,
+                        relevance_status = excluded.relevance_status,
+                        relevance_reason = excluded.relevance_reason,
+                        nepal_dimensions = excluded.nepal_dimensions,
+                        relative_time = excluded.relative_time
+                """, (
+                    cid,
+                    source,
+                    title,
+                    a.get("headline_english", ""),
+                    link,
+                    canon_url,
+                    a.get("summary", ""),
+                    a.get("full_content", ""),
+                    pub_dt_str,
+                    a.get("relative_time", "Recent"),
+                    a.get("exact_time", ""),
+                    a.get("language", "English"),
+                    a.get("primary_section", "India Section"),
+                    sections_json,
+                    tags_json,
+                    float(a.get("classification_confidence", 0.85)),
+                    rel_score,
+                    rel_status,
+                    rel_reason,
+                    dims_json
+                ))
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Error persisting Indian media articles to central database: {e}")
+    return counts
+
+def get_stored_indian_articles(
+    status_filter: Optional[str] = "substantive",
+    min_score: float = 0.0,
+    limit: int = 200
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves stored Indian media articles from the central database, optionally filtered by
+    relevance_status ('substantive', 'borderline_review', 'excluded') and minimum score.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            query = "SELECT * FROM indian_media_articles WHERE nepal_relevance_score >= ?"
+            params: List[Any] = [min_score]
+            if status_filter:
+                query += " AND relevance_status = ?"
+                params.append(status_filter)
+            query += " ORDER BY published_dt DESC LIMIT ?"
+            params.append(limit)
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            results = []
+            for r in rows:
+                d = dict(r)
+                if isinstance(d.get("published_dt"), str):
+                    try:
+                        dt = datetime.datetime.fromisoformat(d["published_dt"])
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=NEPAL_TZ)
+                        d["published_dt"] = dt
+                    except Exception:
+                        pass
+                try:
+                    d["sections"] = json.loads(d.get("sections") or '["India Section"]')
+                except Exception:
+                    d["sections"] = ["India Section"]
+                try:
+                    d["secondary_tags"] = json.loads(d.get("secondary_tags") or "[]")
+                except Exception:
+                    d["secondary_tags"] = []
+                try:
+                    d["nepal_dimensions"] = json.loads(d.get("nepal_dimensions") or "[]")
+                except Exception:
+                    d["nepal_dimensions"] = []
+                d["portal_category"] = "Indian Press"
+                d["structured_category"] = d.get("primary_section", "India Section")
+                results.append(d)
+            return results
+    except Exception as e:
+        logger.warning(f"Error querying stored Indian media articles: {e}")
+        return []
+
+def get_indian_media_audit_stats() -> Dict[str, int]:
+    """Returns counts of substantive, borderline_review, and excluded Indian articles in central DB."""
+    stats = {"substantive": 0, "borderline_review": 0, "excluded": 0, "total": 0}
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT relevance_status, COUNT(*) as cnt
+                FROM indian_media_articles
+                GROUP BY relevance_status
+            """)
+            for r in cursor.fetchall():
+                st_name = r["relevance_status"]
+                cnt = r["cnt"]
+                if st_name in stats:
+                    stats[st_name] = cnt
+                stats["total"] += cnt
+    except Exception as e:
+        logger.warning(f"Error reading Indian media audit stats: {e}")
+    return stats
 
