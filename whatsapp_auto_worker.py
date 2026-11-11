@@ -165,8 +165,8 @@ def run_single_broadcast_cycle(
 
     # 1. Fetch latest items across portals (Nepali media, Indian media & X posts only)
     logger.info("Scanning Nepali media, Indian press & X posts...")
-    nepali_articles = fetch_top_nepal_media(max_workers=15)
-    indian_articles = fetch_nepal_in_indian_media(max_workers=12)
+    nepali_articles = fetch_top_nepal_media(max_workers=15, force_refresh=True)
+    indian_articles = fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
     x_posts = scan_popular_nepal_x_posts(force_refresh=False)
 
     all_scanned: List[tuple[Dict[str, Any], str]] = []

@@ -1294,20 +1294,54 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
 
     return items
 
+def _prewarm_caches_from_db():
+    """Pre-seeds ARTICLE_DATE_CACHE and FULL_ARTICLE_TEXT_CACHE from SQLite to avoid redundant HTTP sub-requests."""
+    try:
+        stored = get_stored_articles(limit=1500)
+        for sa in stored:
+            lnk = sa.get("link")
+            pdt = sa.get("published_dt")
+            fc = sa.get("full_content")
+            if lnk and isinstance(pdt, datetime.datetime) and lnk not in ARTICLE_DATE_CACHE:
+                ARTICLE_DATE_CACHE[lnk] = pdt
+            if lnk and fc and len(fc) > 50 and lnk not in FULL_ARTICLE_TEXT_CACHE:
+                FULL_ARTICLE_TEXT_CACHE[lnk] = fc
+    except Exception:
+        pass
+
+_prewarm_caches_from_db()
+
 def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
     """
     Fetches real-time news items across all 34 Top Nepal Online News Portals in parallel.
-    Guarantees strict sorting from newest (minutes ago) to oldest, with automatic persistent
-    reconciliation against the durable SQLite store to ensure 0 dropped or missed articles.
+    If force_refresh=False and the SQLite store already holds recent articles, returns them
+    immediately in <50ms while the background daemon keeps the store continuously synced.
     """
     now_npt = datetime.datetime.now(NEPAL_TZ)
     all_articles = []
+
+    # Fast path: serve immediately from SQLite store unless explicit refresh is requested
+    if not force_refresh:
+        try:
+            since_dt = now_npt - datetime.timedelta(days=7)
+            stored_fast = get_stored_articles(start_dt=since_dt, limit=1500)
+            if len(stored_fast) >= 50:
+                for sa in stored_fast:
+                    pdt = sa.get("published_dt")
+                    if isinstance(pdt, datetime.datetime):
+                        _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_npt)
+                stored_fast.sort(key=lambda x: x["published_dt"] if isinstance(x["published_dt"], datetime.datetime) else now_npt, reverse=True)
+                return stored_fast
+        except Exception:
+            pass
 
     # Ensure source registry is synced
     try:
         register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
     except Exception:
         pass
+
+    _prewarm_caches_from_db()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(fetch_single_portal, p, now_npt) for p in TOP_NEPAL_NEWS_PORTALS]
@@ -1768,6 +1802,7 @@ def fetch_nepal_in_indian_media(
     max_workers: int = 18,
     relevance_threshold: float = DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
     include_borderline: bool = False,
+    force_refresh: bool = False,
 ):
     """
     Fetches real-time Nepal news across Top Indian Media Outlets, retains all
@@ -1776,6 +1811,23 @@ def fetch_nepal_in_indian_media(
     that meet the substantive Nepal-relevance threshold for the India Media feed.
     """
     now_npt = datetime.datetime.now(NEPAL_TZ)
+    if not force_refresh:
+        try:
+            stored_ind = get_stored_indian_articles(
+                status_filter=None if include_borderline else "substantive",
+                min_score=BORDERLINE_NEPAL_RELEVANCE_FLOOR if include_borderline else relevance_threshold,
+                limit=250,
+            )
+            if len(stored_ind) >= 3:
+                for sa in stored_ind:
+                    pdt = sa.get("published_dt")
+                    if isinstance(pdt, datetime.datetime):
+                        _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_npt)
+                stored_ind.sort(key=lambda x: x["published_dt"] if isinstance(x["published_dt"], datetime.datetime) else now_npt, reverse=True)
+                return stored_ind
+        except Exception:
+            pass
+
     raw_candidates = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [

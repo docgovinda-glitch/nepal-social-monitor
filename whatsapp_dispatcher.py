@@ -101,23 +101,38 @@ def get_env_variable(key: str, default: str = "") -> str:
 
 DEFAULT_CHANNEL_URL = get_env_variable("WHATSAPP_CHANNEL_URL", "https://whatsapp.com/channel/0029Vb92VH61iUxbhQ4HpB38")
 
+_MEM_SENT_CACHE: Optional[Dict[str, Any]] = None
+_MEM_SENT_MTIME: float = -1.0
+
 def load_sent_cache() -> Dict[str, Any]:
-    """Loads the persistent set of already-broadcasted items."""
+    """Loads the persistent set of already-broadcasted items, with in-memory mtime caching."""
+    global _MEM_SENT_CACHE, _MEM_SENT_MTIME
     if os.path.exists(SENT_CACHE_FILE):
         try:
+            mtime = os.path.getmtime(SENT_CACHE_FILE)
+            if _MEM_SENT_CACHE is not None and mtime == _MEM_SENT_MTIME:
+                return _MEM_SENT_CACHE
             with open(SENT_CACHE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
+                    _MEM_SENT_CACHE = data
+                    _MEM_SENT_MTIME = mtime
                     return data
         except Exception:
             pass
+    if _MEM_SENT_CACHE is not None:
+        return _MEM_SENT_CACHE
     return {"sent_keys": {}, "history": []}
 
 def save_sent_cache(cache: Dict[str, Any]) -> None:
-    """Saves the persistent deduplication cache to disk."""
+    """Saves the persistent deduplication cache to disk and updates memory cache."""
+    global _MEM_SENT_CACHE, _MEM_SENT_MTIME
     try:
         with open(SENT_CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(cache, f, ensure_ascii=False, indent=2)
+        _MEM_SENT_CACHE = cache
+        if os.path.exists(SENT_CACHE_FILE):
+            _MEM_SENT_MTIME = os.path.getmtime(SENT_CACHE_FILE)
     except Exception:
         pass
 

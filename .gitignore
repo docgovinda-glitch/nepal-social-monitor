@@ -21,6 +21,9 @@ ENV/
 *.docx
 green_api_qr.png
 *.db
+!nepal_news_store.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 

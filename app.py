@@ -372,7 +372,9 @@ refresh_btn = st.sidebar.button(
 if refresh_btn:
     st.session_state["is_refreshing_feeds"] = True
     with st.sidebar:
-        with st.spinner("Refreshing feeds..."):
+        with st.spinner("Syncing live feeds across 52 sources..."):
+            fetch_top_nepal_media(max_workers=25, force_refresh=True)
+            fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
             st.cache_data.clear()
             if "x_posts" in st.session_state:
                 del st.session_state["x_posts"]
@@ -1519,8 +1521,7 @@ with tab4:
 
     if export_type == "Nepali Media (34 Portals)":
         if filtered_articles:
-            with st.spinner("Extracting full news text for export..."):
-                ready_articles = batch_fetch_full_content(filtered_articles)
+            ready_articles = filtered_articles
 
             export_rows = []
             for a in ready_articles:
@@ -1729,22 +1730,30 @@ with tab4:
                 )
             with c_btn2:
                 if selected_articles:
-                    docx_data = generate_word_document(selected_articles, report_title="Nepal Media & Intelligence Executive Report")
-                    st.download_button(
-                        label=f"📄 Generate & Download Executive Word Document ({len(selected_articles)} Stories)",
-                        data=docx_data,
-                        file_name=f"nepal_media_intelligence_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        width='stretch'
-                    )
+                    np_sel_hash = hash(tuple(a.get("link", "") for a in selected_articles))
+                    if st.session_state.get("docx_ready_hash_np") != np_sel_hash:
+                        if st.button(f"📄 Prepare Executive Word Document ({len(selected_articles)} Stories)", key="btn_prep_docx_np", width="stretch", type="primary"):
+                            with st.spinner(f"Extracting full text & building Word dossier for {len(selected_articles)} stories..."):
+                                enriched_sel = batch_fetch_full_content(selected_articles[:60]) if len(selected_articles) <= 60 else selected_articles
+                                st.session_state["docx_bytes_np"] = generate_word_document(enriched_sel, report_title="Nepal Media & Intelligence Executive Report")
+                                st.session_state["docx_ready_hash_np"] = np_sel_hash
+                            st.rerun()
+                    else:
+                        st.download_button(
+                            label=f"⬇️ Download Ready Word Document ({len(selected_articles)} Stories)",
+                            data=st.session_state["docx_bytes_np"],
+                            file_name=f"nepal_media_intelligence_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            width="stretch",
+                            type="primary"
+                        )
                 else:
                     st.warning("⚠️ No articles selected. Check the box on articles above or click 'Select All' to enable Word export.")
         else:
             st.info("No articles found in the selected timeframe.")
     elif export_type == "Nepal in Indian Media (18 Outlets)":
         if filtered_indian:
-            with st.spinner("Extracting full news text for export..."):
-                ready_indian = batch_fetch_full_content(filtered_indian)
+            ready_indian = filtered_indian
 
             export_rows_i = []
             for a in ready_indian:
@@ -1904,14 +1913,23 @@ with tab4:
                 )
             with c_btn_i2:
                 if selected_indian:
-                    docx_data_i = generate_word_document(selected_indian, report_title="Nepal Coverage in Indian Press - Intelligence Dossier")
-                    st.download_button(
-                        label=f"📄 Generate & Download Executive Word Document ({len(selected_indian)} Stories)",
-                        data=docx_data_i,
-                        file_name=f"nepal_in_indian_media_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        width='stretch'
-                    )
+                    in_sel_hash = hash(tuple(a.get("link", "") for a in selected_indian))
+                    if st.session_state.get("docx_ready_hash_in") != in_sel_hash:
+                        if st.button(f"📄 Prepare Executive Word Document ({len(selected_indian)} Stories)", key="btn_prep_docx_in", width="stretch", type="primary"):
+                            with st.spinner("Extracting full text & building Indian Media Word dossier..."):
+                                enriched_ind = batch_fetch_full_content(selected_indian[:40])
+                                st.session_state["docx_bytes_in"] = generate_word_document(enriched_ind, report_title="Nepal Coverage in Indian Press - Intelligence Dossier")
+                                st.session_state["docx_ready_hash_in"] = in_sel_hash
+                            st.rerun()
+                    else:
+                        st.download_button(
+                            label=f"⬇️ Download Ready Word Document ({len(selected_indian)} Stories)",
+                            data=st.session_state["docx_bytes_in"],
+                            file_name=f"nepal_in_indian_media_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            width="stretch",
+                            type="primary"
+                        )
                 else:
                     st.warning("⚠️ No articles selected. Check the box on articles above to enable Word export.")
         else:
@@ -2116,14 +2134,22 @@ with tab4:
                 )
             with c_btn_x2:
                 if selected_x_posts:
-                    docx_data_x = generate_word_document(selected_x_posts, report_title="Nepal X (Twitter) Social Intelligence Report")
-                    st.download_button(
-                        label=f"📄 Generate & Download Executive Word Document ({len(selected_x_posts):,} Selected Posts)",
-                        data=docx_data_x,
-                        file_name=f"nepal_x_intelligence_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        width='stretch'
-                    )
+                    x_sel_hash = hash(tuple(p.get("link", "") for p in selected_x_posts))
+                    if st.session_state.get("docx_ready_hash_x") != x_sel_hash:
+                        if st.button(f"📄 Prepare Executive Word Document ({len(selected_x_posts):,} Posts)", key="btn_prep_docx_x", width="stretch", type="primary"):
+                            with st.spinner("Building X Intelligence Word dossier..."):
+                                st.session_state["docx_bytes_x"] = generate_word_document(selected_x_posts, report_title="Nepal X (Twitter) Social Intelligence Report")
+                                st.session_state["docx_ready_hash_x"] = x_sel_hash
+                            st.rerun()
+                    else:
+                        st.download_button(
+                            label=f"⬇️ Download Ready Word Document ({len(selected_x_posts):,} Posts)",
+                            data=st.session_state["docx_bytes_x"],
+                            file_name=f"nepal_x_intelligence_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            width="stretch",
+                            type="primary"
+                        )
                 else:
                     st.warning("⚠️ No posts selected. Check the box on posts above to enable Word export.")
         else:
