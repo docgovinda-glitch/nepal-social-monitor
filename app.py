@@ -2549,25 +2549,37 @@ with tab4:
     with m4:
         st.metric("🐦 X (Twitter)", f"{by_stream.get('x', 0):,}")
 
-    # Deduplication Queue: Gather unscanned/unbroadcasted items from current timeframe
+    # Deduplication Queue: Align strictly with the active broadcast window (Past 3 Hours during daytime, 10 Hours morning)
+    # This excludes older historical stories from cluttering the pending broadcast queue.
+    now_dt = datetime.datetime.now(NEPAL_TZ)
+    worker_lookback_hours = 10 if (now_dt.hour == 6 or now_dt.hour < 7) else 3
+    broadcast_cutoff = now_dt - datetime.timedelta(hours=worker_lookback_hours)
+
+    def is_within_broadcast_window(it):
+        pdt = it.get("published_dt")
+        if isinstance(pdt, datetime.datetime):
+            item_dt = pdt if pdt.tzinfo else pdt.replace(tzinfo=NEPAL_TZ)
+            return item_dt >= broadcast_cutoff
+        return False
+
     pending_queue = []
-    # 1. Nepali Media: every article irrespective of category
+    # 1. Nepali Media: fresh articles published within broadcast window
     for item in filtered_articles:
-        if not is_item_broadcasted(item, "article"):
+        if is_within_broadcast_window(item) and not is_item_broadcasted(item, "article"):
             pending_queue.append({"item": item, "type": "article", "source_type": "Nepali Media"})
-    # 2. Indian Media: all articles substantially related to Nepal
+    # 2. Indian Media: fresh articles substantially related to Nepal within broadcast window
     for item in filtered_indian:
-        if is_substantially_related_to_nepal(item):
+        if is_substantially_related_to_nepal(item) and is_within_broadcast_window(item):
             if not is_item_broadcasted(item, "article"):
                 pending_queue.append({"item": item, "type": "article", "source_type": "Indian Press"})
-    # 3. X (Twitter): every accessible new post without relevance filtering
+    # 3. X (Twitter): fresh posts within broadcast window
     for item in filtered_x_posts:
-        if not is_item_broadcasted(item, "x"):
+        if is_within_broadcast_window(item) and not is_item_broadcasted(item, "x"):
             pending_queue.append({"item": item, "type": "x", "source_type": "X (Twitter)"})
 
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:
-        st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` unsent items in timeframe)")
+        st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` fresh unsent items in past {worker_lookback_hours}h)")
     with q_col2:
         queue_filter = st.selectbox(
             "Filter Queue Source:",
