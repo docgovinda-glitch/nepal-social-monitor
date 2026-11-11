@@ -169,27 +169,80 @@ def get_broadcasted_stats() -> Dict[str, Any]:
         "recent_history": history[:15]
     }
 
+def fetch_article_full_text(url: str, timeout: int = 5) -> str:
+    """
+    Fetches the unabridged, full article content directly from the publisher's webpage.
+    Extracts substantive story paragraphs while filtering out navigation, ads,
+    and boilerplate elements.
+    """
+    if not url or not url.startswith("http"):
+        return ""
+    try:
+        import urllib.request
+        import ssl
+        from bs4 import BeautifulSoup
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        }
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form", "button", "figure", "figcaption"]):
+            tag.decompose()
+
+        paras = []
+        for p in soup.find_all("p"):
+            txt = p.get_text(strip=True)
+            if len(txt) > 35 and not any(skip in txt.lower() for skip in [
+                "cookie", "privacy policy", "all rights reserved", "सर्वाधिकार", "प्रतिलिपि अधिकार", "terms of use",
+                "facebook", "twitter", "whatsapp", "viber", "copy link", "download app"
+            ]):
+                paras.append(txt)
+
+        if paras:
+            return "\n\n".join(paras)
+    except Exception:
+        pass
+    return ""
+
+def _is_devanagari(text: str) -> bool:
+    import re
+    return bool(re.search(r'[\u0900-\u097F]', text or ""))
+
 def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") -> str:
     """
     Formats an individual news article, X post, or Facebook post for WhatsApp.
-    Uses Google Gemini AI to translate Nepali/Hindi to English and write
-    crisp 2-sentence executive summaries.
-    Produces a clean, uncluttered template: Title -> Summary -> Full Story Link.
+    Ensures complete, unabridged contents are broadcast:
+    - News articles: Fetches the full story body directly from the publisher webpage.
+    - X (Twitter) posts: Includes complete tweet text, long-form notes, and context.
+    - Caps text at 3,400 chars to strictly stay within WhatsApp / Green-API 4,096 char limits.
     """
     if item_type in ("x", "twitter"):
+        link = item.get("link") or "https://x.com"
+        handle = (item.get("handle") or "@user").strip()
+        category = item.get("structured_category") or "Public Opinion"
+        full_text = (item.get("text") or "").strip()
+
+        # If Devanagari and Gemini is available, provide English translation
         if translate_tweet and "ai_text" not in item:
             tr = translate_tweet(
                 author=item.get("author_name", ""),
-                handle=item.get("handle", ""),
-                text=item.get("text", "")
+                handle=handle,
+                text=full_text
             )
             item["ai_author"] = tr.get("author") or item.get("author_name", "Author")
-            item["ai_text"] = tr.get("text") or item.get("text", "")
+            item["ai_text"] = tr.get("text") or full_text
 
         author = (item.get("ai_author") or item.get("author_name") or "Author").replace("*", "").strip()
-        handle = (item.get("handle") or "@user").strip()
-        text = (item.get("ai_text") or item.get("text") or "").strip()
-        link = item.get("link") or "https://x.com"
+        trans_text = (item.get("ai_text") or "").strip()
 
         if handle and handle in author:
             author_line = f"*{author}*"
@@ -198,10 +251,23 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         else:
             author_line = f"*{author}*"
 
+        meta_line = f"🐦 X (Twitter) • 📌 {category}"
+
+        # If translated and distinct from original text, provide English translation followed by complete original post
+        if trans_text and trans_text != full_text and _is_devanagari(full_text):
+            content_section = f"{trans_text}\n\n_Original Post:_\n{full_text}"
+        else:
+            content_section = full_text
+
+        # Ensure message stays safely within WhatsApp limits
+        if len(content_section) > 3400:
+            content_section = content_section[:3400] + "\n\n[... Full post continued on X]"
+
         msg = (
-            f"{author_line}\n\n"
-            f"{text}\n\n"
-            f"🔗 Full Story: {link}"
+            f"{author_line}\n"
+            f"{meta_line}\n\n"
+            f"{content_section}\n\n"
+            f"🔗 Full Post: {link}"
         )
         return msg
 
@@ -209,9 +275,14 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
         author = (item.get("author_name") or "Page").replace("*", "").strip()
         text = (item.get("text") or "").strip()
         link = item.get("fb_link") or item.get("link") or "https://facebook.com"
+        category = item.get("structured_category") or "Public Opinion"
+
+        if len(text) > 3400:
+            text = text[:3400] + "\n\n[... Full post continued on Facebook]"
 
         msg = (
-            f"*{author}*\n\n"
+            f"*{author}*\n"
+            f"📘 Facebook • 📌 {category}\n\n"
             f"{text}\n\n"
             f"🔗 Full Story: {link}"
         )
@@ -219,29 +290,62 @@ def format_whatsapp_message(item: Dict[str, Any], item_type: str = "article") ->
 
     else:
         # News Article (Nepali, Indian Press, or English)
+        link = item.get("link") or "#"
+        source = item.get("source") or "Nepal News"
+        category = item.get("structured_category") or "General"
+        cat_icon = item.get("category_icon") or "📌"
+
+        # 1. Fetch full article body if not already present or if only a short snippet
+        full_content = (item.get("full_content") or "").strip()
+        if len(full_content) < 300 and link and link.startswith("http"):
+            fetched_body = fetch_article_full_text(link)
+            if fetched_body and len(fetched_body) > len(full_content):
+                full_content = fetched_body
+                item["full_content"] = full_content
+
+        # 2. AI Headline translation / enhancement if available
         if summarize_and_translate_news and "ai_headline" not in item:
-            raw_content = item.get("summary") or item.get("description") or item.get("content") or item.get("title", "")
+            raw_content = full_content or item.get("summary") or item.get("title", "")
             ai_res = summarize_and_translate_news(
                 title=item.get("title", ""),
-                content=raw_content,
-                source=item.get("source", "")
+                content=raw_content[:2000],
+                source=source
             )
             item["ai_headline"] = ai_res.get("headline") or item.get("title", "")
             item["ai_summary"] = ai_res.get("summary") or item.get("summary", "")
 
-        title = (item.get("ai_headline") or item.get("title") or "").replace("*", "").strip()
-        summary = (item.get("ai_summary") or item.get("summary") or "").strip()
-        link = item.get("link") or "#"
+        headline = (item.get("ai_headline") or item.get("title") or "").replace("*", "").strip()
+        original_title = (item.get("title") or "").replace("*", "").strip()
 
-        if summary and summary != title:
-            clean_sum = summary[:500] + ("..." if len(summary) > 500 else "")
-            body = f"{clean_sum}\n\n"
+        # Headline presentation: show English translation + original if different
+        if headline and original_title and headline.lower() != original_title.lower():
+            title_block = f"*{headline}*\n_({original_title})_"
         else:
-            body = ""
+            title_block = f"*{headline or original_title}*"
+
+        # Source & Category line
+        meta_line = f"📰 {source} • {cat_icon} {category}"
+
+        # Story content: use the unabridged full story text
+        story_body = full_content or item.get("summary") or ""
+        story_body = story_body.strip()
+
+        # Keep safely within WhatsApp single-message 4,096 char limit
+        max_body_chars = 3300
+        if len(story_body) > max_body_chars:
+            cut_idx = story_body[:max_body_chars].rfind("\n\n")
+            if cut_idx < 1500:
+                cut_idx = story_body[:max_body_chars].rfind(". ")
+            if cut_idx < 1500:
+                cut_idx = max_body_chars
+            story_body = story_body[:cut_idx].strip() + "\n\n[... Full article continued on link]"
+
+        body_section = f"{story_body}\n\n" if story_body else ""
 
         msg = (
-            f"*{title}*\n\n"
-            f"{body}"
+            f"{title_block}\n"
+            f"{meta_line}\n\n"
+            f"{body_section}"
             f"🔗 Full Story: {link}"
         )
         return msg

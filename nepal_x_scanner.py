@@ -3071,6 +3071,24 @@ def _enrich_tweet_by_id(
         return None
 
     raw_text = tweet_json.get("text", "").strip()
+
+    # Extract long-form X note_tweet (X Premium / unconstrained tweets)
+    note = tweet_json.get("note_tweet")
+    if isinstance(note, dict):
+        long_text = (
+            note.get("note_tweet_results", {}).get("result", {}).get("text")
+            or note.get("text")
+        )
+        if long_text and len(long_text) > len(raw_text):
+            raw_text = long_text.strip()
+
+    # Extract quoted tweet text
+    quoted = tweet_json.get("quoted_tweet")
+    if isinstance(quoted, dict) and quoted.get("text"):
+        q_user = quoted.get("user", {})
+        q_author = q_user.get("name") or q_user.get("screen_name") or "Quoted"
+        q_text = quoted.get("text", "").strip()
+        raw_text += f"\n\n💬 Quoting @{q_author}:\n{q_text}"
     if not raw_text or len(raw_text) < 5:
         return None
 
