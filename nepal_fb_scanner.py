@@ -14,6 +14,7 @@ import random
 import datetime
 import zoneinfo
 from typing import List, Dict, Any
+from nepal_fetcher import classify_article_editorial
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
 FB_CACHE_FILE = os.path.join(os.path.dirname(__file__), "nepal_fb_posts_cache.json")
@@ -439,6 +440,7 @@ def scan_popular_nepal_fb_posts(popular_pages: List[Dict[str, Any]], force_refre
         raw_text = seed["text"]
         title_snippet = raw_text[:85] + ("..." if len(raw_text) > 85 else "")
 
+        ed_meta = classify_article_editorial(raw_text, raw_text)
         post_obj = {
             "id": f"fb_post_{slug}_{idx+1001}",
             "is_real_api": True,
@@ -453,7 +455,12 @@ def scan_popular_nepal_fb_posts(popular_pages: List[Dict[str, Any]], force_refre
             "title": title_snippet,
             "text": raw_text,
             "headline_english": title_snippet,
-            "structured_category": seed["category"],
+            "primary_section": ed_meta["primary_section"],
+            "sections": ed_meta["sections"],
+            "secondary_tags": ed_meta["secondary_tags"],
+            "classification_confidence": ed_meta["classification_confidence"],
+            "low_confidence": ed_meta["low_confidence"],
+            "structured_category": ed_meta["primary_section"],
             "likes": likes,
             "shares": shares,
             "comments": comments,
@@ -471,8 +478,10 @@ def scan_popular_nepal_fb_posts(popular_pages: List[Dict[str, Any]], force_refre
     remaining_pages = [p for p in popular_pages if p["slug"].lower() not in seen_post_slugs]
     
     for idx, page_info in enumerate(remaining_pages):
-        cat = page_info.get("category", "Nepal – Internal Politics")
-        snippets = CATEGORY_SNIPPETS.get(cat, CATEGORY_SNIPPETS["Nepal – Internal Politics"])
+        cat = page_info.get("category", "Nepal – Internal")
+        snippets = CATEGORY_SNIPPETS.get(cat, CATEGORY_SNIPPETS.get("Nepal – Internal Politics", []))
+        if not snippets:
+            snippets = list(CATEGORY_SNIPPETS.values())[0]
         text_template, sentiment, (l_min, l_max) = random.choice(snippets)
 
         # Contextualize slightly with author role if applicable
@@ -487,6 +496,7 @@ def scan_popular_nepal_fb_posts(popular_pages: List[Dict[str, Any]], force_refre
         comments = random.randint(int(likes * 0.04), int(likes * 0.12))
         impressions = likes * random.randint(7, 15)
 
+        ed_meta2 = classify_article_editorial(raw_text, raw_text)
         post_obj = {
             "id": f"fb_post_{page_info['slug']}_{idx+2001}",
             "is_real_api": True,
@@ -501,7 +511,12 @@ def scan_popular_nepal_fb_posts(popular_pages: List[Dict[str, Any]], force_refre
             "title": title_snippet,
             "text": raw_text,
             "headline_english": title_snippet,
-            "structured_category": cat,
+            "primary_section": ed_meta2["primary_section"],
+            "sections": ed_meta2["sections"],
+            "secondary_tags": ed_meta2["secondary_tags"],
+            "classification_confidence": ed_meta2["classification_confidence"],
+            "low_confidence": ed_meta2["low_confidence"],
+            "structured_category": ed_meta2["primary_section"],
             "likes": likes,
             "shares": shares,
             "comments": comments,

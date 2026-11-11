@@ -180,12 +180,20 @@ def run_single_broadcast_cycle(
 
     # 3. X posts that strictly fall under the structured categories (excluding uncategorized/generic chatter)
     CORE_X_CATEGORIES = {
+        "India Section",
+        "China Section",
+        "Pakistan Section",
+        "Bangladesh Section",
+        "Nepal – Internal",
+        "Nepal – External",
+        "Nepal – Economy",
+        "International News",
+        # Backward compatibility aliases
         "India in Nepal",
         "China in Nepal",
         "Pakistan in Nepal",
         "Bangladesh in Nepal",
         "Nepal – Internal Politics",
-        "Nepal – External Relations",
         "Nepal – External Relations (Others)",
         "Economy"
     }

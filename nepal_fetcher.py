@@ -148,33 +148,39 @@ def batch_fetch_full_content(articles: list, max_workers: int = 15) -> list:
                         a["full_content"] = a.get("summary") or a.get("title", "")
     return articles
 
-# The 7 Ordered Target Categories for Word Export
+# The 9 Ordered Target Categories for Word Export
 DOCX_TARGET_CATEGORIES = [
-    "INDIA IN NEPAL",
-    "CHINA IN NEPAL",
-    "PAKISTAN IN NEPAL",
-    "BANGLADESH IN NEPAL - INTERNAL",
-    "ECONOMY",
-    "OTHERS",
-    "NEPAL-EXTERNALS"
+    "INDIA SECTION",
+    "CHINA SECTION",
+    "BANGLADESH SECTION",
+    "PAKISTAN SECTION",
+    "NEPAL – INTERNAL",
+    "NEPAL – EXTERNAL",
+    "NEPAL – ECONOMY",
+    "NEPAL – OTHERS",
+    "INTERNATIONAL NEWS"
 ]
 
 def map_to_target_category(raw_category: str) -> str:
     cat = (raw_category or "").strip().lower()
     if "india" in cat:
-        return "INDIA IN NEPAL"
+        return "INDIA SECTION"
     elif "china" in cat:
-        return "CHINA IN NEPAL"
+        return "CHINA SECTION"
+    elif "bangladesh" in cat:
+        return "BANGLADESH SECTION"
     elif "pakistan" in cat:
-        return "PAKISTAN IN NEPAL"
-    elif "bangladesh" in cat or "internal" in cat or "politics" in cat:
-        return "BANGLADESH IN NEPAL - INTERNAL"
-    elif "economy" in cat:
-        return "ECONOMY"
-    elif "external" in cat or "foreign" in cat:
-        return "NEPAL-EXTERNALS"
+        return "PAKISTAN SECTION"
+    elif "internal" in cat or "politics" in cat:
+        return "NEPAL – INTERNAL"
+    elif "external" in cat or "foreign" in cat or "diplomacy" in cat:
+        return "NEPAL – EXTERNAL"
+    elif "economy" in cat or "economic" in cat:
+        return "NEPAL – ECONOMY"
+    elif "international" in cat or "world" in cat or "global" in cat:
+        return "INTERNATIONAL NEWS"
     else:
-        return "OTHERS"
+        return "NEPAL – OTHERS"
 
 def generate_word_document(articles: list, output_path: str = None, report_title: str = "Nepal Media & Intelligence Executive Report") -> bytes:
     """
@@ -342,27 +348,29 @@ def generate_word_document(articles: list, output_path: str = None, report_title
 
     return doc_bytes
 
-# The 8 Structured Categories
+# The 9 Structured Categories (Geographically and Thematically Organised)
 STRUCTURED_CATEGORIES = [
-    "India in Nepal",
-    "China in Nepal",
-    "Pakistan in Nepal",
-    "Bangladesh in Nepal",
-    "Nepal – Internal Politics",
-    "Nepal – External Relations (Others)",
-    "Economy",
-    "Others"
+    "India Section",
+    "China Section",
+    "Bangladesh Section",
+    "Pakistan Section",
+    "Nepal – Internal",
+    "Nepal – External",
+    "Nepal – Economy",
+    "Nepal – Others",
+    "International News"
 ]
 
 CATEGORY_ICONS = {
-    "India in Nepal": "🇮🇳",
-    "China in Nepal": "🇨🇳",
-    "Pakistan in Nepal": "🇵🇰",
-    "Bangladesh in Nepal": "🇧🇩",
-    "Nepal – Internal Politics": "🏛",
-    "Nepal – External Relations (Others)": "🌐",
-    "Economy": "💰",
-    "Others": "📌"
+    "India Section": "🇮🇳",
+    "China Section": "🇨🇳",
+    "Bangladesh Section": "🇧🇩",
+    "Pakistan Section": "🇵🇰",
+    "Nepal – Internal": "🇳🇵",
+    "Nepal – External": "🌐",
+    "Nepal – Economy": "📈",
+    "Nepal – Others": "📌",
+    "International News": "🌍"
 }
 
 # Curated Top 34 Nepal Online News Portals
@@ -1775,193 +1783,380 @@ POPULAR_NEPAL_X_HANDLES = [
     {"name": "Nepal Police Official", "handle": "NepalPoliceHQ", "desc": "Public notices, safety alerts, and cyber bureau warnings"}
 ]
 
-def classify_article(title: str, summary: str = "") -> str:
+def classify_article_editorial(
+    title: str,
+    summary: str = "",
+    source: str = "",
+    full_content: str = ""
+) -> Dict[str, Any]:
     """
-    Classifies content covered in Nepali Media under the 8 structured categories.
-    """
-    text = f"{title} {summary}".lower()
+    High-precision Editorial Classification Engine for Nepal Media & Intelligence Monitor.
+    Accurately classifies news into 9 structured canonical sections:
+    1. India Section
+    2. China Section
+    3. Bangladesh Section
+    4. Pakistan Section
+    5. Nepal – Internal
+    6. Nepal – External
+    7. Nepal – Economy
+    8. Nepal – Others
+    9. International News
 
-    def has_match(patterns, regex_patterns=[]):
+    Supports multi-section canonical associations (e.g. cross-listing bilateral stories
+    in both Country Section and Nepal – External), secondary thematic tags, and confidence scoring.
+    """
+    title_str = (title or "").strip()
+    sum_str = (summary or "").strip()
+    body_str = (full_content or "").strip()[:1500]
+    source_str = (source or "").strip()
+
+    title_lower = title_str.lower()
+    full_text = f"{title_str} {sum_str} {body_str}".lower()
+
+    scores = {
+        "India Section": 0,
+        "China Section": 0,
+        "Bangladesh Section": 0,
+        "Pakistan Section": 0,
+        "Nepal – Internal": 0,
+        "Nepal – External": 0,
+        "Nepal – Economy": 0,
+        "International News": 0,
+        "Nepal – Others": 0,
+    }
+    secondary_tags = set()
+
+    def evaluate_patterns(patterns, regexes, cat_name, tag_name=None, title_mult=3, body_mult=1):
+        matched = False
         for p in patterns:
-            if p in text:
-                return True
-        for rp in regex_patterns:
-            if re.search(rp, text, re.IGNORECASE):
-                return True
-        return False
+            p_lower = p.lower()
+            if p_lower in title_lower:
+                scores[cat_name] += title_mult
+                matched = True
+            elif p_lower in full_text:
+                scores[cat_name] += body_mult
+                matched = True
+        for r in regexes:
+            if re.search(r, title_lower):
+                scores[cat_name] += title_mult
+                matched = True
+            elif re.search(r, full_text):
+                scores[cat_name] += body_mult
+                matched = True
+        if matched and tag_name:
+            secondary_tags.add(tag_name)
+        return matched
 
-    # 1. Bangladesh in Nepal (Check before general India to capture tripartite power & bilateral affairs)
-    bangladesh_patterns = [
-        "बंगलादेश", "बङ्गलादेश", "बंगलादेशी", "बङ्गलादेशी", "बंगलादेश दूतावास", "नेपाल-बंगलादेश",
-        "नेपाल–बंगलादेश", "ऊर्जा सम्झौता", "रोहनपुर", "सिंघावाद", "फुलबारी", "बंगलाबन्ध",
-        "शेख हसिना", "हसिना", "मुहम्मद युनुस", "युनुस सरकार", "साफ च्याम्पियनसिप", "साफ महिला",
-        "४० मेगावाट", "विद्युत् व्यापार", "बिजुली निर्यात", "बंगलादेश बिजुली", "बिजुली बंगलादेश",
-        "bangladesh", "bangladeshi", "bangladesh embassy", "nepal-bangladesh", "sheikh hasina",
-        "hasina", "muhammad yunus", "yunus", "tripartite power", "power export to bangladesh",
-        "electricity to bangladesh", "energy deal", "rohanpur", "singhabad", "phulbari",
-        "banglabandha", "saff championship", "saff women", "🇧🇩", "#bangladesh", "#nepalbangladesh"
+    # 1. Bilateral / Nepal Context Detector
+    nepal_indicators = [
+        "nepal", "nepali", "nepalese", "kathmandu", "काठमाडौं", "काठमाडौँ", "नेपाल", "नेपाली",
+        "सिंहदरबार", "बालुवाटार", "द्विपक्षीय", "bilateral", "दौत्य", "ओली", "देउवा", "प्रचण्ड"
     ]
-    bangladesh_regex = [
+    is_bilateral_nepal = any(k in full_text for k in nepal_indicators)
+
+    # -------------------------------------------------------------------------
+    # A. BANGLADESH SECTION
+    # -------------------------------------------------------------------------
+    bd_patterns = [
+        "बंगलादेश", "बङ्गलादेश", "बंगलादेशी", "बङ्गलादेशी", "बंगलादेश दूतावास", "नेपाल-बंगलादेश",
+        "नेपाल–बंगलादेश", "रोहनपुर", "सिंघावाद", "फुलबारी", "बंगलाबन्ध", "शेख हसिना", "हसिना",
+        "मुहम्मद युनुस", "युनुस सरकार", "अवामी लिग", "बिएनपी", "साफ महिला", "४० मेगावाट",
+        "विद्युत् व्यापार (बंगलादेश)", "बिजुली बंगलादेश", "bangladesh", "bangladeshi",
+        "bangladesh embassy", "nepal-bangladesh", "sheikh hasina", "hasina", "muhammad yunus",
+        "yunus", "tripartite power", "power export to bangladesh", "electricity to bangladesh",
+        "rohanpur", "singhabad", "phulbari", "banglabandha", "tarique rahman", "khaleda zia"
+    ]
+    bd_regex = [
         r'\bdhaka\b',
         r'(?:^|[\s,।!?—\(\)\[\]"\'\/])ढाका(?:$|[\s,।!?—\(\)\[\]"\'\/]|मा|को|ले|सँग|सित|बाट|तिर)',
         r'\b40\s*mw\b'
     ]
-    if has_match(bangladesh_patterns, bangladesh_regex):
-        return "Bangladesh in Nepal"
+    if evaluate_patterns(bd_patterns, bd_regex, "Bangladesh Section", "Bangladesh"):
+        secondary_tags.add("South Asia")
 
-    # 2. Pakistan in Nepal
-    pakistan_patterns = [
-        "पाकिस्तान", "पाकिस्तानी", "इस्लामाबाद", "पाकिस्तानी दूतावास", "नेपाल-पाकिस्तान", "शाहबाज", "इमरान खान",
-        "बाबर आजम", "पिटिएपी", "पाकिस्तान छात्रवृत्ति", "कराची", "लाहोर", "रावलपिण्डी", "सार्क शिखर सम्मेलन",
-        "नेपाल–पाकिस्तान", "🇵🇰",
+    # -------------------------------------------------------------------------
+    # B. PAKISTAN SECTION
+    # -------------------------------------------------------------------------
+    pak_patterns = [
+        "पाकिस्तान", "पाकिस्तानी", "इस्लामाबाद", "पाकिस्तानी दूतावास", "नेपाल-पाकिस्तान", "शाहबाज सरिफ",
+        "इमरान खान", "बाबर आजम", "पिटिएपी", "पाकिस्तान छात्रवृत्ति", "कराची", "लाहोर", "रावलपिण्डी",
+        "सार्क शिखर सम्मेलन", "नेपाल–पाकिस्तान", "असिम मुनिर", "पाकिस्तानी सेना", "आइएसआइ",
         "pakistan", "pakistani", "islamabad", "pakistan embassy", "nepal-pakistan", "pak-nepal",
-        "shehbaz", "imran khan", "babar azam", "shaheen afridi", "ptap", "pakistan scholarship",
-        "karachi", "lahore", "rawalpindi", "psl", "pakistan super league", "pakinnepal", "saarc summit islamabad"
+        "shehbaz sharif", "shehbaz", "imran khan", "pti", "babar azam", "shaheen afridi", "ptap",
+        "pakistan scholarship", "karachi", "lahore", "rawalpindi", "psl", "pakistan super league",
+        "pak army", "general munir", "bilawal bhutto", "cpec"
     ]
-    if has_match(pakistan_patterns):
-        return "Pakistan in Nepal"
+    pak_regex = [r'\bislamabad\b', r'\bpti\b', r'\brawalpindi\b']
+    if evaluate_patterns(pak_patterns, pak_regex, "Pakistan Section", "Pakistan"):
+        secondary_tags.add("Regional Security")
 
-    # 3. China in Nepal
+    # -------------------------------------------------------------------------
+    # C. CHINA SECTION
+    # -------------------------------------------------------------------------
     china_patterns = [
-        "चीन", "चिनियाँ", "बेइजिङ", "सि चिनफिङ", "बिआरआई", "केरुङ", "तातोपानी", "ल्हासा",
-        "नेपाल-चीन", "चिनियाँ दूतावास", "पोखरा विमानस्थल", "चिनियाँ अनुदान", "चिनियाँ नागरिक",
-        "रसुवागढी", "हुम्ला सीमा", "कोरला", "किमाथाङ्का", "हिल्सा", "तिब्बत", "ऋणको पासो",
-        "चीन-नेपाल", "चिनियाँ लगानी", "चिनियाँ सहयोग", "सिगात्से", "नेपाल–चीन", "चिनियाँ ठेकेदार",
-        "चिनियाँ पर्यटक", "🇨🇳",
-        "china", "chinese", "beijing", "xi jinping", "belt and road", "kerung",
-        "tatopani", "rasuwagadhi", "lhasa", "sino-nepal", "nepal-china", "chinese embassy",
-        "pokhara airport", "pokhara international airport", "पोखरा अन्तर्राष्ट्रिय विमानस्थल", "chinese contractor", "tibet", "trans-himalayan", "debt trap",
-        "korala", "kimathanka", "hilsa", "chinese loan", "chinese grant", "exim bank",
-        "shigatse", "humla border", "chinese aid", "prcambnepal"
+        "चीन", "चिनियाँ", "बेइजिङ", "सि चिनफिङ", "सी चिनफिङ", "बिआरआई", "केरुङ", "तातोपानी",
+        "ल्हासा", "नेपाल-चीन", "चिनियाँ दूतावास", "पोखरा विमानस्थल", "पोखरा अन्तर्राष्ट्रिय विमानस्थल",
+        "चिनियाँ अनुदान", "चिनियाँ नागरिक", "रसुवागढी", "हुम्ला सीमा", "कोरला", "किमाथाङ्का",
+        "हिल्सा", "तिब्बत", "ऋणको पासो", "चीन-नेपाल", "चिनियाँ लगानी", "चिनियाँ सहयोग", "सिगात्से",
+        "नेपाल–चीन", "चिनियाँ ठेकेदार", "वाङ यी", "चिनियाँ कम्युनिष्ट पार्टी", "ताइवान",
+        "china", "chinese", "beijing", "xi jinping", "belt and road", "kerung", "kyirong",
+        "tatopani", "rasuwagadhi", "lhasa", "sino-nepal", "nepal-china", "china-nepal",
+        "chinese embassy", "pokhara airport", "pokhara international airport", "chinese contractor",
+        "tibet", "tibetan", "trans-himalayan", "debt trap", "korala", "kimathanka", "hilsa",
+        "chinese loan", "chinese grant", "exim bank", "shigatse", "humla border", "chinese aid",
+        "communist party of china", "pla", "peoples liberation army", "wang yi", "taiwan"
     ]
-    if has_match(china_patterns, [r'\bbri\b']):
-        return "China in Nepal"
+    china_regex = [r'\bbri\b', r'\bcpc\b', r'\bpla\b']
+    if evaluate_patterns(china_patterns, china_regex, "China Section", "China"):
+        secondary_tags.add("Connectivity & BRI")
 
-    # 4. India in Nepal
+    # -------------------------------------------------------------------------
+    # D. INDIA SECTION
+    # -------------------------------------------------------------------------
     india_patterns = [
-        "भारत", "भारतीय", "नयाँ दिल्ली", "नरेन्द्र मोदी", "जयशंकर", "नेपाल-भारत",
-        "भारतीय दूतावास", "रक्सौल", "लिपुलेक", "लिम्पियाधुरा", "कालापानी", "सुस्ता", "पञ्चेश्वर", "नेपालगन्ज नाका",
-        "विराटनगर भन्सार", "खुला सीमा", "भारतीय सेना", "इपिजी", "नाकाबन्दी", "१९५० सन्धि", "१९५०", "सीमा विवाद",
-        "एसएसबी", "विद्युत् निर्यात", "धोती", "अयोध्या", "जनकपुर", "रामायण सर्किट", "पशुपतिनाथ", "सुनौली",
-        "जयनगर", "कुर्था", "हिन्दुत्व", "बलिउड", "अग्निपथ", "गोर्खा भर्ती", "🇮🇳",
-        "india", "indian", "new delhi", "modi", "jaishankar", "nepal-india",
-        "indo-nepal", "indian embassy", "lipulekh", "limpiyadhura", "kalapani", "susta", "pancheshwar",
-        "icp birgunj", "cross-border railway", "india-nepal", "epg report", "1950 treaty", "blockade",
-        "border dispute", "open border", "ssb", "power export to india", "electricity to india",
-        "hindutva", "bollywood", "agniveer", "gorkha recruitment", "jogbani", "kakarbhitta", "sunauli"
+        "भारत", "भारतीय", "नयाँ दिल्ली", "दिल्ली", "नरेन्द्र मोदी", "मोदी", "जयशंकर", "नेपाल-भारत",
+        "भारत-नेपाल", "भारतीय दूतावास", "रक्सौल", "लिपुलेक", "लिम्पियाधुरा", "कालापानी", "सुस्ता",
+        "पञ्चेश्वर", "नेपालगन्ज नाका", "विराटनगर भन्सार", "खुला सीमा", "भारतीय सेना", "इपिजी",
+        "नाकाबन्दी", "१९५० सन्धि", "१९५० को सन्धि", "सीमा विवाद", "एसएसबी", "विद्युत् निर्यात (भारत)",
+        "अयोध्या", "रामायण सर्किट", "सुनौली", "जोगबनी", "जयनगर", "कुर्था", "हिन्दुत्व", "बलिउड",
+        "अग्निपथ", "अग्निवीर", "गोर्खा भर्ती", "बिहार", "उत्तर प्रदेश", "उत्तराखण्ड", "पश्चिम बंगाल",
+        "सिक्किम", "दार्जिलिङ", "सिलिगुडी", "अमित शाह", "राहुल गान्धी", "भाजपा", "बिजेपी", "लोकसभा",
+        "राज्यसभा", "भारतीय सर्वोच्च अदालत",
+        "india", "indian", "new delhi", "delhi", "modi", "narendra modi", "jaishankar", "amit shah",
+        "nepal-india", "indo-nepal", "india-nepal", "indian embassy", "lipulekh", "limpiyadhura",
+        "kalapani", "susta", "pancheshwar", "icp birgunj", "cross-border railway", "epg report",
+        "1950 treaty", "blockade", "border dispute", "open border", "ssb", "power export to india",
+        "electricity to india", "hindutva", "bollywood", "agniveer", "agnipath", "gorkha recruitment",
+        "jogbani", "kakarbhitta", "sunauli", "raxaul", "bihar", "uttar pradesh", "uttarakhand",
+        "west bengal", "sikkim", "darjeeling", "siliguri", "bjp", "lok sabha", "rajya sabha",
+        "rahul gandhi", "isro", "reserve bank of india"
     ]
-    if has_match(india_patterns):
-        return "India in Nepal"
+    india_regex = [r'\bbjp\b', r'\brbi\b', r'\bssb\b', r'\bisro\b', r'\bnda\b']
+    if evaluate_patterns(india_patterns, india_regex, "India Section", "India"):
+        secondary_tags.add("Bilateral & Border")
+    # Native boost for Indian Media Press sources
+    if any(k in source_str.lower() for k in ["indian express", "hindu", "tribune", "india today", "ndtv", "livemint", "business standard", "amar ujala", "live hindustan", "jansatta", "prabhat khabar", "the quint", "swarajya", "oneindia", "moneycontrol"]):
+        scores["India Section"] += 2
+        secondary_tags.add("Indian Press")
 
-    # 5. Nepal – External Relations (Others) [US, EU, European Countries, UN, SAARC, BIMSTEC, etc.]
-    external_patterns = [
-        "अमेरिका", "अमेरिकी", "वाशिंगटन", "एमसीसी", "एसपीपी", "युएसएड", "पिस कर्प्स", "डिभी", "डिभी चिट्ठा",
-        "ह्वाइट हाउस", "पेन्टागन", "ट्रम्प", "बाइडेन", "बेलायत", "ब्रिटिश", "गोर्खा पेन्सन",
-        "युरोपेली युनियन", "ईयू", "युरोप", "फ्रान्स", "जर्मनी", "स्विट्जरल्याण्ड", "नर्वे", "फिनल्याण्ड", "डेनमार्क",
-        "हवाई कालोसूची", "कालोसूची", "युरोपेली आकाश", "संयुक्त राष्ट्रसंघ", "युएन", "युनिसेफ", "युएनडिपी",
-        "शान्ति सेना", "शान्ति मिसन", "एलडिसि", "युनेस्को", "विश्व स्वास्थ्य संगठन", "डब्ल्यूएचओ",
-        "विश्व बैंक", "आइएमएफ", "डब्लुटीओ", "एडीबी", "सार्क", "सार्क सम्मेलन", "सार्क सचिवालय",
-        "सार्क बडापत्र", "सार्क पुनरुत्थान", "बिम्सटेक", "बिम्सटेक सम्मेलन", "जापान", "जापानी", "जाइका",
-        "कोरिया", "इपिएस", "इजरायल", "विपिन जोशी", "रसिया", "रूसी", "युक्रेन", "कतार", "युएई", "साउदी",
-        "अष्ट्रेलिया", "क्यानडा", "भूटान", "श्रीलंका", "राजदूत", "परराष्ट्र", "कूटनीतिक", "परराष्ट्रमन्त्री",
-        "united states", "american", "washington", "usaid", "peace corps", "dv lottery",
-        "white house", "trump", "biden", "pentagon", "britain", "british", "gurkha", "gurkha pension",
-        "european union", "europe", "france", "germany", "switzerland", "norway", "finland",
-        "denmark", "eu air safety ban", "aviation blacklist", "schengen", "united nations",
-        "unicef", "undp", "peacekeeping", "peacekeepers", "ldc graduation", "unesco", "world bank",
-        "saarc", "saarc secretariat", "saarc summit", "saarc revival", "saarc charter",
-        "bimstec", "bimstec summit", "japan", "japanese", "jica", "korea", "israel", "bipin joshi",
-        "russia", "ukraine", "qatar", "uae", "saudi", "australia", "canada", "bhutan", "sri lanka",
-        "ambassador", "foreign ministry", "foreign minister", "diplomatic", "bilateral",
-        "us embassy", "us aid", "us assistance", "us congress", "un general assembly", "un security council"
-    ]
-    if has_match(external_patterns, [
-        r'\busa\b', r'\bu\.s\.\b', r'\bu\.s\b', r'\buk\b', r'\bu\.k\.\b',
-        r'\beu\b', r'\bu\.n\.\b', r'\bmcc\b', r'\bspp\b', r'\busaid\b',
-        r'\bsaarc\b', r'\bbimstec\b', r'\bldc\b', r'\bimf\b', r'\bwto\b',
-        r'\badb\b', r'\btrump\b', r'\bbiden\b', r'\beps\b', r'\bunga\b', r'\bunifil\b',
-        r'(?:^|[\s,।!?—\(\)\[\]"\'\/])रूस(?:$|[\s,।!?—\(\)\[\]"\'\/]|मा|को|ले|सँग|सित|बाट|तिर|का|लाई)'
-    ]):
-        return "Nepal – External Relations (Others)"
-
-    # 6. Nepal – Internal Politics
-    politics_patterns = [
-        "सरकार", "राजनीति", "संसद", "संसदीय", "निर्वाचन", "चुनाव", "संविधान", "मन्त्रिपरिषद्", "मन्त्रिपरिषद",
-        "प्रधानमन्त्री", "उपप्रधानमन्त्री", "ओली", "प्रचण्ड", "देउवा", "रवि लामिछाने", "माओवादी", "एमाले", "कांग्रेस",
-        "नेकपा एमाले", "नेकपा (एमाले)", "च्यासल", "तुल्सीलाल स्मृति", "अनेरास्ववियु", "युवा संघ", "राष्ट्रिय युवा संघ",
-        "जबज", "जनताको बहुदलीय जनवाद", "मदन भण्डारी", "भीम रावल", "शंकर पोखरेल", "विष्णु पौडेल", "विष्णु रिमाल",
-        "ईश्वर पोखरेल", "सुरेन्द्र पाण्डे", "पृथ्वी सुब्बा", "महेश बस्नेत", "सुनिता डंगोल", "विधान महाधिवेशन",
-        "केन्द्रीय कमिटी", "नेपाली कांग्रेस", "नेपाली काङ्ग्रेस", "काङ्ग्रेस", "नेविसंघ", "नेपाल विद्यार्थी संघ", "तरुण दल", "नेपाल तरुण दल",
-        "सानेपा", "शेरबहादुर देउवा", "शेखर कोइराला", "प्रदीप पौडेल", "विमलेन्द्र निधि", "नैनसिंह महर", "क्रियाशील सदस्यता",
-        "महासमिति", "महाधिवेशन", "प्रजातान्त्रिक समाजवाद",
-        "मधेश", "मधेस", "मधेश प्रदेश", "मधेस प्रदेश", "तराई", "तराई-मधेश", "जनकपुर", "जनकपुरधाम", "वीरगन्ज", "वीरगञ्ज",
-        "पर्सा", "सप्तरी", "सिरहा", "महोत्तरी", "सर्लाही", "रौतहट", "धनुषा", "बारा", "उपेन्द्र यादव", "जसपा", "जसपा नेपाल",
-        "जनमत पार्टी", "सिके राउत", "लोसपा", "महन्थ ठाकुर", "नागरिक उन्मुक्ति", "रेशम चौधरी", "मधेस आन्दोलन", "नागरिकता",
-        "नागरिकता विधेयक", "उखु किसान", "मलखाद", "मैथिली", "भोजपुरी", "जानकी मन्दिर", "दिपेन्द्र झा", "मनिष झा", "भोला पासवान",
-        "मोहिना अन्सारी", "रास्वपा", "राप्रपा", "सर्वोच्च", "अदालत", "न्यायाधीश", "आईजीपी", "विधेयक", "सभामुख",
-        "बालेन", "बालेन शाह", "हर्क साम्पाङ", "साम्पाङ", "श्रमदान", "महानगर", "मेयर", "मन्त्री", "मुख्यमन्त्री",
-        "प्रदेश सभा", "गठबन्धन", "अख्तियार", "सिंहदरबार", "हेलो सरकार", "गृह मन्त्रालय", "मुख्यसचिव", "निजामती",
-        "राहदानी", "राष्ट्रिय परिचयपत्र", "सुशासन", "सीआईएए", "भ्रष्टाचार", "अनियमितता", "विशेष अदालत",
-        "संसदीय समिति", "संसदीय छानबिन", "सहकारी ठगी", "सहकारी प्रकरण", "सूर्यदर्शन", "स्थानीय तह", "नगरपालिका",
-        "गाउँपालिका", "जग्गा प्रशासन", "प्रशासन", "प्रहरी", "कर्मचारी",
+    # -------------------------------------------------------------------------
+    # E. NEPAL – INTERNAL
+    # -------------------------------------------------------------------------
+    internal_patterns = [
+        "सरकार", "राजनीति", "संसद", "संसदीय", "निर्वाचन", "चुनाव", "संविधान", "मन्त्रिपरिषद्",
+        "मन्त्रिपरिषद", "प्रधानमन्त्री", "उपप्रधानमन्त्री", "ओली", "प्रचण्ड", "देउवा", "रवि लामिछाने",
+        "माओवादी", "एमाले", "कांग्रेस", "काङ्ग्रेस", "नेकपा एमाले", "च्यासल", "सानेपा", "नेविसंघ",
+        "तरुण दल", "युवा संघ", "अनेरास्ववियु", "शेरबहादुर देउवा", "शेखर कोइराला", "रास्वपा", "राप्रपा",
+        "सर्वोच्च अदालत", "सर्वोच्च", "अदालत", "न्यायाधीश", "प्रधानन्यायाधीश", "उच्च अदालत",
+        "विशेष अदालत", "आईजीपी", "नेपाल प्रहरी", "विधेयक", "सभामुख", "बालेन", "बालेन शाह", "हर्क साम्पाङ",
+        "साम्पाङ", "महानगर", "काठमाडौं महानगर", "मेयर", "मन्त्री", "मुख्यमन्त्री", "प्रदेश सभा",
+        "गठबन्धन", "अख्तियार", "सीआईएए", "सिंहदरबार", "हेलो सरकार", "गृह मन्त्रालय", "मुख्यसचिव",
+        "निजामती", "कर्मचारी", "राहदानी", "राष्ट्रिय परिचयपत्र", "नागरिकता", "भ्रष्टाचार", "अनियमितता",
+        "सहकारी ठगी", "सहकारी छानबिन", "सूर्यदर्शन", "सुप्रिम सहकारी", "स्थानीय तह", "नगरपालिका",
+        "गाउँपालिका", "मधेश प्रदेश", "तराई-मधेश", "जसपा", "जनमत पार्टी", "सिके राउत", "लोसपा",
+        "नागरिक उन्मुक्ति", "रेशम चौधरी", "आन्दोलन", "हड्ताल", "शिक्षक आन्दोलन", "फास्ट ट्र्याक",
         "politics", "political", "parliament", "parliamentary", "cabinet", "election", "constitution",
-        "prime minister", "pm oli", "deuba", "prachanda", "ravi lamichhane", "uml", "cpn uml", "cpn-uml",
-        "chyasal", "annfsu", "jbj", "bhim rawal", "shankar pokhrel", "bishnu paudel", "bishnu rimal",
-        "mahesh basnet", "sunita dangol", "youth association nepal", "congress",
-        "nepali congress", "nsu", "nevisangh", "tarun dal", "shekhar koirala", "pradeep paudel",
-        "bimalendra nidhi", "nainsingh mahar", "sanepa",
-        "madhesh", "madhes", "terai", "madhesh province", "janakpur", "birgunj", "upendra yadav",
-        "ck raut", "janamat", "jsp nepal", "lsp nepal", "mahantha thakur", "sugarcane farmers",
-        "citizenship bill", "madhesh movement", "manish jha", "dipendra jha", "bhola paswan", "mohna ansari", "mithila",
-        "rsp", "supreme court", "court", "judge", "igp", "bill", "speaker", "balen", "balen shah", "mayor",
-        "minister", "provincial", "ciaa", "coalition", "opposition", "singha durbar", "singhadurbar",
-        "nepal government", "gov of nepal", "good governance", "anti-corruption", "passport department",
-        "national id", "cabinet meeting", "council of ministers", "hello sarkar", "home ministry",
-        "chief secretary", "civil service", "local governance", "municipality", "public administration",
-        "special court", "harka sampang", "shramdan", "cooperative fraud", "parliamentary probe",
-        "nepal police", "bureaucracy"
+        "prime minister", "pm oli", "deuba", "prachanda", "ravi lamichhane", "rabi lamichhane",
+        "uml", "cpn-uml", "cpn uml", "nepali congress", "maoist centre", "rsp", "supreme court",
+        "chief justice", "high court", "special court", "judge", "bill", "speaker", "balen",
+        "balen shah", "mayor", "minister", "provincial", "ciaa", "anti-corruption", "singha durbar",
+        "singhadurbar", "nepal government", "home ministry", "chief secretary", "civil service",
+        "local governance", "municipality", "harka sampang", "cooperative fraud", "nepal police",
+        "bureaucracy", "citizenship bill", "national id", "hello sarkar", "cpn (uml)"
     ]
-    if has_match(politics_patterns, [
-        r'\bgov\b', r'\bgovernment\b', r'\bciaa\b', r'\brsp\b', r'\buml\b', r'\bannfsu\b', r'\byan\b',
-        r'\bjbj\b', r'\bmadhesh\b', r'\bterai\b', r'\bjsp\b', r'\blsp\b', r'\bjanamat\b',
-        r'\bkmc\b', r'\bpmo\b', r'\bmoha\b', r'\bnc\b', r'\bnsu\b'
-    ]):
-        return "Nepal – Internal Politics"
+    internal_regex = [
+        r'\bgov\b', r'\bgovernment\b', r'\bciaa\b', r'\brsp\b', r'\buml\b', r'\bkmc\b',
+        r'\bpmo\b', r'\bmoha\b', r'\bnc\b', r'\bannfsu\b', r'\byan\b'
+    ]
+    if evaluate_patterns(internal_patterns, internal_regex, "Nepal – Internal", "Governance & Politics"):
+        secondary_tags.add("Domestic Affairs")
 
-    # 7. Economy
+    # -------------------------------------------------------------------------
+    # F. NEPAL – EXTERNAL
+    # -------------------------------------------------------------------------
+    external_patterns = [
+        "परराष्ट्र", "परराष्ट्रमन्त्री", "परराष्ट्र मन्त्रालय", "राजदूत", "दूतावास", "कूटनीतिक",
+        "द्विपक्षीय", "बहुपक्षीय", "संयुक्त राष्ट्रसंघ", "राष्ट्रसंघ", "युएन", "शान्ति सेना",
+        "शान्ति मिसन", "युनिफिल्", "युनेस्को", "युनिसेफ", "विश्व बैंक", "आइएमएफ", "एडिबी",
+        "डब्लुटिओ", "सार्क", "बिम्सटेक", "असंलग्न", "अमेरिका", "अमेरिकी", "वाशिंगटन", "एमसीसी",
+        "एसपीपी", "युएसएड", "डिभी", "डिभी चिट्ठा", "ह्वाइट हाउस", "पेन्टागन", "ट्रम्प", "बाइडेन",
+        "बेलायत", "ब्रिटिश", "गोर्खा पेन्सन", "युरोपेली युनियन", "ईयू", "इयु", "युरोप", "फ्रान्स",
+        "जर्मनी", "स्विट्जरल्याण्ड", "नर्वे", "हवाई कालोसूची", "जापान", "जापानी", "जाइका",
+        "दक्षिण कोरिया", "कोरिया", "इपिएस", "इजरायल", "विपिन जोशी", "रसिया", "रूसी सेना", "रुस",
+        "युक्रेन", "कतार", "युएई", "साउदी अरेबिया", "मलेसिया", "वैदेशिक रोजगारी", "श्रम सम्झौता",
+        "अष्ट्रेलिया", "क्यानडा", "भुटान", "श्रीलंका", "मालदिभ्स", "विदेशी सहायता", "अनुदान",
+        "diplomatic", "bilateral relations", "foreign ministry", "foreign minister", "ambassador",
+        "embassy", "united states", "american", "washington", "mcc", "spp", "usaid", "peace corps",
+        "dv lottery", "white house", "trump", "biden", "pentagon", "britain", "british", "gurkha pension",
+        "european union", "europe", "france", "germany", "switzerland", "aviation blacklist",
+        "schengen", "united nations", "unicef", "undp", "peacekeeping", "peacekeepers", "world bank",
+        "saarc", "saarc secretariat", "saarc summit", "bimstec", "bimstec summit", "japan",
+        "jica", "south korea", "korea", "eps", "israel", "bipin joshi", "russia", "russian army",
+        "ukraine", "qatar", "uae", "saudi", "malaysia", "foreign employment", "migrant worker",
+        "australia", "canada", "bhutan", "sri lanka", "foreign aid"
+    ]
+    external_regex = [
+        r'\busa\b', r'\bu\.s\.\b', r'\beu\b', r'\bmcc\b', r'\bspp\b', r'\busaid\b',
+        r'\bsaarc\b', r'\bbimstec\b', r'\bworld bank\b', r'\bimf\b', r'\badb\b', r'\bwto\b',
+        r'\bmofa\b', r'\bun\b', r'\bunga\b', r'\bunifil\b'
+    ]
+    if evaluate_patterns(external_patterns, external_regex, "Nepal – External", "Foreign Relations"):
+        secondary_tags.add("Diplomacy")
+
+    # -------------------------------------------------------------------------
+    # G. NEPAL – ECONOMY
+    # -------------------------------------------------------------------------
     economy_patterns = [
-        "अर्थतन्त्र", "बजेट", "आर्थिक", "बैंक", "बैंकिङ", "नेपाल राष्ट्र बैंक", "मौद्रिक नीति",
-        "नेप्से", "सेयर", "शेयर", "धितोपत्र", "चाँदी", "मुद्रास्फीति", "महँगी", "महँगियो", "महँगो",
-        "राजस्व", "आयकर", "करदाता", "कर प्रणाली", "कर छुट", "पुँजीगत लाभकर", "अन्तःशुल्क", "भन्सार",
-        "रेमिट्यान्स", "विप्रेषण", "व्यापार घाटा", "निर्यात", "आयात", "व्यवसाय", "उद्योग", "लगानी",
-        "विकास आयोजना", "ऋण", "बीमा", "डलर", "सहकारी", "बचतकर्ता", "लघुवित्त", "निक्षेप", "कर्जा",
-        "ब्याजदर", "तरलता", "मुद्रा विनिमय", "विदेशी मुद्रा", "सञ्चिति", "धितोपत्र बोर्ड", "सेबोन",
-        "लाभांश", "बोनस सेयर", "हकप्रद", "आईपिओ", "आईपीओ", "सूचीकृत", "कारोबार", "सूचक", "उद्यमशीलता",
-        "निजी क्षेत्र", "एफएनसीसीआई", "परिसंघ", "उद्योग वाणिज्य", "सुनचाँदी", "सुनको भाउ", "सुनको मूल्य",
-        "प्रति तोला", "तोला सुन", "मूल्यवृद्धि", "पेट्रोलियम", "डिजेल", "खाना पकाउने ग्यास",
-        "मूल्य समायोजन", "रोजगारी", "बेरोजगारी", "वैदेशिक रोजगार", "पुँजीगत खर्च", "चालु खर्च", "वित्तीय",
-        "वित्तीय घाटा", "परिसूचक", "बचत", "खर्च",
+        "अर्थतन्त्र", "बजेट", "आर्थिक", "बैंक", "बैंकिङ", "नेपाल राष्ट्र बैंक", "राष्ट्र बैंक",
+        "मौद्रिक नीति", "नेप्से", "सेयर", "शेयर", "धितोपत्र", "चाँदी", "मुद्रास्फीति", "महँगी",
+        "राजस्व", "आयकर", "करदाता", "कर प्रणाली", "कर छुट", "पुँजीगत लाभकर", "अन्तःशुल्क",
+        "भन्सार", "रेमिट्यान्स", "विप्रेषण", "व्यापार घाटा", "निर्यात", "आयात", "व्यवसाय",
+        "उद्योग", "लगानी", "ऋण", "बीमा", "डलर", "लघुवित्त", "निक्षेप", "कर्जा", "ब्याजदर",
+        "तरलता", "विदेशी मुद्रा सञ्चिति", "धितोपत्र बोर्ड", "सेबोन", "लाभांश", "बोनस सेयर",
+        "हकप्रद", "आईपिओ", "आईपीओ", "सूचीकृत", "कारोबार", "उद्यमशीलता", "निजी क्षेत्र",
+        "एफएनसीसीआई", "परिसंघ", "सुनचाँदी", "सुनको भाउ", "पेट्रोलियम", "डिजेल", "खाना पकाउने ग्यास",
+        "पुँजीगत खर्च", "वित्तीय घाटा", "पर्यटन", "पर्यटक आगमन", "होटल", "पर्वतारोहण",
+        "नागरिक उड्डयन", "नेपाल वायुसेवा", "नेपाल एयरलाइन्स", "जलविद्युत", "विद्युत् प्राधिकरण",
+        "अपर तामाकोशी", "नेपाल आयल निगम",
         "economy", "economic", "budget", "bank", "banking", "monetary policy", "nepse",
         "stock", "share market", "gold", "silver", "inflation", "revenue", "tax", "customs",
         "remittance", "trade deficit", "export", "import", "business", "industry", "investment",
-        "development project", "loan", "insurance", "finance", "financial", "forex", "dollar",
-        "cooperative", "depositor", "microfinance", "deposit", "credit", "interest rate",
-        "liquidity", "foreign exchange", "forex reserve", "sebon", "dividend", "bonus share",
-        "right share", "ipo", "listed company", "turnover", "stockbroker", "bull run",
-        "bear market", "bullion", "fuel price", "lpg", "petroleum", "trade surplus",
-        "fdi", "foreign direct investment", "fiscal deficit", "public debt", "commercial bank",
-        "development bank", "central bank", "capital expenditure", "recurrent expenditure"
+        "loan", "insurance", "finance", "financial", "forex", "dollar", "microfinance",
+        "deposit", "credit", "interest rate", "liquidity", "forex reserve", "sebon", "dividend",
+        "bonus share", "right share", "ipo", "listed company", "turnover", "bullion", "fuel price",
+        "petroleum", "fdi", "foreign direct investment", "fiscal deficit", "public debt",
+        "commercial bank", "central bank", "capital expenditure", "fncci", "cni", "tourism",
+        "tourist arrival", "civil aviation", "caan", "nepal airlines", "hydropower", "nea"
     ]
-    if has_match(economy_patterns, [
+    economy_regex = [
         r'\bnrb\b', r'\bgdp\b', r'\bnepse\b', r'\bsebon\b', r'\bipo\b', r'\bfdi\b',
-        r'\bfncci\b', r'\bcni\b', r'\bforex\b', r'\bcrr\b', r'\bslr\b',
-        r'(?:^|[\s,।!?—\(\)\[\]"\'\/])कर(?:$|[\s,।!?—\(\)\[\]"\'\/]|मा|को|ले|बाट|तिर|का|लाई)',
-        r'(?:^|[\s,।!?—\(\)\[\]"\'\/])सुन(?:$|[\s,।!?—\(\)\[\]"\'\/]|को|मा|ले|चाँदी)'
-    ]):
-        return "Economy"
+        r'\bfncci\b', r'\bcni\b', r'\bforex\b', r'\bvat\b', r'\bnoc\b', r'\bnea\b'
+    ]
+    if evaluate_patterns(economy_patterns, economy_regex, "Nepal – Economy", "Economy & Finance"):
+        secondary_tags.add("Markets & Trade")
 
-    # 8. Others
-    return "Others"
+    # -------------------------------------------------------------------------
+    # H. INTERNATIONAL NEWS (Major global events without primary Nepal focus)
+    # -------------------------------------------------------------------------
+    intl_patterns = [
+        "विश्व", "विश्व समाचार", "अन्तर्राष्ट्रिय समाचार", "युक्रेन युद्ध", "रुस-युक्रेन", "गाजा",
+        "इजरायल-हमास", "हिजबुल्लाह", "लेबनान", "मध्यपूर्व", "लाल सागर", "हुथी", "सिरिया", "सुडान",
+        "नेटो", "जी-७", "जी-२०", "ब्रिक्स", "अमेरिकी राष्ट्रपति निर्वाचन", "अमेरिकी सिनेट",
+        "ट्रम्प प्रशासन", "कमला ह्यारिस", "पुतिन", "जेलेन्स्की", "नेतान्याहू", "अमेरिकी फेडरल रिजर्भ",
+        "वाल स्ट्रिट", "ओपेक", "कच्चा तेल", "ओपनएआई", "च्याटजिपिटी", "नासा", "स्पेसएक्स",
+        "international news", "world news", "global news", "ukraine war", "russia-ukraine",
+        "gaza", "israel-hamas", "hezbollah", "lebanon war", "middle east crisis", "red sea",
+        "houthis", "syria", "sudan conflict", "nato summit", "g7", "g20 summit", "brics summit",
+        "us presidential election", "white house", "us senate", "pentagon", "donald trump",
+        "kamala harris", "joe biden", "vladimir putin", "zelenskyy", "netanyahu", "federal reserve",
+        "wall street", "dow jones", "nasdaq", "opec", "crude oil", "openai", "chatgpt", "deepmind",
+        "artificial intelligence regulation", "nasa", "spacex", "starship", "un security council resolution"
+    ]
+    intl_regex = [
+        r'\bnato\b', r'\bg7\b', r'\bg20\b', r'\bbrics\b', r'\bopec\b',
+        r'\bicj\b', r'\bicc\b', r'\bopenai\b', r'\bnasa\b'
+    ]
+    if evaluate_patterns(intl_patterns, intl_regex, "International News", "Global Affairs"):
+        secondary_tags.add("World News")
+
+    # -------------------------------------------------------------------------
+    # I. NEPAL – OTHERS (Sports, Culture, Entertainment, Environment, Disasters)
+    # -------------------------------------------------------------------------
+    others_patterns = [
+        "खेलकुद", "क्रिकेट", "क्यान", "नेपाल क्रिकेट", "टी-२०", "एनपिएल", "नेपाल प्रिमियर लिग",
+        "रोहित पौडेल", "दीपेन्द्र सिंह ऐरी", "सन्दीप लामिछाने", "पारस खड्का", "फुटबल", "एन्फा",
+        "चलचित्र", "फिल्म", "सिनेमा", "बक्स अफिस", "अभिनेता", "अभिनेत्री", "नायक", "नायिका",
+        "गीत", "संगीत", "गायक", "गायिका", "साहित्य", "पुस्तक", "मिस नेपाल", "टेकपाना",
+        "सूचना प्रविधि", "नेपाल टेलिकम", "एनसेल", "स्वास्थ्य", "अस्पताल", "डेंगु", "सगरमाथा",
+        "हिमाल", "राष्ट्रिय निकुञ्ज", "चितवन निकुञ्ज", "बाघ", "गैंडा", "भूकम्प", "बाढी",
+        "पहिरो", "मौसम", "वर्षा", "हिमपात", "शीतलहर", "चाडपर्व", "दशैं", "दसैं", "तिहार",
+        "छठ", "तीज", "ल्होसार", "माघी", "संस्कृति", "सम्पदा",
+        "cricket", "can", "cricket association of nepal", "t20", "npl", "nepal premier league",
+        "rohit paudel", "paras khadka", "dipendra singh airee", "sandeep lamichhane", "football",
+        "anfa", "kollywood", "nepali movie", "box office", "actor", "actress", "singer", "concert",
+        "literature", "miss nepal", "techpana", "nepal telecom", "ncell", "mount everest",
+        "himalayas", "national park", "chitwan", "bardia", "earthquake", "flood", "landslide",
+        "weather forecast", "rainfall", "snowfall", "cold wave", "dashain", "tihar", "chhath",
+        "heritage"
+    ]
+    others_regex = [r'\bcan\b', r'\banfa\b', r'\bnpl\b', r'\bt20\b']
+    if evaluate_patterns(others_patterns, others_regex, "Nepal – Others", "Culture & Society"):
+        secondary_tags.add("Sports & Lifestyle")
+
+    # -------------------------------------------------------------------------
+    # Editorial Rule Balancing & Confidence Calculation
+    # -------------------------------------------------------------------------
+    # If it's a global story without substantive Nepal mentions, promote International News
+    if not is_bilateral_nepal:
+        if (scores["International News"] > 0 or scores["Nepal – External"] > 0) and \
+           scores["India Section"] < 3 and scores["China Section"] < 3 and scores["Bangladesh Section"] < 3 and scores["Pakistan Section"] < 3:
+            scores["International News"] += scores["Nepal – External"] + 2
+            scores["Nepal – External"] = 0
+    elif scores["International News"] >= 3 and not is_bilateral_nepal:
+        scores["Nepal – External"] = max(0, scores["Nepal – External"] - 3)
+
+    # Determine primary section
+    sorted_cats = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_cat, top_score = sorted_cats[0]
+    total_score = sum(scores.values())
+
+    if top_score == 0:
+        if "indian" in source_str.lower() or "india" in source_str.lower():
+            primary = "India Section"
+            confidence = 0.65
+        else:
+            primary = "Nepal – Others"
+            confidence = 0.40
+        low_confidence = True
+    else:
+        primary = top_cat
+        # Normalised confidence calculation
+        ratio = top_score / max(1, total_score)
+        confidence = min(0.98, max(0.40, round(ratio * 1.15, 2)))
+        low_confidence = (confidence < 0.60) or (top_score < 3)
+
+    # Multi-section associations (Canonical cross-listing)
+    sections = [primary]
+
+    # Bilateral Cross-listing: India/China/BD/Pak stories involving Nepal belong to both
+    if primary in ("India Section", "China Section", "Bangladesh Section", "Pakistan Section"):
+        if is_bilateral_nepal and "Nepal – External" not in sections:
+            sections.append("Nepal – External")
+    elif primary == "Nepal – External":
+        if scores["India Section"] >= 2 and "India Section" not in sections:
+            sections.append("India Section")
+        if scores["China Section"] >= 2 and "China Section" not in sections:
+            sections.append("China Section")
+        if scores["Bangladesh Section"] >= 2 and "Bangladesh Section" not in sections:
+            sections.append("Bangladesh Section")
+        if scores["Pakistan Section"] >= 2 and "Pakistan Section" not in sections:
+            sections.append("Pakistan Section")
+
+    # Economic cross-border trade cross-listing
+    if primary == "Nepal – Economy":
+        if scores["India Section"] >= 2 and "India Section" not in sections:
+            sections.append("India Section")
+        if scores["China Section"] >= 2 and "China Section" not in sections:
+            sections.append("China Section")
+        if scores["Bangladesh Section"] >= 2 and "Bangladesh Section" not in sections:
+            sections.append("Bangladesh Section")
+
+    return {
+        "primary_section": primary,
+        "structured_category": primary,  # Backward compatibility
+        "sections": sections,
+        "secondary_tags": sorted(list(secondary_tags))[:4],
+        "confidence": confidence,
+        "classification_confidence": confidence,
+        "low_confidence": low_confidence
+    }
+
+def classify_article(title: str, summary: str = "") -> str:
+    """
+    Backward-compatible entry point returning primary section string.
+    """
+    res = classify_article_editorial(title, summary)
+    return res["primary_section"]
 
 # Date parsing patterns for HTML news cards & metadata
 DATE_SNIPPET_REGEXES = [
@@ -2248,7 +2443,8 @@ def fetch_single_portal(portal, now_npt):
                     "social media", "twitter", "facebook", "viral", "एक्स", "फेसबुक", "सामाजिक सञ्जाल", "भाइरल", "ट्वीट"
                 ])
 
-                classified_cat = classify_article(title, clean_summary)
+                cls_res = classify_article_editorial(title, clean_summary, portal["name"], full_content)
+                classified_cat = cls_res["primary_section"]
                 headline_en = title if portal["lang"] == "English" else ""
 
                 items.append({
@@ -2256,6 +2452,11 @@ def fetch_single_portal(portal, now_npt):
                     "language": portal["lang"],
                     "portal_category": portal["category"],
                     "structured_category": classified_cat,
+                    "primary_section": classified_cat,
+                    "sections": cls_res["sections"],
+                    "secondary_tags": cls_res["secondary_tags"],
+                    "classification_confidence": cls_res["confidence"],
+                    "low_confidence": cls_res["low_confidence"],
                     "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
                     "title": title,
                     "headline_english": headline_en,
@@ -2303,7 +2504,8 @@ def fetch_single_portal(portal, now_npt):
 
                     parsed_dt = extract_date_from_card_or_url(a, href, now_npt)
                     art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
-                    classified_cat = classify_article(txt, art_summary)
+                    cls_res = classify_article_editorial(txt, art_summary, portal["name"], art_summary)
+                    classified_cat = cls_res["primary_section"]
                     headline_en = txt if portal["lang"] == "English" else ""
 
                     items.append({
@@ -2311,6 +2513,11 @@ def fetch_single_portal(portal, now_npt):
                         "language": portal["lang"],
                         "portal_category": portal["category"],
                         "structured_category": classified_cat,
+                        "primary_section": classified_cat,
+                        "sections": cls_res["sections"],
+                        "secondary_tags": cls_res["secondary_tags"],
+                        "classification_confidence": cls_res["confidence"],
+                        "low_confidence": cls_res["low_confidence"],
                         "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
                         "title": txt,
                         "headline_english": headline_en,
@@ -2345,9 +2552,13 @@ def fetch_top_nepal_media(max_workers: int = 25):
     return all_articles
 
 def fetch_single_indian_media(src, now_npt):
-    """Fetches Nepal-related news from a specific Indian media outlet."""
-    nepal_regex = re.compile(
-        r'\b(nepal|nepali|nepalese|kathmandu|balen|kp oli|k\.p\. oli|prachanda|deuba|indo-nepal|nepal-india|gorkha|madhesh|birgunj|pokhara|everest|नेपाल|काठमांडू|काठमाडौँ)\b',
+    """
+    Fetches news from prominent Indian media outlets covering:
+    - Nepal-related news and Nepal-India bilateral developments
+    - Indian domestic politics, governance, strategic, economic, and border developments
+    """
+    nepal_and_india_regex = re.compile(
+        r'\b(nepal|nepali|nepalese|kathmandu|balen|kp oli|k\.p\. oli|prachanda|deuba|indo-nepal|nepal-india|gorkha|madhesh|birgunj|pokhara|everest|नेपाल|काठमांडू|काठमाडौँ|modi|narendra modi|bjp|jaishankar|border|loc|ssb|bihar|uttar pradesh|uttarakhand|bengal|sikkim|delhi|foreign affairs|substantive)\b',
         re.IGNORECASE
     )
     items = []
@@ -2364,7 +2575,9 @@ def fetch_single_indian_media(src, now_npt):
                 raw_title = e.get("title", "").strip()
                 summary_raw = e.get("summary", "") or e.get("description", "")
                 text = f"{raw_title} {summary_raw}"
-                if nepal_regex.search(text):
+                # If specific topic page, accept all valid stories; if general feed, require regex match
+                is_topic_feed = "topic" in src.get("url", "") or "tag" in src.get("url", "") or "about" in src.get("url", "")
+                if is_topic_feed or nepal_and_india_regex.search(text):
                     clean_title = re.sub(r'\s*-\s*[^-]+$', '', raw_title).strip() or raw_title
                     if clean_title in seen:
                         continue
@@ -2379,9 +2592,22 @@ def fetch_single_indian_media(src, now_npt):
                     clean_sum = html.unescape(clean_sum)
                     clean_sum = re.sub(r'\s+', ' ', clean_sum).strip() or clean_title
 
+                    cls_res = classify_article_editorial(clean_title, clean_sum, src["name"], clean_sum)
+                    # Guaranteed India Section representation
+                    if "India Section" not in cls_res["sections"]:
+                        cls_res["sections"].insert(0, "India Section")
+
                     items.append({
                         "source": src["name"],
                         "language": src["lang"],
+                        "portal_category": "Indian Press",
+                        "structured_category": cls_res["primary_section"],
+                        "primary_section": cls_res["primary_section"],
+                        "sections": cls_res["sections"],
+                        "secondary_tags": cls_res["secondary_tags"],
+                        "classification_confidence": cls_res["confidence"],
+                        "low_confidence": cls_res["low_confidence"],
+                        "category_icon": CATEGORY_ICONS.get(cls_res["primary_section"], "🇮🇳"),
                         "title": clean_title,
                         "headline_english": clean_title if src["lang"] == "English" else "",
                         "link": e.get("link", "#"),
@@ -2397,7 +2623,8 @@ def fetch_single_indian_media(src, now_npt):
                 txt = a.get_text(strip=True)
                 href = a["href"]
                 if len(txt) > 20 and not any(k in txt.lower() for k in skip_phrases):
-                    if nepal_regex.search(txt) or "nepal" in href.lower():
+                    is_topic_url = "topic" in src.get("url", "") or "tag" in src.get("url", "") or "about" in src.get("url", "")
+                    if is_topic_url or nepal_and_india_regex.search(txt) or "nepal" in href.lower() or "india" in href.lower():
                         clean_txt = re.sub(r'\s+', ' ', txt).strip()
                         if clean_txt in seen or clean_txt.startswith("{"):
                             continue
@@ -2428,9 +2655,21 @@ def fetch_single_indian_media(src, now_npt):
                         parsed_dt = extract_date_from_card_or_url(a, href, now_npt)
                         art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
 
+                        cls_res = classify_article_editorial(clean_txt, clean_txt, src["name"], clean_txt)
+                        if "India Section" not in cls_res["sections"]:
+                            cls_res["sections"].insert(0, "India Section")
+
                         items.append({
                             "source": src["name"],
                             "language": src["lang"],
+                            "portal_category": "Indian Press",
+                            "structured_category": cls_res["primary_section"],
+                            "primary_section": cls_res["primary_section"],
+                            "sections": cls_res["sections"],
+                            "secondary_tags": cls_res["secondary_tags"],
+                            "classification_confidence": cls_res["confidence"],
+                            "low_confidence": cls_res["low_confidence"],
+                            "category_icon": CATEGORY_ICONS.get(cls_res["primary_section"], "🇮🇳"),
                             "title": clean_txt,
                             "headline_english": clean_txt if src["lang"] == "English" else "",
                             "link": href,

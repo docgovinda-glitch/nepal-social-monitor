@@ -2939,22 +2939,24 @@ NEPALI_X_ACCOUNTS_BY_CATEGORY = {}
 
 def classify_x_post(text: str, author_name: str = "", handle: str = "", role: str = "") -> str:
     """
-    Intelligently organizes a post into one of the 8 Structured Categories based on
+    Intelligently organizes a post into one of the 9 Structured Categories based on
     its content and topics:
-      1. India in Nepal
-      2. China in Nepal
-      3. Pakistan in Nepal
-      4. Bangladesh in Nepal
-      5. Nepal – Internal Politics
-      6. Nepal – External Relations (Others)
-      7. Economy
-      8. Others
+      1. India Section
+      2. China Section
+      3. Bangladesh Section
+      4. Pakistan Section
+      5. Nepal – Internal
+      6. Nepal – External
+      7. Nepal – Economy
+      8. Nepal – Others
+      9. International News
     """
-    from nepal_fetcher import classify_article
+    from nepal_fetcher import classify_article_editorial
 
-    # 1. Primary: Classify based purely on the post text
-    inferred = classify_article(text, text)
-    if inferred != "Others":
+    # 1. Primary: Classify based purely on post text with editorial engine
+    res = classify_article_editorial(text, text, author_name, role)
+    inferred = res["primary_section"]
+    if inferred not in ("Nepal – Others", "Others"):
         return inferred
 
     # 2. Secondary: Handle-specific topical defaults
@@ -2967,7 +2969,7 @@ def classify_x_post(text: str, author_name: str = "", handle: str = "", role: st
             "loan", "debt", "humla", "हुम्ला", "railway", "रेलमार्ग", "conclave", "dialogue",
             "asia", "ambassador", "policy", "foreign", "treaty"
         ]) or any(k in h_low for k in ["prcamb"]):
-            return "China in Nepal"
+            return "China Section"
 
     if any(k in h_low for k in ["indiainnepal", "sureshrajn", "ronin_nepal", "dilipkhadk", "th3_kmix"]):
         if any(w in t_low for w in [
@@ -2975,42 +2977,39 @@ def classify_x_post(text: str, author_name: str = "", handle: str = "", role: st
             "dispute", "विवाद", "delhi", "army", "power", "electricity", "export",
             "trade", "व्यापार", "modi", "नाकाबन्दी", "epg", "susta", "kalapani", "lipulekh"
         ]) or any(k in h_low for k in ["indiainnepal", "sureshrajn"]):
-            return "India in Nepal"
+            return "India Section"
 
     if any(k in h_low for k in ["pakinnepal"]):
-        return "Pakistan in Nepal"
+        return "Pakistan Section"
     if any(k in h_low for k in ["cricnepal", "therhinosarmy", "ronin_nepal", "dilipkhadk", "contactniice", "saarcsec", "nepcorres"]):
         if any(w in t_low for w in [
             "pakistan", "pakistani", "पाकिस्तान", "पाकिस्तानी", "islamabad", "इस्लामाबाद",
             "babar", "🇵🇰", "shaheen", "psl", "ptap", "karachi", "lahore", "rawalpindi"
         ]):
-            return "Pakistan in Nepal"
+            return "Pakistan Section"
     if any(k in h_low for k in ["bdmofa", "bangladoot", "hamrokhelkud", "nepcorres", "trailokyararyal", "kathmandupost", "the_chillax", "contactniice", "cesifnepal", "amish973", "ashokpillar", "kdbhattarai"]):
         if any(w in t_low for w in [
             "bangladesh", "bangladeshi", "ढाका", "dhaka", "हसिना", "hasina",
             "युनुस", "yunus", "बङ्गलादेश", "बंगलादेश", "saff", "साफ", "rohanpur", "रोहनपुर", "🇧🇩",
             "40 mw", "४० मेगावाट"
         ]) or any(k in h_low for k in ["bdmofa", "bangladoot"]):
-            return "Bangladesh in Nepal"
-    if any(k in h_low for k in ["bdmofa", "bangladoot"]):
-        return "Bangladesh in Nepal"
+            return "Bangladesh Section"
     if any(k in h_low for k in [
         "nepalrastrabank", "fncci", "mofnepal", "cninepal", "nepalipaisa", "arthasarokar",
         "bizshala", "bizpati", "bizmandu", "sejonnepal", "bull_nepse"
     ]):
-        return "Economy"
+        return "Nepal – Economy"
     if any(k in h_low for k in ["ukinnepal", "usembassy", "un_nepal", "euinnepal", "nepalunny", "saarcsec", "japaninnepal"]):
-        return "Nepal – External Relations (Others)"
+        return "Nepal – External"
     if any(k in h_low for k in ["gejawagle", "nepcorres", "trailokyararyal", "dipak_gyawali", "madhuramanach", "arzuranadeuba", "mofanepal", "cesifnepal", "contactniice", "iids1979", "suryaraacharya", "the_chillax", "ronin_nepal", "dilipkhadk"]):
         if any(w in t_low for w in [
             "america", "अमेरिकी", "अमेरिका", "us", "mcc", "एमसीसी", "spp", "usaid", "trump", "biden",
             "eu", "european", "युरोपेली", "uk", "british", "britain", "बेलायत", "un", "united nations",
             "राष्ट्रसंघ", "peacekeeping", "शान्ति सेना", "saarc", "सार्क", "bimstec", "बिम्सटेक",
             "ldc", "who", "wto", "embassy", "ambassador", "diplomatic", "foreign", "treaty",
-            "israel", "russia", "ukraine", "gaza", "blacklist", "कालोसूची", "grant", "aid", "cop31",
-            "cop29", "climate", "mountain agenda"
+            "israel", "russia", "ukraine", "gaza", "blacklist", "कालोसूची", "grant", "aid"
         ]):
-            return "Nepal – External Relations (Others)"
+            return "Nepal – External"
     if any(k in h_low for k in [
         "kpsharmaoli", "cmprachanda", "sherbdeuba", "brb1954", "gagan", "hamrorabi", "swarnim",
         "shahbalen", "rabindra", "drckraut", "bishwaprakash", "yogesbhattarai", "gokulpbaskota",
@@ -3023,9 +3022,9 @@ def classify_x_post(text: str, author_name: str = "", handle: str = "", role: st
         "mohnaansari", "upendrayadav_", "jspnepal", "madhesiyouth", "teraionline",
         "madheshvani", "surendralabh", "jitendrajha", "rajeshahiraj", "janakpurlitfest"
     ]):
-        return "Nepal – Internal Politics"
+        return "Nepal – Internal"
 
-    return "Others"
+    return "Nepal – Others"
 
 
 def format_relative_time(pub_dt: datetime.datetime, now_npt: datetime.datetime) -> str:

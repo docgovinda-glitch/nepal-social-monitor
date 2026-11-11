@@ -346,10 +346,11 @@ st.markdown("""
     .card-accent-china { border-left-color: #EF4444 !important; }
     .card-accent-pakistan { border-left-color: #10B981 !important; }
     .card-accent-bangladesh { border-left-color: #06B6D4 !important; }
-    .card-accent-politics { border-left-color: #6366F1 !important; }
+    .card-accent-internal, .card-accent-politics { border-left-color: #6366F1 !important; }
     .card-accent-external { border-left-color: #8B5CF6 !important; }
     .card-accent-economy { border-left-color: #059669 !important; }
     .card-accent-others { border-left-color: #94A3B8 !important; }
+    .card-accent-international { border-left-color: #7C3AED !important; }
     .card-accent-indian-press { border-left-color: #F97316 !important; }
 
     .apple-card-meta {
@@ -474,10 +475,13 @@ st.markdown("""
     .cat-badge-china { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
     .cat-badge-pakistan { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
     .cat-badge-bangladesh { background: #CFFAFE; color: #155E75; border: 1px solid #A5F3FC; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
-    .cat-badge-politics { background: #EEF2FF; color: #3730A3; border: 1px solid #C7D2FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
+    .cat-badge-internal, .cat-badge-politics { background: #EEF2FF; color: #3730A3; border: 1px solid #C7D2FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
     .cat-badge-external { background: #F5F3FF; color: #5B21B6; border: 1px solid #DDD6FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
     .cat-badge-economy { background: #ECFDF5; color: #047857; border: 1px solid #6EE7B7; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
     .cat-badge-others { background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
+    .cat-badge-international { background: #EDE9FE; color: #5B21B6; border: 1px solid #DDD6FE; padding: 4px 11px; border-radius: 9999px; font-size: 0.74rem; font-weight: 650; }
+    .sec-tag-chip { background: #F8FAFC; color: #475569; border: 1px solid #E2E8F0; padding: 2px 7px; border-radius: 6px; font-size: 0.70rem; font-weight: 550; display: inline-flex; align-items: center; }
+    .conf-review-badge { background: #FFFBEB; color: #B45309; border: 1px solid #FCD34D; padding: 2px 8px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; }
 
     /* Apple Filter Banner */
     .apple-filter-banner {
@@ -869,7 +873,7 @@ search_query = st.sidebar.text_input(
 )
 
 CAT_FILTER_ALL_UNFILTERED = "🌐 All (No Filters / Everything)"
-CAT_FILTER_ALL_8 = "📂 All Categories (8 Predefined Categories)"
+CAT_FILTER_ALL_8 = "📂 All Categories (9 Editorial Sections)"
 CAT_FILTER_UNCATEGORIZED = "⚪ Uncategorized Feeds Only"
 
 CATEGORY_FILTER_OPTIONS = [
@@ -879,11 +883,11 @@ CATEGORY_FILTER_OPTIONS = [
 ] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
 
 selected_cat_filter = st.sidebar.selectbox(
-    "Geopolitical Category:",
+    "Editorial Section / Category:",
     CATEGORY_FILTER_OPTIONS,
     index=0,
     key="sidebar_selected_cat_filter",
-    help="Filter across predefined geopolitical and intelligence categories."
+    help="Filter across the 9 geographically and thematically organised editorial sections."
 )
 
 col_portal, col_lang = st.sidebar.columns(2)
@@ -982,16 +986,26 @@ filtered_x_posts.sort(key=lambda x: x.get("published_dt") or min_date, reverse=T
 filtered_fb_posts.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
 
 # Calculate Category Counts for Nepali Media (based on time-filtered articles)
-cat_counts = Counter([a["structured_category"] for a in filtered_articles])
+cat_counts = Counter([a.get("primary_section") or a.get("structured_category", "Nepal – Others") for a in filtered_articles])
 
 # Helper for category badge
 def get_badge_html(cat):
     badge_classes = {
+        "India Section": "cat-badge-india",
+        "China Section": "cat-badge-china",
+        "Pakistan Section": "cat-badge-pakistan",
+        "Bangladesh Section": "cat-badge-bangladesh",
+        "Nepal – Internal": "cat-badge-internal",
+        "Nepal – External": "cat-badge-external",
+        "Nepal – Economy": "cat-badge-economy",
+        "Nepal – Others": "cat-badge-others",
+        "International News": "cat-badge-international",
+        # Backward compatibility aliases
         "India in Nepal": "cat-badge-india",
         "China in Nepal": "cat-badge-china",
         "Pakistan in Nepal": "cat-badge-pakistan",
         "Bangladesh in Nepal": "cat-badge-bangladesh",
-        "Nepal – Internal Politics": "cat-badge-politics",
+        "Nepal – Internal Politics": "cat-badge-internal",
         "Nepal – External Relations (Others)": "cat-badge-external",
         "Economy": "cat-badge-economy",
         "Others": "cat-badge-others",
@@ -1003,14 +1017,24 @@ def get_badge_html(cat):
 # Apple-Grade Article Card Renderer
 def render_apple_article_card(item, is_indian=False, auto_translate=False):
     source_name = html.escape(item.get("source", "Unknown"))
-    cat = item.get("structured_category", "Others")
+    cat = item.get("primary_section") or item.get("structured_category", "Nepal – Others")
     
     cat_accent_class = {
+        "India Section": "card-accent-india",
+        "China Section": "card-accent-china",
+        "Pakistan Section": "card-accent-pakistan",
+        "Bangladesh Section": "card-accent-bangladesh",
+        "Nepal – Internal": "card-accent-internal",
+        "Nepal – External": "card-accent-external",
+        "Nepal – Economy": "card-accent-economy",
+        "Nepal – Others": "card-accent-others",
+        "International News": "card-accent-international",
+        # Backward compatibility aliases
         "India in Nepal": "card-accent-india",
         "China in Nepal": "card-accent-china",
         "Pakistan in Nepal": "card-accent-pakistan",
         "Bangladesh in Nepal": "card-accent-bangladesh",
-        "Nepal – Internal Politics": "card-accent-politics",
+        "Nepal – Internal Politics": "card-accent-internal",
         "Nepal – External Relations (Others)": "card-accent-external",
         "Economy": "card-accent-economy",
         "Others": "card-accent-others",
@@ -1018,11 +1042,21 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
 
     if is_indian:
         cat_accent_class = "card-accent-indian-press"
-        source_tag = f'<span class="indian-portal-tag">{source_name}</span>'
-        cat_badge = f'<span class="indian-portal-tag">🇮🇳 Indian Press ({html.escape(item.get("language", "English"))})</span>'
+        source_tag = f'<span class="indian-portal-tag">🇮🇳 {source_name}</span>'
+        cat_badge = get_badge_html(cat)
     else:
         source_tag = f'<span class="portal-tag">{source_name}</span>'
         cat_badge = get_badge_html(cat)
+
+    # Low confidence warning flag
+    review_flag = '<span class="conf-review-badge" title="Classification confidence < 0.60 - Pending Editorial Verification">⚠️ Review</span>' if item.get("low_confidence") else ''
+
+    # Secondary tags chips
+    sec_tags = item.get("secondary_tags", [])
+    sec_tags_html = ""
+    if sec_tags and isinstance(sec_tags, list):
+        chips = [f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:4]]
+        sec_tags_html = f'<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">{" ".join(chips)}</div>'
 
     rel_time = html.escape(str(item.get('relative_time', 'Recent')))
     exact_time = html.escape(str(item.get('exact_time', '')))
@@ -1045,10 +1079,11 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
 
     return (
         f'<article class="apple-news-card {cat_accent_class}">'
-        f'<header class="apple-card-meta">{source_tag}{cat_badge}{lang_badge}{time_badge}</header>'
+        f'<header class="apple-card-meta">{source_tag}{cat_badge}{review_flag}{lang_badge}{time_badge}</header>'
         f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{title_display}</a></h3>'
         f'{summary_html}'
-        f'<footer class="apple-card-footer" style="display:flex; justify-content:space-between; align-items:center;">'
+        f'{sec_tags_html}'
+        f'<footer class="apple-card-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">'
         f'<a href="{wa_share_url}" target="_blank" rel="noopener noreferrer" class="apple-wa-share-btn" title="Share individual story to WhatsApp">📲 WhatsApp</a>'
         f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{btn_label}</a>'
         f'</footer>'
@@ -1353,27 +1388,28 @@ def smart_search_match(item: Dict[str, Any], query: str) -> bool:
 # 4. Monitored Facebook Posts & Insights
 # ==========================================
 
-PREDEFINED_8_CATEGORIES = set(STRUCTURED_CATEGORIES)
-CORE_7_CATEGORIES = {c for c in STRUCTURED_CATEGORIES if c != "Others"}
+PREDEFINED_9_CATEGORIES = set(STRUCTURED_CATEGORIES)
+PREDEFINED_8_CATEGORIES = PREDEFINED_9_CATEGORIES
+CORE_8_CATEGORIES = {c for c in STRUCTURED_CATEGORIES if c not in ["Nepal – Others", "Others"]}
+CORE_7_CATEGORIES = CORE_8_CATEGORIES
 
 def filter_items_by_category(items: list, selected_option: str, is_social: bool = False) -> list:
     """
-    Refined news feed filtering mechanism according to user requirements:
+    Refined editorial news feed filtering mechanism:
 
     1. Default / Unfiltered State (No Filters Selected):
-       Fetch and display all news and posts published by the listed Nepali media outlets across
-       all sources—including RSS feeds, X (formerly Twitter), and Facebook—regardless of whether
-       they are assigned a category.
+       Fetch and display all news and posts published across all sources regardless of category.
 
     2. "All Categories" Selected:
-       Fetch and display news items that fall under any of the 8 predefined categories.
-       (Exclude uncategorized posts/social feeds).
+       Fetch and display news items that fall under any of the 9 predefined editorial sections.
 
     3. "Uncategorized" View:
        Filter and display items that are uncategorized, unassigned, or general feeds.
 
     4. Single Category Selected:
-       Filter and display news items exclusively belonging to the selected category.
+       Filter and display news items belonging to the selected section, including cross-listed
+       bilateral stories (e.g. Nepal-India bilateral story discoverable in both India Section
+       and Nepal – External).
     """
     if not items:
         return []
@@ -1383,34 +1419,53 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
     if selected_option == CAT_FILTER_ALL_8 or "All Categories" in selected_option:
         res = []
         for it in items:
-            cat = str(it.get("structured_category") or it.get("category") or "").strip()
+            cat = str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip()
             if not cat or cat.lower() in ["uncategorized", "none", "null", "unassigned", ""]:
                 continue
             if is_social:
-                # For social feeds (X, Facebook): exclude uncategorized/general social feeds (must belong to core categories)
-                if cat in CORE_7_CATEGORIES:
+                if cat in CORE_8_CATEGORIES:
                     res.append(it)
             else:
-                # For media articles: must fall under any of the 8 predefined categories
-                if cat in PREDEFINED_8_CATEGORIES:
+                if cat in PREDEFINED_9_CATEGORIES or any(s in PREDEFINED_9_CATEGORIES for s in it.get("sections", [])):
                     res.append(it)
         return res
 
     if selected_option == CAT_FILTER_UNCATEGORIZED or "Uncategorized" in selected_option:
         res = []
         for it in items:
-            cat = str(it.get("structured_category") or it.get("category") or "").strip()
+            cat = str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip()
             if not cat or cat.lower() in ["uncategorized", "none", "null", "unassigned", ""]:
                 res.append(it)
-            elif is_social and cat == "Others":
+            elif is_social and cat in ["Nepal – Others", "Others"]:
                 res.append(it)
-            elif not is_social and cat not in PREDEFINED_8_CATEGORIES:
+            elif not is_social and cat not in PREDEFINED_9_CATEGORIES and not any(s in PREDEFINED_9_CATEGORIES for s in it.get("sections", [])):
                 res.append(it)
         return res
 
     # Single Category Selected: extract category name
     chosen_cat = selected_option.split(" ", 1)[1] if " " in selected_option else selected_option
-    return [it for it in items if it.get("structured_category") == chosen_cat]
+
+    # Backward compatibility aliases
+    cat_aliases = {
+        "India in Nepal": "India Section",
+        "China in Nepal": "China Section",
+        "Pakistan in Nepal": "Pakistan Section",
+        "Bangladesh in Nepal": "Bangladesh Section",
+        "Nepal – Internal Politics": "Nepal – Internal",
+        "Nepal – External Relations (Others)": "Nepal – External",
+        "Economy": "Nepal – Economy",
+        "Others": "Nepal – Others"
+    }
+    target_cat = cat_aliases.get(chosen_cat, chosen_cat)
+
+    res = []
+    for it in items:
+        primary = it.get("primary_section") or it.get("structured_category") or ""
+        item_sections = it.get("sections") or [primary]
+        # Multi-section discovery: match primary or cross-listed sections list
+        if primary == chosen_cat or primary == target_cat or chosen_cat in item_sections or target_cat in item_sections:
+            res.append(it)
+    return res
 
 # 1. Global Category Filter (Seamless across all 4 channels)
 filtered_articles = filter_items_by_category(filtered_articles, selected_cat_filter, is_social=False)
@@ -1717,71 +1772,69 @@ with tab3:
     elif len(filtered_feed) > 0:
         st.caption(f"🏁 You've reached the end of the feed ({len(filtered_feed):,} posts displayed).")
 
-    with st.expander("⚡ Quick Jump to Live X Searches Across 8 Predefined Categories", expanded=False):
+    with st.expander("⚡ Quick Jump to Live X Searches Across 9 Editorial Sections", expanded=False):
         clean_q = search_query.strip() if search_query else ""
         if clean_q:
-            st.caption(f"Launch live X searches combining your search keyword **'{html.escape(clean_q)}'** with any of the 8 predefined categories:")
+            st.caption(f"Launch live X searches combining your search keyword **'{html.escape(clean_q)}'** with any of the 9 editorial sections:")
         else:
-            st.caption("One-click direct access to real-time live posts on X (Twitter) across the 8 predefined strategic categories:")
+            st.caption("One-click direct access to real-time live posts on X (Twitter) across the 9 editorial sections:")
 
         x_cat_searches = [
             {
-                "label": "🇮🇳 India in Nepal ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("India" OR "Modi" OR "भारत" OR "#NepalIndia")',
-                "help": "Search live X posts on India-Nepal bilateral relations, border & treaties"
+                "label": "🇮🇳 India Section ↗",
+                "query": '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "security" OR "#NepalIndia")',
+                "help": "Search live X posts on India Section, bilateral relations, governance & border"
             },
             {
-                "label": "🇨🇳 China in Nepal ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("China" OR "Beijing" OR "BRI" OR "चीन" OR "#NepalChina")',
-                "help": "Search live X posts on China-Nepal relations, BRI, and border crossings"
+                "label": "🇨🇳 China Section ↗",
+                "query": '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "Tibet" OR "#NepalChina")',
+                "help": "Search live X posts on China Section, BRI, diplomacy & strategic developments"
             },
             {
-                "label": "🇵🇰 Pakistan in Nepal ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("Pakistan" OR "Islamabad" OR "पाकिस्तान" OR "#NepalPakistan")',
-                "help": "Search live X posts on Pakistan-Nepal engagements and SAARC"
+                "label": "🇧🇩 Bangladesh Section ↗",
+                "query": '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy" OR "transit")',
+                "help": "Search live X posts on Bangladesh Section, tripartite electricity trade & transit"
             },
             {
-                "label": "🇧🇩 Bangladesh in Nepal ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("Bangladesh" OR "Dhaka" OR "बंगलादेश" OR "#NepalBangladesh")',
-                "help": "Search live X posts on Bangladesh-Nepal energy trade and transit"
+                "label": "🇵🇰 Pakistan Section ↗",
+                "query": '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC" OR "Kashmir")',
+                "help": "Search live X posts on Pakistan Section, regional diplomacy & bilateral relations"
             },
             {
-                "label": "🏛 Internal Politics ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्" OR "राजनीति")',
-                "help": "Search live X posts on Nepal internal politics, parliament, and leaders"
+                "label": "🇳🇵 Nepal – Internal ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्" OR "सरकार" OR "भ्रष्टाचार")',
+                "help": "Search live X posts on Nepal internal politics, parliament, governance & societal developments"
             },
             {
-                "label": "🌐 External Relations ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("foreign" OR "diplomacy" OR "ambassador" OR "USAID" OR "MCC" OR "परराष्ट्र" OR "कूटनीति")',
-                "help": "Search live X posts on Nepal multilateral relations, US, EU, and foreign affairs"
+                "label": "🌐 Nepal – External ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र" OR "कूटनीति")',
+                "help": "Search live X posts on Nepal foreign policy, multilateral relations, US, EU & global partners"
             },
             {
-                "label": "💰 Economy ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र" OR "बजेट")',
-                "help": "Search live X posts on Nepal economy, remittance, inflation, and NRB policy"
+                "label": "📈 Nepal – Economy ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "NEPSE" OR "अर्थतन्त्र")',
+                "help": "Search live X posts on Nepal economy, banking, NEPSE, remittances & fiscal policy"
             },
             {
-                "label": "📌 Others (Civic) ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("society" OR "civic" OR "governance" OR "जनता" OR "#Nepal")',
-                "help": "Search live X posts on broader Nepali civic, social, and governance topics"
+                "label": "📌 Nepal – Others ↗",
+                "query": '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "earthquake" OR "संस्कृति")',
+                "help": "Search live X posts on sports, culture, climate, tourism & civic society"
+            },
+            {
+                "label": "🌍 International News ↗",
+                "query": '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "UN" OR "BRICS")',
+                "help": "Search live X posts on major global geopolitical conflicts, diplomacy & world affairs"
             },
         ]
 
-        # Row 1: Regional Bilateral Relations (India, China, Pakistan, Bangladesh)
-        r1_cols = st.columns(4)
-        for i, item in enumerate(x_cat_searches[:4]):
-            with r1_cols[i]:
-                full_q = f"({clean_q}) AND {item['query']}" if clean_q else item["query"]
-                x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
-                st.link_button(item["label"], x_url, width="stretch", help=item["help"])
-
-        # Row 2: Domestic & Global Themes (Politics, Foreign Relations, Economy, Others)
-        r2_cols = st.columns(4)
-        for i, item in enumerate(x_cat_searches[4:]):
-            with r2_cols[i]:
-                full_q = f"({clean_q}) AND {item['query']}" if clean_q else item["query"]
-                x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
-                st.link_button(item["label"], x_url, width="stretch", help=item["help"])
+        # 3x3 Grid Display
+        for row_idx in range(0, len(x_cat_searches), 3):
+            cols = st.columns(3)
+            for col_idx, item in enumerate(x_cat_searches[row_idx:row_idx+3]):
+                with cols[col_idx]:
+                    full_q = f"({clean_q}) AND {item['query']}" if clean_q else item["query"]
+                    x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
+                    st.link_button(item["label"], x_url, width="stretch", help=item["help"])
 
 # ==========================================
 # TAB 4: Facebook Trends Nepal
