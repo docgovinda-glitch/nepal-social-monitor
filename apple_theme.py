@@ -484,5 +484,257 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-size: 0.74rem;
         font-weight: 500;
     }
+
+    /* ==========================================
+       APPLE TOOLBAR SIDEBAR & COMPACT CONTROLS
+       ========================================== */
+    section[data-testid="stSidebar"] {
+        background-color: #F8FAFC !important;
+        border-right: 1px solid #E2E8F0 !important;
+        min-width: 300px !important;
+    }
+
+    section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+        padding-top: 1rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+
+    /* Reduce vertical gap between sidebar blocks */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 0.48rem !important;
+    }
+
+    /* Compact Sidebar Header & Section Titles */
+    .cp-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+    }
+    .cp-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: #1E293B;
+        letter-spacing: -0.015em;
+    }
+    .cp-sync-time {
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: #64748B;
+    }
+
+    .cp-sec-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.71rem;
+        font-weight: 650;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 6px 0 2px 0;
+    }
+
+    .cp-divider {
+        height: 1px;
+        background-color: #E2E8F0;
+        margin: 6px 0;
+        width: 100%;
+    }
+
+    /* Compact Widget Labels inside Sidebar */
+    section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] {
+        min-height: 16px !important;
+        margin-bottom: 2px !important;
+    }
+    section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] p {
+        font-size: 0.74rem !important;
+        font-weight: 600 !important;
+        color: #475569 !important;
+        letter-spacing: -0.005em !important;
+    }
+
+    /* Compact Inputs & Dropdowns in Sidebar (36px height, zero truncation) */
+    section[data-testid="stSidebar"] div[data-baseweb="input"] > div,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        min-height: 36px !important;
+        height: 36px !important;
+        border-radius: 8px !important;
+        border: 1px solid #DCE5EF !important;
+        background-color: #FFFFFF !important;
+        font-size: 0.81rem !important;
+        padding: 0 8px !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02) !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"] span,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] div {
+        font-size: 0.81rem !important;
+        color: #1E293B !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    section[data-testid="stSidebar"] input {
+        font-size: 0.81rem !important;
+        color: #1E293B !important;
+        padding: 0 !important;
+    }
+
+    /* Compact Primary & Secondary Buttons in Sidebar */
+    section[data-testid="stSidebar"] .stButton > button {
+        min-height: 35px !important;
+        height: 35px !important;
+        padding: 0 12px !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        border: 1px solid #DCE5EF !important;
+        background-color: #FFFFFF !important;
+        color: #334155 !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02) !important;
+    }
+
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        border-color: #CBD5E1 !important;
+        background-color: #F1F5F9 !important;
+        color: #0F172A !important;
+    }
+
+    section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+        background-color: #526A85 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        box-shadow: 0 1px 3px rgba(82, 106, 133, 0.25) !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button[kind="primary"] * {
+        color: #FFFFFF !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+        background-color: #405872 !important;
+        transform: none !important;
+        box-shadow: 0 2px 6px rgba(64, 88, 114, 0.3) !important;
+    }
+
+    /* Segmented Control (Timeframe Presets) */
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] {
+        width: 100% !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] > div {
+        background-color: #EDF2F7 !important;
+        padding: 3px !important;
+        border-radius: 8px !important;
+        border: 1px solid #E2E8F0 !important;
+        display: flex !important;
+        width: 100% !important;
+        gap: 2px !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button {
+        flex: 1 1 0% !important;
+        min-height: 28px !important;
+        height: 28px !important;
+        padding: 2px 4px !important;
+        font-size: 0.74rem !important;
+        font-weight: 550 !important;
+        border-radius: 6px !important;
+        border: none !important;
+        color: #475569 !important;
+        background: transparent !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        justify-content: center !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-checked="true"],
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[data-selected="true"],
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+        background-color: #FFFFFF !important;
+        color: #1E293B !important;
+        font-weight: 650 !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+    }
+
+    /* Compact Live Tracking Status Bar */
+    .cp-live-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 5px 10px;
+        margin-top: 2px;
+        font-size: 0.74rem;
+    }
+    .cp-range-text {
+        color: #334155;
+        font-weight: 550;
+        letter-spacing: -0.01em;
+    }
+    .cp-status-badge-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #ECFDF5;
+        color: #047857;
+        border: 1px solid #A7F3D0;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+    }
+    .cp-status-badge-paused {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #CBD5E1;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+    }
+
+    /* Active Filter Chips (st.pills) */
+    section[data-testid="stSidebar"] [data-testid="stPills"] button,
+    [data-testid="stPills"] button {
+        min-height: 24px !important;
+        height: 24px !important;
+        padding: 0 8px !important;
+        font-size: 0.72rem !important;
+        font-weight: 600 !important;
+        border-radius: 999px !important;
+        background-color: #EEF2F6 !important;
+        color: #334155 !important;
+        border: 1px solid #CBD5E1 !important;
+    }
+
+    /* Compact Expander for Monitored Sources · 52 */
+    section[data-testid="stSidebar"] details {
+        background: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 8px !important;
+        padding: 0 !important;
+    }
+    section[data-testid="stSidebar"] details summary {
+        padding: 7px 10px !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        color: #334155 !important;
+    }
+    section[data-testid="stSidebar"] details > div {
+        padding: 4px 10px 10px 10px !important;
+        font-size: 0.75rem !important;
+    }
+
 </style>
 """
+

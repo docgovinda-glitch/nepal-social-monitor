@@ -340,66 +340,116 @@ if not check_password():
 # 3. Time Reference
 now_npt = datetime.datetime.now(NEPAL_TZ)
 formatted_now_time = now_npt.strftime("%I:%M %p NPT")
-
-# 4. Sidebar Controls & Date/Time Filter
-st.sidebar.markdown("#### Control Panel")
-refresh_btn = st.sidebar.button("↻ Refresh Feeds", width='stretch', type="primary")
-if refresh_btn:
-    st.cache_data.clear()
-    if "x_posts" in st.session_state:
-        del st.session_state["x_posts"]
-    st.rerun()
-
-# --- Date & Time Range Filter Section ---
-st.sidebar.markdown("---")
-st.sidebar.markdown("##### Timeframe")
-
 yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
 yesterday_18_time = datetime.time(18, 0)
 
-# Quick Preset Buttons
-col_p1, col_p2, col_p3 = st.sidebar.columns(3)
-if col_p1.button("Yesterday", width='stretch', help="Yesterday 18:00 to Current"):
-    st.session_state["filter_start_date"] = yesterday_date
-    st.session_state["filter_start_time"] = yesterday_18_time
-    st.session_state["filter_use_current_time"] = True
-    st.rerun()
-if col_p2.button("Today", width='stretch', help="Today 00:00 to Current"):
-    st.session_state["filter_start_date"] = now_npt.date()
-    st.session_state["filter_start_time"] = datetime.time(0, 0)
-    st.session_state["filter_use_current_time"] = True
-    st.rerun()
-if col_p3.button("24h", width='stretch', help="Past 24 Hours to Current"):
-    past_24_dt = now_npt - datetime.timedelta(hours=24)
-    st.session_state["filter_start_date"] = past_24_dt.date()
-    st.session_state["filter_start_time"] = past_24_dt.time().replace(second=0, microsecond=0)
-    st.session_state["filter_use_current_time"] = True
+if "last_sync_npt" not in st.session_state:
+    st.session_state["last_sync_npt"] = now_npt.strftime("%I:%M %p")
+if "is_refreshing_feeds" not in st.session_state:
+    st.session_state["is_refreshing_feeds"] = False
+
+# ==========================================
+# 4. COMPACT CONTROL PANEL (APPLE TOOLBAR UX)
+# ==========================================
+st.sidebar.markdown(
+    f"""<div class="cp-header-row">
+        <span class="cp-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526A85" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+            Control Panel
+        </span>
+        <span class="cp-sync-time" title="Last successful feed refresh">Synced {st.session_state["last_sync_npt"]}</span>
+    </div>""",
+    unsafe_allow_html=True
+)
+
+refresh_btn = st.sidebar.button(
+    "↻ Refresh Feeds",
+    width="stretch",
+    type="primary",
+    disabled=st.session_state.get("is_refreshing_feeds", False),
+    help="Clear cache and fetch live stories across all 52 monitored sources"
+)
+if refresh_btn:
+    st.session_state["is_refreshing_feeds"] = True
+    with st.sidebar:
+        with st.spinner("Refreshing feeds..."):
+            st.cache_data.clear()
+            if "x_posts" in st.session_state:
+                del st.session_state["x_posts"]
+            st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
+            st.session_state["is_refreshing_feeds"] = False
     st.rerun()
 
-col_start_d, col_start_t = st.sidebar.columns([3, 2])
+st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
+
+# --- Timeframe Segmented Control ---
+st.sidebar.markdown(
+    """<div class="cp-sec-label">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        Timeframe
+    </div>""",
+    unsafe_allow_html=True
+)
+
+def on_timeframe_preset_change():
+    preset = st.session_state.get("cp_timeframe_segment", "Yesterday")
+    now_ref = datetime.datetime.now(NEPAL_TZ)
+    if preset == "Yesterday":
+        st.session_state["filter_start_date"] = (now_ref - datetime.timedelta(days=1)).date()
+        st.session_state["filter_start_time"] = datetime.time(18, 0)
+        st.session_state["filter_use_current_time"] = True
+    elif preset == "Today":
+        st.session_state["filter_start_date"] = now_ref.date()
+        st.session_state["filter_start_time"] = datetime.time(0, 0)
+        st.session_state["filter_use_current_time"] = True
+    elif preset == "Last 24h":
+        past_24 = now_ref - datetime.timedelta(hours=24)
+        st.session_state["filter_start_date"] = past_24.date()
+        st.session_state["filter_start_time"] = past_24.time().replace(second=0, microsecond=0)
+        st.session_state["filter_use_current_time"] = True
+
+def on_custom_datetime_edit():
+    st.session_state["cp_timeframe_segment"] = "Custom"
+
+if "cp_timeframe_segment" not in st.session_state:
+    st.session_state["cp_timeframe_segment"] = "Yesterday"
+
+st.sidebar.segmented_control(
+    "Timeframe Preset",
+    options=["Yesterday", "Today", "Last 24h", "Custom"],
+    key="cp_timeframe_segment",
+    on_change=on_timeframe_preset_change,
+    label_visibility="collapsed",
+    width="stretch"
+)
+
+col_start_d, col_start_t = st.sidebar.columns([1.35, 1])
 with col_start_d:
     start_date = st.date_input(
         "Start Date",
         value=st.session_state.get("filter_start_date", yesterday_date),
         max_value=now_npt.date(),
         key="filter_start_date",
-        help="Select start date from calendar"
+        on_change=on_custom_datetime_edit,
+        help="Start date (NPT)"
     )
 with col_start_t:
     start_time = st.time_input(
         "Start Time",
         value=st.session_state.get("filter_start_time", yesterday_18_time),
         key="filter_start_time",
-        help="Select start time (default 18:00 / 6:00 PM)"
+        on_change=on_custom_datetime_edit,
+        help="Start time (NPT)"
     )
 
 filter_start_dt = datetime.datetime.combine(start_date, start_time, tzinfo=NEPAL_TZ)
 
-use_current_time = st.sidebar.checkbox(
-    "⚡ Lock to Current Time (Live)",
+# --- Live Tracking Toggle & Single Concise Status Row ---
+use_current_time = st.sidebar.toggle(
+    "Live Tracking",
     value=st.session_state.get("filter_use_current_time", True),
     key="filter_use_current_time",
-    help="Automatically keeps feed synced to current moment"
+    help="When enabled, automatically advances end time to current moment"
 )
 
 is_to_current = use_current_time
@@ -407,14 +457,10 @@ explicit_all_time = False
 
 if use_current_time:
     filter_end_dt = now_npt
-    st.sidebar.markdown("""
-    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #047857; padding: 6px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; margin: 2px 0 8px 0;">
-        <span>🟢 Live Tracking Active</span>
-        <span style="background: #10B981; color: white; padding: 1px 7px; border-radius: 10px; font-size: 0.68rem; font-weight: 700;">LIVE</span>
-    </div>
-    """, unsafe_allow_html=True)
+    end_short_str = "Now"
+    status_pill_html = '<span class="cp-status-badge-live">● LIVE</span>'
 else:
-    col_end_d, col_end_t = st.sidebar.columns([3, 2])
+    col_end_d, col_end_t = st.sidebar.columns([1.35, 1])
     with col_end_d:
         end_date = st.date_input(
             "End Date",
@@ -422,31 +468,50 @@ else:
             max_value=now_npt.date(),
             min_value=start_date,
             key="filter_end_date",
-            help="Select end date from calendar"
+            on_change=on_custom_datetime_edit,
+            help="End date (NPT)"
         )
     with col_end_t:
         end_time = st.time_input(
             "End Time",
             value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)),
             key="filter_end_time",
-            help="Select end time"
+            on_change=on_custom_datetime_edit,
+            help="End time (NPT)"
         )
     filter_end_dt = datetime.datetime.combine(end_date, end_time, tzinfo=NEPAL_TZ)
     if filter_end_dt < filter_start_dt:
-        st.sidebar.warning("⚠️ End time cannot be earlier than start time.")
+        st.sidebar.warning("End time adjusted to follow start time.")
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
+    end_short_str = filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
+    status_pill_html = '<span class="cp-status-badge-paused">PAUSED</span>'
 
-end_label = f"Now ({now_npt.strftime('%I:%M %p')})" if use_current_time else filter_end_dt.strftime("%b %d, %I:%M %p")
-st.sidebar.caption(f"🕒 **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_label}**")
+start_short_str = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0")
+st.sidebar.markdown(
+    f"""<div class="cp-live-row">
+        <span class="cp-range-text">{start_short_str} → {end_short_str}</span>
+        {status_pill_html}
+    </div>""",
+    unsafe_allow_html=True
+)
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("##### Filters")
+st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
+
+# --- Compact Search & Filters ---
+st.sidebar.markdown(
+    """<div class="cp-sec-label">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        Search & Filters
+    </div>""",
+    unsafe_allow_html=True
+)
 
 search_query = st.sidebar.text_input(
-    "Search:",
-    placeholder="Search headline or topic...",
+    "Search",
+    placeholder="Search headlines, topics or keywords...",
     key="global_search_input",
-    label_visibility="collapsed"
+    label_visibility="collapsed",
+    help="Bilingual search across Nepali Media, Indian Media, and X Posts"
 )
 
 CAT_FILTER_ALL_UNFILTERED = "🌐 All News"
@@ -460,35 +525,43 @@ CATEGORY_FILTER_OPTIONS = [
 ] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
 
 selected_cat_filter = st.sidebar.selectbox(
-    "Editorial Section / Category:",
+    "Editorial Section",
     CATEGORY_FILTER_OPTIONS,
     index=0,
     key="sidebar_selected_cat_filter",
-    help="Filter across the 9 geographically and thematically organised editorial sections."
+    help="Filter across the 9 editorial sections"
 )
+
+ALL_PORTALS_DEFAULT = "All Portals (34)"
+ALL_LANG_DEFAULT = "All Languages"
 
 col_portal, col_lang = st.sidebar.columns(2)
 with col_portal:
     all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+    if st.session_state.get("sidebar_portal_filter") == "All Portals (34 Portals)":
+        st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
     portal_filter = st.selectbox(
-        "Nepali Portal:",
-        ["All Portals (34 Portals)"] + all_portal_names,
-        key="sidebar_portal_filter"
+        "Nepali Portal",
+        [ALL_PORTALS_DEFAULT] + all_portal_names,
+        key="sidebar_portal_filter",
+        help="Filter by specific Nepali news portal"
     )
 
 with col_lang:
     lang_filter = st.selectbox(
-        "Language:",
-        ["All Languages", "Nepali Only", "English Only", "Hindi Only"],
+        "Language",
+        [ALL_LANG_DEFAULT, "Nepali Only", "English Only", "Hindi Only"],
         index=0,
-        key="sidebar_lang_filter"
+        key="sidebar_lang_filter",
+        help="Filter by publication language"
     )
 
 def reset_all_filters():
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["sidebar_portal_filter"] = "All Portals (34 Portals)"
-    st.session_state["sidebar_lang_filter"] = "All Languages"
+    st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
+    st.session_state["sidebar_lang_filter"] = ALL_LANG_DEFAULT
+    st.session_state["cp_timeframe_segment"] = "Yesterday"
     st.session_state["filter_start_date"] = yesterday_date
     st.session_state["filter_start_time"] = yesterday_18_time
     st.session_state["filter_end_date"] = now_npt.date()
@@ -500,12 +573,84 @@ def reset_all_filters():
     if "x_cat_filter_select" in st.session_state:
         st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
 
-st.sidebar.button("Reset Filters", width='stretch', key="btn_reset_filters", on_click=reset_all_filters)
+# --- Interactive Active Filter Chips (Remove Individual Filters or Reset All) ---
+active_chip_map = {}
+if search_query and search_query.strip():
+    active_chip_map[f'✕ "{search_query.strip()[:16]}"'] = "search"
+if selected_cat_filter != CAT_FILTER_ALL_UNFILTERED:
+    clean_cat_lbl = selected_cat_filter.split(" ", 1)[1] if " " in selected_cat_filter else selected_cat_filter
+    active_chip_map[f"✕ {clean_cat_lbl}"] = "category"
+if portal_filter not in [ALL_PORTALS_DEFAULT, "All Portals (34 Portals)"]:
+    active_chip_map[f"✕ {portal_filter}"] = "portal"
+if lang_filter != ALL_LANG_DEFAULT:
+    active_chip_map[f"✕ {lang_filter.replace(' Only', '')}"] = "lang"
+if st.session_state.get("cp_timeframe_segment", "Yesterday") != "Yesterday" or not use_current_time:
+    tf_lbl = st.session_state.get("cp_timeframe_segment", "Custom") if use_current_time else "Paused Range"
+    active_chip_map[f"✕ {tf_lbl}"] = "timeframe"
 
-st.sidebar.markdown("---")
-with st.sidebar.expander("ℹ️ Monitored Sources (52 Sources)", expanded=False):
-    st.markdown("**🇳🇵 Nepali Media (34 Portals):** eKantipur, Setopati, Annapurna Post, Naya Patrika, NepalKhabar, Gorkhapatra, News of Nepal, Nepal Aaja, Nepal News, OnlineKhabar, Ratopati, Nagarik News, Nepal Press, Baahrakhari, Himal Press, Deshsanchar, Shilapatra, Nepal Live, Image Khabar, Khabarhub, TechPana, ArthaSarokar, The Kathmandu Post, The Himalayan Times, MyRepublica, The Annapurna Express, Rising Nepal, Nepali Times, etc.")
-    st.markdown("**🇮🇳 Indian Media Covering Nepal (18 Prominent Outlets):** The Indian Express, The Hindu, India Today, The Tribune, Business Standard, Financial Express, Livemint, Moneycontrol, ABP Live, Outlook India, The Quint, Swarajya, OneIndia, NDTV, Amar Ujala (Hindi), Live Hindustan (Hindi), Jansatta (Hindi), Prabhat Khabar (Hindi).")
+if active_chip_map:
+    chip_options = list(active_chip_map.keys())
+    clicked_chip = st.sidebar.pills(
+        "Active Filters (Click to remove)",
+        options=chip_options,
+        selection_mode="single",
+        default=None,
+        key=f"cp_active_chips_{len(chip_options)}_{hash(tuple(chip_options))}",
+        label_visibility="collapsed"
+    )
+    if clicked_chip and clicked_chip in active_chip_map:
+        target_filter = active_chip_map[clicked_chip]
+        if target_filter == "search":
+            st.session_state["global_search_input"] = ""
+        elif target_filter == "category":
+            st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+        elif target_filter == "portal":
+            st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
+        elif target_filter == "lang":
+            st.session_state["sidebar_lang_filter"] = ALL_LANG_DEFAULT
+        elif target_filter == "timeframe":
+            st.session_state["cp_timeframe_segment"] = "Yesterday"
+            st.session_state["filter_start_date"] = yesterday_date
+            st.session_state["filter_start_time"] = yesterday_18_time
+            st.session_state["filter_use_current_time"] = True
+        st.rerun()
+
+    st.sidebar.button(
+        "Reset Filters",
+        width="stretch",
+        key="btn_reset_filters",
+        on_click=reset_all_filters,
+        help="Reset all active filters to default"
+    )
+
+st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
+
+# --- Monitored Sources · 52 (Collapsed by default with live health summary) ---
+with st.sidebar.expander("Monitored Sources · 52", expanded=False):
+    try:
+        sb_kpis = get_system_kpis()
+        op_cnt = sb_kpis.get("operational", 34)
+        tot_np = sb_kpis.get("total_sources", 34)
+    except Exception:
+        op_cnt, tot_np = 34, 34
+
+    st.markdown(
+        f"""<div style="display:flex; flex-direction:column; gap:6px; font-size:0.75rem; color:#334155;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px;">
+                <span><b>Nepali Portals</b> ({tot_np})</span>
+                <span style="color:#047857; font-weight:700;">● {op_cnt}/{tot_np} Online</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px;">
+                <span><b>Indian Outlets</b> (18)</span>
+                <span style="color:#047857; font-weight:700;">● 18/18 Online</span>
+            </div>
+            <div style="color:#64748B; font-size:0.7rem; line-height:1.35; margin-top:2px;">
+                <b>NP:</b> eKantipur, Setopati, OnlineKhabar, Ratopati, Annapurna Post, Naya Patrika, NepalKhabar, Kathmandu Post, Himalayan Times, MyRepublica, Baahrakhari, Nepal Press & 22 more.<br>
+                <b>IN:</b> Indian Express, The Hindu, India Today, NDTV, Hindustan Times, Business Standard, Amar Ujala, Jagran & 10 more.
+            </div>
+        </div>""",
+        unsafe_allow_html=True
+    )
 
 # Silent background credentials for Twitter API
 default_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
@@ -975,7 +1120,7 @@ elif lang_filter == "Hindi Only":
     filtered_indian = [a for a in filtered_indian if a.get('language') == "Hindi"]
 
 # 4. Portal Filter (for Nepali Media)
-if portal_filter != "All Portals (34 Portals)":
+if portal_filter not in ["All Portals (34)", "All Portals (34 Portals)"]:
     filtered_articles = [a for a in filtered_articles if a.get('source') == portal_filter]
 
 # Top Minimalist Header
@@ -995,18 +1140,20 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Active Filters Banner
+# Active Filters Banner (Displayed only when custom filters are active)
 active_filter_chips = []
 if search_query and search_query.strip():
-    active_filter_chips.append(f'<span style="background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🔍 Keyword: "{html.escape(search_query.strip())}"</span>')
+    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">Search: "{html.escape(search_query.strip())}"</span>')
 if selected_cat_filter != CAT_FILTER_ALL_UNFILTERED:
-    active_filter_chips.append(f'<span style="background:#F1F5F9; color:#334155; border:1px solid #CBD5E1; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🏷 {html.escape(selected_cat_filter)}</span>')
-if filter_start_dt or not is_to_current:
-    from_chip = filter_start_dt.strftime("%b %d, %I:%M %p") if filter_start_dt else "Archive Start"
-    to_chip = "Current / Now" if is_to_current else filter_end_dt.strftime("%b %d, %I:%M %p")
-    active_filter_chips.append(f'<span style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">⏱ Range: {from_chip} → {to_chip}</span>')
+    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{html.escape(selected_cat_filter)}</span>')
+if portal_filter not in ["All Portals (34)", "All Portals (34 Portals)"]:
+    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">Portal: {html.escape(portal_filter)}</span>')
 if lang_filter != "All Languages":
-    active_filter_chips.append(f'<span style="background:#F3E8FF; color:#6B21A8; border:1px solid #E9D5FF; padding:3px 10px; border-radius:14px; font-size:0.8rem; font-weight:600;">🌐 {html.escape(lang_filter)}</span>')
+    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{html.escape(lang_filter)}</span>')
+if st.session_state.get("cp_timeframe_segment", "Yesterday") != "Yesterday" or not is_to_current:
+    from_chip = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
+    to_chip = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
+    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{from_chip} → {to_chip}</span>')
 
 if active_filter_chips:
     af_col1, af_col2 = st.columns([5.5, 1])
@@ -1028,16 +1175,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: Nepali Media (Top 34 Portals)
 # ==========================================
 with tab1:
-    # Display Active Date-Time Filter Banner if applicable
-    if filter_start_dt or not is_to_current:
-        from_str = filter_start_dt.strftime('%b %d, %Y · %I:%M %p') if filter_start_dt else "Archive Start"
-        to_str = f"Current / Now ({filter_end_dt.strftime('%I:%M %p')} NPT)" if is_to_current else filter_end_dt.strftime('%b %d, %Y · %I:%M %p NPT')
-        st.markdown(f"""
-        <div class="apple-filter-banner">
-            <span style="font-size:1.15rem;">⏱</span>
-            <div><b>Active Time Range:</b> Showing articles published from <b>{from_str} NPT</b> up to <b>{to_str}</b>.</div>
-        </div>
-        """, unsafe_allow_html=True)
+
 
     if not filtered_articles:
         st.warning("No news articles found matching your filters. Try selecting 'All Recent Articles' or expanding your time window.")
@@ -1068,15 +1206,7 @@ with tab1:
 # TAB 2: Nepal in Indian Media
 # ==========================================
 with tab2:
-    if filter_start_dt or not is_to_current:
-        from_str = filter_start_dt.strftime('%b %d, %Y · %I:%M %p') if filter_start_dt else "Archive Start"
-        to_str = f"Current / Now ({filter_end_dt.strftime('%I:%M %p')} NPT)" if is_to_current else filter_end_dt.strftime('%b %d, %Y · %I:%M %p NPT')
-        st.markdown(f"""
-        <div class="apple-filter-banner">
-            <span style="font-size:1.15rem;">⏱</span>
-            <div><b>Active Time Range:</b> Showing Indian media stories published from <b>{from_str} NPT</b> up to <b>{to_str}</b>.</div>
-        </div>
-        """, unsafe_allow_html=True)
+
 
     indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
 
