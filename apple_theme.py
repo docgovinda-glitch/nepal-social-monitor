@@ -607,40 +607,53 @@ APPLE_DESIGN_SYSTEM_CSS = """
         color: #0F172A !important;
     }
 
-    section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+    section[data-testid="stSidebar"] .stButton > button[kind="primary"],
+    section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"],
+    section[data-testid="stSidebar"] button[data-testid="baseButton-primary"] {
         background-color: #526A85 !important;
+        background: #526A85 !important;
         color: #FFFFFF !important;
         border: none !important;
         box-shadow: 0 1px 3px rgba(82, 106, 133, 0.25) !important;
     }
-    section[data-testid="stSidebar"] .stButton > button[kind="primary"] * {
+    section[data-testid="stSidebar"] .stButton > button[kind="primary"] *,
+    section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] *,
+    section[data-testid="stSidebar"] button[data-testid="baseButton-primary"] * {
         color: #FFFFFF !important;
     }
-    section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+    section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover,
+    section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hover,
+    section[data-testid="stSidebar"] button[data-testid="baseButton-primary"]:hover {
         background-color: #405872 !important;
+        background: #405872 !important;
         transform: none !important;
         box-shadow: 0 2px 6px rgba(64, 88, 114, 0.3) !important;
     }
 
     /* Segmented Control (Timeframe Presets) */
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] {
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"],
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] {
         width: 100% !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] > div {
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] > div,
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] > div {
         background-color: #EDF2F7 !important;
         padding: 3px !important;
         border-radius: 8px !important;
         border: 1px solid #E2E8F0 !important;
         display: flex !important;
+        flex-wrap: nowrap !important;
         width: 100% !important;
         gap: 2px !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button {
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button,
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button {
         flex: 1 1 0% !important;
+        min-width: 0 !important;
         min-height: 28px !important;
         height: 28px !important;
-        padding: 2px 4px !important;
-        font-size: 0.74rem !important;
+        padding: 2px 3px !important;
+        font-size: 0.71rem !important;
         font-weight: 550 !important;
         border-radius: 6px !important;
         border: none !important;
@@ -652,11 +665,23 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-checked="true"],
     section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[data-selected="true"],
-    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+    section[data-testid="stSidebar"] [data-testid="stSegmentedControl"] button[aria-pressed="true"],
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-checked="true"],
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[data-selected="true"],
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-pressed="true"],
+    section[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"] {
         background-color: #FFFFFF !important;
         color: #1E293B !important;
         font-weight: 650 !important;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+    }
+
+    /* Live Tracking Toggle Switch - Muted Slate Blue (#526A85) instead of default red */
+    section[data-testid="stSidebar"] label[data-baseweb="checkbox"] > div:first-child {
+        background-color: #CBD5E1 !important;
+    }
+    section[data-testid="stSidebar"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
+        background-color: #526A85 !important;
     }
 
     /* Compact Live Tracking Status Bar */

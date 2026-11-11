@@ -881,6 +881,15 @@ def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
     m_nep_day = re.search(r'(\d+)\s*(?:दिन|days?)\s*अघि', norm_txt)
     if m_nep_day:
         return now_npt - datetime.timedelta(days=int(m_nep_day.group(1)))
+    m_nep_week = re.search(r'(\d+)\s*(?:हप्ता|साता|weeks?)\s*अघि', norm_txt)
+    if m_nep_week:
+        return now_npt - datetime.timedelta(days=int(m_nep_week.group(1)) * 7)
+    m_nep_month = re.search(r'(\d+)\s*(?:महिना|months?)\s*अघि', norm_txt)
+    if m_nep_month:
+        return now_npt - datetime.timedelta(days=int(m_nep_month.group(1)) * 30)
+    m_nep_year = re.search(r'(\d+)\s*(?:वर्ष|बर्ष|years?)\s*अघि', norm_txt)
+    if m_nep_year:
+        return now_npt - datetime.timedelta(days=int(m_nep_year.group(1)) * 365)
     m_nep_sec = re.search(r'(\d+)\s*(?:सेकेन्ड|सेकेण्ड|sec|seconds?)\s*अघि', norm_txt)
     if m_nep_sec:
         return now_npt - datetime.timedelta(seconds=int(m_nep_sec.group(1)))
@@ -902,20 +911,28 @@ def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
         if "month" in u: return now_npt - datetime.timedelta(days=v * 30)
 
     # 4. Match Nepali Bikram Sambat dates (e.g. कात्तिक २४, २०८३ or २४ कार्तिक २०८३)
-    for m_name in BS_MONTH_NAMES:
+    bs_month_idx_map = {
+        'बैशाख': 1, 'वैशाख': 1, 'जेठ': 2, 'असार': 3, 'साउन': 4, 'श्रावण': 4, 'भदौ': 5, 'भाद्र': 5,
+        'असोज': 6, 'आश्विन': 6, 'कार्तिक': 7, 'कात्तिक': 7, 'मंसिर': 8,
+        'पुस': 9, 'पुष': 9, 'पौष': 9, 'माघ': 10, 'फागुन': 11, 'फाल्गुन': 11, 'चैत': 12, 'चैत्र': 12
+    }
+    for m_name, m_idx in bs_month_idx_map.items():
         if m_name in norm_txt:
-            m_bs = re.search(rf'(?:{m_name}\s+(\d{{1,2}})|(\d{{1,2}})\s+{m_name})(?:,?\s*(\d{{4}}))?(?:[^\d]+(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?)?', norm_txt)
+            m_bs = re.search(rf'(?:{m_name}\s+(\d{{1,2}})|(\d{{1,2}})\s+{m_name},?)(?:,?\s*(20\d{{2}}))?(?:[^\d]+(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?)?', norm_txt)
             if m_bs:
                 day_val = int(m_bs.group(1) or m_bs.group(2))
+                bs_year = int(m_bs.group(3)) if m_bs.group(3) else 2083
                 hr = int(m_bs.group(4)) if m_bs.group(4) else 12
                 mn = int(m_bs.group(5)) if m_bs.group(5) else 0
                 sc = int(m_bs.group(6)) if m_bs.group(6) else 0
-                kartik_anchor_day = 24  # Today in Kartik (Nov 10, 2026)
-                day_diff = kartik_anchor_day - day_val
-                if 0 <= day_diff <= 30:
+                # Reference anchor: 25 Kartik 2083 BS = Nov 11, 2026
+                year_diff_days = (2083 - bs_year) * 365
+                month_diff_days = (7 - m_idx) * 30
+                day_diff = year_diff_days + month_diff_days + (25 - day_val)
+                if day_diff >= 0:
                     cand_dt = now_npt - datetime.timedelta(days=day_diff)
                     return cand_dt.replace(hour=hr, minute=mn, second=sc, microsecond=0)
-                elif day_diff < 0:
+                else:
                     return now_npt.replace(hour=hr, minute=mn, second=sc, microsecond=0)
 
     # 5. Clean common formatting artifacts
@@ -952,7 +969,10 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
     # 1. Inspect DOM ancestors
     curr = a_tag.parent if a_tag else None
     for _ in range(6):
-        if not curr or curr.name in ["body", "html"]:
+        if not curr or curr.name in ["body", "html", "header", "nav"]:
+            break
+        curr_classes = " ".join(curr.get("class") or []).lower()
+        if any(bad in curr_classes for bad in ["navbar", "search-overlay", "header", "masthead", "topbar", "footer"]):
             break
         time_tag = curr.find("time")
         if time_tag:
@@ -963,12 +983,18 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
 
         date_elems = curr.find_all(class_=re.compile(r"date|time|meta|updated|publish|oi-article-country|byline", re.I))
         for de in date_elems:
+            de_cls = " ".join(de.get("class") or []).lower()
+            if any(bad in de_cls for bad in ["navbar", "header", "epaper", "current-date", "today"]):
+                continue
             dt = parse_snippet_to_datetime(de.get_text(" ", strip=True), now_npt)
             if dt:
                 ARTICLE_DATE_CACHE[href] = dt
                 return dt
 
         for el in curr.find_all(["p", "span", "small"]):
+            el_cls = " ".join(el.get("class") or []).lower()
+            if any(bad in el_cls for bad in ["navbar", "header", "epaper", "current-date"]):
+                continue
             t = el.get_text(" ", strip=True)
             if t and len(t) < 80:
                 dt = parse_snippet_to_datetime(t, now_npt)
@@ -1223,6 +1249,12 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
                 txt = a.get_text(strip=True)
                 href = a["href"]
                 if len(txt) >= 20 and txt not in seen_titles:
+                    # Skip links inside search overlays, trending search drawers, or author/tag pages
+                    anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
+                    if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll"]):
+                        continue
+                    if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/"]):
+                        continue
                     if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login"]):
                         continue
                     if href.startswith("/"):
