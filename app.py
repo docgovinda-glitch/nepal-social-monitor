@@ -749,12 +749,12 @@ now_npt = datetime.datetime.now(NEPAL_TZ)
 formatted_now_time = now_npt.strftime("%I:%M %p NPT")
 
 # 4. Sidebar Controls & Date/Time Filter
-st.sidebar.header("🔍 Controls & Filters")
-refresh_btn = st.sidebar.button("🔄 Refresh All Feeds Now", width='stretch')
+st.sidebar.markdown("### 🎛️ Control Panel")
+refresh_btn = st.sidebar.button("🔄 Refresh All Feeds", width='stretch', type="primary")
 
 # --- Date & Time Range Filter Section ---
 st.sidebar.markdown("---")
-st.sidebar.subheader("📅 Date & Time Filter")
+st.sidebar.markdown("##### 📅 Date & Time Range")
 
 yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
 yesterday_18_time = datetime.time(18, 0)
@@ -817,13 +817,13 @@ else:
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
 
 end_label = f"Current Time ({now_npt.strftime('%I:%M %p')})" if use_current_time else filter_end_dt.strftime("%b %d, %I:%M %p")
-st.sidebar.caption(f"🕒 Active Window: **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_label}**")
+st.sidebar.caption(f"🕒 **{filter_start_dt.strftime('%b %d, %I:%M %p')} → {end_label}**")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🔍 Global Search & Filter System")
+st.sidebar.markdown("##### 🔍 Search & Filters")
 
 search_query = st.sidebar.text_input(
-    "Search Global Keyword:",
+    "Search Keyword:",
     placeholder="e.g. Balen, India, Budget, Cricket...",
     key="global_search_input",
     help="Bilingual cross-lingual search across Nepali Media, Indian Media, X Posts, and Facebook."
@@ -840,16 +840,32 @@ CATEGORY_FILTER_OPTIONS = [
 ] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
 
 selected_cat_filter = st.sidebar.selectbox(
-    "Structured Geopolitical Category:",
+    "Geopolitical Category:",
     CATEGORY_FILTER_OPTIONS,
     index=0,
     key="sidebar_selected_cat_filter",
-    help="Default shows all news & posts unfiltered. 'All Categories' filters to the 8 predefined categories and excludes uncategorized social feeds."
+    help="Filter across predefined geopolitical and intelligence categories."
+)
+
+all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+portal_filter = st.sidebar.selectbox(
+    "Nepali Portal:",
+    ["All Portals (34 Portals)"] + all_portal_names,
+    key="sidebar_portal_filter"
+)
+
+lang_filter = st.sidebar.selectbox(
+    "Content Language:",
+    ["All Languages", "Nepali Only", "English Only", "Hindi Only"],
+    index=0,
+    key="sidebar_lang_filter"
 )
 
 def reset_all_filters():
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+    st.session_state["sidebar_portal_filter"] = "All Portals (34 Portals)"
+    st.session_state["sidebar_lang_filter"] = "All Languages"
     st.session_state["filter_start_date"] = yesterday_date
     st.session_state["filter_start_time"] = yesterday_18_time
     st.session_state["filter_end_date"] = now_npt.date()
@@ -864,35 +880,21 @@ def reset_all_filters():
     if "fb_cat_filter_select" in st.session_state:
         st.session_state["fb_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
 
-# Quick Filter Reset Button in Sidebar
-st.sidebar.button("🔄 Reset All Filters", width='stretch', key="btn_reset_filters", on_click=reset_all_filters)
-
-lang_filter = st.sidebar.radio("Content Language:", ["All Languages", "Nepali Only", "English Only", "Hindi Only"])
-
-# Portal Filter Dropdown
-all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
-portal_filter = st.sidebar.selectbox(
-    "Filter Nepali Portal:",
-    ["All Portals (34 Portals)"] + all_portal_names
-)
+st.sidebar.button("🔄 Reset Filters", width='stretch', key="btn_reset_filters", on_click=reset_all_filters)
 
 st.sidebar.markdown("---")
-with st.sidebar.expander("ℹ️ Monitored Sources Summary"):
+with st.sidebar.expander("ℹ️ Monitored Sources (52 Sources)", expanded=False):
     st.markdown("**🇳🇵 Nepali Media (34 Portals):** eKantipur, Setopati, Annapurna Post, Naya Patrika, NepalKhabar, Gorkhapatra, News of Nepal, Nepal Aaja, Nepal News, OnlineKhabar, Ratopati, Nagarik News, Nepal Press, Baahrakhari, Himal Press, Deshsanchar, Shilapatra, Nepal Live, Image Khabar, Khabarhub, TechPana, ArthaSarokar, The Kathmandu Post, The Himalayan Times, MyRepublica, The Annapurna Express, Rising Nepal, Nepali Times, etc.")
     st.markdown("**🇮🇳 Indian Media Covering Nepal (18 Prominent Outlets):** The Indian Express, The Hindu, India Today, The Tribune, Business Standard, Financial Express, Livemint, Moneycontrol, ABP Live, Outlook India, The Quint, Swarajya, OneIndia, NDTV, Amar Ujala (Hindi), Live Hindustan (Hindi), Jansatta (Hindi), Prabhat Khabar (Hindi).")
 
+# Silent background credentials for Twitter API
 default_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
 try:
     if not default_bearer and hasattr(st, "secrets"):
         default_bearer = st.secrets.get("TWITTER_BEARER_TOKEN", "")
 except Exception:
     pass
-
-with st.sidebar.expander("🔑 X (Twitter) Developer API", expanded=False):
-    if default_bearer:
-        st.success("✅ Credentials active (.env / secrets)")
-    st.caption("Paste custom X Bearer Token to override:")
-    x_bearer_token = st.text_input("Twitter Bearer Token", value=default_bearer, type="password")
+x_bearer_token = default_bearer
 
 # 6. Fetch Data in Parallel
 with st.spinner("Fetching breaking news across 34 Nepal portals, 18 Indian outlets & scanning live verified X posts..."):
