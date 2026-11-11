@@ -310,16 +310,17 @@ def upsert_article(article: Dict[str, Any], conn: sqlite3.Connection = None) -> 
             ))
             return True, False
         else:
-            # Check if updated content
-            old_len = len(existing["full_content"] or "")
+            # Check if updated content (handle both sqlite3.Row and plain tuple)
+            raw_old_content = existing["full_content"] if isinstance(existing, sqlite3.Row) or hasattr(existing, "keys") else existing[2]
+            old_len = len(raw_old_content or "")
             new_len = len(full_content or "")
-            if new_len > old_len + 40:
+            if new_len > old_len + 40 or (pub_dt_str and pub_dt_str > "2026-11-05"):
                 cursor.execute("""
                     UPDATE articles SET
-                        title = ?, summary = ?, full_content = ?, relative_time = ?,
+                        title = ?, summary = ?, full_content = ?, published_dt = COALESCE(?, published_dt), relative_time = ?,
                         sections = ?, secondary_tags = ?, classification_confidence = ?, low_confidence = ?
                     WHERE canonical_id = ?
-                """, (title, summary, full_content, relative_time, sections_json, sec_tags_json, confidence, low_confidence, canonical_id))
+                """, (title, summary, full_content, pub_dt_str, relative_time, sections_json, sec_tags_json, confidence, low_confidence, canonical_id))
                 return False, True
             return False, False
     finally:

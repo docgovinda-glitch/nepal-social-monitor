@@ -397,7 +397,7 @@ TOP_NEPAL_NEWS_PORTALS = [
     {"name": "Ratopati", "type": "rss", "url": "https://www.ratopati.com/feed", "alt_urls": ["https://www.ratopati.com/category/politics/feed"], "lang": "Nepali", "category": "Breaking News", "priority": "high", "check_interval_mins": 8},
     {"name": "Annapurna Post", "type": "rss", "url": "https://annapurnapost.com/rss", "alt_urls": ["https://annapurnapost.com/rss/desh"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
     {"name": "Nagarik News", "type": "rss", "url": "https://nagariknews.nagariknetwork.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
-    {"name": "Naya Patrika", "type": "rss", "url": "https://www.nayapatrikadaily.com/rss", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "Naya Patrika", "type": "html", "url": "https://www.nayapatrikadaily.com/", "alt_urls": ["https://www.nayapatrikadaily.com/rss"], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
     {"name": "NepalKhabar", "type": "rss", "url": "https://nepalkhabar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Daily", "priority": "high", "check_interval_mins": 8},
     {"name": "Gorkhapatra Online", "type": "rss", "url": "https://gorkhapatraonline.com/rss", "alt_urls": [], "lang": "Nepali", "category": "National / State", "priority": "standard", "check_interval_mins": 18},
     {"name": "News of Nepal", "type": "rss", "url": "https://newsofnepal.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
@@ -422,7 +422,7 @@ TOP_NEPAL_NEWS_PORTALS = [
     {"name": "The Annapurna Express", "type": "rss", "url": "https://theannapurnaexpress.com/rss", "alt_urls": [], "lang": "English", "category": "Weekly In-depth", "priority": "low", "check_interval_mins": 40},
     {"name": "Setopati (EN)", "type": "html", "url": "https://en.setopati.com/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
     {"name": "Rising Nepal Daily", "type": "rss", "url": "https://risingnepaldaily.com/rss", "alt_urls": [], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "NepalKhabar (EN)", "type": "rss", "url": "https://en.nepalkhabar.com/rss", "alt_urls": [], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
+    {"name": "NepalKhabar (EN)", "type": "html", "url": "https://en.nepalkhabar.com/", "alt_urls": ["https://en.nepalkhabar.com/rss"], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
     {"name": "Ratopati (EN)", "type": "rss", "url": "https://english.ratopati.com/feed", "alt_urls": [], "lang": "English", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
     {"name": "Khabarhub (EN)", "type": "rss", "url": "https://english.khabarhub.com/feed/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
     {"name": "Nepali Times", "type": "rss", "url": "https://nepalitimes.com/feed", "alt_urls": [], "lang": "English", "category": "Independent Journalism", "priority": "low", "check_interval_mins": 40},
@@ -849,6 +849,7 @@ def classify_article(title: str, summary: str = "") -> str:
 DATE_SNIPPET_REGEXES = [
     re.compile(r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}(?:[,\s\|]+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?(?:\s*[\+\-]\d{4}|\s*IST)?)?", re.I),
     re.compile(r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?,?\s+\d{4}(?:[,\s\|]+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[ap]\.?m\.?)?(?:\s*[\+\-]\d{4}|\s*IST)?)?", re.I),
+    re.compile(r"\b\d{1,2}:\d{2}\s*(?:AM|PM)\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s*,\s*\d{4}", re.I),
     re.compile(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b"),
     re.compile(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?\b")
 ]
@@ -995,7 +996,7 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
         try:
             req = urllib.request.Request(href, headers=DEFAULT_HEADERS)
             with urllib.request.urlopen(req, context=SSL_CTX, timeout=2.5) as resp:
-                chunk = resp.read(45000).decode("utf-8", errors="ignore")
+                chunk = resp.read(120000).decode("utf-8", errors="ignore")
             m_meta = re.search(r"<meta[^>]+(?:article:published_time|datePublished|publish-date|published_time)[^>]+content=[\"\x27]([^\x27\"]+)[\"\x27]", chunk, re.I)
             if not m_meta:
                 m_meta = re.search(r"\"(?:datePublished|dateCreated|published_time)\"\s*:\s*\"([^\"]+)\"", chunk)
@@ -1005,17 +1006,35 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
                 ARTICLE_DATE_CACHE[href] = dt
                 return dt
 
-            # Also check class elements for pub-date / published-date
-            m_pub_box = re.search(r'class=["\x27][^"\x27]*(?:pub-date|published-date|post-date|article-date|date)[^"\x27]*["\x27][^>]*>([^<]{5,80})<', chunk, re.I)
+            # Explicit check for "Published: Nov. 11, 2026, 2:28 p.m." or "Published Date: 2026-11-06 19:10:51"
+            m_pub_txt = re.search(r'Published(?:\s*Date)?\s*:\s*</b>\s*([A-Za-z0-9\s,\.:/\-]{6,45})', chunk, re.I)
+            if not m_pub_txt:
+                m_pub_txt = re.search(r'Published(?:\s*Date)?\s*:\s*([A-Za-z0-9\s,\.:/\-]{6,45})', chunk, re.I)
+            if m_pub_txt:
+                dt = parse_snippet_to_datetime(m_pub_txt.group(1).strip(), now_npt)
+                if dt:
+                    ARTICLE_DATE_CACHE[href] = dt
+                    return dt
+
+            # Check class elements for pub-date / published-date / date
+            m_pub_box = re.search(r'class=["\x27][^"\x27]*(?:pub-date|published-date|post-date|post__meta-date|article-date|date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<]{5,80})', chunk, re.I)
             if m_pub_box:
-                dt = parse_snippet_to_datetime(m_pub_box.group(1), now_npt)
+                dt = parse_snippet_to_datetime(m_pub_box.group(1).strip(), now_npt)
+                if dt:
+                    ARTICLE_DATE_CACHE[href] = dt
+                    return dt
+
+            # Check <time> tag inner text
+            m_time = re.search(r'<time[^>]*>(?:<[^>]+>)*\s*([^<]{5,80})\s*</time>', chunk, re.I)
+            if m_time and not "Intl.DateTimeFormat" in m_time.group(1):
+                dt = parse_snippet_to_datetime(m_time.group(1).strip(), now_npt)
                 if dt:
                     ARTICLE_DATE_CACHE[href] = dt
                     return dt
 
             # Also check standard snippet regexes across chunk
             for rgx in DATE_SNIPPET_REGEXES:
-                m_chunk = rgx.search(chunk[:8000])
+                m_chunk = rgx.search(chunk[:25000])
                 if m_chunk:
                     dt = parse_snippet_to_datetime(m_chunk.group(0), now_npt)
                     if dt:

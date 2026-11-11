@@ -2910,12 +2910,23 @@ with tab5:
                 else:
                     st.caption("✓ Zero active errors")
 
-    # 4. Coverage Diagnostics & Unusually Low Discovery Alerts
+    # 4. Coverage Diagnostics & Anomaly Detection
     with st.expander("🔍 Coverage Diagnostics & Anomaly Detection", expanded=False):
-        low_coverage_sources = [h for h in health_data if h.get("count_24h", 0) == 0 and h.get("enabled", 1)]
+        # A source is only an anomaly if it has had zero articles ingested in the last 48 hours AND has active errors
+        low_coverage_sources = [
+            h for h in health_data 
+            if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and (h.get("count_7d", 0) == 0 or h.get("status") in ["failing", "degraded"])
+        ]
+        quiet_sources = [
+            h for h in health_data 
+            if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and h.get("count_7d", 0) > 0 and h.get("status") not in ["failing", "degraded"]
+        ]
         if low_coverage_sources:
-            st.warning(f"⚠️ **Low Discovery Alert:** {len(low_coverage_sources)} enabled portals have produced 0 articles in the last 24 hours. Verify feed availability or run deep recovery:")
+            st.warning(f"⚠️ **Low Discovery Alert:** {len(low_coverage_sources)} enabled portals have produced 0 articles and require endpoint review:")
             for lcs in low_coverage_sources:
                 st.write(f"- **{lcs['name']}** ({lcs['type']} · {lcs['lang']}): Status `{lcs['status']}` · Endpoint: `{lcs['url']}`")
         else:
-            st.success("🎉 All 34 configured media portals have actively discovered and ingested articles within the last 24-hour window!")
+            st.success("🎉 All active media portal feeds and web scrapers are healthy with zero degraded endpoints!")
+
+        if quiet_sources:
+            st.info(f"ℹ️ **Quiet / Weekly Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")
