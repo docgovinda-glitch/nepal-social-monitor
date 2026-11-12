@@ -1265,10 +1265,6 @@ with tab3:
     elif sort_mode == "🔁 Most Retweeted":
         filtered_feed = sorted(filtered_feed, key=lambda x: x.get("retweets", 0), reverse=True)
 
-    # Display count banner
-    st.markdown(f'<div class="apple-counter-badge">Showing <b>{len(filtered_feed):,} of {len(all_x_posts):,}</b> verified X posts</div>', unsafe_allow_html=True)
-    st.write("")
-
     # Render Post Cards with "Load More Feeds" button
     if "x_visible_count" not in st.session_state:
         st.session_state["x_visible_count"] = 20
