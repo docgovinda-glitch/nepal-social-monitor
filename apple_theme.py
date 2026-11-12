@@ -38,11 +38,18 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background-color: var(--apple-bg) !important;
     }
 
-    /* Main Container Padding */
+    /* Main Container Padding - Ensure header is not cut off by Streamlit fixed top navbar */
     .block-container {
-        padding-top: 1.25rem !important;
+        padding-top: 3.8rem !important;
         padding-bottom: 3.5rem !important;
         max-width: 1280px !important;
+    }
+
+    /* Keep Streamlit top header bar transparent and non-overlapping */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: 2.5rem !important;
+        z-index: 99 !important;
     }
 
     hr {
