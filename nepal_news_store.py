@@ -484,7 +484,7 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
 
 def ingest_indian_articles_batch(
     articles: List[Dict[str, Any]],
-    source_name: str,
+    source_name: str = "Indian Media",
     latency_secs: float = 0.0
 ) -> Dict[str, int]:
     """Ingests Indian media articles into Supabase."""
@@ -496,31 +496,63 @@ def get_indian_media_audit_stats() -> Dict[str, int]:
     sql = """
     SELECT 
         COUNT(*) as total_discovered,
-        SUM(CASE WHEN relevance_status = 'relevant' THEN 1 ELSE 0 END) as relevant,
-        SUM(CASE WHEN relevance_status = 'borderline' THEN 1 ELSE 0 END) as borderline,
+        SUM(CASE WHEN relevance_status IN ('substantive', 'relevant') THEN 1 ELSE 0 END) as substantive,
+        SUM(CASE WHEN relevance_status IN ('borderline_review', 'borderline') THEN 1 ELSE 0 END) as borderline_review,
         SUM(CASE WHEN relevance_status = 'excluded' THEN 1 ELSE 0 END) as excluded
     FROM indian_media_articles;
     """
     rows = query_supabase(sql)
     if rows:
         r = rows[0]
+        total = int(r.get("total_discovered") or 0)
+        sub = int(r.get("substantive") or 0)
+        bord = int(r.get("borderline_review") or 0)
+        excl = int(r.get("excluded") or 0)
         return {
-            "total_discovered": int(r.get("total_discovered") or 0),
-            "relevant": int(r.get("relevant") or 0),
-            "borderline": int(r.get("borderline") or 0),
-            "excluded": int(r.get("excluded") or 0)
+            "total": total,
+            "total_discovered": total,
+            "substantive": sub,
+            "relevant": sub,
+            "borderline_review": bord,
+            "borderline": bord,
+            "excluded": excl
         }
-    return {"total_discovered": 0, "relevant": 0, "borderline": 0, "excluded": 0}
+    return {"total": 0, "total_discovered": 0, "substantive": 0, "relevant": 0, "borderline_review": 0, "borderline": 0, "excluded": 0}
 
 
 def get_stored_indian_articles(
-    relevance_status: Optional[str] = "relevant",
+    relevance_status: Optional[str] = None,
+    status_filter: Optional[str] = "substantive",
+    min_score: float = 0.0,
     limit: int = 500
 ) -> List[Dict[str, Any]]:
     """Retrieves Indian media articles from Supabase."""
-    where = f"WHERE relevance_status = {esc_sql(relevance_status)}" if relevance_status else ""
+    eff_status = relevance_status if relevance_status is not None else status_filter
+    clauses = ["1=1"]
+    if eff_status:
+        if eff_status in ("substantive", "relevant"):
+            clauses.append("relevance_status IN ('substantive', 'relevant')")
+        else:
+            clauses.append(f"relevance_status = {esc_sql(eff_status)}")
+    if min_score and min_score > 0:
+        clauses.append(f"nepal_relevance_score >= {float(min_score)}")
+    where = "WHERE " + " AND ".join(clauses)
     sql = f"SELECT * FROM indian_media_articles {where} ORDER BY published_dt DESC LIMIT {limit};"
-    return query_supabase(sql)
+    rows = query_supabase(sql)
+    for d in rows:
+        if isinstance(d.get("published_dt"), str):
+            try:
+                dt = datetime.datetime.fromisoformat(d["published_dt"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=NEPAL_TZ)
+                d["published_dt"] = dt
+            except Exception:
+                pass
+        if not d.get("structured_category"):
+            d["structured_category"] = "India Section"
+        if not d.get("stream"):
+            d["stream"] = "Indian Press"
+    return rows
 
 # ==========================================
 # WHATSAPP QUEUE & STATE MANAGEMENT

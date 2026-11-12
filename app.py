@@ -1585,27 +1585,40 @@ with tab4:
                 width="stretch"
             )
 
-        # 2. Executive Word Document
+        # 2. Executive Word Document (Master Reference Template: NEPAL DAILY NEWS DIGEST)
         with c_docx:
             if selected_export_items:
-                raw_items_for_docx = [x["raw_item"] for x in selected_export_items]
-                univ_hash = hash(tuple(x["link"] for x in selected_export_items))
+                raw_items_for_docx = []
+                for x in selected_export_items:
+                    item_copy = dict(x["raw_item"])
+                    item_copy["stream"] = x.get("stream", "")
+                    if not item_copy.get("structured_category") and x.get("category"):
+                        item_copy["structured_category"] = x["category"]
+                    raw_items_for_docx.append(item_copy)
+
+                digest_dt = filter_end_dt if (filter_end_dt and not is_to_current) else datetime.datetime.now(NEPAL_TZ)
+                day_num = digest_dt.day
+                day_suffix = "th" if 11 <= day_num <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day_num % 10, "th")
+                digest_filename = f"NEPAL DAILY NEWS DIGEST-{day_num}{day_suffix} {digest_dt.strftime('%B  %Y')}.docx"
+
+                univ_hash = hash((tuple(x["link"] for x in selected_export_items), digest_dt.strftime("%Y-%m-%d")))
 
                 if st.session_state.get("docx_ready_hash_univ") != univ_hash:
                     if st.button(f"📄 Prepare Executive Word Document ({len(selected_export_items):,} Stories)", key="btn_prep_univ_docx", width="stretch", type="primary"):
-                        with st.spinner(f"Generating comprehensive Word dossier for {len(selected_export_items)} items..."):
+                        with st.spinner(f"Preparing NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) from master template..."):
                             enriched_docx_items = batch_fetch_full_content(raw_items_for_docx[:60]) if len(raw_items_for_docx) <= 60 else raw_items_for_docx
                             st.session_state["docx_bytes_univ"] = generate_word_document(
                                 enriched_docx_items,
-                                report_title="Nepal Social & Media Intelligence Dossier"
+                                report_title="NEPAL DAILY NEWS DIGEST",
+                                report_date=digest_dt,
                             )
                             st.session_state["docx_ready_hash_univ"] = univ_hash
                         st.rerun()
                 else:
                     st.download_button(
-                        label=f"⬇️ Download Ready Word Document ({len(selected_export_items):,} Items)",
+                        label=f"⬇️ Download {digest_filename}",
                         data=st.session_state["docx_bytes_univ"],
-                        file_name=f"nepal_intelligence_dossier_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                        file_name=digest_filename,
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         width="stretch",
                         type="primary"

@@ -198,171 +198,23 @@ def map_to_target_category(raw_category: str) -> str:
     else:
         return "NEPAL – OTHERS"
 
-def generate_word_document(articles: list, output_path: str = None, report_title: str = "Nepal Media & Intelligence Executive Report") -> bytes:
+def generate_word_document(
+    articles: list,
+    output_path: str = None,
+    report_title: str = "NEPAL DAILY NEWS DIGEST",
+    report_date: Optional[datetime.datetime] = None,
+) -> bytes:
     """
-    Exports a list of news articles to an executive-ready Word document (.docx) formatted with:
-    - Formal Executive Cover / Header with Document Title, Nepal Time Timestamp, and Story Count
-    - Table of Contents summary by category
-    - Grouped by category with headers in ALL CAPS and YELLOW highlighting.
-    - Strict order:
-        1. INDIA IN NEPAL
-        2. CHINA IN NEPAL
-        3. PAKISTAN IN NEPAL
-        4. BANGLADESH IN NEPAL - INTERNAL
-        5. ECONOMY
-        6. OTHERS
-        7. NEPAL-EXTERNALS
-    - Under each category:
-        • Headline: Bulleted and italicized (with English translation on next line if available)
-        (Source Name): In parentheses immediately below headline
-        Body: Full text of news article starting on next line
-        URL: Full URL placed on final line after text
+    Generates an Executive Word Document (.docx) using the master reference template
+    `NEPAL DAILY NEWS DIGEST – 5th November 2026.docx` via `executive_docx_exporter`.
     """
-    import io
-    import docx
-    from docx.enum.text import WD_COLOR_INDEX, WD_ALIGN_PARAGRAPH
-    from docx.shared import Pt, Inches, RGBColor
-
-    grouped = {c: [] for c in DOCX_TARGET_CATEGORIES}
-    for a in articles:
-        t_cat = map_to_target_category(a.get("structured_category", ""))
-        grouped[t_cat].append(a)
-
-    doc = docx.Document()
-
-    # Document margins
-    for sec in doc.sections:
-        sec.top_margin = Inches(0.8)
-        sec.bottom_margin = Inches(0.8)
-        sec.left_margin = Inches(0.8)
-        sec.right_margin = Inches(0.8)
-
-    # --- Document Header & Title Banner ---
-    now_str = datetime.datetime.now(NEPAL_TZ).strftime("%A, %B %d, %Y · %I:%M %p NPT")
-    p_title = doc.add_paragraph()
-    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_title.paragraph_format.space_before = Pt(4)
-    p_title.paragraph_format.space_after = Pt(2)
-    r_title = p_title.add_run(report_title)
-    r_title.bold = True
-    r_title.font.size = Pt(16)
-    r_title.font.color.rgb = RGBColor(15, 23, 42)
-
-    p_sub = doc.add_paragraph()
-    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_sub.paragraph_format.space_before = Pt(0)
-    p_sub.paragraph_format.space_after = Pt(14)
-    r_sub = p_sub.add_run(f"Generated: {now_str}  |  Total Stories: {len(articles)}")
-    r_sub.font.size = Pt(9.5)
-    r_sub.font.color.rgb = RGBColor(100, 116, 139)
-
-    # Mini Summary Table
-    table = doc.add_table(rows=1, cols=2)
-    table.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = "Category"
-    hdr_cells[1].text = "Articles Selected"
-    for cell in hdr_cells:
-        cell.paragraphs[0].runs[0].bold = True
-        cell.paragraphs[0].runs[0].font.size = Pt(9.5)
-
-    for cat_name in DOCX_TARGET_CATEGORIES:
-        count = len(grouped[cat_name])
-        if count > 0:
-            row_cells = table.add_row().cells
-            row_cells[0].text = cat_name
-            row_cells[1].text = str(count)
-            for cell in row_cells:
-                cell.paragraphs[0].runs[0].font.size = Pt(9)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(10)
-
-    for cat_name in DOCX_TARGET_CATEGORIES:
-        cat_items = grouped[cat_name]
-
-        # Category Header: ALL CAPS with Yellow Highlighting
-        p_cat = doc.add_paragraph()
-        p_cat.paragraph_format.space_before = Pt(18)
-        p_cat.paragraph_format.space_after = Pt(6)
-        p_cat.paragraph_format.keep_with_next = True
-        r_cat = p_cat.add_run(cat_name)
-        r_cat.bold = True
-        r_cat.font.size = Pt(12)
-        r_cat.font.highlight_color = WD_COLOR_INDEX.YELLOW
-
-        if not cat_items:
-            p_empty = doc.add_paragraph()
-            p_empty.paragraph_format.space_before = Pt(0)
-            p_empty.paragraph_format.space_after = Pt(8)
-            r_empty = p_empty.add_run("No articles in this category.")
-            r_empty.font.color.rgb = RGBColor(128, 128, 128)
-            r_empty.font.size = Pt(9.5)
-            continue
-
-        for a in cat_items:
-            orig_title = (a.get("title") or a.get("text") or "").strip()
-            en_trans = (a.get("headline_english") or "").strip()
-            source_name = (a.get("source") or a.get("handle") or a.get("author_name") or "Source").strip()
-            body_text = (a.get("full_content") or a.get("text") or a.get("summary") or a.get("title") or "").strip()
-            url = (a.get("link") or "").strip()
-
-            # Headline: Bulleted and italicized (• Headline)
-            p_head = doc.add_paragraph(style="List Bullet")
-            p_head.paragraph_format.space_before = Pt(8)
-            p_head.paragraph_format.space_after = Pt(2)
-            p_head.paragraph_format.keep_with_next = True
-
-            r_head = p_head.add_run(orig_title)
-            r_head.italic = True
-            r_head.bold = True
-            if en_trans and en_trans != orig_title:
-                r_head.add_break()
-                r_trans = p_head.add_run(en_trans)
-                r_trans.italic = True
-
-            # Source: Source/Portal name in parentheses immediately below headline
-            p_src = doc.add_paragraph()
-            p_src.paragraph_format.space_before = Pt(0)
-            p_src.paragraph_format.space_after = Pt(4)
-            p_src.paragraph_format.left_indent = Inches(0.25)
-            p_src.paragraph_format.keep_with_next = True
-            r_src = p_src.add_run(f"({source_name})")
-            r_src.font.size = Pt(9.5)
-            r_src.font.color.rgb = RGBColor(80, 80, 80)
-
-            # Body: Full text of news article starting on next line
-            paragraphs = [p.strip() for p in body_text.split("\n\n") if p.strip()]
-            if not paragraphs:
-                paragraphs = [body_text] if body_text else ["No additional text content available."]
-
-            for para in paragraphs:
-                p_body = doc.add_paragraph()
-                p_body.paragraph_format.space_before = Pt(0)
-                p_body.paragraph_format.space_after = Pt(4)
-                p_body.paragraph_format.left_indent = Inches(0.25)
-                p_body.paragraph_format.line_spacing = 1.15
-                r_body = p_body.add_run(para)
-                r_body.font.size = Pt(10)
-
-            # URL: Full URL placed on the final line after the text
-            p_url = doc.add_paragraph()
-            p_url.paragraph_format.space_before = Pt(2)
-            p_url.paragraph_format.space_after = Pt(14)
-            p_url.paragraph_format.left_indent = Inches(0.25)
-            r_url = p_url.add_run(url)
-            r_url.font.size = Pt(9)
-            r_url.font.color.rgb = RGBColor(0, 102, 204)
-            r_url.underline = True
-
-    bio = io.BytesIO()
-    doc.save(bio)
-    doc_bytes = bio.getvalue()
-
-    if output_path:
-        with open(output_path, "wb") as f:
-            f.write(doc_bytes)
-
-    return doc_bytes
+    from executive_docx_exporter import generate_executive_word_digest
+    return generate_executive_word_digest(
+        articles=articles,
+        output_path=output_path,
+        report_date=report_date,
+        enrich_missing_sections=True,
+    )
 
 # The 9 Structured Categories (Geographically and Thematically Organised)
 STRUCTURED_CATEGORIES = [
