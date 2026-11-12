@@ -940,6 +940,51 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-size: 0.75rem !important;
     }
 
+    /* Streamlit Data Editor and Table Cell Padding & Visual Polish */
+    div[data-testid="stDataEditor"],
+    div[data-testid="stDataFrame"] {
+        border-radius: 10px !important;
+        border: 1px solid #E2E8F0 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        overflow: hidden !important;
+        background: #FFFFFF !important;
+    }
+    div[data-testid="stDataEditor"] canvas,
+    div[data-testid="stDataFrame"] canvas {
+        border-radius: 8px !important;
+    }
+    
+    /* In-Tab Source Control Panel Card */
+    .source-control-bar {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 12px 16px 8px 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+    }
+    .source-control-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #F1F5F9;
+    }
+    .source-control-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #1E293B;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .source-control-stats {
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: #64748B;
+    }
+
 </style>
 """
 

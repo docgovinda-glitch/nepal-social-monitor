@@ -510,18 +510,18 @@ st.sidebar.markdown(
 
 st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
 
-# --- Compact Search & Filters ---
+# --- Global Search (Cross-Stream) ---
 st.sidebar.markdown(
     """<div class="cp-sec-label">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        Search & Filters
+        Quick Search
     </div>""",
     unsafe_allow_html=True
 )
 
 search_query = st.sidebar.text_input(
     "Search",
-    placeholder="Search headlines, topics or keywords...",
+    placeholder="Search across all streams...",
     key="global_search_input",
     label_visibility="collapsed",
     help="Bilingual search across Nepali Media, Indian Media, and X Posts"
@@ -537,43 +537,21 @@ CATEGORY_FILTER_OPTIONS = [
     CAT_FILTER_UNCATEGORIZED,
 ] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
 
-selected_cat_filter = st.sidebar.selectbox(
-    "Editorial Section",
-    CATEGORY_FILTER_OPTIONS,
-    index=0,
-    key="sidebar_selected_cat_filter",
-    help="Filter across the 9 editorial sections"
-)
-
 ALL_PORTALS_DEFAULT = "All Portals (34)"
 ALL_LANG_DEFAULT = "All Languages"
 
 all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
-if st.session_state.get("sidebar_portal_filter") == "All Portals (34 Portals)":
-    st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
-
-portal_filter = st.sidebar.selectbox(
-    "Nepali Portal",
-    [ALL_PORTALS_DEFAULT] + all_portal_names,
-    key="sidebar_portal_filter",
-    help="Filter by specific Nepali news portal"
-)
-
-lang_filter = st.sidebar.selectbox(
-    "Language",
-    [ALL_LANG_DEFAULT, "Nepali Only", "English Only", "Hindi Only"],
-    index=0,
-    key="sidebar_lang_filter",
-    help="Filter by publication language"
-)
 
 def reset_all_filters():
     now_ref = datetime.datetime.now(NEPAL_TZ)
     past_12 = now_ref - datetime.timedelta(hours=12)
     st.session_state["global_search_input"] = ""
-    st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
-    st.session_state["sidebar_lang_filter"] = ALL_LANG_DEFAULT
+    st.session_state["np_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
+    st.session_state["np_portal_filter"] = ALL_PORTALS_DEFAULT
+    st.session_state["np_lang_filter"] = ALL_LANG_DEFAULT
+    st.session_state["in_outlet_filter"] = "All 18 Indian Outlets"
+    st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
+    st.session_state["x_acc_filter_select"] = "All Account Types"
     st.session_state["cp_timeframe_segment"] = "12h"
     st.session_state["filter_start_date"] = past_12.date()
     st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
@@ -583,60 +561,14 @@ def reset_all_filters():
     st.session_state["media_visible_count"] = 20
     st.session_state["indian_visible_count"] = 20
     st.session_state["x_visible_count"] = 20
-    if "x_cat_filter_select" in st.session_state:
-        st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
 
-# --- Interactive Active Filter Chips (Remove Individual Filters or Reset All) ---
-active_chip_map = {}
-if search_query and search_query.strip():
-    active_chip_map[f'✕ "{search_query.strip()[:16]}"'] = "search"
-if selected_cat_filter != CAT_FILTER_ALL_UNFILTERED:
-    clean_cat_lbl = selected_cat_filter.split(" ", 1)[1] if " " in selected_cat_filter else selected_cat_filter
-    active_chip_map[f"✕ {clean_cat_lbl}"] = "category"
-if portal_filter not in [ALL_PORTALS_DEFAULT, "All Portals (34 Portals)"]:
-    active_chip_map[f"✕ {portal_filter}"] = "portal"
-if lang_filter != ALL_LANG_DEFAULT:
-    active_chip_map[f"✕ {lang_filter.replace(' Only', '')}"] = "lang"
-if st.session_state.get("cp_timeframe_segment", "12h") != "12h" or not use_current_time:
-    tf_lbl = st.session_state.get("cp_timeframe_segment", "Custom") if use_current_time else "Paused Range"
-    active_chip_map[f"✕ {tf_lbl}"] = "timeframe"
-
-if active_chip_map:
-    chip_options = list(active_chip_map.keys())
-    clicked_chip = st.sidebar.pills(
-        "Active Filters (Click to remove)",
-        options=chip_options,
-        selection_mode="single",
-        default=None,
-        key=f"cp_active_chips_{len(chip_options)}_{hash(tuple(chip_options))}",
-        label_visibility="collapsed"
-    )
-    if clicked_chip and clicked_chip in active_chip_map:
-        target_filter = active_chip_map[clicked_chip]
-        if target_filter == "search":
-            st.session_state["global_search_input"] = ""
-        elif target_filter == "category":
-            st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-        elif target_filter == "portal":
-            st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
-        elif target_filter == "lang":
-            st.session_state["sidebar_lang_filter"] = ALL_LANG_DEFAULT
-        elif target_filter == "timeframe":
-            now_ref = datetime.datetime.now(NEPAL_TZ)
-            past_12 = now_ref - datetime.timedelta(hours=12)
-            st.session_state["cp_timeframe_segment"] = "12h"
-            st.session_state["filter_start_date"] = past_12.date()
-            st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
-            st.session_state["filter_use_current_time"] = True
-        st.rerun()
-
-    st.sidebar.button(
-        "Reset Filters",
-        width="stretch",
-        key="btn_reset_filters",
-        on_click=reset_all_filters,
-        help="Reset all active filters to default"
-    )
+st.sidebar.button(
+    "✕ Reset All Views",
+    width="stretch",
+    key="btn_reset_filters",
+    on_click=reset_all_filters,
+    help="Reset all filters across all tabs to default"
+)
 
 st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
 
@@ -1119,53 +1051,11 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
             res.append(it)
     return res
 
-# 1. Global Category Filter (Seamless across channels)
-filtered_articles = filter_items_by_category(filtered_articles, selected_cat_filter, is_social=False)
-filtered_indian = filter_items_by_category(filtered_indian, selected_cat_filter, is_social=False)
-filtered_x_posts = filter_items_by_category(filtered_x_posts, selected_cat_filter, is_social=True)
-
-# 2. Strengthened Bilingual & Cross-Channel Search Filter
+# Global Cross-Channel Search Filter
 if search_query and search_query.strip():
     filtered_articles = [a for a in filtered_articles if smart_search_match(a, search_query)]
     filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
     filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
-
-# 3. Language Filter (for media portals)
-if lang_filter == "Nepali Only":
-    filtered_articles = [a for a in filtered_articles if a.get('language') == "Nepali"]
-    filtered_indian = []
-elif lang_filter == "English Only":
-    filtered_articles = [a for a in filtered_articles if a.get('language') == "English"]
-    filtered_indian = [a for a in filtered_indian if a.get('language') == "English"]
-elif lang_filter == "Hindi Only":
-    filtered_articles = []
-    filtered_indian = [a for a in filtered_indian if a.get('language') == "Hindi"]
-
-# 4. Portal Filter (for Nepali Media)
-portal_fallback_notice = None
-if portal_filter not in ["All Portals (34)", "All Portals (34 Portals)"]:
-    filtered_articles = [a for a in filtered_articles if a.get('source') == portal_filter]
-    # If a specific portal is selected and has 0 articles in the active window (e.g., Tihar holiday break),
-    # fall back to that portal's latest stored articles from all_articles so the user sees its latest dispatches.
-    if not filtered_articles:
-        portal_recent_all = [
-            a for a in all_articles
-            if a.get("source") == portal_filter
-            and (not search_query or not search_query.strip() or smart_search_match(a, search_query))
-        ]
-        portal_recent_all = filter_items_by_category(portal_recent_all, selected_cat_filter, is_social=False)
-        if lang_filter == "Nepali Only":
-            portal_recent_all = [a for a in portal_recent_all if a.get("language") == "Nepali"]
-        elif lang_filter == "English Only":
-            portal_recent_all = [a for a in portal_recent_all if a.get("language") == "English"]
-        portal_recent_all.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
-        if portal_recent_all:
-            filtered_articles = portal_recent_all
-            latest_dt_str = portal_recent_all[0]["published_dt"].strftime("%d %b %Y, %I:%M %p NPT") if portal_recent_all[0].get("published_dt") else "recently"
-            portal_fallback_notice = (
-                f"**{portal_filter}** has not published new dispatches inside the `{from_str} → {to_str}` window "
-                f"(last published on **{latest_dt_str}**). Showing its **{len(portal_recent_all)}** most recent stored articles below."
-            )
 
 # Top Minimalist Header
 st.markdown(f"""
@@ -1184,28 +1074,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Active Filters Banner (Displayed only when custom filters are active)
-active_filter_chips = []
-if search_query and search_query.strip():
-    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">Search: "{html.escape(search_query.strip())}"</span>')
-if selected_cat_filter != CAT_FILTER_ALL_UNFILTERED:
-    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{html.escape(selected_cat_filter)}</span>')
-if portal_filter not in ["All Portals (34)", "All Portals (34 Portals)"]:
-    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">Portal: {html.escape(portal_filter)}</span>')
-if lang_filter != "All Languages":
-    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{html.escape(lang_filter)}</span>')
-if st.session_state.get("cp_timeframe_segment", "Last 12h") != "Last 12h" or not is_to_current:
-    from_chip = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
-    to_chip = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
-    active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{from_chip} → {to_chip}</span>')
-
-if active_filter_chips:
-    af_col1, af_col2 = st.columns([5.5, 1])
-    with af_col1:
-        st.markdown(f'<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0;"><span style="font-size:0.75rem; font-weight:600; color:#86868B; letter-spacing:0.02em;">FILTERS:</span>{" ".join(active_filter_chips)}</div>', unsafe_allow_html=True)
-    with af_col2:
-        st.button("✕ Clear All", key="btn_clear_active_pills", width="stretch", on_click=reset_all_filters)
-
 # 8. Navigation Tabs (Dynamic Live Counts)
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     f"Nepali Media ({len(filtered_articles)})",
@@ -1219,67 +1087,128 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: Nepali Media (Top 34 Portals)
 # ==========================================
 with tab1:
-    if portal_fallback_notice:
-        st.info(f"ℹ️ {portal_fallback_notice}")
+    # 🎛️ Source-Specific Control Panel: Nepali Media
+    with st.container():
+        st.markdown("""
+        <div class="source-control-bar">
+            <div class="source-control-header">
+                <span class="source-control-title">📰 Nepali Media Control Center</span>
+                <span class="source-control-stats">34 Monitored Portals · Live Updates</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        npc1, npc2, npc3 = st.columns([1.6, 1.4, 1.0])
+        with npc1:
+            all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+            sel_np_portal = st.selectbox(
+                "Filter by News Portal:",
+                ["All Portals (34)"] + all_portal_names,
+                key="np_portal_filter"
+            )
+        with npc2:
+            sel_np_cat = st.selectbox(
+                "Editorial Category:",
+                CATEGORY_FILTER_OPTIONS,
+                key="np_cat_filter"
+            )
+        with npc3:
+            sel_np_lang = st.selectbox(
+                "Language:",
+                ["All Languages", "Nepali Only", "English Only"],
+                key="np_lang_filter"
+            )
 
-    if not filtered_articles:
-        st.warning("No news articles found matching your filters. Try selecting 'All Recent Articles' or expanding your time window.")
+    # Filter articles based on Tab 1 Controls
+    tab_articles = filter_items_by_category(filtered_articles, sel_np_cat, is_social=False)
+    if sel_np_lang == "Nepali Only":
+        tab_articles = [a for a in tab_articles if a.get('language') == "Nepali"]
+    elif sel_np_lang == "English Only":
+        tab_articles = [a for a in tab_articles if a.get('language') == "English"]
+
+    if sel_np_portal != "All Portals (34)":
+        tab_articles = [a for a in tab_articles if a.get('source') == sel_np_portal]
+        if not tab_articles:
+            portal_recent = [a for a in all_articles if a.get('source') == sel_np_portal]
+            if portal_recent:
+                tab_articles = filter_items_by_category(portal_recent, sel_np_cat, is_social=False)
+                latest_pub_str = portal_recent[0]["published_dt"].strftime("%d %b %Y, %I:%M %p NPT") if portal_recent[0].get("published_dt") else "recently"
+                st.info(f"ℹ️ **{sel_np_portal}** has no stories published in the selected window (last story: **{latest_pub_str}**). Showing its **{len(tab_articles)}** most recent dispatches.")
+
+    if not tab_articles:
+        st.warning("No Nepali news articles found matching your criteria. Try adjusting the category, portal, or timeframe window.")
     else:
         # Incremental Loading / Pagination (20 entries initial, +20 per click)
         if "media_visible_count" not in st.session_state:
             st.session_state["media_visible_count"] = 20
 
         current_media_limit = st.session_state["media_visible_count"]
-        visible_articles = filtered_articles[:current_media_limit]
+        visible_articles = tab_articles[:current_media_limit]
 
         for item in visible_articles:
             st.markdown(render_apple_article_card(item, is_indian=False), unsafe_allow_html=True)
 
-        if len(filtered_articles) > current_media_limit:
-            remaining_media = len(filtered_articles) - current_media_limit
+        if len(tab_articles) > current_media_limit:
+            remaining_media = len(tab_articles) - current_media_limit
             next_batch_media = min(20, remaining_media)
             c_m1, c_m2, c_m3 = st.columns([1.5, 2, 1.5])
             with c_m2:
                 if st.button(f"⬇️ Load More News (+{next_batch_media} stories)", width="stretch", key="btn_load_more_media"):
                     st.session_state["media_visible_count"] += 20
                     st.rerun()
-                st.caption(f"Showing {len(visible_articles):,} of {len(filtered_articles):,} stories ({remaining_media:,} remaining)")
-        elif len(filtered_articles) > 0:
-            st.caption(f"🏁 You've reached the end of the news feed ({len(filtered_articles):,} stories displayed).")
+                st.caption(f"Showing {len(visible_articles):,} of {len(tab_articles):,} stories ({remaining_media:,} remaining)")
+        elif len(tab_articles) > 0:
+            st.caption(f"🏁 You've reached the end of the news feed ({len(tab_articles):,} stories displayed).")
 
 # ==========================================
 # TAB 2: Nepal in Indian Media
 # ==========================================
 with tab2:
-
-
     indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
 
-    ti_col1, ti_col2, ti_col3 = st.columns([2.1, 1.5, 1.4])
-    with ti_col1:
-        selected_indian_outlet = st.selectbox(
-            "Filter by Specific Indian Media Outlet:",
-            ["All 18 Monitored Indian Outlets"] + indian_outlet_names,
-            key="select_indian_outlet",
-            label_visibility="collapsed"
-        )
-    with ti_col2:
-        india_rel_threshold = st.slider(
-            "Nepal Relevance Threshold",
-            min_value=0.50,
-            max_value=0.90,
-            value=float(DEFAULT_NEPAL_RELEVANCE_THRESHOLD),
-            step=0.05,
-            key="slider_india_nepal_relevance_threshold",
-            help="Configurable AI/semantic relevance-confidence threshold. Only Indian media articles scoring at or above this threshold appear in the main feed."
-        )
+    # 🎛️ Source-Specific Control Panel: Indian Press
+    with st.container():
+        st.markdown("""
+        <div class="source-control-bar">
+            <div class="source-control-header">
+                <span class="source-control-title">🇮🇳 Indian Press Control Center</span>
+                <span class="source-control-stats">18 Major Outlets · AI Nepal-Relevance Filter</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        ti_col1, ti_col2, ti_col3 = st.columns([1.6, 1.4, 1.0])
+        with ti_col1:
+            selected_indian_outlet = st.selectbox(
+                "Filter by Indian Media Outlet:",
+                ["All 18 Indian Outlets"] + indian_outlet_names,
+                key="in_outlet_filter"
+            )
+        with ti_col2:
+            india_rel_threshold = st.slider(
+                "Minimum Nepal Relevance:",
+                min_value=0.50,
+                max_value=0.90,
+                value=float(DEFAULT_NEPAL_RELEVANCE_THRESHOLD),
+                step=0.05,
+                key="slider_india_nepal_relevance_threshold",
+                help="Only show Indian coverage scoring at or above this AI confidence threshold for Nepal focus."
+            )
+        with ti_col3:
+            sel_in_lang = st.selectbox(
+                "Language:",
+                ["All Languages", "English", "Hindi"],
+                key="in_lang_filter"
+            )
 
     tab_filtered_indian = [
         a for a in filtered_indian
         if float(a.get("nepal_relevance_score", 0.75)) >= india_rel_threshold
     ]
-    if selected_indian_outlet != "All 18 Monitored Indian Outlets":
+    if selected_indian_outlet != "All 18 Indian Outlets":
         tab_filtered_indian = [a for a in tab_filtered_indian if a["source"] == selected_indian_outlet]
+    if sel_in_lang != "All Languages":
+        tab_filtered_indian = [a for a in tab_filtered_indian if a.get("language") == sel_in_lang]
 
     with ti_col3:
         st.markdown(
@@ -1407,43 +1336,53 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Filter Controls
-    xf_col1, xf_col2, xf_col3, xf_col4 = st.columns([2, 1.8, 1.8, 1.4])
-    with xf_col1:
-        x_cat_filter = st.selectbox(
-            "Filter Category:",
-            CATEGORY_FILTER_OPTIONS,
-            index=0,
-            key="x_cat_filter_select"
-        )
-    with xf_col2:
-        acc_types = [
-            "All Account Types",
-            "Civic Voice / Public Commentator",
-            "Youth & Cultural Voice",
-            "Foreign Affairs Specialist",
-            "Journalist / Analyst",
-            "Political Leader",
-            "Government & Security",
-            "Media & News Curators",
-            "Diplomatic Missions",
-            "Think Tank & Policy",
-            "Sports & Culture"
-        ]
-        selected_acc_type = st.selectbox("Account Type:", acc_types, key="x_acc_type_select")
-    with xf_col3:
-        sort_mode = st.selectbox(
-            "Sort Feed By:",
-            ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
-            key="x_sort_mode_select"
-        )
-    with xf_col4:
-        st.write("")
-        st.write("")
-        if st.button("🔄 Rescan X", width="stretch", key="btn_rescan_x"):
-            with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
-                st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
-                st.rerun()
+    # 🎛️ Source-Specific Control Panel: X Intelligence
+    with st.container():
+        st.markdown("""
+        <div class="source-control-bar">
+            <div class="source-control-header">
+                <span class="source-control-title">🐦 X (Twitter) Intelligence Center</span>
+                <span class="source-control-stats">281+ Verified Nepali Voices · Real-Time Radar</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        xf_col1, xf_col2, xf_col3, xf_col4 = st.columns([1.6, 1.4, 1.3, 0.9])
+        with xf_col1:
+            x_cat_filter = st.selectbox(
+                "Filter Editorial Category:",
+                CATEGORY_FILTER_OPTIONS,
+                index=0,
+                key="x_cat_filter_select"
+            )
+        with xf_col2:
+            acc_types = [
+                "All Account Types",
+                "Civic Voice / Public Commentator",
+                "Youth & Cultural Voice",
+                "Foreign Affairs Specialist",
+                "Journalist / Analyst",
+                "Political Leader",
+                "Government & Security",
+                "Media & News Curators",
+                "Diplomatic Missions",
+                "Think Tank & Policy",
+                "Sports & Culture"
+            ]
+            selected_acc_type = st.selectbox("Account Category:", acc_types, key="x_acc_type_select")
+        with xf_col3:
+            sort_mode = st.selectbox(
+                "Sort Posts By:",
+                ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
+                key="x_sort_mode_select"
+            )
+        with xf_col4:
+            st.write("")
+            st.write("")
+            if st.button("🔄 Sync X", width="stretch", key="btn_rescan_x"):
+                with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
+                    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
+                    st.rerun()
 
     # Apply category filter
     filtered_feed = filter_items_by_category(tab_x_posts, x_cat_filter, is_social=True)
