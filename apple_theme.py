@@ -817,9 +817,9 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label {
         margin: 0 !important;
-        padding: 4px 2px !important;
-        min-height: 27px !important;
-        height: 27px !important;
+        padding: 3px 1px !important;
+        min-height: 28px !important;
+        height: 28px !important;
         border-radius: 6px !important;
         display: flex !important;
         align-items: center !important;
@@ -828,25 +828,32 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: transparent !important;
         border: none !important;
         transition: all 0.15s ease !important;
+        overflow: hidden !important;
     }
     section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {
         display: none !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label p {
-        font-size: 0.72rem !important;
-        font-weight: 550 !important;
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label p,
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label div {
+        font-size: 0.68rem !important;
+        font-weight: 600 !important;
         color: #475569 !important;
         margin: 0 !important;
+        padding: 0 !important;
         white-space: nowrap !important;
+        word-break: normal !important;
+        overflow: visible !important;
         line-height: 1 !important;
+        text-align: center !important;
     }
     section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) {
         background-color: #FFFFFF !important;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) p {
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) p,
+    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) div {
         color: #1E293B !important;
-        font-weight: 650 !important;
+        font-weight: 700 !important;
     }
 
     /* Live Tracking Toggle Switch - Muted Slate Blue (#526A85) instead of default red */

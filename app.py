@@ -340,8 +340,9 @@ if not check_password():
 # 3. Time Reference
 now_npt = datetime.datetime.now(NEPAL_TZ)
 formatted_now_time = now_npt.strftime("%I:%M %p NPT")
-yesterday_date = (now_npt - datetime.timedelta(days=1)).date()
-yesterday_18_time = datetime.time(18, 0)
+past_12h_ref = now_npt - datetime.timedelta(hours=12)
+default_start_date = past_12h_ref.date()
+default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
 
 if "last_sync_npt" not in st.session_state:
     st.session_state["last_sync_npt"] = now_npt.strftime("%I:%M %p")
@@ -394,31 +395,32 @@ st.sidebar.markdown(
 )
 
 def on_timeframe_preset_change():
-    preset = st.session_state.get("cp_timeframe_segment", "Yesterday")
+    preset = st.session_state.get("cp_timeframe_segment", "Last 12h")
     now_ref = datetime.datetime.now(NEPAL_TZ)
-    if preset == "Yesterday":
-        st.session_state["filter_start_date"] = (now_ref - datetime.timedelta(days=1)).date()
-        st.session_state["filter_start_time"] = datetime.time(18, 0)
-        st.session_state["filter_use_current_time"] = True
-    elif preset == "Today":
-        st.session_state["filter_start_date"] = now_ref.date()
-        st.session_state["filter_start_time"] = datetime.time(0, 0)
+    if preset == "Last 12h":
+        past_12 = now_ref - datetime.timedelta(hours=12)
+        st.session_state["filter_start_date"] = past_12.date()
+        st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
         st.session_state["filter_use_current_time"] = True
     elif preset == "Last 24h":
         past_24 = now_ref - datetime.timedelta(hours=24)
         st.session_state["filter_start_date"] = past_24.date()
         st.session_state["filter_start_time"] = past_24.time().replace(second=0, microsecond=0)
         st.session_state["filter_use_current_time"] = True
+    elif preset == "Today":
+        st.session_state["filter_start_date"] = now_ref.date()
+        st.session_state["filter_start_time"] = datetime.time(0, 0)
+        st.session_state["filter_use_current_time"] = True
 
 def on_custom_datetime_edit():
     st.session_state["cp_timeframe_segment"] = "Custom"
 
 if "cp_timeframe_segment" not in st.session_state:
-    st.session_state["cp_timeframe_segment"] = "Yesterday"
+    st.session_state["cp_timeframe_segment"] = "Last 12h"
 
 st.sidebar.radio(
     "Timeframe Preset",
-    options=["Yesterday", "Today", "Last 24h", "Custom"],
+    options=["Last 12h", "Last 24h", "Today", "Custom"],
     key="cp_timeframe_segment",
     on_change=on_timeframe_preset_change,
     horizontal=True,
@@ -429,7 +431,7 @@ col_start_d, col_start_t = st.sidebar.columns([1.35, 1])
 with col_start_d:
     start_date = st.date_input(
         "Start Date",
-        value=st.session_state.get("filter_start_date", yesterday_date),
+        value=st.session_state.get("filter_start_date", default_start_date),
         max_value=now_npt.date(),
         key="filter_start_date",
         on_change=on_custom_datetime_edit,
@@ -438,7 +440,7 @@ with col_start_d:
 with col_start_t:
     start_time = st.time_input(
         "Start Time",
-        value=st.session_state.get("filter_start_time", yesterday_18_time),
+        value=st.session_state.get("filter_start_time", default_start_time),
         key="filter_start_time",
         on_change=on_custom_datetime_edit,
         help="Start time (NPT)"
@@ -559,15 +561,17 @@ with col_lang:
     )
 
 def reset_all_filters():
+    now_ref = datetime.datetime.now(NEPAL_TZ)
+    past_12 = now_ref - datetime.timedelta(hours=12)
     st.session_state["global_search_input"] = ""
     st.session_state["sidebar_selected_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
     st.session_state["sidebar_portal_filter"] = ALL_PORTALS_DEFAULT
     st.session_state["sidebar_lang_filter"] = ALL_LANG_DEFAULT
-    st.session_state["cp_timeframe_segment"] = "Yesterday"
-    st.session_state["filter_start_date"] = yesterday_date
-    st.session_state["filter_start_time"] = yesterday_18_time
-    st.session_state["filter_end_date"] = now_npt.date()
-    st.session_state["filter_end_time"] = now_npt.time().replace(second=0, microsecond=0)
+    st.session_state["cp_timeframe_segment"] = "Last 12h"
+    st.session_state["filter_start_date"] = past_12.date()
+    st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
+    st.session_state["filter_end_date"] = now_ref.date()
+    st.session_state["filter_end_time"] = now_ref.time().replace(second=0, microsecond=0)
     st.session_state["filter_use_current_time"] = True
     st.session_state["media_visible_count"] = 20
     st.session_state["indian_visible_count"] = 20
@@ -586,7 +590,7 @@ if portal_filter not in [ALL_PORTALS_DEFAULT, "All Portals (34 Portals)"]:
     active_chip_map[f"✕ {portal_filter}"] = "portal"
 if lang_filter != ALL_LANG_DEFAULT:
     active_chip_map[f"✕ {lang_filter.replace(' Only', '')}"] = "lang"
-if st.session_state.get("cp_timeframe_segment", "Yesterday") != "Yesterday" or not use_current_time:
+if st.session_state.get("cp_timeframe_segment", "Last 12h") != "Last 12h" or not use_current_time:
     tf_lbl = st.session_state.get("cp_timeframe_segment", "Custom") if use_current_time else "Paused Range"
     active_chip_map[f"✕ {tf_lbl}"] = "timeframe"
 
@@ -611,9 +615,11 @@ if active_chip_map:
         elif target_filter == "lang":
             st.session_state["sidebar_lang_filter"] = ALL_LANG_DEFAULT
         elif target_filter == "timeframe":
-            st.session_state["cp_timeframe_segment"] = "Yesterday"
-            st.session_state["filter_start_date"] = yesterday_date
-            st.session_state["filter_start_time"] = yesterday_18_time
+            now_ref = datetime.datetime.now(NEPAL_TZ)
+            past_12 = now_ref - datetime.timedelta(hours=12)
+            st.session_state["cp_timeframe_segment"] = "Last 12h"
+            st.session_state["filter_start_date"] = past_12.date()
+            st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
             st.session_state["filter_use_current_time"] = True
         st.rerun()
 
@@ -1181,7 +1187,7 @@ if portal_filter not in ["All Portals (34)", "All Portals (34 Portals)"]:
     active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">Portal: {html.escape(portal_filter)}</span>')
 if lang_filter != "All Languages":
     active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{html.escape(lang_filter)}</span>')
-if st.session_state.get("cp_timeframe_segment", "Yesterday") != "Yesterday" or not is_to_current:
+if st.session_state.get("cp_timeframe_segment", "Last 12h") != "Last 12h" or not is_to_current:
     from_chip = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
     to_chip = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
     active_filter_chips.append(f'<span style="background:#EEF2F6; color:#25364B; border:1px solid #DCE5EF; padding:2px 9px; border-radius:999px; font-size:0.74rem; font-weight:600;">{from_chip} → {to_chip}</span>')
