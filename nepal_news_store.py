@@ -205,8 +205,8 @@ def batch_upsert_articles(
             esc_sql(json.dumps(a.get("sections", [a.get("primary_section", "General")]))),
             esc_sql(json.dumps(a.get("secondary_tags", []))),
             esc_sql(float(a.get("classification_confidence", 0.85))),
-            1 if a.get("low_confidence") else 0,
-            1 if a.get("is_viral") else 0
+            esc_sql(1 if a.get("low_confidence") else 0),
+            esc_sql(1 if a.get("is_viral") else 0)
         ]
         values_list.append(f"({', '.join(vals)})")
 
