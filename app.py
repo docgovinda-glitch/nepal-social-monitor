@@ -1626,8 +1626,8 @@ with tab4:
     render_info = {}
     render_online = False
     try:
-        req = urllib.request.Request(render_url, headers={"User-Agent": "NepalMonitor-LocalUI/1.0"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        req = urllib.request.Request(render_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
             render_info = json.loads(resp.read().decode())
             render_online = True
     except Exception:
