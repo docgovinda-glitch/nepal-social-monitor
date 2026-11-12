@@ -1198,7 +1198,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     f"Nepali Media ({len(filtered_articles)})",
     f"Indian Press ({len(filtered_indian)})",
     f"X Intel ({len(filtered_x_posts)})",
-    "Analytics & Export",
+    "Consolidated Intelligence & Export",
     "Sources & Health"
 ])
 
@@ -1539,651 +1539,256 @@ with tab3:
                     st.link_button(item["label"], x_url, width="stretch", help=item["help"])
 
 # ==========================================
-# TAB 4: Analytics & Export
+# TAB 4: Consolidated Intelligence & Export
 # ==========================================
 with tab4:
-    st.subheader("Analytics & Export")
+    st.subheader("Consolidated Intelligence Export")
+    st.caption("Universal multi-stream export engine across all monitored Nepali Portals, Indian Press, and Live X intelligence.")
 
-    export_type = st.radio(
-        "Choose Dataset to Inspect/Download:",
-        ["Nepali Media (34 Portals)", "Nepal in Indian Media (18 Outlets)", "Verified Live X (Twitter) Posts"]
-    )
+    # 1. Gather all items into a unified, consolidated stream
+    all_unified_items = []
 
-    if export_type == "Nepali Media (34 Portals)":
-        if filtered_articles:
-            ready_articles = filtered_articles
+    # Nepali Media
+    for a in filtered_articles:
+        all_unified_items.append({
+            "stream": "Nepali Media",
+            "title": (a.get("title") or "").strip(),
+            "headline_en": a.get("headline_english", ""),
+            "content": a.get("full_content") or a.get("summary", ""),
+            "category": a.get("structured_category", "Others"),
+            "source": a.get("source", "Nepali Media"),
+            "language": a.get("language") or ("English" if a.get("source") in ("The Kathmandu Post", "The Himalayan Times", "Republica", "Nepal News") else "Nepali"),
+            "timestamp": a.get("exact_time") or a.get("relative_time", ""),
+            "published_dt": a.get("published_dt"),
+            "link": a.get("link", ""),
+            "raw_item": a,
+            "item_type": "article"
+        })
 
-            export_rows = []
-            for a in ready_articles:
-                orig_title = (a.get("title") or "").strip()
-                export_rows.append({
-                    "Headline": orig_title,
-                    "Full Content": a.get("full_content") or a.get("summary", ""),
-                    "Structured Category": a.get("structured_category", "Others"),
-                    "Source / Portal": a.get("source", ""),
-                    "Exact Timestamp": a.get("exact_time", ""),
-                    "Article Link": a.get("link", "")
-                })
+    # Nepal in Indian Media
+    for a in filtered_indian:
+        all_unified_items.append({
+            "stream": "Indian Press",
+            "title": (a.get("title") or "").strip(),
+            "headline_en": a.get("headline_english", ""),
+            "content": a.get("full_content") or a.get("summary", ""),
+            "category": a.get("structured_category", "India Section"),
+            "source": a.get("source", "Indian Media"),
+            "language": a.get("language") or "English",
+            "timestamp": a.get("exact_time") or a.get("relative_time", ""),
+            "published_dt": a.get("published_dt"),
+            "link": a.get("link", ""),
+            "raw_item": a,
+            "item_type": "article"
+        })
 
-            df = pd.DataFrame(export_rows)
-            st.markdown(f"**Total Matching Articles in Timeframe:** `{len(df)}`")
+    # Live X (Twitter) Posts
+    for p in filtered_x_posts:
+        auth_name = p.get('author_name', '')
+        auth_handle = p.get('handle', '')
+        all_unified_items.append({
+            "stream": "X (Twitter)",
+            "title": (p.get("text") or "").strip(),
+            "headline_en": "",
+            "content": p.get("text", ""),
+            "category": p.get("structured_category", "Others"),
+            "source": f"{auth_name} (@{auth_handle})",
+            "language": "Nepali / English",
+            "timestamp": p.get("exact_time") or p.get("relative_time", ""),
+            "published_dt": p.get("published_dt"),
+            "link": p.get("link", ""),
+            "raw_item": p,
+            "item_type": "x"
+        })
 
-            c_cat, c_src = st.columns(2)
-            with c_cat:
-                st.write("**Articles by Structured Category:**")
-                cat_counts_df = df['Structured Category'].value_counts().reset_index()
-                cat_counts_df.columns = ['Category', 'Count']
-                fig_cat = px.bar(
-                    cat_counts_df,
-                    x='Count',
-                    y='Category',
-                    orientation='h',
-                    color='Count',
-                    color_continuous_scale='Blues',
-                    text='Count'
-                )
-                fig_cat.update_layout(
-                    margin=dict(l=10, r=20, t=10, b=10),
-                    height=280,
-                    showlegend=False,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    yaxis=dict(autorange="reversed")
-                )
-                st.plotly_chart(fig_cat, width="stretch")
+    # Sort chronological (newest first)
+    def _parse_sort_dt(x):
+        dt = x.get("published_dt")
+        if isinstance(dt, datetime.datetime):
+            return dt if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+        return datetime.datetime.min.replace(tzinfo=NEPAL_TZ)
 
-            with c_src:
-                st.write("**Top Portals by Volume:**")
-                src_counts_df = df['Source / Portal'].value_counts()[:8].reset_index()
-                src_counts_df.columns = ['Portal', 'Count']
-                fig_src = px.pie(
-                    src_counts_df,
-                    values='Count',
-                    names='Portal',
-                    hole=0.45,
-                    color_discrete_sequence=px.colors.qualitative.Prism
-                )
-                fig_src.update_layout(
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    height=280,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    showlegend=True,
-                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0)
-                )
-                st.plotly_chart(fig_src, width="stretch")
+    all_unified_items.sort(key=_parse_sort_dt, reverse=True)
 
-            # Category & Source Filter for Selection Table
-            st.markdown("##### 📌 Select Articles to Export to Word Document")
-            col_filt_np1, col_filt_np2, col_filt_np3 = st.columns([2, 2, 2])
-            with col_filt_np1:
-                cat_choices = ["All Categories"] + sorted(list(df["Structured Category"].unique()))
-                filter_table_cat = st.selectbox("Filter Table by Category:", cat_choices, key="tbl_cat_filter_np")
-            with col_filt_np2:
-                portal_choices = ["All Portals"] + sorted(list(df["Source / Portal"].unique()))
-                filter_table_portal = st.selectbox("Filter Table by Portal:", portal_choices, key="tbl_portal_filter_np")
-            with col_filt_np3:
-                table_kw = st.text_input("Quick Filter by Keyword:", placeholder="Filter rows...", key="tbl_kw_filter_np")
+    # 2. Consolidated Master Filter Toolbar
+    st.markdown("##### 🔍 Universal Filter Controls")
+    fc1, fc2, fc3, fc4 = st.columns([1.5, 1.5, 1.3, 2])
 
-            # Selection Controls for Word Export
-            if "editor_ver_np" not in st.session_state:
-                st.session_state["editor_ver_np"] = 0
-            if "selected_links_np" not in st.session_state:
-                # Default all selected
-                st.session_state["selected_links_np"] = set(a.get("link", "") for a in ready_articles)
+    with fc1:
+        stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
+        sel_stream = st.selectbox("Dataset Stream:", stream_choices, key="univ_stream_filter")
 
-            col_sel1, col_sel2, col_sel3, col_info = st.columns([1.5, 1.5, 2, 4])
-            with col_sel1:
-                if st.button("☑️ Select All", key="btn_sel_all_np"):
-                    st.session_state["selected_links_np"] = set(a.get("link", "") for a in ready_articles)
-                    st.session_state["editor_ver_np"] += 1
-                    st.rerun()
-            with col_sel2:
-                if st.button("⬜ Deselect All", key="btn_desel_all_np"):
-                    st.session_state["selected_links_np"] = set()
-                    st.session_state["editor_ver_np"] += 1
-                    st.rerun()
-            with col_sel3:
-                if st.button("⚡ Select Top 25 Fresh", key="btn_sel_top25_np"):
-                    st.session_state["selected_links_np"] = set(a.get("link", "") for a in ready_articles[:25])
-                    st.session_state["editor_ver_np"] += 1
-                    st.rerun()
+    with fc2:
+        all_cats = sorted(list(set(x["category"] for x in all_unified_items if x.get("category"))))
+        cat_choices = ["All Categories"] + all_cats
+        sel_cat = st.selectbox("Category / Section:", cat_choices, key="univ_cat_filter")
 
-            # Filter rows for display table if user chose filters
-            display_df = df.copy()
-            if filter_table_cat != "All Categories":
-                display_df = display_df[display_df["Structured Category"] == filter_table_cat]
-            if filter_table_portal != "All Portals":
-                display_df = display_df[display_df["Source / Portal"] == filter_table_portal]
-            if table_kw.strip():
-                tkw = table_kw.strip().lower()
-                display_df = display_df[display_df["Headline"].str.lower().str.contains(tkw, na=False) | display_df["Full Content"].str.lower().str.contains(tkw, na=False)]
+    with fc3:
+        all_langs = ["All Languages", "Nepali", "English", "Nepali / English"]
+        sel_lang = st.selectbox("Content Language:", all_langs, key="univ_lang_filter")
 
-            # Map the selection column from persistent session set
-            display_df_with_sel = display_df.copy()
-            display_df_with_sel.insert(
-                0, 
-                "Select", 
-                [link in st.session_state["selected_links_np"] for link in display_df_with_sel["Article Link"]]
+    with fc4:
+        kw_filter = st.text_input("Search Keyword (Headline / Content / Author):", placeholder="Search anything...", key="univ_kw_filter")
+
+    # Apply Consolidated Filtering
+    filtered_export_items = all_unified_items
+    if sel_stream != "All Streams (All 3)":
+        filtered_export_items = [x for x in filtered_export_items if x["stream"] == sel_stream]
+    if sel_cat != "All Categories":
+        filtered_export_items = [x for x in filtered_export_items if x["category"] == sel_cat]
+    if sel_lang != "All Languages":
+        filtered_export_items = [x for x in filtered_export_items if x["language"] == sel_lang]
+    if kw_filter.strip():
+        q_lower = kw_filter.strip().lower()
+        filtered_export_items = [
+            x for x in filtered_export_items
+            if q_lower in x["title"].lower() or q_lower in x["content"].lower() or q_lower in x["source"].lower()
+        ]
+
+    # Convert to Structured DataFrame
+    rows_data = []
+    for it in filtered_export_items:
+        rows_data.append({
+            "Stream": it["stream"],
+            "Headline / Text": it["title"],
+            "English Translation": it["headline_en"],
+            "Category": it["category"],
+            "Source / Author": it["source"],
+            "Language": it["language"],
+            "Published Date & Time": it["timestamp"],
+            "Link": it["link"],
+            "Content": it["content"]
+        })
+    df_export = pd.DataFrame(rows_data)
+
+    st.markdown("---")
+
+    # Metrics Summary Row (No charts, concise KPIs)
+    sum1, sum2, sum3, sum4 = st.columns(4)
+    with sum1:
+        st.metric("Consolidated Matches", f"{len(df_export):,}")
+    with sum2:
+        nep_count = sum(1 for x in filtered_export_items if x["stream"] == "Nepali Media")
+        st.metric("Nepali Media", f"{nep_count:,}")
+    with sum3:
+        ind_count = sum(1 for x in filtered_export_items if x["stream"] == "Indian Press")
+        st.metric("Indian Press", f"{ind_count:,}")
+    with sum4:
+        x_count = sum(1 for x in filtered_export_items if x["stream"] == "X (Twitter)")
+        st.metric("X Posts", f"{x_count:,}")
+
+    # Selection State for Word Document Export
+    if "editor_ver_univ" not in st.session_state:
+        st.session_state["editor_ver_univ"] = 0
+    if "selected_links_univ" not in st.session_state:
+        st.session_state["selected_links_univ"] = set(x["link"] for x in all_unified_items)
+
+    # Batch Selection Controls
+    sc1, sc2, sc3, sc_badge = st.columns([1.3, 1.3, 1.8, 3.6])
+    with sc1:
+        if st.button("☑️ Select All", key="btn_univ_sel_all"):
+            st.session_state["selected_links_univ"] = set(x["link"] for x in filtered_export_items)
+            st.session_state["editor_ver_univ"] += 1
+            st.rerun()
+    with sc2:
+        if st.button("⬜ Deselect All", key="btn_univ_desel_all"):
+            st.session_state["selected_links_univ"] = set()
+            st.session_state["editor_ver_univ"] += 1
+            st.rerun()
+    with sc3:
+        if st.button("⚡ Select Top 30 Fresh", key="btn_univ_top30"):
+            st.session_state["selected_links_univ"] = set(x["link"] for x in filtered_export_items[:30])
+            st.session_state["editor_ver_univ"] += 1
+            st.rerun()
+
+    # Determine Active Selected Set
+    selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
+    with sc_badge:
+        st.markdown(f'<div class="apple-counter-badge">📋 <b>{len(selected_export_items)} of {len(filtered_export_items)}</b> items selected for Word Dossier</div>', unsafe_allow_html=True)
+
+    # Data Editor Table
+    if not df_export.empty:
+        df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
+        df_for_editor.insert(0, "Include?", [link in st.session_state["selected_links_univ"] for link in df_for_editor["Link"]])
+
+        col_config_univ = {
+            "Include?": st.column_config.CheckboxColumn(
+                "Include in Export?",
+                help="Check this box to include in Word Document",
+                default=True
+            ),
+            "Stream": st.column_config.TextColumn("Stream", width="small"),
+            "Headline / Text": st.column_config.TextColumn("Headline / Post Text", width="large"),
+            "Category": st.column_config.TextColumn("Category", width="small"),
+            "Source / Author": st.column_config.TextColumn("Source / Author", width="medium"),
+            "Language": st.column_config.TextColumn("Language", width="small"),
+            "Published Date & Time": st.column_config.TextColumn("Date & Time Stamp", width="medium"),
+            "Link": st.column_config.LinkColumn("Source Link", display_text="Open ↗", width="small")
+        }
+
+        edited_df_univ = st.data_editor(
+            df_for_editor,
+            column_config=col_config_univ,
+            disabled=[c for c in df_for_editor.columns if c != "Include?"],
+            hide_index=True,
+            width="stretch",
+            key=f"univ_editor_{st.session_state['editor_ver_univ']}_{len(df_for_editor)}"
+        )
+
+        for _, row in edited_df_univ.iterrows():
+            link = row["Link"]
+            if row["Include?"]:
+                st.session_state["selected_links_univ"].add(link)
+            else:
+                st.session_state["selected_links_univ"].discard(link)
+
+        # Refresh selected items list
+        selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
+
+        # Word Document & CSV One-Click Export Actions
+        st.markdown("##### 📦 Download Intelligence Outputs")
+        c_csv, c_docx = st.columns(2)
+
+        # 1. Comprehensive CSV
+        with c_csv:
+            csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label=f"📥 Download Filtered CSV ({len(df_export):,} Records)",
+                data=csv_bytes,
+                file_name=f"nepal_intelligence_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                width="stretch"
             )
 
-            col_config_np = {
-                "Select": st.column_config.CheckboxColumn(
-                    "Include in Report?",
-                    help="Check this box to include this news item in the Word Document export",
-                    default=True
-                ),
-                "Headline": st.column_config.TextColumn(
-                    "Headline",
-                    width="large"
-                ),
-                "Structured Category": st.column_config.TextColumn(
-                    "Category",
-                    width="medium"
-                ),
-                "Source / Portal": st.column_config.TextColumn(
-                    "Source",
-                    width="small"
-                ),
-                "Exact Timestamp": st.column_config.TextColumn(
-                    "Published",
-                    width="small"
-                ),
-                "Article Link": st.column_config.LinkColumn(
-                    "Link",
-                    display_text="Open ↗",
-                    width="small"
-                )
-            }
+        # 2. Executive Word Document
+        with c_docx:
+            if selected_export_items:
+                raw_items_for_docx = [x["raw_item"] for x in selected_export_items]
+                univ_hash = hash(tuple(x["link"] for x in selected_export_items))
 
-            edited_df = st.data_editor(
-                display_df_with_sel[["Select", "Headline", "Structured Category", "Source / Portal", "Exact Timestamp", "Article Link"]],
-                column_config=col_config_np,
-                disabled=[c for c in display_df_with_sel.columns if c != "Select"],
-                hide_index=True,
-                width="stretch",
-                key=f"editor_np_{st.session_state['editor_ver_np']}_{len(display_df)}"
-            )
-
-            # Update selected links in session state based on user edits
-            for idx, row in edited_df.iterrows():
-                link = row["Article Link"]
-                if row["Select"]:
-                    st.session_state["selected_links_np"].add(link)
+                if st.session_state.get("docx_ready_hash_univ") != univ_hash:
+                    if st.button(f"📄 Prepare Executive Word Document ({len(selected_export_items):,} Stories)", key="btn_prep_univ_docx", width="stretch", type="primary"):
+                        with st.spinner(f"Generating comprehensive Word dossier for {len(selected_export_items)} items..."):
+                            enriched_docx_items = batch_fetch_full_content(raw_items_for_docx[:60]) if len(raw_items_for_docx) <= 60 else raw_items_for_docx
+                            st.session_state["docx_bytes_univ"] = generate_word_document(
+                                enriched_docx_items,
+                                report_title="Nepal Social & Media Intelligence Dossier"
+                            )
+                            st.session_state["docx_ready_hash_univ"] = univ_hash
+                        st.rerun()
                 else:
-                    st.session_state["selected_links_np"].discard(link)
-
-            selected_articles = [a for a in ready_articles if a.get("link") in st.session_state["selected_links_np"]]
-
-            with col_info:
-                st.markdown(f'<div class="apple-counter-badge">📋 <b>{len(selected_articles)} of {len(ready_articles)}</b> articles selected for Executive Report</div>', unsafe_allow_html=True)
-
-            # Interactive Report Preview Expander
-            with st.expander("👁️ Executive Word Document Live Preview & Structure", expanded=False):
-                st.markdown(f"**Document Title:** `Nepal Media & Intelligence Executive Report`")
-                st.markdown(f"**Total Selected Stories:** `{len(selected_articles)}`")
-                if selected_articles:
-                    sel_cat_counts = Counter([map_to_target_category(a.get("structured_category", "")) for a in selected_articles])
-                    p_cols = st.columns(len(DOCX_TARGET_CATEGORIES))
-                    for i, tc in enumerate(DOCX_TARGET_CATEGORIES):
-                        with p_cols[i]:
-                            st.caption(f"**{tc}**\n\n`{sel_cat_counts.get(tc, 0)} items`")
-                    st.markdown("---")
-                    st.markdown("**Sample Formatted Story in Report:**")
-                    sample_a = selected_articles[0]
-                    s_orig = sample_a.get("title", "")
-                    s_en = sample_a.get("headline_english", "")
-                    s_src = sample_a.get("source", "")
-                    s_body = (sample_a.get("full_content") or sample_a.get("summary", ""))[:300] + "..."
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #EAB308; padding:12px 16px; border-radius:8px; font-size:0.9rem;">
-                        <div style="font-weight:700; color:#854D0E; font-size:0.75rem; letter-spacing:0.04em; margin-bottom:4px;">{map_to_target_category(sample_a.get("structured_category", ""))}</div>
-                        <div style="font-style:italic; font-weight:700; color:#0F172A;">• {html.escape(s_orig)}</div>
-                        {f'<div style="font-style:italic; color:#475569; font-size:0.85rem;">{html.escape(s_en)}</div>' if s_en and s_en != s_orig else ''}
-                        <div style="font-size:0.82rem; color:#64748B; margin:4px 0;">({html.escape(s_src)})</div>
-                        <div style="color:#334155; line-height:1.5; font-size:0.86rem; margin-top:6px;">{html.escape(s_body)}</div>
-                        <div style="margin-top:6px; font-size:0.8rem; color:#0284C7; text-decoration:underline;">{html.escape(sample_a.get("link", ""))}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.info("Select articles above to view report preview.")
-
-            csv_file = df.to_csv(index=False).encode('utf-8-sig')
-
-            c_btn1, c_btn2 = st.columns(2)
-            with c_btn1:
-                st.download_button(
-                    label=f"📥 Download Full CSV Dataset ({len(df)} Articles)",
-                    data=csv_file,
-                    file_name=f"nepal_media_full_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    width='stretch'
-                )
-            with c_btn2:
-                if selected_articles:
-                    np_sel_hash = hash(tuple(a.get("link", "") for a in selected_articles))
-                    if st.session_state.get("docx_ready_hash_np") != np_sel_hash:
-                        if st.button(f"📄 Prepare Executive Word Document ({len(selected_articles)} Stories)", key="btn_prep_docx_np", width="stretch", type="primary"):
-                            with st.spinner(f"Extracting full text & building Word dossier for {len(selected_articles)} stories..."):
-                                enriched_sel = batch_fetch_full_content(selected_articles[:60]) if len(selected_articles) <= 60 else selected_articles
-                                st.session_state["docx_bytes_np"] = generate_word_document(enriched_sel, report_title="Nepal Media & Intelligence Executive Report")
-                                st.session_state["docx_ready_hash_np"] = np_sel_hash
-                            st.rerun()
-                    else:
-                        st.download_button(
-                            label=f"⬇️ Download Ready Word Document ({len(selected_articles)} Stories)",
-                            data=st.session_state["docx_bytes_np"],
-                            file_name=f"nepal_media_intelligence_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            width="stretch",
-                            type="primary"
-                        )
-                else:
-                    st.warning("⚠️ No articles selected. Check the box on articles above or click 'Select All' to enable Word export.")
-        else:
-            st.info("No articles found in the selected timeframe.")
-    elif export_type == "Nepal in Indian Media (18 Outlets)":
-        if filtered_indian:
-            ready_indian = filtered_indian
-
-            export_rows_i = []
-            for a in ready_indian:
-                orig_title = (a.get("title") or "").strip()
-                export_rows_i.append({
-                    "Headline": orig_title,
-                    "Full Content": a.get("full_content") or a.get("summary", ""),
-                    "Source / Outlet": a.get("source", ""),
-                    "Exact Timestamp": a.get("exact_time", ""),
-                    "Article Link": a.get("link", "")
-                })
-
-            df_i = pd.DataFrame(export_rows_i)
-            st.markdown(f"**Total Nepal Stories in Indian Press (Timeframe):** `{len(df_i)}`")
-            st.write("**Coverage by Indian Outlet:**")
-            ind_counts_df = df_i['Source / Outlet'].value_counts()[:10].reset_index()
-            ind_counts_df.columns = ['Outlet', 'Articles']
-            fig_ind = px.bar(
-                ind_counts_df,
-                x='Articles',
-                y='Outlet',
-                orientation='h',
-                color='Articles',
-                color_continuous_scale='Oranges',
-                text='Articles'
-            )
-            fig_ind.update_layout(
-                margin=dict(l=10, r=20, t=10, b=10),
-                height=300,
-                showlegend=False,
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                yaxis=dict(autorange="reversed")
-            )
-            st.plotly_chart(fig_ind, width="stretch")
-
-            # Selection Controls for Indian Media Word Export
-            if "editor_ver_ind" not in st.session_state:
-                st.session_state["editor_ver_ind"] = 0
-            if "selected_links_ind" not in st.session_state:
-                st.session_state["selected_links_ind"] = set(a.get("link", "") for a in ready_indian)
-
-            st.markdown("##### 📌 Select Articles to Export to Word Document")
-            col_filt_i1, col_filt_i2 = st.columns([3, 3])
-            with col_filt_i1:
-                outlet_choices = ["All Indian Outlets"] + sorted(list(df_i["Source / Outlet"].unique()))
-                filter_table_ind = st.selectbox("Filter Table by Outlet:", outlet_choices, key="tbl_outlet_filter_ind")
-            with col_filt_i2:
-                table_kw_i = st.text_input("Quick Filter Indian Stories by Keyword:", placeholder="Filter rows...", key="tbl_kw_filter_ind")
-
-            col_sel_i1, col_sel_i2, col_sel_i3, col_info_i = st.columns([1.5, 1.5, 2, 4])
-            with col_sel_i1:
-                if st.button("☑️ Select All", key="btn_sel_all_ind"):
-                    st.session_state["selected_links_ind"] = set(a.get("link", "") for a in ready_indian)
-                    st.session_state["editor_ver_ind"] += 1
-                    st.rerun()
-            with col_sel_i2:
-                if st.button("⬜ Deselect All", key="btn_desel_all_ind"):
-                    st.session_state["selected_links_ind"] = set()
-                    st.session_state["editor_ver_ind"] += 1
-                    st.rerun()
-            with col_sel_i3:
-                if st.button("⚡ Select Top 25 Fresh", key="btn_sel_top25_ind"):
-                    st.session_state["selected_links_ind"] = set(a.get("link", "") for a in ready_indian[:25])
-                    st.session_state["editor_ver_ind"] += 1
-                    st.rerun()
-
-            display_df_i = df_i.copy()
-            if filter_table_ind != "All Indian Outlets":
-                display_df_i = display_df_i[display_df_i["Source / Outlet"] == filter_table_ind]
-            if table_kw_i.strip():
-                tkw_i = table_kw_i.strip().lower()
-                display_df_i = display_df_i[display_df_i["Headline"].str.lower().str.contains(tkw_i, na=False) | display_df_i["Full Content"].str.lower().str.contains(tkw_i, na=False)]
-
-            display_df_i_with_sel = display_df_i.copy()
-            display_df_i_with_sel.insert(
-                0, 
-                "Select", 
-                [link in st.session_state["selected_links_ind"] for link in display_df_i_with_sel["Article Link"]]
-            )
-
-            col_config_ind = {
-                "Select": st.column_config.CheckboxColumn(
-                    "Include?",
-                    help="Check this box to include this news item in the Word Document export",
-                    default=True
-                ),
-                "Headline": st.column_config.TextColumn(
-                    "Headline",
-                    width="large"
-                ),
-                "Source / Outlet": st.column_config.TextColumn(
-                    "Indian Outlet",
-                    width="medium"
-                ),
-                "Exact Timestamp": st.column_config.TextColumn(
-                    "Published",
-                    width="small"
-                ),
-                "Article Link": st.column_config.LinkColumn(
-                    "Link",
-                    display_text="Open ↗",
-                    width="small"
-                )
-            }
-
-            edited_df_i = st.data_editor(
-                display_df_i_with_sel[["Select", "Headline", "Source / Outlet", "Exact Timestamp", "Article Link"]],
-                column_config=col_config_ind,
-                disabled=[c for c in display_df_i_with_sel.columns if c != "Select"],
-                hide_index=True,
-                width="stretch",
-                key=f"editor_ind_{st.session_state['editor_ver_ind']}_{len(display_df_i)}"
-            )
-
-            # Update selected links in session state
-            for idx, row in edited_df_i.iterrows():
-                link = row["Article Link"]
-                if row["Select"]:
-                    st.session_state["selected_links_ind"].add(link)
-                else:
-                    st.session_state["selected_links_ind"].discard(link)
-
-            selected_indian = [a for a in ready_indian if a.get("link") in st.session_state["selected_links_ind"]]
-
-            with col_info_i:
-                st.markdown(f'<div class="apple-counter-badge">📋 <b>{len(selected_indian)} of {len(ready_indian)}</b> articles selected for Executive Report</div>', unsafe_allow_html=True)
-
-            # Interactive Report Preview Expander
-            with st.expander("👁️ Indian Press Report Live Preview", expanded=False):
-                st.markdown(f"**Document Title:** `Nepal Coverage in Indian Press - Intelligence Dossier`")
-                st.markdown(f"**Total Selected Stories:** `{len(selected_indian)}`")
-                if selected_indian:
-                    st.markdown("**Sample Formatted Story in Report:**")
-                    sample_i = selected_indian[0]
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #F97316; padding:12px 16px; border-radius:8px; font-size:0.9rem;">
-                        <div style="font-weight:700; color:#C2410C; font-size:0.75rem; letter-spacing:0.04em; margin-bottom:4px;">INDIA IN NEPAL</div>
-                        <div style="font-style:italic; font-weight:700; color:#0F172A;">• {html.escape(sample_i.get("title", ""))}</div>
-                        {f'<div style="font-style:italic; color:#475569; font-size:0.85rem;">{html.escape(sample_i.get("headline_english", ""))}</div>' if sample_i.get("headline_english") and sample_i.get("headline_english") != sample_i.get("title") else ''}
-                        <div style="font-size:0.82rem; color:#64748B; margin:4px 0;">({html.escape(sample_i.get("source", ""))})</div>
-                        <div style="color:#334155; line-height:1.5; font-size:0.86rem; margin-top:6px;">{html.escape((sample_i.get("full_content") or sample_i.get("summary", ""))[:300])}...</div>
-                        <div style="margin-top:6px; font-size:0.8rem; color:#0284C7; text-decoration:underline;">{html.escape(sample_i.get("link", ""))}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            csv_file_i = df_i.to_csv(index=False).encode('utf-8-sig')
-
-            c_btn_i1, c_btn_i2 = st.columns(2)
-            with c_btn_i1:
-                st.download_button(
-                    label=f"📥 Download Indian Media CSV ({len(df_i)} Articles)",
-                    data=csv_file_i,
-                    file_name=f"nepal_in_indian_media_full_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    width='stretch'
-                )
-            with c_btn_i2:
-                if selected_indian:
-                    in_sel_hash = hash(tuple(a.get("link", "") for a in selected_indian))
-                    if st.session_state.get("docx_ready_hash_in") != in_sel_hash:
-                        if st.button(f"📄 Prepare Executive Word Document ({len(selected_indian)} Stories)", key="btn_prep_docx_in", width="stretch", type="primary"):
-                            with st.spinner("Extracting full text & building Indian Media Word dossier..."):
-                                enriched_ind = batch_fetch_full_content(selected_indian[:40])
-                                st.session_state["docx_bytes_in"] = generate_word_document(enriched_ind, report_title="Nepal Coverage in Indian Press - Intelligence Dossier")
-                                st.session_state["docx_ready_hash_in"] = in_sel_hash
-                            st.rerun()
-                    else:
-                        st.download_button(
-                            label=f"⬇️ Download Ready Word Document ({len(selected_indian)} Stories)",
-                            data=st.session_state["docx_bytes_in"],
-                            file_name=f"nepal_in_indian_media_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            width="stretch",
-                            type="primary"
-                        )
-                else:
-                    st.warning("⚠️ No articles selected. Check the box on articles above to enable Word export.")
-        else:
-            st.info("No Indian media articles found in the selected timeframe.")
-    elif export_type == "Verified Live X (Twitter) Posts":
-        # Verified Live X (Twitter) Posts
-        if filtered_x_posts:
-            export_rows_x = []
-            for p in filtered_x_posts:
-                export_rows_x.append({
-                    "Post Content": p.get("text", ""),
-                    "Author": f"{p.get('author_name', '')} ({p.get('handle', '')})",
-                    "Author Type": p.get("author_type", ""),
-                    "Structured Category": p.get("structured_category", "Others"),
-                    "Likes": p.get("likes", 0),
-                    "Retweets": p.get("retweets", 0),
-                    "Impressions": p.get("impressions", 0),
-                    "Exact Timestamp": p.get("exact_time", ""),
-                    "Post Link": p.get("link", "")
-                })
-
-            df_x = pd.DataFrame(export_rows_x)
-            st.markdown(f"**Total Matching X Posts in Timeframe:** `{len(df_x):,}`")
-
-            cx_cat, cx_type = st.columns(2)
-            with cx_cat:
-                st.write("**X Posts by Structured Category:**")
-                xcat_df = df_x['Structured Category'].value_counts().reset_index()
-                xcat_df.columns = ['Category', 'Posts']
-                fig_xcat = px.bar(
-                    xcat_df,
-                    x='Posts',
-                    y='Category',
-                    orientation='h',
-                    color='Posts',
-                    color_continuous_scale='Blues',
-                    text='Posts'
-                )
-                fig_xcat.update_layout(
-                    margin=dict(l=10, r=20, t=10, b=10),
-                    height=280,
-                    showlegend=False,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    yaxis=dict(autorange="reversed")
-                )
-                st.plotly_chart(fig_xcat, width="stretch")
-
-            with cx_type:
-                st.write("**X Posts by Account Category:**")
-                xtype_df = df_x['Author Type'].value_counts().reset_index()
-                xtype_df.columns = ['Account Type', 'Posts']
-                fig_xtype = px.pie(
-                    xtype_df,
-                    values='Posts',
-                    names='Account Type',
-                    hole=0.45,
-                    color_discrete_sequence=px.colors.qualitative.Safe
-                )
-                fig_xtype.update_layout(
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    height=280,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    showlegend=True,
-                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0)
-                )
-                st.plotly_chart(fig_xtype, width="stretch")
-
-            # Selection Controls for X Posts Word Export
-            if "editor_ver_x" not in st.session_state:
-                st.session_state["editor_ver_x"] = 0
-            if "selected_links_x" not in st.session_state:
-                st.session_state["selected_links_x"] = set(p.get("link", "") for p in filtered_x_posts)
-
-            st.markdown("##### 📌 Select X Posts to Export to Word Document")
-            col_filt_x1, col_filt_x2, col_filt_x3 = st.columns([2, 2, 2])
-            with col_filt_x1:
-                x_cat_choices = ["All Categories"] + sorted(list(df_x["Structured Category"].unique()))
-                filter_table_xcat = st.selectbox("Filter Table by Category:", x_cat_choices, key="tbl_cat_filter_x")
-            with col_filt_x2:
-                x_type_choices = ["All Account Types"] + sorted(list(df_x["Author Type"].unique()))
-                filter_table_xtype = st.selectbox("Filter Table by Account Type:", x_type_choices, key="tbl_type_filter_x")
-            with col_filt_x3:
-                table_kw_x = st.text_input("Quick Filter X Posts by Keyword:", placeholder="Filter tweets...", key="tbl_kw_filter_x")
-
-            col_sel_x1, col_sel_x2, col_sel_x3, col_info_x = st.columns([1.5, 1.5, 2, 4])
-            with col_sel_x1:
-                if st.button("☑️ Select All", key="btn_sel_all_x"):
-                    st.session_state["selected_links_x"] = set(p.get("link", "") for p in filtered_x_posts)
-                    st.session_state["editor_ver_x"] += 1
-                    st.rerun()
-            with col_sel_x2:
-                if st.button("⬜ Deselect All", key="btn_desel_all_x"):
-                    st.session_state["selected_links_x"] = set()
-                    st.session_state["editor_ver_x"] += 1
-                    st.rerun()
-            with col_sel_x3:
-                if st.button("⚡ Select Top 25 Viral", key="btn_sel_top25_x"):
-                    sorted_viral = sorted(filtered_x_posts, key=lambda x: x.get("likes", 0) + x.get("retweets", 0), reverse=True)
-                    st.session_state["selected_links_x"] = set(p.get("link", "") for p in sorted_viral[:25])
-                    st.session_state["editor_ver_x"] += 1
-                    st.rerun()
-
-            display_df_x = df_x.copy()
-            if filter_table_xcat != "All Categories":
-                display_df_x = display_df_x[display_df_x["Structured Category"] == filter_table_xcat]
-            if filter_table_xtype != "All Account Types":
-                display_df_x = display_df_x[display_df_x["Author Type"] == filter_table_xtype]
-            if table_kw_x.strip():
-                tkw_x = table_kw_x.strip().lower()
-                display_df_x = display_df_x[display_df_x["Post Content"].str.lower().str.contains(tkw_x, na=False) | display_df_x["Author"].str.lower().str.contains(tkw_x, na=False)]
-
-            display_df_x_with_sel = display_df_x.copy()
-            display_df_x_with_sel.insert(
-                0, 
-                "Select", 
-                [link in st.session_state["selected_links_x"] for link in display_df_x_with_sel["Post Link"]]
-            )
-
-            col_config_x = {
-                "Select": st.column_config.CheckboxColumn(
-                    "Include?",
-                    help="Check this box to include this post in the Word Document export",
-                    default=True
-                ),
-                "Post Content": st.column_config.TextColumn(
-                    "Post Text",
-                    width="large"
-                ),
-                "Author": st.column_config.TextColumn(
-                    "Author",
-                    width="medium"
-                ),
-                "Structured Category": st.column_config.TextColumn(
-                    "Category",
-                    width="small"
-                ),
-                "Likes": st.column_config.NumberColumn(
-                    "Likes",
-                    width="small"
-                ),
-                "Retweets": st.column_config.NumberColumn(
-                    "RTs",
-                    width="small"
-                ),
-                "Post Link": st.column_config.LinkColumn(
-                    "Link",
-                    display_text="Open on X ↗",
-                    width="small"
-                )
-            }
-
-            edited_df_x = st.data_editor(
-                display_df_x_with_sel[["Select", "Post Content", "Author", "Structured Category", "Likes", "Retweets", "Post Link"]],
-                column_config=col_config_x,
-                disabled=[c for c in display_df_x_with_sel.columns if c != "Select"],
-                hide_index=True,
-                width="stretch",
-                key=f"editor_x_{st.session_state['editor_ver_x']}_{len(display_df_x)}"
-            )
-
-            # Update selected links in session state
-            for idx, row in edited_df_x.iterrows():
-                link = row["Post Link"]
-                if row["Select"]:
-                    st.session_state["selected_links_x"].add(link)
-                else:
-                    st.session_state["selected_links_x"].discard(link)
-
-            selected_x_posts = [p for p in filtered_x_posts if p.get("link") in st.session_state["selected_links_x"]]
-
-            with col_info_x:
-                st.markdown(f'<div class="apple-counter-badge">📋 <b>{len(selected_x_posts):,} of {len(filtered_x_posts):,}</b> posts selected for Executive Report</div>', unsafe_allow_html=True)
-
-            # Interactive Report Preview Expander
-            with st.expander("👁️ X (Twitter) Intelligence Report Live Preview", expanded=False):
-                st.markdown(f"**Document Title:** `Nepal X (Twitter) Social Intelligence Report`")
-                st.markdown(f"**Total Selected Posts:** `{len(selected_x_posts)}`")
-                if selected_x_posts:
-                    st.markdown("**Sample Formatted Post in Report:**")
-                    sample_x = selected_x_posts[0]
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #1D9BF0; padding:12px 16px; border-radius:8px; font-size:0.9rem;">
-                        <div style="font-weight:700; color:#0284C7; font-size:0.75rem; letter-spacing:0.04em; margin-bottom:4px;">{map_to_target_category(sample_x.get("structured_category", ""))}</div>
-                        <div style="font-style:italic; font-weight:700; color:#0F172A;">• {html.escape(sample_x.get("text", "")[:120])}...</div>
-                        <div style="font-size:0.82rem; color:#64748B; margin:4px 0;">({html.escape(sample_x.get("author_name", ""))} @{html.escape(sample_x.get("handle", ""))})</div>
-                        <div style="color:#334155; line-height:1.5; font-size:0.86rem; margin-top:6px;">{html.escape(sample_x.get("text", ""))}</div>
-                        <div style="margin-top:6px; font-size:0.8rem; color:#0284C7; text-decoration:underline;">{html.escape(sample_x.get("link", ""))}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            csv_file_x = df_x.to_csv(index=False).encode('utf-8-sig')
-
-            c_btn_x1, c_btn_x2 = st.columns(2)
-            with c_btn_x1:
-                st.download_button(
-                    label=f"📥 Download X Posts CSV ({len(df_x):,} Posts)",
-                    data=csv_file_x,
-                    file_name=f"nepal_x_posts_full_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    width='stretch'
-                )
-            with c_btn_x2:
-                if selected_x_posts:
-                    x_sel_hash = hash(tuple(p.get("link", "") for p in selected_x_posts))
-                    if st.session_state.get("docx_ready_hash_x") != x_sel_hash:
-                        if st.button(f"📄 Prepare Executive Word Document ({len(selected_x_posts):,} Posts)", key="btn_prep_docx_x", width="stretch", type="primary"):
-                            with st.spinner("Building X Intelligence Word dossier..."):
-                                st.session_state["docx_bytes_x"] = generate_word_document(selected_x_posts, report_title="Nepal X (Twitter) Social Intelligence Report")
-                                st.session_state["docx_ready_hash_x"] = x_sel_hash
-                            st.rerun()
-                    else:
-                        st.download_button(
-                            label=f"⬇️ Download Ready Word Document ({len(selected_x_posts):,} Posts)",
-                            data=st.session_state["docx_bytes_x"],
-                            file_name=f"nepal_x_intelligence_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            width="stretch",
-                            type="primary"
-                        )
-                else:
-                    st.warning("⚠️ No posts selected. Check the box on posts above to enable Word export.")
-        else:
-            st.info("No X posts found matching the selected timeframe.")
+                    st.download_button(
+                        label=f"⬇️ Download Ready Word Document ({len(selected_export_items):,} Items)",
+                        data=st.session_state["docx_bytes_univ"],
+                        file_name=f"nepal_intelligence_dossier_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        width="stretch",
+                        type="primary"
+                    )
+            else:
+                st.warning("⚠️ No items selected. Check items in the table above or click 'Select All' to export Word document.")
+    else:
+        st.info("No items match the chosen filter criteria. Try adjusting the search keyword or selecting 'All Streams'.")
 
     # ==========================================
     # WHATSAPP CHANNEL BROADCAST ENGINE (RENDER CLOUD DAEMON)
