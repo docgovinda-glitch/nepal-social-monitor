@@ -46,7 +46,7 @@ def broadcast_daemon_thread():
     # Run startup collection and catch-up cycle upon container boot
     try:
         logger.info("Performing container startup queue collection & catch-up scan...")
-        summary = run_single_broadcast_cycle(force=False)
+        summary = run_single_broadcast_cycle(max_items_per_cycle=0, force=False)
         STATUS_TRACKER["last_run"] = datetime.now(NEPAL_TZ).isoformat()
         STATUS_TRACKER["last_summary"] = summary
         STATUS_TRACKER["runs_completed"] += 1
@@ -63,10 +63,25 @@ def broadcast_daemon_thread():
                 f"[Render Worker] Next WhatsApp cycle at: {next_run.strftime('%Y-%m-%d %I:%M:%S %p')} NPT "
                 f"(sleeping for {sleep_secs}s / {sleep_secs // 60}m)..."
             )
-            time.sleep(sleep_secs)
+            # Sleep in 6-minute intervals while pinging self URL to prevent Render Free tier spin-down
+            remaining = sleep_secs
+            while remaining > 0:
+                chunk = min(360, remaining)
+                time.sleep(chunk)
+                remaining -= chunk
+                if remaining > 0:
+                    try:
+                        import urllib.request
+                        req = urllib.request.Request(
+                            "https://nepal-social-monitor-worker.onrender.com",
+                            headers={"User-Agent": "Render-Self-KeepAlive/1.0"},
+                        )
+                        urllib.request.urlopen(req, timeout=10).read()
+                    except Exception:
+                        pass
 
             logger.info("[Render Worker] Waking up for scheduled hourly cycle at minute :01...")
-            summary = run_single_broadcast_cycle(force=False)
+            summary = run_single_broadcast_cycle(max_items_per_cycle=0, force=False)
             STATUS_TRACKER["last_run"] = datetime.now(NEPAL_TZ).isoformat()
             STATUS_TRACKER["last_summary"] = summary
             STATUS_TRACKER["runs_completed"] += 1

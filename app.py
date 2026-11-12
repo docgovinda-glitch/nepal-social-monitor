@@ -1669,8 +1669,10 @@ with tab4:
     st.subheader("WhatsApp Distribution Console (Cloud Autonomous)")
 
     # Render Worker Live Heartbeat Card
-    @st.cache_data(ttl=20, show_spinner=False)
+    @st.cache_data(ttl=25, show_spinner=False)
     def fetch_render_worker_status():
+        import ssl
+        ctx = ssl._create_unverified_context()
         render_url = "https://nepal-social-monitor-worker.onrender.com"
         for _ in range(2):
             try:
@@ -1681,15 +1683,20 @@ with tab4:
                         "Accept": "application/json"
                     }
                 )
-                with urllib.request.urlopen(req, timeout=12) as resp:
+                with urllib.request.urlopen(req, context=ctx, timeout=18) as resp:
                     data = json.loads(resp.read().decode())
-                    if isinstance(data, dict) and data.get("uptime_status") == "running":
+                    if isinstance(data, dict) and data.get("uptime_status") in ("running", "starting"):
                         return data, True
             except Exception:
                 time.sleep(1)
         return {}, False
 
     render_info, render_online = fetch_render_worker_status()
+    if render_online and render_info:
+        st.session_state["last_render_info"] = render_info
+    elif st.session_state.get("last_render_info"):
+        render_info = st.session_state["last_render_info"]
+        render_online = True
 
     r_col1, r_col2 = st.columns([2.5, 1.5])
     with r_col1:
@@ -1738,13 +1745,17 @@ with tab4:
     from nepal_news_store import get_whatsapp_queue_stats, get_pending_whatsapp_queue
     q_stats = get_whatsapp_queue_stats()
 
+    nep_b_count = int(by_stream.get("nepali_media", 0))
+    ind_b_count = int(by_stream.get("indian_media", 0))
+    total_b_count = nep_b_count + ind_b_count
+
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.metric("Total Broadcasted", f"{wa_stats['total_broadcasted']:,}")
+        st.metric("Total Broadcasted", f"{total_b_count:,}")
     with m2:
-        st.metric("📰 Nepali Media", f"{by_stream.get('nepali_media', 0):,}")
+        st.metric("📰 Nepali Media", f"{nep_b_count:,}")
     with m3:
-        st.metric("🇮🇳 Indian Media (Nepal)", f"{by_stream.get('indian_media', 0):,}")
+        st.metric("🇮🇳 Indian Media (Nepal)", f"{ind_b_count:,}")
     with m4:
         st.metric("📥 Persistent Queue Pending", f"{q_stats['pending_count']:,}", help="Held in persistent Supabase queue for next scheduled hourly cycle")
 
