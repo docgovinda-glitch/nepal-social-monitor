@@ -236,7 +236,15 @@ def run_single_broadcast_cycle(
     """
     now_nepal = datetime.now(NEPAL_TZ)
 
-    # STEP 1: Continuous Ingestion into persistent queue
+    # STEP 1: Continuous Ingestion into persistent queue & 7-Day Purge
+    try:
+        # Automated 7-Day news article retention purge
+        purge_res = nepal_news_store.query_supabase("SELECT purge_expired_news_articles();")
+        if purge_res:
+            logger.info(f"Executed automated 7-day data retention cleanup: {purge_res}")
+    except Exception as purge_err:
+        logger.warning(f"7-day retention purge warning (non-fatal): {purge_err}")
+
     try:
         collect_and_enqueue_news_items()
     except Exception as ex:

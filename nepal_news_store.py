@@ -418,6 +418,12 @@ def record_broadcast_dispatch(
     """
     query_supabase(sql)
 
+def is_item_delivered_in_supabase(item_key: str) -> bool:
+    """Checks if an item_key already exists in broadcast_logs with status='delivered'."""
+    sql = f"SELECT item_key FROM broadcast_logs WHERE item_key = {esc_sql(item_key)} AND status = 'delivered' LIMIT 1;"
+    res = query_supabase(sql)
+    return bool(res)
+
 def get_recent_broadcast_logs(limit: int = 50) -> List[Dict[str, Any]]:
     """Fetches recent broadcast audit logs from Supabase."""
     sql = f"SELECT * FROM broadcast_logs ORDER BY dispatched_at DESC LIMIT {limit};"

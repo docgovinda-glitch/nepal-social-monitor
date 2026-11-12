@@ -148,10 +148,25 @@ def get_item_key(item: Dict[str, Any], item_type: str = "article") -> str:
     return hashlib.sha256(raw.strip().encode("utf-8", errors="ignore")).hexdigest()[:24]
 
 def is_item_broadcasted(item: Dict[str, Any], item_type: str = "article") -> bool:
-    """Checks if an item was already sent to avoid duplicate broadcasting."""
-    cache = load_sent_cache()
+    """Checks if an item was already sent to avoid duplicate broadcasting.
+    Queries Supabase broadcast_logs as authoritative store, with local cache fallback."""
     key = get_item_key(item, item_type)
-    return key in cache.get("sent_keys", {})
+    # Check local in-memory cache first for speed
+    cache = load_sent_cache()
+    if key in cache.get("sent_keys", {}):
+        return True
+
+    # Supabase centralized check
+    try:
+        from nepal_news_store import is_item_delivered_in_supabase
+        if is_item_delivered_in_supabase(key):
+            # Cache locally to speed up subsequent checks
+            cache.setdefault("sent_keys", {})[key] = {"key": key, "status": "delivered"}
+            return True
+    except Exception:
+        pass
+
+    return False
 
 def mark_item_broadcasted(
     item: Dict[str, Any],

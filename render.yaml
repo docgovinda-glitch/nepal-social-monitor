@@ -19,6 +19,10 @@ services:
         sync: false
       - key: WHATSAPP_CHANNEL_URL
         sync: false
+      - key: SUPABASE_MANAGEMENT_TOKEN
+        sync: false
+      - key: SUPABASE_PROJECT_REF
+        value: "iiztmvbfrydfowehtiqa"
       - key: TWITTER_BEARER_TOKEN
         sync: false
       - key: MAX_BROADCAST_PER_CYCLE
