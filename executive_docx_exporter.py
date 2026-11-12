@@ -97,20 +97,26 @@ def _translate_ne_to_en(text: str, timeout: int = 5) -> str:
     if clean in _TRANSLATION_CACHE:
         return _TRANSLATION_CACHE[clean]
 
-    # Split long bodies into chunks <= 1800 chars for reliable translation
+    # Split long bodies into chunks <= 2500 chars for reliable translation without truncating any text
     chunks = []
-    if len(clean) <= 1800:
+    if len(clean) <= 2500:
         chunks = [clean]
     else:
         paras = clean.split("\n\n")
         cur = ""
         for p in paras:
-            if len(cur) + len(p) + 2 <= 1800:
+            if len(cur) + len(p) + 2 <= 2500:
                 cur = f"{cur}\n\n{p}" if cur else p
             else:
                 if cur:
                     chunks.append(cur)
-                cur = p[:1800]
+                if len(p) <= 2500:
+                    cur = p
+                else:
+                    # Split very long single paragraph in 2000-char slices without losing any characters
+                    for i in range(0, len(p), 2000):
+                        chunks.append(p[i : i + 2000])
+                    cur = ""
         if cur:
             chunks.append(cur)
 
@@ -260,57 +266,27 @@ def _title_tokens(title: str) -> set:
 
 def deduplicate_and_cluster_articles(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Deduplicates identical URLs/titles and groups closely related coverage into
-    `related_links` on the lead article (matching the reference doc's 'More related news:' feature).
-    Also prioritizes native English articles as lead stories when available.
+    Preserves ALL news items published in the user's selected date and time range
+    so no items are ever missed or collapsed. Only removes exact duplicate (link, title) records.
     """
-    # Sort so English portal articles with rich content come first within each topic
-    def _quality_key(a: Dict[str, Any]) -> Tuple[int, int]:
-        title = a.get("title") or ""
-        content = a.get("full_content") or a.get("summary") or ""
-        is_en = 0 if _has_devanagari(title) else 1
-        return (is_en, len(content))
+    unique_items: List[Dict[str, Any]] = []
+    seen_keys = set()
 
-    sorted_arts = sorted(articles, key=_quality_key, reverse=True)
-    clusters: List[Dict[str, Any]] = []
-    seen_links = set()
-
-    for art in sorted_arts:
-        raw_t = (art.get("headline_english") or art.get("title") or art.get("text") or "").strip()
-        # Skip raw scoreboard ticker widgets (e.g., 'NPL Match 22 · Nov 12...')
-        if re.search(r"NPL\s+(?:Live\s+)?Match\s+\d+\s*·", raw_t, flags=re.IGNORECASE):
-            continue
+    for art in articles:
         link = (art.get("link") or "").strip()
-        if link and link in seen_links:
+        title = (art.get("title") or art.get("text") or "").strip()
+        cid = art.get("canonical_id") or ""
+        dedup_key = cid if cid else (link if link else title)
+        if dedup_key and dedup_key in seen_keys:
             continue
-        if link:
-            seen_links.add(link)
+        if dedup_key:
+            seen_keys.add(dedup_key)
 
-        headline = (art.get("headline_english") or art.get("title") or art.get("text") or "").strip()
-        tokens = _title_tokens(headline)
+        item_copy = dict(art)
+        item_copy["related_links"] = list(art.get("related_links") or [])
+        unique_items.append(item_copy)
 
-        matched_cluster = None
-        if len(tokens) >= 3:
-            for cl in clusters:
-                cl_tokens = cl.get("_tokens", set())
-                if not cl_tokens:
-                    continue
-                overlap = len(tokens & cl_tokens)
-                union = len(tokens | cl_tokens)
-                if overlap >= 4 or (union > 0 and (overlap / union) >= 0.55):
-                    matched_cluster = cl
-                    break
-
-        if matched_cluster is not None:
-            if link and link != matched_cluster.get("link") and link not in matched_cluster["related_links"]:
-                matched_cluster["related_links"].append(link)
-        else:
-            item_copy = dict(art)
-            item_copy["related_links"] = list(art.get("related_links") or [])
-            item_copy["_tokens"] = tokens
-            clusters.append(item_copy)
-
-    return clusters
+    return unique_items
 
 
 # ==========================================
@@ -604,7 +580,7 @@ def _make_trending_item_p(headline_text: str) -> OxmlElement:
 
 
 def _clean_article_paragraphs(raw_body: str, fallback_title: str) -> List[str]:
-    """Splits and cleans article body text into well-formed editorial paragraphs."""
+    """Splits and cleans the complete article body text into full editorial paragraphs without truncation."""
     txt = html.unescape(raw_body or "").strip()
     if not txt:
         return [fallback_title] if fallback_title else []
@@ -615,7 +591,7 @@ def _clean_article_paragraphs(raw_body: str, fallback_title: str) -> List[str]:
     seen = set()
     for p in raw_paras:
         p_clean = re.sub(r"\s+", " ", p).strip()
-        if not p_clean or len(p_clean) < 15:
+        if not p_clean or len(p_clean) < 3:
             continue
         low = p_clean.lower()
         if any(
@@ -623,7 +599,7 @@ def _clean_article_paragraphs(raw_body: str, fallback_title: str) -> List[str]:
             for junk in [
                 "cookie policy", "privacy policy", "all rights reserved",
                 "subscribe to our", "follow us on", "download our app",
-                "click here to", "also read:", "related news:",
+                "click here to", "news summary generated by ok ai",
             ]
         ):
             continue
@@ -634,8 +610,7 @@ def _clean_article_paragraphs(raw_body: str, fallback_title: str) -> List[str]:
 
     if not cleaned:
         cleaned = [re.sub(r"\s+", " ", txt).strip()]
-    # Cap overly long scrapes to 12 crisp editorial paragraphs
-    return cleaned[:12]
+    return cleaned
 
 
 def _prepare_article_for_digest(art: Dict[str, Any]) -> Dict[str, Any]:
@@ -780,22 +755,21 @@ def generate_executive_word_digest(
     for sec in REFERENCE_NEWS_SECTIONS:
         grouped_clusters[sec] = deduplicate_and_cluster_articles(grouped_raw[sec])
 
-    # Fetch missing full content for lead stories if needed
-    lead_stories_to_enrich = []
+    # Fetch complete full text for ALL stories in the digest so every item covers the full text of the news
+    all_stories_to_enrich = []
     for sec in REFERENCE_NEWS_SECTIONS:
         for st_item in grouped_clusters[sec]:
-            body_cand = (st_item.get("full_content") or st_item.get("summary") or "").strip()
-            if len(body_cand) < 120 and (st_item.get("link") or "").startswith("http"):
-                lead_stories_to_enrich.append(st_item)
+            if (st_item.get("link") or "").startswith("http"):
+                all_stories_to_enrich.append(st_item)
 
-    if lead_stories_to_enrich:
+    if all_stories_to_enrich:
         try:
             from nepal_fetcher import batch_fetch_full_content
-            batch_fetch_full_content(lead_stories_to_enrich[:50], max_workers=15)
+            batch_fetch_full_content(all_stories_to_enrich, max_workers=25)
         except Exception:
             pass
 
-    # Prepare & translate (where needed) in parallel
+    # Prepare & translate (where needed) in parallel while preserving exact item order
     prepared_by_section: Dict[str, List[Dict[str, Any]]] = {sec: [] for sec in REFERENCE_NEWS_SECTIONS}
     flat_tasks: List[Tuple[str, Dict[str, Any]]] = []
     for sec in REFERENCE_NEWS_SECTIONS:
@@ -803,7 +777,7 @@ def generate_executive_word_digest(
             flat_tasks.append((sec, st_item))
 
     if flat_tasks:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             futures = [executor.submit(_prepare_article_for_digest, item) for _, item in flat_tasks]
             for (sec, _), fut in zip(flat_tasks, futures):
                 try:

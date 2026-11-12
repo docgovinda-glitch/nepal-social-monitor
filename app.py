@@ -495,6 +495,39 @@ else:
     filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] <= filter_end_dt]
     filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] <= filter_end_dt]
 
+# Guarantee 100% completeness for the selected date & time range by reconciling directly with persistent store
+try:
+    db_window_articles = get_stored_articles(
+        start_dt=active_time_cutoff,
+        end_dt=filter_end_dt,
+        limit=5000,
+    )
+    seen_art_keys = {a.get("canonical_id") or a.get("link") for a in filtered_articles}
+    for dba in db_window_articles:
+        k = dba.get("canonical_id") or dba.get("link")
+        pdt = dba.get("published_dt")
+        if k and k not in seen_art_keys and isinstance(pdt, datetime.datetime):
+            if (not active_time_cutoff or pdt >= active_time_cutoff) and pdt <= filter_end_dt:
+                _, dba["relative_time"], dba["exact_time"] = parse_to_nepal_time(pdt, now_npt)
+                filtered_articles.append(dba)
+                seen_art_keys.add(k)
+except Exception:
+    pass
+
+try:
+    db_window_indian = get_stored_indian_articles(status_filter="substantive", limit=2000)
+    seen_ind_keys = {a.get("canonical_id") or a.get("link") for a in filtered_indian}
+    for dbi in db_window_indian:
+        k = dbi.get("canonical_id") or dbi.get("link")
+        pdt = dbi.get("published_dt")
+        if k and k not in seen_ind_keys and isinstance(pdt, datetime.datetime):
+            if (not active_time_cutoff or pdt >= active_time_cutoff) and pdt <= filter_end_dt:
+                _, dbi["relative_time"], dbi["exact_time"] = parse_to_nepal_time(pdt, now_npt)
+                filtered_indian.append(dbi)
+                seen_ind_keys.add(k)
+except Exception:
+    pass
+
 # Sort EVERY channel strictly by newest publication timestamp first
 filtered_articles.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
 filtered_indian.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
@@ -1605,8 +1638,8 @@ with tab4:
 
                 if st.session_state.get("docx_ready_hash_univ") != univ_hash:
                     if st.button(f"📄 Prepare Executive Word Document ({len(selected_export_items):,} Stories)", key="btn_prep_univ_docx", width="stretch", type="primary"):
-                        with st.spinner(f"Preparing NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) from master template..."):
-                            enriched_docx_items = batch_fetch_full_content(raw_items_for_docx[:60]) if len(raw_items_for_docx) <= 60 else raw_items_for_docx
+                        with st.spinner(f"Preparing NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full news text for all {len(selected_export_items):,} items..."):
+                            enriched_docx_items = batch_fetch_full_content(raw_items_for_docx, max_workers=25)
                             st.session_state["docx_bytes_univ"] = generate_word_document(
                                 enriched_docx_items,
                                 report_title="NEPAL DAILY NEWS DIGEST",
