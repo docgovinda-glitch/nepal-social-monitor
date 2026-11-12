@@ -37,3 +37,6 @@ green_api_qr.png
 *.log
 .agents/skills/developing-with-streamlit
 .claude/
+*.db
+*.db-wal
+*.db-shm
