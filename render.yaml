@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     buildCommand: "pip install -r requirements-worker.txt"
-    startCommand: "python fastapi_app.py"
+    startCommand: "python render_worker_server.py"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
