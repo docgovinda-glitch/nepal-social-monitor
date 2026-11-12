@@ -446,6 +446,37 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
         """
         query_supabase(sql)
 
+def ingest_indian_articles_batch(
+    articles: List[Dict[str, Any]],
+    source_name: str,
+    latency_secs: float = 0.0
+) -> Dict[str, int]:
+    """Ingests Indian media articles into Supabase."""
+    batch_upsert_indian_articles(articles)
+    return {"discovered": len(articles), "ingested": len(articles), "duplicates": 0, "relevant": len(articles)}
+
+def get_indian_media_audit_stats() -> Dict[str, int]:
+    """Returns volume stats for Indian media articles in Supabase."""
+    sql = """
+    SELECT 
+        COUNT(*) as total_discovered,
+        SUM(CASE WHEN relevance_status = 'relevant' THEN 1 ELSE 0 END) as relevant,
+        SUM(CASE WHEN relevance_status = 'borderline' THEN 1 ELSE 0 END) as borderline,
+        SUM(CASE WHEN relevance_status = 'excluded' THEN 1 ELSE 0 END) as excluded
+    FROM indian_media_articles;
+    """
+    rows = query_supabase(sql)
+    if rows:
+        r = rows[0]
+        return {
+            "total_discovered": int(r.get("total_discovered") or 0),
+            "relevant": int(r.get("relevant") or 0),
+            "borderline": int(r.get("borderline") or 0),
+            "excluded": int(r.get("excluded") or 0)
+        }
+    return {"total_discovered": 0, "relevant": 0, "borderline": 0, "excluded": 0}
+
+
 def get_stored_indian_articles(
     relevance_status: Optional[str] = "relevant",
     limit: int = 500
