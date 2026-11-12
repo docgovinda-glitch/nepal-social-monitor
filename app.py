@@ -1659,13 +1659,14 @@ with tab4:
 
     with r_col2:
         now_np = datetime.datetime.now(NEPAL_TZ)
-        next_h = now_np.hour + 1
-        if next_h <= 22 and now_np.hour >= 6:
-            next_run_str = f"{next_h:02d}:00:00 NPT"
-            mins_left = 60 - now_np.minute
+        from whatsapp_auto_worker import get_next_run_time
+        next_run_dt = get_next_run_time(now_np)
+        mins_left = max(0, int((next_run_dt - now_np).total_seconds() // 60))
+        if 6 <= now_np.hour < 22 or (now_np.hour == 22 and now_np.minute <= 1):
+            next_run_str = next_run_dt.strftime("%I:%M %p NPT")
             status_caption = f"⏱️ Next Cycle: **{next_run_str}** (~{mins_left}m)"
         else:
-            status_caption = "🌙 Quiet Window (Resumes 06:00 AM NPT)"
+            status_caption = f"🌙 Night Window (Resumes 06:01 AM NPT, ~{mins_left // 60}h)"
         st.markdown(f"""
         <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:10px; padding:12px 16px; margin-bottom:14px; text-align:center;">
             <div style="font-size:0.75rem; color:#64748B; font-weight:600; text-transform:uppercase;">Scheduled Timing</div>
@@ -1674,8 +1675,11 @@ with tab4:
         """, unsafe_allow_html=True)
 
     wa_stats = get_broadcasted_stats()
-
     by_stream = wa_stats.get("by_stream", {})
+
+    from nepal_news_store import get_whatsapp_queue_stats, get_pending_whatsapp_queue
+    q_stats = get_whatsapp_queue_stats()
+
     m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric("Total Broadcasted", f"{wa_stats['total_broadcasted']:,}")
@@ -1684,79 +1688,53 @@ with tab4:
     with m3:
         st.metric("🇮🇳 Indian Media (Nepal)", f"{by_stream.get('indian_media', 0):,}")
     with m4:
-        st.metric("🐦 X (Twitter)", f"{by_stream.get('x', 0):,}")
+        st.metric("📥 Persistent Queue Pending", f"{q_stats['pending_count']:,}", help="Held in persistent Supabase queue for next scheduled hourly cycle")
 
-    # Deduplication Queue: Align strictly with the active hourly broadcast window
-    now_dt = datetime.datetime.now(NEPAL_TZ)
-    is_morning_window = (now_dt.hour == 6 or now_dt.hour < 7)
-    worker_lookback_mins = 600 if is_morning_window else 75
-    broadcast_cutoff = now_dt - datetime.timedelta(minutes=worker_lookback_mins)
-    lookback_display_label = "overnight window (10h)" if is_morning_window else "past hour"
+    # Fetch pending items directly from persistent Supabase queue (Nepali Media & Indian Press only)
+    pending_queue_items = get_pending_whatsapp_queue(limit=100)
 
-    def is_within_broadcast_window(it):
-        pdt = it.get("published_dt")
-        if isinstance(pdt, datetime.datetime):
-            item_dt = pdt if pdt.tzinfo else pdt.replace(tzinfo=NEPAL_TZ)
-            return item_dt >= broadcast_cutoff
-        return False
-
-    pending_queue = []
-    # 1. Nepali Media: fresh articles published within broadcast window
-    for item in filtered_articles:
-        if is_within_broadcast_window(item) and not is_item_broadcasted(item, "article"):
-            pending_queue.append({"item": item, "type": "article", "source_type": "Nepali Media"})
-    # 2. Indian Media: fresh articles substantially related to Nepal within broadcast window
-    for item in filtered_indian:
-        if is_substantially_related_to_nepal(item) and is_within_broadcast_window(item):
-            if not is_item_broadcasted(item, "article"):
-                pending_queue.append({"item": item, "type": "article", "source_type": "Indian Press"})
-    # 3. X (Twitter): fresh posts within broadcast window
-    for item in filtered_x_posts:
-        if is_within_broadcast_window(item) and not is_item_broadcasted(item, "x"):
-            pending_queue.append({"item": item, "type": "x", "source_type": "X (Twitter)"})
-
-    with st.expander(f"📥 Pending for Next Hourly Broadcast ({len(pending_queue)} fresh unsent items in {lookback_display_label})", expanded=False):
+    with st.expander(f"📥 Pending for Next Hourly Broadcast ({q_stats['pending_count']} eligible items queued)", expanded=False):
         q_col1, q_col2 = st.columns([3, 1.2])
         with q_col1:
-            st.caption("Broadcasts are automated 24/7 on Render cloud runner. Items in this queue will automatically dispatch at the top of the hour.")
+            st.caption("Broadcasts are automated 24/7 on Render cloud worker (Nepali Media & Indian Press only; X excluded). All items in this queue will dispatch sequentially at :01.")
         with q_col2:
             queue_filter = st.selectbox(
                 "Filter Queue Source",
-                ["All Sources", "Nepali Media", "Indian Press", "X (Twitter)"],
+                ["All Allowed Streams", "Nepali Media", "Indian Press"],
                 key="wa_queue_source_filter",
                 label_visibility="collapsed"
             )
 
-        if queue_filter != "All Sources":
-            display_queue = [q for q in pending_queue if q["source_type"] == queue_filter]
+        if queue_filter == "Nepali Media":
+            display_queue = [q for q in pending_queue_items if q["stream_type"] == "Nepali Media"]
+        elif queue_filter == "Indian Press":
+            display_queue = [q for q in pending_queue_items if q["stream_type"] in ("Indian Press", "Indian Media")]
         else:
-            display_queue = pending_queue
+            display_queue = pending_queue_items
 
         if display_queue:
-            st.caption(f"Showing **{min(15, len(display_queue))}** of {len(display_queue)} queued items waiting for next automated cloud cycle")
+            st.caption(f"Showing **{min(15, len(display_queue))}** of {len(display_queue)} queued items in persistent queue")
 
             # Display Queue Cards
             for idx, q_item in enumerate(display_queue[:15]):
-                raw_item = q_item["item"]
-                itype = q_item["type"]
-                stype = q_item["source_type"]
-                item_title = raw_item.get("title") or raw_item.get("text") or "Untitled"
-                item_source = raw_item.get("source") or raw_item.get("author_name") or raw_item.get("handle") or "Unknown"
-                item_cat = raw_item.get("structured_category", "Others")
-                item_time = raw_item.get("exact_time") or raw_item.get("relative_time") or ""
+                item_title = q_item.get("title") or "Untitled"
+                item_source = q_item.get("source_name") or "Unknown"
+                stype = q_item.get("stream_type") or "Nepali Media"
+                item_time = q_item.get("published_dt") or q_item.get("queued_at") or ""
+                time_str = item_time.strftime("%d %b, %I:%M %p") if isinstance(item_time, datetime.datetime) else str(item_time)[:16]
 
                 st.markdown(f"""
                 <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:12px; margin-bottom:10px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype} · {item_cat}</span>
-                        <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(str(item_time))}</span>
+                        <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype}</span>
+                        <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(time_str)}</span>
                     </div>
                     <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
-                    <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b></div>
+                    <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b> · Status: <span style="color:#2563EB; font-weight:600;">{q_item.get('status', 'pending')}</span></div>
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.success("🎉 All scanned items in this timeframe have been broadcasted! Deduplication engine is up to date.")
+            st.success("🎉 Queue is up to date! All scanned Nepali & Indian news in this timeframe have been delivered.")
 
     # Recent Broadcast History
     with st.expander("📜 Recent Broadcast History (Last 25 Dispatched Updates)", expanded=False):

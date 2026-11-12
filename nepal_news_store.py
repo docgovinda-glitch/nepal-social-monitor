@@ -515,3 +515,152 @@ def get_stored_indian_articles(
     where = f"WHERE relevance_status = {esc_sql(relevance_status)}" if relevance_status else ""
     sql = f"SELECT * FROM indian_media_articles {where} ORDER BY published_dt DESC LIMIT {limit};"
     return query_supabase(sql)
+
+# ==========================================
+# WHATSAPP QUEUE & STATE MANAGEMENT
+# ==========================================
+
+def enqueue_whatsapp_items(items: List[Dict[str, Any]]) -> int:
+    """
+    Enqueues eligible Nepali Media and Indian Press items for WhatsApp broadcast.
+    Guarantees idempotency via ON CONFLICT (item_key) DO NOTHING.
+    Will NOT re-enqueue items that have already been sent or are currently queued.
+    """
+    if not items:
+        return 0
+
+    values = []
+    for it in items:
+        # Strict validation: Only Nepali Media and Indian Press
+        stream = it.get("stream_type") or it.get("stream") or "Nepali Media"
+        if "x" in stream.lower() or "twitter" in stream.lower():
+            continue
+
+        item_key = it.get("item_key") or it.get("canonical_id")
+        if not item_key:
+            continue
+
+        link = it.get("link") or ""
+        title = it.get("title") or "Untitled"
+        source = it.get("source_name") or it.get("source") or "Unknown"
+        summary = it.get("summary") or ""
+        headline_en = it.get("headline_english") or ""
+        pub_dt = it.get("published_dt") or datetime.datetime.now(NEPAL_TZ)
+
+        vals = [
+            esc_sql(item_key),
+            esc_sql(it.get("canonical_id") or item_key),
+            esc_sql(source),
+            esc_sql(stream),
+            esc_sql(title),
+            esc_sql(headline_en),
+            esc_sql(link),
+            esc_sql(summary),
+            esc_sql(pub_dt),
+            esc_sql("pending"),
+            "0",
+            "NOW()"
+        ]
+        values.append(f"({', '.join(vals)})")
+
+    if not values:
+        return 0
+
+    # Batch insert into whatsapp_queue with ON CONFLICT DO NOTHING
+    # Also verify that item_key is NOT already in broadcast_logs with status='delivered'
+    sql = f"""
+    INSERT INTO whatsapp_queue (
+        item_key, canonical_id, source_name, stream_type, title,
+        headline_english, link, summary, published_dt, status,
+        attempts, queued_at
+    ) VALUES {', '.join(values)}
+    ON CONFLICT (item_key) DO NOTHING;
+    """
+    query_supabase(sql)
+    return len(values)
+
+def get_pending_whatsapp_queue(limit: int = 200) -> List[Dict[str, Any]]:
+    """
+    Fetches eligible items from whatsapp_queue with status='pending' or failed (attempts < 5).
+    Ordered sequentially by oldest publication timestamp first.
+    Excludes any items already marked as delivered in broadcast_logs.
+    """
+    sql = f"""
+    SELECT q.*
+    FROM whatsapp_queue q
+    LEFT JOIN broadcast_logs b ON q.item_key = b.item_key AND b.status = 'delivered'
+    WHERE q.status IN ('pending', 'failed')
+      AND q.attempts < 5
+      AND b.item_key IS NULL
+      AND q.stream_type IN ('Nepali Media', 'Indian Press', 'Indian Media')
+    ORDER BY q.published_dt ASC NULLS LAST, q.queued_at ASC
+    LIMIT {limit};
+    """
+    return query_supabase(sql)
+
+def mark_whatsapp_queue_processing(item_keys: List[str]):
+    """Marks queue items as processing with attempt timestamp."""
+    if not item_keys:
+        return
+    keys_str = ", ".join([esc_sql(k) for k in item_keys])
+    sql = f"""
+    UPDATE whatsapp_queue
+    SET status = 'processing',
+        attempts = attempts + 1,
+        last_attempt_at = NOW()
+    WHERE item_key IN ({keys_str});
+    """
+    query_supabase(sql)
+
+def mark_whatsapp_queue_sent(item_key: str, message_id: str = ""):
+    """Marks item as successfully sent."""
+    sql = f"""
+    UPDATE whatsapp_queue
+    SET status = 'sent',
+        sent_at = NOW(),
+        message_id = {esc_sql(message_id)},
+        error_msg = NULL
+    WHERE item_key = {esc_sql(item_key)};
+    """
+    query_supabase(sql)
+
+def mark_whatsapp_queue_failed(item_key: str, error_msg: str = ""):
+    """Marks item as failed with error details for retry."""
+    sql = f"""
+    UPDATE whatsapp_queue
+    SET status = 'failed',
+        error_msg = {esc_sql(error_msg[:300])}
+    WHERE item_key = {esc_sql(item_key)};
+    """
+    query_supabase(sql)
+
+def get_whatsapp_queue_stats() -> Dict[str, Any]:
+    """Retrieves live counts for the WhatsApp distribution queue."""
+    sql = """
+    SELECT 
+        COUNT(*) as total_items,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count,
+        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent_count,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
+        SUM(CASE WHEN stream_type = 'Nepali Media' AND status IN ('pending', 'failed') THEN 1 ELSE 0 END) as pending_nepali,
+        SUM(CASE WHEN stream_type IN ('Indian Press', 'Indian Media') AND status IN ('pending', 'failed') THEN 1 ELSE 0 END) as pending_indian
+    FROM whatsapp_queue;
+    """
+    rows = query_supabase(sql)
+    if rows:
+        r = rows[0]
+        return {
+            "total_items": int(r.get("total_items") or 0),
+            "pending_count": int(r.get("pending_count") or 0),
+            "processing_count": int(r.get("processing_count") or 0),
+            "sent_count": int(r.get("sent_count") or 0),
+            "failed_count": int(r.get("failed_count") or 0),
+            "pending_nepali": int(r.get("pending_nepali") or 0),
+            "pending_indian": int(r.get("pending_indian") or 0)
+        }
+    return {
+        "total_items": 0, "pending_count": 0, "processing_count": 0,
+        "sent_count": 0, "failed_count": 0, "pending_nepali": 0, "pending_indian": 0
+    }
+

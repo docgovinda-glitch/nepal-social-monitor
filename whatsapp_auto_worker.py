@@ -28,7 +28,16 @@ logger = logging.getLogger("whatsapp_auto_worker")
 
 # Import project modules
 from nepal_fetcher import fetch_top_nepal_media, fetch_nepal_in_indian_media, NEPAL_TZ
-from nepal_x_scanner import scan_popular_nepal_x_posts
+# Explicitly exclude X from WhatsApp distribution
+from nepal_news_store import (
+    enqueue_whatsapp_items,
+    get_pending_whatsapp_queue,
+    mark_whatsapp_queue_processing,
+    mark_whatsapp_queue_sent,
+    mark_whatsapp_queue_failed,
+    get_whatsapp_queue_stats,
+    get_all_source_health
+)
 from whatsapp_dispatcher import (
     load_sent_cache,
     is_item_broadcasted,
@@ -95,59 +104,163 @@ def dispatch_to_meta_cloud_api(item: Dict[str, Any], item_type: str) -> bool:
 
 def is_within_broadcast_hours(dt: datetime) -> bool:
     """
-    Checks if given time is within allowed broadcasting hours:
+    Checks if given time is within allowed WhatsApp broadcasting hours:
     From 6:00 AM (06:00) to 10:00 PM (22:00) NPT.
-    Allows tolerance for runs starting at 22:00:00 up to 22:05:00.
+    Strictly:
+      6:00 AM <= dt < 10:00 PM (hour 6 through 21, or 22:00:00 - 22:05:00 window).
+    Between 10:00 PM and 6:00 AM: WhatsApp sending is paused.
     """
-    if dt.hour < 6:
+    # Force evaluation in Asia/Kathmandu
+    dt_npt = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+    if dt_npt.hour < 6:
         return False
-    if dt.hour > 22:
+    if dt_npt.hour > 22:
         return False
-    if dt.hour == 22 and dt.minute > 5:
+    if dt_npt.hour == 22 and (dt_npt.minute > 5 or (dt_npt.minute == 5 and dt_npt.second > 0)):
         return False
     return True
 
 def get_next_run_time(dt: datetime) -> datetime:
     """
     Calculates the exact next scheduled run time.
-    Operating hours: 6:00 AM to 10:00 PM NPT (hours 6 through 22).
-    Scheduled for the first minute of each hour (:00:00).
-    Night quiet window (10:00 PM to 6:00 AM): sleeps until 06:00:00 AM.
+    Operational Requirement:
+    - Runs at minute 01 of every hour (e.g., 6:01 AM, 7:01 AM, ...).
+    - If current time is past minute 1 of hour H, next run is (H+1):01:00.
+    - If after 10:01 PM NPT, next broadcast window opens at 06:01 AM tomorrow.
+    - If before 6:01 AM NPT, next broadcast run is 06:01 AM today.
     """
-    if dt.hour >= 22 and (dt.minute > 0 or dt.second > 0):
-        # After 10:00 PM cycle finishes, sleep until 06:00 AM tomorrow
-        return (dt + timedelta(days=1)).replace(hour=6, minute=0, second=0, microsecond=0)
-    elif dt.hour < 6:
-        # Before 6:00 AM, sleep until 06:00 AM today
-        return dt.replace(hour=6, minute=0, second=0, microsecond=0)
+    dt_npt = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+
+    # If past 22:01 NPT, sleep until 06:01 AM tomorrow
+    if dt_npt.hour > 22 or (dt_npt.hour == 22 and dt_npt.minute >= 1):
+        return (dt_npt + timedelta(days=1)).replace(hour=6, minute=1, second=0, microsecond=0)
+    # If before 06:01 AM NPT, sleep until 06:01 AM today
+    elif dt_npt.hour < 6 or (dt_npt.hour == 6 and dt_npt.minute < 1):
+        return dt_npt.replace(hour=6, minute=1, second=0, microsecond=0)
     else:
-        # Between 06:00 and 21:59, next run is top of next hour (:00:00)
-        return (dt + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        # Daytime: next run is top of next hour at minute 01 (:01:00)
+        if dt_npt.minute >= 1:
+            next_h = dt_npt + timedelta(hours=1)
+            # If next hour exceeds 22, it rolls to tomorrow 06:01
+            if next_h.hour > 22:
+                return (dt_npt + timedelta(days=1)).replace(hour=6, minute=1, second=0, microsecond=0)
+            return next_h.replace(minute=1, second=0, microsecond=0)
+        else:
+            # We are in the current hour between :00:00 and :00:59, next run is :01:00 this hour
+            return dt_npt.replace(minute=1, second=0, microsecond=0)
+
+def collect_and_enqueue_news_items() -> Dict[str, int]:
+    """
+    Ingests fresh items from the TWO allowed streams:
+      1. Nepali Media (all enabled portals, irrespective of category)
+      2. Indian Press (all items substantially related to Nepal)
+    Strictly excludes X (Twitter) handles and posts.
+    Stores and enqueues items into persistent Supabase `whatsapp_queue`.
+    Runs 24/7 (including during overnight pause) so overnight backlog is preserved.
+    """
+    logger.info("Collecting news items from Nepali Media & Indian Press...")
+    nepali_articles = fetch_top_nepal_media(max_workers=15, force_refresh=True)
+    indian_articles = fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
+
+    try:
+        enabled_portals = {h["name"] for h in get_all_source_health() if h.get("enabled", 1)}
+    except Exception:
+        enabled_portals = set()
+
+    items_to_enqueue = []
+
+    # 1. Nepali Media
+    nepali_count = 0
+    for a in nepali_articles:
+        src = a.get("source", "")
+        if enabled_portals and src and src not in enabled_portals:
+            continue
+        item_k = a.get("canonical_id") or get_item_key(a, "article")
+        items_to_enqueue.append({
+            "item_key": item_k,
+            "canonical_id": a.get("canonical_id") or item_k,
+            "source_name": src,
+            "stream_type": "Nepali Media",
+            "title": a.get("title", ""),
+            "headline_english": a.get("headline_english", ""),
+            "link": a.get("link", ""),
+            "summary": a.get("summary", ""),
+            "published_dt": a.get("published_dt"),
+            "raw_item": a
+        })
+        nepali_count += 1
+
+    # 2. Indian Press (substantially related to Nepal)
+    indian_count = 0
+    for a in indian_articles:
+        if is_substantially_related_to_nepal(a):
+            item_k = a.get("canonical_id") or get_item_key(a, "article")
+            items_to_enqueue.append({
+                "item_key": item_k,
+                "canonical_id": a.get("canonical_id") or item_k,
+                "source_name": a.get("source", "Indian Media"),
+                "stream_type": "Indian Press",
+                "title": a.get("title", ""),
+                "headline_english": a.get("headline_english", ""),
+                "link": a.get("link", ""),
+                "summary": a.get("summary", ""),
+                "published_dt": a.get("published_dt"),
+                "raw_item": a
+            })
+            indian_count += 1
+
+    enqueued_count = enqueue_whatsapp_items(items_to_enqueue)
+    logger.info(
+        f"Ingestion summary: {nepali_count} Nepali Media, {indian_count} Indian Press. "
+        f"Enqueued {enqueued_count} items into persistent Supabase queue."
+    )
+    return {
+        "nepali": nepali_count,
+        "indian": indian_count,
+        "enqueued": enqueued_count
+    }
 
 def run_single_broadcast_cycle(
-    max_items_per_cycle: int = 10,
+    max_items_per_cycle: int = 0,
     dry_run: bool = False,
     force: bool = False
 ) -> Dict[str, Any]:
     """
-    Executes a single scan-and-dispatch cycle across all feeds.
-    Returns summary statistics of the run.
+    Executes a complete collection and dispatch cycle:
+    1. Collects and persists all eligible Nepali Media & Indian Press items into `whatsapp_queue`.
+       (Always runs, even overnight, so news is never missed).
+    2. Checks strict operating window (6:00 AM to 10:00 PM NPT).
+       Between 10:00 PM and 6:00 AM: Pauses sending, retains items in queue.
+       At 6:00 AM: Resumes sending and processes accumulated overnight backlog.
+    3. Fetches queued items sequentially and dispatches them until queue is cleared.
     """
     now_nepal = datetime.now(NEPAL_TZ)
 
-    # Operating window check: 6:00 AM to 10:00 PM NPT
-    if not is_within_broadcast_hours(now_nepal) and not force:
+    # STEP 1: Continuous Ingestion into persistent queue
+    try:
+        collect_and_enqueue_news_items()
+    except Exception as ex:
+        logger.error(f"Error during news collection/enqueue step: {ex}")
+
+    queue_stats_before = get_whatsapp_queue_stats()
+    logger.info(f"Persistent Queue Status: {queue_stats_before}")
+
+    # STEP 2: Operating Window Check (6:00 AM to 10:00 PM NPT)
+    within_hours = is_within_broadcast_hours(now_nepal)
+    if not within_hours and not force:
         logger.info(
-            f"Current time ({now_nepal.strftime('%I:%M %p')} NPT) is outside broadcast window (06:00 AM - 10:00 PM). "
-            "Overnight news is held and will be broadcast at 06:00 AM at once. (Use --force to override)"
+            f"Current time ({now_nepal.strftime('%I:%M %p')} NPT) is in overnight pause window (10:00 PM - 06:00 AM NPT). "
+            f"WhatsApp distribution paused. {queue_stats_before['pending_count']} items held in queue for 06:01 AM NPT dispatch."
         )
         return {
             "timestamp": now_nepal.isoformat(),
             "status": "held_outside_hours",
+            "pending_in_queue": queue_stats_before["pending_count"],
             "dispatched": 0,
             "failed": 0
         }
 
+    # STEP 3: Setup credentials
     webhook_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
     meta_token = get_env_variable("WHATSAPP_ACCESS_TOKEN")
     _, green_id, _ = get_green_api_credentials()
@@ -157,164 +270,141 @@ def run_single_broadcast_cycle(
         if detected_ch:
             green_chat_id = detected_ch
 
-    logger.info("--- Starting Broadcast Scan Cycle ---")
+    logger.info("--- Starting WhatsApp Distribution Cycle ---")
     logger.info(f"Current Time: {now_nepal.strftime('%Y-%m-%d %I:%M:%S %p')} NPT")
-    logger.info(f"Broadcast Channel URL: {get_env_variable('WHATSAPP_CHANNEL_URL', DEFAULT_CHANNEL_URL)}")
-    logger.info(f"Direct Green-API configured: {'Yes (Chat: ' + green_chat_id + ')' if green_id and green_chat_id else 'No'}")
-    logger.info(f"Webhook URL configured: {'Yes' if webhook_url else 'No'}")
-    logger.info(f"Meta Cloud API configured: {'Yes' if meta_token else 'No'}")
+    logger.info(f"Target WhatsApp Chat: {green_chat_id or 'Webhook/Meta API'}")
 
-    # 1. Fetch latest items across portals (Nepali media, Indian media & X posts only)
-    logger.info("Scanning Nepali media, Indian press & X posts...")
-    nepali_articles = fetch_top_nepal_media(max_workers=15, force_refresh=True)
-    indian_articles = fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
-    x_posts = scan_popular_nepal_x_posts(force_refresh=False)
+    # STEP 4: Fetch all pending items from Supabase queue (sequential, oldest first)
+    pending_items = get_pending_whatsapp_queue(limit=500)
+    logger.info(f"Retrieved {len(pending_items)} pending items from persistent queue.")
 
-    all_scanned: List[tuple[Dict[str, Any], str]] = []
-
-    # 1. Nepali Media: Every newly published article from all enabled portals in the existing Nepali Media registry, irrespective of category
-    try:
-        from nepal_news_store import get_all_source_health
-        enabled_portals = {h["name"] for h in get_all_source_health() if h.get("enabled", 1)}
-    except Exception:
-        enabled_portals = set()
-
-    nepali_count = 0
-    for a in nepali_articles:
-        src = a.get("source", "")
-        if enabled_portals and src and src not in enabled_portals:
-            continue
-        all_scanned.append((a, "article"))
-        nepali_count += 1
-
-    # 2. Indian Media: All articles substantially related to Nepal, including its politics, diplomacy, economy, security, and bilateral relations
-    indian_count = 0
-    for a in indian_articles:
-        if is_substantially_related_to_nepal(a):
-            all_scanned.append((a, "article"))
-            indian_count += 1
-
-    # 3. X (Twitter): Every accessible new post from all X handles in the existing monitoring registry, without relevance filtering
-    x_count = 0
-    for p in x_posts:
-        all_scanned.append((p, "x"))
-        x_count += 1
-
-    logger.info(
-        f"Ingested streams: {nepali_count} Nepali Media stories, "
-        f"{indian_count} Nepal-related Indian Media stories, "
-        f"{x_count} X (Twitter) posts."
-    )
-
-    # 2. Filter for items published in the refresh window
-    # Morning window (06:00 AM): 10-hour lookback sweeps all overnight stories from 10 PM to 6 AM
-    if now_nepal.hour == 6 or now_nepal.hour < 7:
-        lookback_seconds = 10 * 3600  # 10 hours covers from 8 PM yesterday to 6 AM today
-        logger.info("🌅 6:00 AM Morning batch: Gathering and broadcasting all overnight news from 10:00 PM to 6:00 AM...")
-    else:
-        # Daytime hourly runs (7:00 AM to 10:00 PM): 75 minutes (1h 15m) lookback
-        # Exactly covers the preceding 1 hour plus a 15-minute jitter buffer for cron and portal delays.
-        lookback_seconds = int(1.25 * 3600)
-
-    cutoff_time = now_nepal - timedelta(seconds=lookback_seconds)
-
-    def _parse_item_dt(val):
-        if isinstance(val, datetime):
-            return val if val.tzinfo else val.replace(tzinfo=NEPAL_TZ)
-        if isinstance(val, str):
-            try:
-                dt = datetime.fromisoformat(val)
-                return dt if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
-            except Exception:
-                return None
-        return None
-
-    unbroadcasted_in_window = []
-    for item, itype in all_scanned:
-        pdt = _parse_item_dt(item.get("published_dt"))
-        # Keep items published within the refresh window (or items with no timestamp)
-        if pdt and pdt < cutoff_time:
-            continue
-        if not is_item_broadcasted(item, itype):
-            unbroadcasted_in_window.append((item, itype))
-
-    # Sort chronological (oldest unbroadcasted first) so messages appear in sequential order
-    def _get_dt(entry):
-        dt = _parse_item_dt(entry[0].get("published_dt"))
-        if not dt:
-            return datetime.min.replace(tzinfo=NEPAL_TZ)
-        return dt
-
-    unbroadcasted_in_window.sort(key=_get_dt)
-
-    logger.info(
-        f"Total scanned: {len(all_scanned)} | "
-        f"Unsent within lookback ({lookback_seconds // 3600}h): {len(unbroadcasted_in_window)}"
-    )
+    if not pending_items:
+        logger.info("Queue is empty. No unsent items pending distribution.")
+        return {
+            "timestamp": now_nepal.isoformat(),
+            "status": "queue_empty",
+            "dispatched": 0,
+            "failed": 0
+        }
 
     dispatched_count = 0
     failed_count = 0
 
-    # If max_items_per_cycle is <= 0 or 0, broadcast ALL stories published in the interval window
+    # Limit to max_items_per_cycle if explicitly requested (> 0); otherwise process ALL
     if max_items_per_cycle and max_items_per_cycle > 0:
-        items_to_send = unbroadcasted_in_window[:max_items_per_cycle]
+        items_to_send = pending_items[:max_items_per_cycle]
         logger.info(f"Broadcasting {len(items_to_send)} items (capped at {max_items_per_cycle})...")
     else:
-        items_to_send = unbroadcasted_in_window
-        logger.info(f"Broadcasting ALL {len(items_to_send)} fresh stories in this cycle...")
+        items_to_send = pending_items
+        logger.info(f"Broadcasting ALL {len(items_to_send)} pending stories in queue until clear...")
 
-    for item, itype in items_to_send:
-        title = item.get("title") or item.get("text") or "Untitled"
-        if dry_run:
-            logger.info(f"[DRY RUN] Would send: {title[:70]}")
-            dispatched_count += 1
+    # Mark all items being processed in database to prevent concurrent collisions
+    mark_whatsapp_queue_processing([it["item_key"] for it in items_to_send])
+
+    for it in items_to_send:
+        # Stop sending if we suddenly cross past 10:00 PM (hour 22) during long dispatch
+        curr_time = datetime.now(NEPAL_TZ)
+        if not is_within_broadcast_hours(curr_time) and not force:
+            logger.info(f"Cutoff reached ({curr_time.strftime('%I:%M %p')} NPT). Halting send loop; remaining items preserved.")
+            break
+
+        item_key = it["item_key"]
+        title = it.get("title") or "Untitled"
+        link = it.get("link") or ""
+        source = it.get("source_name") or "Unknown"
+        stream_type = it.get("stream_type") or "Nepali Media"
+
+        # Check deduplication
+        if is_item_broadcasted(it, "article"):
+            logger.info(f"Item already broadcasted previously ({item_key}). Marking as sent: {title[:50]}")
+            mark_whatsapp_queue_sent(item_key, message_id="already_broadcasted")
             continue
 
+        if dry_run:
+            logger.info(f"[DRY RUN] Would dispatch: [{stream_type}] {source} - {title[:60]}")
+            dispatched_count += 1
+            mark_whatsapp_queue_sent(item_key, message_id="dry_run")
+            continue
+
+        # Format item dictionary for dispatcher
+        dispatch_dict = {
+            "title": title,
+            "headline_english": it.get("headline_english") or "",
+            "link": link,
+            "source": source,
+            "summary": it.get("summary") or "",
+            "published_dt": it.get("published_dt"),
+            "structured_category": "Others",
+            "stream": stream_type
+        }
+
+        # Sequential delivery with retries
         success = False
-        try:
-            if green_id and green_chat_id:
-                ok, msg = dispatch_item_to_green_api(item, itype, green_chat_id)
-                if ok:
-                    logger.info(f"Successfully dispatched to Green-API: {title[:60]}")
-                    success = True
+        msg_id = ""
+        error_info = ""
+
+        for attempt in range(1, 4):
+            try:
+                if green_id and green_chat_id:
+                    ok, msg = dispatch_item_to_green_api(dispatch_dict, "article", green_chat_id)
+                    if ok:
+                        success = True
+                        msg_id = msg
+                        break
+                    else:
+                        error_info = msg
+                        logger.warning(f"Attempt {attempt} failed ({msg}): {title[:50]}")
+                elif webhook_url:
+                    ok, msg = dispatch_item_to_webhook(dispatch_dict, "article", webhook_url)
+                    if ok:
+                        success = True
+                        msg_id = msg
+                        break
+                    else:
+                        error_info = msg
+                elif meta_token:
+                    ok = dispatch_to_meta_cloud_api(dispatch_dict, "article")
+                    if ok:
+                        success = True
+                        break
                 else:
-                    logger.warning(f"Green-API dispatch failed ({msg}): {title[:60]}")
-            elif webhook_url:
-                success = dispatch_to_webhook(item, itype, webhook_url)
-            elif meta_token:
-                success = dispatch_to_meta_cloud_api(item, itype)
-            else:
-                logger.info(f"[NO DISPATCH CHANNEL CONFIGURED] Item queued: {title[:70]}")
-                # Without Green-API, webhook, or meta API, don't mark as sent so it stays in queue
-                break
-        except Exception as ex:
-            logger.error(f"Error dispatching item '{title[:50]}': {ex}")
+                    error_info = "No WhatsApp channel credentials configured"
+                    break
+            except Exception as ex:
+                error_info = str(ex)
+                logger.error(f"Attempt {attempt} exception for '{title[:40]}': {ex}")
+
+            if attempt < 3:
+                time.sleep(2 * attempt)  # Backoff: 2s, 4s
 
         if success:
-            msg_id = msg if (green_id and green_chat_id) else ""
+            logger.info(f"✓ Delivered: [{stream_type}] {source} · {title[:60]}")
+            # Mark persistent cache & database
+            mark_whatsapp_queue_sent(item_key, message_id=msg_id)
             mark_item_broadcasted(
-                item,
-                itype,
+                dispatch_dict,
+                item_type="article",
                 channel_name=green_chat_id or "WhatsApp Group",
                 message_id=msg_id,
                 status="delivered"
             )
             dispatched_count += 1
-            # Dynamic human-like pacing delay (1.5s to 2.8s) to prevent spam heuristics & rate limits
+
+            # Human-like pacing delay (1.5s - 2.8s) to prevent spam heuristics & rate limits
             pacing_delay = random.uniform(1.5, 2.8)
             time.sleep(pacing_delay)
         else:
+            logger.error(f"✗ Delivery failed for: {title[:60]} ({error_info})")
+            mark_whatsapp_queue_failed(item_key, error_msg=error_info)
             failed_count += 1
 
     summary = {
-        "timestamp": datetime.now().isoformat(),
-        "total_scanned": len(all_scanned),
-        "unbroadcasted_found": len(unbroadcasted_in_window),
+        "timestamp": datetime.now(NEPAL_TZ).isoformat(),
         "dispatched": dispatched_count,
         "failed": failed_count,
-        "remaining_unbroadcasted": max(0, len(unbroadcasted_in_window) - dispatched_count)
+        "remaining_pending": get_whatsapp_queue_stats().get("pending_count", 0)
     }
-    logger.info(f"Broadcast cycle finished: {dispatched_count} sent, {failed_count} failed.")
+    logger.info(f"Broadcast cycle complete: {dispatched_count} sent, {failed_count} failed, {summary['remaining_pending']} pending.")
     return summary
 
 def main():

@@ -34,16 +34,18 @@ STATUS_TRACKER = {
 }
 
 def broadcast_daemon_thread():
-    """Runs continuously in the background on Render."""
+    """Runs continuously in the background on Render 24/7."""
     logger.info("==================================================================")
     logger.info("Nepal Monitor 24/7 Daemon Thread Started on Render Free Web Service")
-    logger.info("Schedule: 06:00 AM to 10:00 PM NPT (hourly at :00)")
+    logger.info("Schedule: 06:01 AM to 10:01 PM NPT (every hour at :01)")
+    logger.info("Streams: Nepali Media & Indian Press only (X excluded)")
+    logger.info("Overnight queueing: 24/7 continuous collection, WhatsApp paused 10 PM - 6 AM")
     logger.info("==================================================================")
     STATUS_TRACKER["status"] = "running"
 
-    # Run immediate catch-up cycle upon container boot
+    # Run startup collection and catch-up cycle upon container boot
     try:
-        logger.info("Performing container startup catch-up scan...")
+        logger.info("Performing container startup queue collection & catch-up scan...")
         summary = run_single_broadcast_cycle(force=False)
         STATUS_TRACKER["last_run"] = datetime.now(NEPAL_TZ).isoformat()
         STATUS_TRACKER["last_summary"] = summary
@@ -58,12 +60,12 @@ def broadcast_daemon_thread():
             sleep_secs = max(5, int((next_run - now_nepal).total_seconds()))
 
             logger.info(
-                f"[Render Worker] Next broadcast at: {next_run.strftime('%Y-%m-%d %I:%M:%S %p')} NPT "
+                f"[Render Worker] Next WhatsApp cycle at: {next_run.strftime('%Y-%m-%d %I:%M:%S %p')} NPT "
                 f"(sleeping for {sleep_secs}s / {sleep_secs // 60}m)..."
             )
             time.sleep(sleep_secs)
 
-            logger.info("[Render Worker] Waking up for scheduled hourly broadcast cycle...")
+            logger.info("[Render Worker] Waking up for scheduled hourly cycle at minute :01...")
             summary = run_single_broadcast_cycle(force=False)
             STATUS_TRACKER["last_run"] = datetime.now(NEPAL_TZ).isoformat()
             STATUS_TRACKER["last_summary"] = summary
