@@ -2186,10 +2186,62 @@ with tab4:
             st.info("No X posts found matching the selected timeframe.")
 
     # ==========================================
-    # WHATSAPP CHANNEL BROADCAST ENGINE (OPTION 2)
+    # WHATSAPP CHANNEL BROADCAST ENGINE (RENDER CLOUD DAEMON)
     # ==========================================
     st.markdown("---")
-    st.subheader("WhatsApp Distribution Console")
+    st.subheader("WhatsApp Distribution Console (Cloud Autonomous)")
+
+    # Render Worker Live Heartbeat Card
+    render_url = "https://nepal-social-monitor-worker.onrender.com"
+    render_info = {}
+    render_online = False
+    try:
+        req = urllib.request.Request(render_url, headers={"User-Agent": "NepalMonitor-LocalUI/1.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            render_info = json.loads(resp.read().decode())
+            render_online = True
+    except Exception:
+        render_online = False
+
+    r_col1, r_col2 = st.columns([2.5, 1.5])
+    with r_col1:
+        if render_online:
+            st.markdown(f"""
+            <div style="background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(5,150,105,0.02)); border:1px solid #10B981; border-radius:10px; padding:12px 16px; margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="height:10px; width:10px; background:#10B981; border-radius:50%; display:inline-block; box-shadow:0 0 8px #10B981;"></span>
+                        <strong style="color:#065F46; font-size:0.95rem;">Render 24/7 Cloud Worker: ACTIVE</strong>
+                    </div>
+                    <span style="font-size:0.75rem; background:#D1FAE5; color:#065F46; font-weight:700; padding:3px 8px; border-radius:6px;">Uptime: Running</span>
+                </div>
+                <div style="font-size:0.8rem; color:#047857; margin-top:6px;">
+                    Started: <b>{render_info.get('started_at', '')[:16].replace('T', ' ')} NPT</b> · Completed Runs: <b>{render_info.get('runs_completed', 0)}</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="background:#FEF2F2; border:1px solid #EF4444; border-radius:10px; padding:12px 16px; margin-bottom:14px;">
+                <strong style="color:#991B1B;">⚠️ Render Worker Status: Contacting Cloud Runner...</strong>
+            </div>
+            """, unsafe_allow_html=True)
+
+    with r_col2:
+        now_np = datetime.datetime.now(NEPAL_TZ)
+        next_h = now_np.hour + 1
+        if next_h <= 22 and now_np.hour >= 6:
+            next_run_str = f"{next_h:02d}:00:00 NPT"
+            mins_left = 60 - now_np.minute
+            status_caption = f"⏱️ Next Cycle: **{next_run_str}** (~{mins_left}m)"
+        else:
+            status_caption = "🌙 Quiet Window (Resumes 06:00 AM NPT)"
+        st.markdown(f"""
+        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:10px; padding:12px 16px; margin-bottom:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#64748B; font-weight:600; text-transform:uppercase;">Scheduled Timing</div>
+            <div style="font-size:0.95rem; font-weight:700; color:#1E293B; margin-top:4px;">{status_caption}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     wa_stats = get_broadcasted_stats()
 
@@ -2205,7 +2257,6 @@ with tab4:
         st.metric("🐦 X (Twitter)", f"{by_stream.get('x', 0):,}")
 
     # Deduplication Queue: Align strictly with the active hourly broadcast window
-    # 75 minutes (1h 15m) during daytime (covers preceding 1 hour + 15m buffer); 10 hours morning window
     now_dt = datetime.datetime.now(NEPAL_TZ)
     is_morning_window = (now_dt.hour == 6 or now_dt.hour < 7)
     worker_lookback_mins = 600 if is_morning_window else 75
@@ -2236,7 +2287,8 @@ with tab4:
 
     q_col1, q_col2 = st.columns([3, 1.2])
     with q_col1:
-        st.markdown(f"##### 📥 Pending Broadcast Queue (`{len(pending_queue)}` fresh unsent items in {lookback_display_label})")
+        st.markdown(f"##### 📥 Pending for Next Hourly Broadcast (`{len(pending_queue)}` fresh unsent items in {lookback_display_label})")
+        st.caption("ℹ️ Broadcasts are automated 24/7 on Render cloud runner. Stories in this queue will automatically dispatch at the top of the hour.")
     with q_col2:
         queue_filter = st.selectbox(
             "Filter Queue Source:",
@@ -2250,36 +2302,7 @@ with tab4:
         display_queue = pending_queue
 
     if display_queue:
-        # Batch Actions Bar
-        b_c1, b_c2, b_c3 = st.columns([2, 2.5, 1.8])
-        with b_c1:
-            st.caption(f"Displaying top **{min(15, len(display_queue))}** of {len(display_queue)} pending items")
-        with b_c2:
-            if st.button("⚡ Broadcast Top 10 to WhatsApp", key="btn_wa_broadcast_top10"):
-                target_chat = get_env_variable("GREEN_API_CHAT_ID")
-                wh_url = get_env_variable("WHATSAPP_WEBHOOK_URL")
-                sent_count = 0
-                for q_entry in display_queue[:10]:
-                    raw = q_entry["item"]
-                    ityp = q_entry["type"]
-                    ok = False
-                    if target_chat:
-                        ok, _ = dispatch_item_to_green_api(raw, ityp, target_chat)
-                    elif wh_url:
-                        ok, _ = dispatch_item_to_webhook(raw, ityp, wh_url)
-                    else:
-                        ok = True
-                    if ok:
-                        mark_item_broadcasted(raw, ityp)
-                        sent_count += 1
-                        time.sleep(0.3)
-                st.success(f"✅ {sent_count} items broadcasted & marked as sent in cache.")
-                st.rerun()
-        with b_c3:
-            if st.button("🗑 Clear Sent Cache History", key="btn_wa_clear_cache"):
-                save_sent_cache({"sent_keys": {}, "history": []})
-                st.warning("Sent cache history cleared.")
-                st.rerun()
+        st.caption(f"Showing **{min(15, len(display_queue))}** of {len(display_queue)} queued items waiting for next automated cloud cycle")
 
         # Display Queue Cards
         for idx, q_item in enumerate(display_queue[:15]):
@@ -2308,15 +2331,11 @@ with tab4:
     with st.expander("📜 Recent Broadcast History (Last 25 Dispatched Updates)", expanded=False):
         if wa_stats["recent_history"]:
             for h in wa_stats["recent_history"][:15]:
-                hc1, hc2, hc3 = st.columns([4, 1.5, 1])
+                hc1, hc2 = st.columns([4, 1.5])
                 with hc1:
                     st.markdown(f"**{html.escape(h.get('title', ''))}**\n\n_{html.escape(h.get('source', ''))}_ · `{h.get('stream', h.get('type'))}`")
                 with hc2:
                     st.caption(f"Sent: {h.get('sent_at', '')[:16]}")
-                with hc3:
-                    if st.button("↺ Re-queue", key=f"btn_requeue_{h.get('key')}"):
-                        unmark_item_broadcasted({"link": h.get("link"), "title": h.get("title")}, h.get("type", "article"))
-                        st.rerun()
         else:
             st.caption("No broadcast history recorded yet.")
 
