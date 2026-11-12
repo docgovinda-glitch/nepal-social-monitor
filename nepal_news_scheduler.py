@@ -13,7 +13,6 @@ import zoneinfo
 from typing import List, Dict, Any, Optional
 
 from nepal_news_store import (
-    get_db_connection,
     batch_upsert_articles,
     record_source_error,
     get_all_source_health,
