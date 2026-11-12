@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import json
+import random
 import logging
 import argparse
 import urllib.request
@@ -299,7 +300,9 @@ def run_single_broadcast_cycle(
                 status="delivered"
             )
             dispatched_count += 1
-            time.sleep(1)  # 1-second pacing between posts to respect rate limits
+            # Dynamic human-like pacing delay (1.5s to 2.8s) to prevent spam heuristics & rate limits
+            pacing_delay = random.uniform(1.5, 2.8)
+            time.sleep(pacing_delay)
         else:
             failed_count += 1
 
