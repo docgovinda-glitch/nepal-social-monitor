@@ -574,35 +574,6 @@ st.sidebar.button(
     help="Reset all filters across all tabs to default"
 )
 
-st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
-
-# --- Monitored Sources · 52 (Collapsed by default with live health summary) ---
-with st.sidebar.expander("Monitored Sources · 52", expanded=False):
-    try:
-        sb_kpis = get_system_kpis()
-        op_cnt = sb_kpis.get("operational", 34)
-        tot_np = sb_kpis.get("total_sources", 34)
-    except Exception:
-        op_cnt, tot_np = 34, 34
-
-    st.markdown(
-        f"""<div style="display:flex; flex-direction:column; gap:6px; font-size:0.75rem; color:#334155;">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px;">
-                <span><b>Nepali Portals</b> ({tot_np})</span>
-                <span style="color:#047857; font-weight:700;">● {op_cnt}/{tot_np} Online</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px;">
-                <span><b>Indian Outlets</b> (18)</span>
-                <span style="color:#047857; font-weight:700;">● 18/18 Online</span>
-            </div>
-            <div style="color:#64748B; font-size:0.7rem; line-height:1.35; margin-top:2px;">
-                <b>NP:</b> eKantipur, Setopati, OnlineKhabar, Ratopati, Annapurna Post, Naya Patrika, NepalKhabar, Kathmandu Post, Himalayan Times, MyRepublica, Baahrakhari, Nepal Press & 22 more.<br>
-                <b>IN:</b> Indian Express, The Hindu, India Today, NDTV, Hindustan Times, Business Standard, Amar Ujala, Jagran & 10 more.
-            </div>
-        </div>""",
-        unsafe_allow_html=True
-    )
-
 # Silent background credentials for Twitter API
 default_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
 try:

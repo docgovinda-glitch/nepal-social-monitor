@@ -803,57 +803,70 @@ APPLE_DESIGN_SYSTEM_CSS = """
         box-shadow: 0 2px 6px rgba(64, 88, 114, 0.3) !important;
     }
 
-    /* Segmented Control & Radio (Timeframe Presets - Single Row 4-Segment Bar) */
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] {
+    /* Native Segmented Control (st.segmented_control / stButtonGroup) */
+    div.stButtonGroup,
+    div[data-testid="stButtonGroup"] {
+        width: 100% !important;
+        display: block !important;
+    }
+    div.stButtonGroup > div,
+    div[data-testid="stButtonGroup"] > div {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
         background-color: #EDF2F7 !important;
         padding: 3px !important;
-        border-radius: 8px !important;
-        border: 1px solid #E2E8F0 !important;
-        display: grid !important;
-        grid-template-columns: repeat(4, 1fr) !important;
+        border-radius: 9px !important;
+        border: 1px solid #CBD5E1 !important;
         gap: 2px !important;
-        width: 100% !important;
-        margin-top: 2px !important;
+        overflow: hidden !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label {
-        margin: 0 !important;
-        padding: 3px 1px !important;
-        min-height: 28px !important;
-        height: 28px !important;
+    div.stButtonGroup button,
+    div[data-testid="stButtonGroup"] button,
+    button[data-variant="segmented_control"] {
+        flex: 1 1 0px !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        width: 100% !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0 4px !important;
         border-radius: 6px !important;
-        display: flex !important;
+        border: none !important;
+        background-color: transparent !important;
+        color: #475569 !important;
+        font-size: 0.72rem !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        text-align: center !important;
+        display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
         cursor: pointer !important;
-        background: transparent !important;
-        border: none !important;
         transition: all 0.15s ease !important;
-        overflow: hidden !important;
+        box-shadow: none !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {
-        display: none !important;
+    div.stButtonGroup button:hover,
+    div[data-testid="stButtonGroup"] button:hover {
+        background-color: rgba(255, 255, 255, 0.6) !important;
+        color: #1E293B !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label p,
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label div {
-        font-size: 0.68rem !important;
-        font-weight: 600 !important;
-        color: #475569 !important;
+    div.stButtonGroup button[data-selected],
+    div[data-testid="stButtonGroup"] button[data-selected],
+    button[data-variant="segmented_control"][data-selected] {
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12) !important;
+    }
+    div.stButtonGroup button p,
+    div[data-testid="stButtonGroup"] button p {
         margin: 0 !important;
         padding: 0 !important;
-        white-space: nowrap !important;
-        word-break: normal !important;
-        overflow: visible !important;
+        font-size: 0.72rem !important;
         line-height: 1 !important;
-        text-align: center !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) {
-        background-color: #FFFFFF !important;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important;
-    }
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) p,
-    section[data-testid="stSidebar"] [data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) div {
-        color: #1E293B !important;
-        font-weight: 700 !important;
+        white-space: nowrap !important;
     }
 
     /* Live Tracking Toggle Switch - Muted Slate Blue (#526A85) instead of default red */
