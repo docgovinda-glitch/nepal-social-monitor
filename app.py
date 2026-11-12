@@ -125,12 +125,15 @@ st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
 APP_PASSWORD = os.getenv("APP_PASSWORD", "PIC@55")
 
 def check_password() -> bool:
-    """Returns True if the user entered the correct password."""
+    """Returns True if the user entered the correct password or has a persisted session cookie/token."""
+    # 1. Already authenticated in active memory
     if st.session_state.get("authenticated", False):
         return True
 
+    # 2. Check URL query params for persistent token/key
+    query_auth = st.query_params.get("auth", "")
     query_key = st.query_params.get("key", "")
-    if query_key == APP_PASSWORD:
+    if query_auth == "true" or query_key == APP_PASSWORD:
         st.session_state["authenticated"] = True
         return True
 
@@ -327,6 +330,7 @@ def check_password() -> bool:
     if submit:
         if pwd.strip() == APP_PASSWORD:
             st.session_state["authenticated"] = True
+            st.query_params["auth"] = "true"
             st.rerun()
         else:
             st.error("Incorrect password. Please try again.")
