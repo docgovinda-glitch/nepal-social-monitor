@@ -42,7 +42,7 @@ def get_env_variable(key: str, default: str = "") -> str:
     return default
 
 SUPABASE_TOKEN = get_env_variable("SUPABASE_MANAGEMENT_TOKEN")
-SUPABASE_REF = get_env_variable("SUPABASE_PROJECT_REF", "gfjhsijrwodjvkisouzw")
+SUPABASE_REF = get_env_variable("SUPABASE_PROJECT_REF", "iiztmvbfrydfowehtiqa")
 SUPABASE_QUERY_ENDPOINT = f"https://api.supabase.com/v1/projects/{SUPABASE_REF}/database/query"
 
 def query_supabase(sql: str) -> List[Dict[str, Any]]:
