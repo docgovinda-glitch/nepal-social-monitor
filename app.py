@@ -112,7 +112,7 @@ st.set_page_config(
     page_title="Nepal Media & Geo-Political Intelligence Dashboard",
     page_icon="🇳🇵",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # 2. Modern Apple-Grade Design System & Custom Styling
@@ -354,53 +354,8 @@ if "is_refreshing_feeds" not in st.session_state:
     st.session_state["is_refreshing_feeds"] = False
 
 # ==========================================
-# 4. COMPACT CONTROL PANEL (APPLE TOOLBAR UX)
+# 4. TIME LOGIC & STATE HELPERS
 # ==========================================
-cp_col1, cp_col2 = st.sidebar.columns([1.8, 1])
-with cp_col1:
-    st.markdown(
-        f"""<div style="padding-top:2px;">
-            <div style="font-size:0.95rem; font-weight:700; color:#1E293B; display:flex; align-items:center; gap:6px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526A85" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-                Control Panel
-            </div>
-            <div style="font-size:0.69rem; color:#64748B; font-weight:500; margin-top:2px;">Synced {st.session_state["last_sync_npt"]}</div>
-        </div>""",
-        unsafe_allow_html=True
-    )
-with cp_col2:
-    refresh_btn = st.button(
-        "🔄 Sync",
-        key="btn_cp_refresh",
-        width="stretch",
-        disabled=st.session_state.get("is_refreshing_feeds", False),
-        help="Clear caches and fetch fresh live stories across all monitored sources"
-    )
-
-if refresh_btn:
-    st.session_state["is_refreshing_feeds"] = True
-    with st.sidebar:
-        with st.spinner("Syncing live feeds across 52 sources..."):
-            fetch_top_nepal_media(max_workers=25, force_refresh=True)
-            fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
-            st.cache_data.clear()
-            if "x_posts" in st.session_state:
-                del st.session_state["x_posts"]
-            st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
-            st.session_state["is_refreshing_feeds"] = False
-    st.rerun()
-
-st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
-
-# --- Timeframe Segmented Control ---
-st.sidebar.markdown(
-    """<div class="cp-sec-label">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        Timeframe
-    </div>""",
-    unsafe_allow_html=True
-)
-
 def on_timeframe_preset_change():
     preset = st.session_state.get("cp_timeframe_segment", "12h")
     now_ref = datetime.datetime.now(NEPAL_TZ)
@@ -425,111 +380,35 @@ def on_custom_datetime_edit():
 if "cp_timeframe_segment" not in st.session_state:
     st.session_state["cp_timeframe_segment"] = "12h"
 
-# Native Segmented Control with no circular radio buttons
-selected_preset = st.sidebar.segmented_control(
-    "Timeframe Preset",
-    options=["12h", "24h", "Today", "Custom"],
-    default=st.session_state.get("cp_timeframe_segment", "12h"),
-    key="cp_timeframe_segment",
-    on_change=on_timeframe_preset_change,
-    label_visibility="collapsed"
-)
-
-# Only expand manual date & time pickers if "Custom" is selected
+# Compute Time Window
 if st.session_state.get("cp_timeframe_segment") == "Custom":
-    col_start_d, col_start_t = st.sidebar.columns([1.35, 1])
-    with col_start_d:
-        start_date = st.date_input(
-            "Start Date",
-            value=st.session_state.get("filter_start_date", default_start_date),
-            max_value=now_npt.date(),
-            key="filter_start_date",
-            on_change=on_custom_datetime_edit,
-            help="Start date (NPT)"
-        )
-    with col_start_t:
-        start_time = st.time_input(
-            "Start Time",
-            value=st.session_state.get("filter_start_time", default_start_time),
-            key="filter_start_time",
-            on_change=on_custom_datetime_edit,
-            help="Start time (NPT)"
-        )
+    start_date = st.session_state.get("filter_start_date", default_start_date)
+    start_time = st.session_state.get("filter_start_time", default_start_time)
 else:
+    on_timeframe_preset_change()
     start_date = st.session_state.get("filter_start_date", default_start_date)
     start_time = st.session_state.get("filter_start_time", default_start_time)
 
 filter_start_dt = datetime.datetime.combine(start_date, start_time, tzinfo=NEPAL_TZ)
 
-# --- Live Tracking Toggle & Single Concise Status Row ---
-use_current_time = st.sidebar.toggle(
-    "Live Tracking",
-    value=st.session_state.get("filter_use_current_time", True),
-    key="filter_use_current_time",
-    help="When enabled, automatically advances end time to current moment"
-)
-
+use_current_time = st.session_state.get("filter_use_current_time", True)
 is_to_current = use_current_time
 explicit_all_time = False
 
 if use_current_time:
     filter_end_dt = now_npt
     end_short_str = "Now"
-    status_pill_html = '<span class="cp-status-badge-live">● LIVE</span>'
+    status_pill_html = '<span class="status-pill-live">● LIVE</span>'
 else:
-    col_end_d, col_end_t = st.sidebar.columns([1.35, 1])
-    with col_end_d:
-        end_date = st.date_input(
-            "End Date",
-            value=st.session_state.get("filter_end_date", now_npt.date()),
-            max_value=now_npt.date(),
-            min_value=start_date,
-            key="filter_end_date",
-            on_change=on_custom_datetime_edit,
-            help="End date (NPT)"
-        )
-    with col_end_t:
-        end_time = st.time_input(
-            "End Time",
-            value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)),
-            key="filter_end_time",
-            on_change=on_custom_datetime_edit,
-            help="End time (NPT)"
-        )
+    end_date = st.session_state.get("filter_end_date", now_npt.date())
+    end_time = st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0))
     filter_end_dt = datetime.datetime.combine(end_date, end_time, tzinfo=NEPAL_TZ)
     if filter_end_dt < filter_start_dt:
-        st.sidebar.warning("End time adjusted to follow start time.")
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
     end_short_str = filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
-    status_pill_html = '<span class="cp-status-badge-paused">PAUSED</span>'
+    status_pill_html = '<span class="status-pill-paused">PAUSED</span>'
 
 start_short_str = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0")
-st.sidebar.markdown(
-    f"""<div class="cp-live-row">
-        <span class="cp-range-text">{start_short_str} → {end_short_str}</span>
-        {status_pill_html}
-    </div>""",
-    unsafe_allow_html=True
-)
-
-st.sidebar.markdown('<div class="cp-divider"></div>', unsafe_allow_html=True)
-
-# --- Global Search (Cross-Stream) ---
-st.sidebar.markdown(
-    """<div class="cp-sec-label">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        Quick Search
-    </div>""",
-    unsafe_allow_html=True
-)
-
-search_query = st.sidebar.text_input(
-    "Search",
-    placeholder="Search across all streams...",
-    key="global_search_input",
-    label_visibility="collapsed",
-    help="Bilingual search across Nepali Media, Indian Media, and X Posts"
-)
 
 CAT_FILTER_ALL_UNFILTERED = "🌐 All News"
 CAT_FILTER_ALL_8 = "📂 Classified"
@@ -565,14 +444,6 @@ def reset_all_filters():
     st.session_state["media_visible_count"] = 20
     st.session_state["indian_visible_count"] = 20
     st.session_state["x_visible_count"] = 20
-
-st.sidebar.button(
-    "✕ Reset All Views",
-    width="stretch",
-    key="btn_reset_filters",
-    on_click=reset_all_filters,
-    help="Reset all filters across all tabs to default"
-)
 
 # Silent background credentials for Twitter API
 default_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
@@ -1026,15 +897,9 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
             res.append(it)
     return res
 
-# Global Cross-Channel Search Filter
-if search_query and search_query.strip():
-    filtered_articles = [a for a in filtered_articles if smart_search_match(a, search_query)]
-    filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
-    filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
-
-# Top Minimalist Header
+# Unified Top Minimalist Header & Global Control Toolbar
 st.markdown(f"""
-<div class="apple-top-header">
+<div class="apple-top-header" style="margin-bottom:8px;">
     <div class="apple-top-title-group">
         <span class="apple-flag-icon">🇳🇵</span>
         <div>
@@ -1042,12 +907,76 @@ st.markdown(f"""
             <p class="apple-top-subtitle">34 Nepali · 18 Indian · Live</p>
         </div>
     </div>
-    <div class="apple-top-status">
-        <span class="apple-live-pulse"></span>
-        <span class="apple-status-text">LIVE · {formatted_now_time}</span>
+    <div style="display:flex; align-items:center; gap:12px;">
+        <div class="apple-top-status">
+            <span class="apple-live-pulse"></span>
+            <span class="apple-status-text">LIVE · {formatted_now_time}</span>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Sleek Global Controls Strip (Timeframe, Search, Sync, Reset)
+with st.container():
+    tb_c1, tb_c2, tb_c3, tb_c4, tb_c5 = st.columns([2.4, 1.2, 3.2, 0.9, 0.9])
+    
+    with tb_c1:
+        selected_preset = st.segmented_control(
+            "Timeframe",
+            options=["12h", "24h", "Today", "Custom"],
+            default=st.session_state.get("cp_timeframe_segment", "12h"),
+            key="cp_timeframe_segment",
+            on_change=on_timeframe_preset_change,
+            label_visibility="collapsed"
+        )
+    with tb_c2:
+        use_current_time = st.toggle(
+            "Live",
+            value=st.session_state.get("filter_use_current_time", True),
+            key="filter_use_current_time",
+            help="When on, automatically streams up to the current moment"
+        )
+    with tb_c3:
+        search_query = st.text_input(
+            "Search",
+            placeholder="Search across all streams...",
+            key="global_search_input",
+            label_visibility="collapsed"
+        )
+    with tb_c4:
+        if st.button("🔄 Sync", key="btn_top_sync", width="stretch", help="Sync latest news across all 52 sources"):
+            st.session_state["is_refreshing_feeds"] = True
+            with st.spinner("Syncing live feeds..."):
+                fetch_top_nepal_media(max_workers=25, force_refresh=True)
+                fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
+                st.cache_data.clear()
+                if "x_posts" in st.session_state:
+                    del st.session_state["x_posts"]
+                st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
+                st.session_state["is_refreshing_feeds"] = False
+            st.rerun()
+    with tb_c5:
+        st.button("✕ Reset", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
+
+# Expand custom date/time only if Custom timeframe is selected
+if st.session_state.get("cp_timeframe_segment") == "Custom":
+    c_dt1, c_dt2, c_dt3, c_dt4 = st.columns(4)
+    with c_dt1:
+        st.date_input("Start Date", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date", on_change=on_custom_datetime_edit)
+    with c_dt2:
+        st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
+    with c_dt3:
+        if not use_current_time:
+            st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=start_date, key="filter_end_date", on_change=on_custom_datetime_edit)
+    with c_dt4:
+        if not use_current_time:
+            st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
+
+# Global Cross-Channel Search Filter
+if search_query and search_query.strip():
+    filtered_articles = [a for a in filtered_articles if smart_search_match(a, search_query)]
+    filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
+    filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
 
 # 8. Navigation Tabs (Dynamic Live Counts)
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -1077,21 +1006,24 @@ with tab1:
         with npc1:
             all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
             sel_np_portal = st.selectbox(
-                "Filter by News Portal:",
+                "News Portal",
                 ["All Portals (34)"] + all_portal_names,
-                key="np_portal_filter"
+                key="np_portal_filter",
+                label_visibility="collapsed"
             )
         with npc2:
             sel_np_cat = st.selectbox(
-                "Editorial Category:",
+                "Editorial Category",
                 CATEGORY_FILTER_OPTIONS,
-                key="np_cat_filter"
+                key="np_cat_filter",
+                label_visibility="collapsed"
             )
         with npc3:
             sel_np_lang = st.selectbox(
-                "Language:",
+                "Language",
                 ["All Languages", "Nepali Only", "English Only"],
-                key="np_lang_filter"
+                key="np_lang_filter",
+                label_visibility="collapsed"
             )
 
     # Filter articles based on Tab 1 Controls
@@ -1155,25 +1087,28 @@ with tab2:
         ti_col1, ti_col2, ti_col3 = st.columns([1.6, 1.4, 1.0])
         with ti_col1:
             selected_indian_outlet = st.selectbox(
-                "Filter by Indian Media Outlet:",
+                "Outlet",
                 ["All 18 Indian Outlets"] + indian_outlet_names,
-                key="in_outlet_filter"
+                key="in_outlet_filter",
+                label_visibility="collapsed"
             )
         with ti_col2:
             india_rel_threshold = st.slider(
-                "Minimum Nepal Relevance:",
+                "Relevance Threshold",
                 min_value=0.50,
                 max_value=0.90,
                 value=float(DEFAULT_NEPAL_RELEVANCE_THRESHOLD),
                 step=0.05,
                 key="slider_india_nepal_relevance_threshold",
-                help="Only show Indian coverage scoring at or above this AI confidence threshold for Nepal focus."
+                help="Only show Indian coverage scoring at or above this AI confidence threshold for Nepal focus.",
+                label_visibility="collapsed"
             )
         with ti_col3:
             sel_in_lang = st.selectbox(
-                "Language:",
+                "Language",
                 ["All Languages", "English", "Hindi"],
-                key="in_lang_filter"
+                key="in_lang_filter",
+                label_visibility="collapsed"
             )
 
     tab_filtered_indian = [
@@ -1325,10 +1260,11 @@ with tab3:
         xf_col1, xf_col2, xf_col3, xf_col4 = st.columns([1.6, 1.4, 1.3, 0.9])
         with xf_col1:
             x_cat_filter = st.selectbox(
-                "Filter Editorial Category:",
+                "Editorial Category",
                 CATEGORY_FILTER_OPTIONS,
                 index=0,
-                key="x_cat_filter_select"
+                key="x_cat_filter_select",
+                label_visibility="collapsed"
             )
         with xf_col2:
             acc_types = [
@@ -1344,16 +1280,20 @@ with tab3:
                 "Think Tank & Policy",
                 "Sports & Culture"
             ]
-            selected_acc_type = st.selectbox("Account Category:", acc_types, key="x_acc_type_select")
+            selected_acc_type = st.selectbox(
+                "Account Category",
+                acc_types,
+                key="x_acc_type_select",
+                label_visibility="collapsed"
+            )
         with xf_col3:
             sort_mode = st.selectbox(
-                "Sort Posts By:",
+                "Sort Posts",
                 ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
-                key="x_sort_mode_select"
+                key="x_sort_mode_select",
+                label_visibility="collapsed"
             )
         with xf_col4:
-            st.write("")
-            st.write("")
             if st.button("🔄 Sync X", width="stretch", key="btn_rescan_x"):
                 with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
                     st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
@@ -1549,24 +1489,32 @@ with tab4:
     all_unified_items.sort(key=_parse_sort_dt, reverse=True)
 
     # 2. Consolidated Master Filter Toolbar
-    st.markdown("##### 🔍 Universal Filter Controls")
-    fc1, fc2, fc3, fc4 = st.columns([1.5, 1.5, 1.3, 2])
+    with st.container():
+        st.markdown("""
+        <div class="source-control-bar">
+            <div class="source-control-header">
+                <span class="source-control-title">🔍 Universal Filter Controls</span>
+                <span class="source-control-stats">Cross-Stream Multi-Source Engine</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        fc1, fc2, fc3, fc4 = st.columns([1.4, 1.4, 1.2, 2])
 
-    with fc1:
-        stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
-        sel_stream = st.selectbox("Dataset Stream:", stream_choices, key="univ_stream_filter")
+        with fc1:
+            stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
+            sel_stream = st.selectbox("Dataset Stream", stream_choices, key="univ_stream_filter", label_visibility="collapsed")
 
-    with fc2:
-        all_cats = sorted(list(set(x["category"] for x in all_unified_items if x.get("category"))))
-        cat_choices = ["All Categories"] + all_cats
-        sel_cat = st.selectbox("Category / Section:", cat_choices, key="univ_cat_filter")
+        with fc2:
+            all_cats = sorted(list(set(x["category"] for x in all_unified_items if x.get("category"))))
+            cat_choices = ["All Categories"] + all_cats
+            sel_cat = st.selectbox("Category / Section", cat_choices, key="univ_cat_filter", label_visibility="collapsed")
 
-    with fc3:
-        all_langs = ["All Languages", "Nepali", "English", "Nepali / English"]
-        sel_lang = st.selectbox("Content Language:", all_langs, key="univ_lang_filter")
+        with fc3:
+            all_langs = ["All Languages", "Nepali", "English", "Nepali / English"]
+            sel_lang = st.selectbox("Content Language", all_langs, key="univ_lang_filter", label_visibility="collapsed")
 
-    with fc4:
-        kw_filter = st.text_input("Search Keyword (Headline / Content / Author):", placeholder="Search anything...", key="univ_kw_filter")
+        with fc4:
+            kw_filter = st.text_input("Search Keyword", placeholder="Search keyword or author...", key="univ_kw_filter", label_visibility="collapsed")
 
     # Apply Consolidated Filtering
     filtered_export_items = all_unified_items

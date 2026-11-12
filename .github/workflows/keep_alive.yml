@@ -13,3 +13,4 @@ jobs:
       - name: Ping Render Web Service
         run: |
           curl -f -s https://nepal-social-monitor-worker.onrender.com || echo "Ping attempted"
+

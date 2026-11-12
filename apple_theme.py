@@ -38,18 +38,74 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background-color: var(--apple-bg) !important;
     }
 
-    /* Main Container Padding - Ensure header is not cut off by Streamlit fixed top navbar */
-    .block-container {
-        padding-top: 3.8rem !important;
-        padding-bottom: 3.5rem !important;
-        max-width: 1280px !important;
+    /* Hide Streamlit Sidebar Completely for Native In-Dashboard Control */
+    [data-testid="stSidebar"],
+    section[data-testid="stSidebar"],
+    div[data-testid="collapsedControl"] {
+        display: none !important;
     }
 
-    /* Keep Streamlit top header bar transparent and non-overlapping */
+    /* Main Container Padding - Full width dashboard layout */
+    .block-container {
+        padding-top: 2.2rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1360px !important;
+    }
+
+    /* Keep Streamlit top header bar minimal and transparent */
     header[data-testid="stHeader"] {
         background: transparent !important;
-        height: 2.5rem !important;
-        z-index: 99 !important;
+        height: 1.5rem !important;
+        z-index: 10 !important;
+    }
+
+    /* Unified Dashboard Top Command Bar */
+    .top-command-bar {
+        background: #FFFFFF;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: var(--apple-radius-lg);
+        padding: 10px 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .timeframe-strip {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .status-pill-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #ECFDF5;
+        color: #047857;
+        border: 1px solid #A7F3D0;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+
+    .status-pill-paused {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #FFFBEB;
+        color: #B45309;
+        border: 1px solid #FDE68A;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
     }
 
     hr {
@@ -963,15 +1019,17 @@ APPLE_DESIGN_SYSTEM_CSS = """
     /* Streamlit Data Editor and Table Cell Padding & Visual Polish */
     div[data-testid="stDataEditor"],
     div[data-testid="stDataFrame"] {
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         border: 1px solid #E2E8F0 !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
         overflow: hidden !important;
         background: #FFFFFF !important;
+        margin-top: 6px !important;
+        margin-bottom: 12px !important;
     }
     div[data-testid="stDataEditor"] canvas,
     div[data-testid="stDataFrame"] canvas {
-        border-radius: 8px !important;
+        border-radius: 10px !important;
     }
     
     /* In-Tab Source Control Panel Card */
@@ -979,20 +1037,20 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: 12px;
-        padding: 12px 16px 8px 16px;
-        margin-bottom: 16px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        padding: 10px 16px 8px 16px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
     }
     .source-control-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 10px;
-        padding-bottom: 8px;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
         border-bottom: 1px solid #F1F5F9;
     }
     .source-control-title {
-        font-size: 0.88rem;
+        font-size: 0.85rem;
         font-weight: 700;
         color: #1E293B;
         display: flex;
@@ -1000,7 +1058,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
         gap: 6px;
     }
     .source-control-stats {
-        font-size: 0.76rem;
+        font-size: 0.74rem;
         font-weight: 600;
         color: #64748B;
     }
