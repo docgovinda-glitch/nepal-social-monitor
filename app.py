@@ -2086,11 +2086,12 @@ with tab5:
         lang_badge = f'<span style="background:#FAF5FF; color:#7E22CE; padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600;">🌐 {s_lang}</span>'
 
         # Metrics
-        c_1h = src.get("count_1h", 0)
-        c_24h = src.get("count_24h", 0)
-        c_7d = src.get("count_7d", 0)
-        c_tot = src.get("count_total", 0)
-        lat = round(src.get("discovery_latency_avg_secs", 0.0), 2)
+        c_1h = src.get("count_1h") or 0
+        c_24h = src.get("count_24h") or 0
+        c_7d = src.get("count_7d") or 0
+        c_tot = src.get("count_total") or 0
+        raw_lat = src.get("discovery_latency_avg_secs")
+        lat = round(float(raw_lat), 2) if raw_lat is not None else 0.0
 
         last_disc = src.get("last_discovery_time") or "Pending first cycle"
         latest_title = src.get("latest_article_title") or "No article recorded yet"
