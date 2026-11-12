@@ -27,6 +27,12 @@ def get_env_variable(key: str, default: str = "") -> str:
     val = os.environ.get(key)
     if val:
         return val.strip()
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key]).strip()
+    except Exception:
+        pass
     env_file = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_file):
         try:
