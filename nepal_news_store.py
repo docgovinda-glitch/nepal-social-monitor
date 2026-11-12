@@ -640,6 +640,29 @@ def mark_whatsapp_queue_failed(item_key: str, error_msg: str = ""):
     """
     query_supabase(sql)
 
+def remove_whatsapp_queue_item(item_key: str, reason: str = "Manually removed by user") -> bool:
+    """
+    Removes an item from the active WhatsApp distribution queue by marking it as cancelled,
+    and recording it into broadcast_logs as skipped to guarantee it won't be re-enqueued.
+    """
+    sql_queue = f"""
+    UPDATE whatsapp_queue
+    SET status = 'cancelled_by_user',
+        error_msg = {esc_sql(reason)}
+    WHERE item_key = {esc_sql(item_key)};
+    """
+    query_supabase(sql_queue)
+
+    sql_log = f"""
+    INSERT INTO broadcast_logs (item_key, source_name, stream_type, title, link, status, message_id)
+    SELECT item_key, source_name, stream_type, title, link, 'cancelled_by_user', 'manual_removal'
+    FROM whatsapp_queue
+    WHERE item_key = {esc_sql(item_key)}
+    ON CONFLICT (item_key) DO UPDATE SET status = 'cancelled_by_user';
+    """
+    query_supabase(sql_log)
+    return True
+
 def get_whatsapp_queue_stats() -> Dict[str, Any]:
     """Retrieves live counts for the WhatsApp distribution queue."""
     sql = """

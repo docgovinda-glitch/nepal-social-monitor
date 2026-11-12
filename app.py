@@ -1726,24 +1726,35 @@ with tab4:
         if display_queue:
             st.caption(f"Displaying **{len(display_queue)} of {len(display_queue)}** pending items in distribution queue")
 
-            # Display Queue Cards (All items in dropdown)
+            # Display Queue Cards (All items in dropdown with manual remove option)
+            from nepal_news_store import remove_whatsapp_queue_item
             for idx, q_item in enumerate(display_queue):
+                item_key = q_item.get("item_key") or ""
                 item_title = q_item.get("title") or "Untitled"
                 item_source = q_item.get("source_name") or "Unknown"
                 stype = q_item.get("stream_type") or "Nepali Media"
                 item_time = q_item.get("published_dt") or q_item.get("queued_at") or ""
                 time_str = item_time.strftime("%d %b, %I:%M %p") if isinstance(item_time, datetime.datetime) else str(item_time)[:16]
 
-                st.markdown(f"""
-                <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:12px; margin-bottom:10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype}</span>
-                        <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(time_str)}</span>
+                card_col, btn_col = st.columns([11, 1])
+                with card_col:
+                    st.markdown(f"""
+                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:10px 12px; margin-bottom:6px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype}</span>
+                            <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(time_str)}</span>
+                        </div>
+                        <div style="font-weight:650; font-size:0.92rem; color:#0F172A; margin-bottom:3px;">{html.escape(item_title[:160])}</div>
+                        <div style="font-size:0.78rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b> · Status: <span style="color:#2563EB; font-weight:600;">{q_item.get('status', 'pending')}</span></div>
                     </div>
-                    <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
-                    <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b> · Status: <span style="color:#2563EB; font-weight:600;">{q_item.get('status', 'pending')}</span></div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+
+                with btn_col:
+                    st.write("")
+                    if st.button("✕", key=f"btn_rm_q_{item_key}_{idx}", help=f"Remove '{item_title[:40]}' from distribution queue"):
+                        remove_whatsapp_queue_item(item_key)
+                        st.toast(f"Removed from queue: {item_title[:35]}...", icon="🗑️")
+                        st.rerun()
         else:
             st.success("🎉 Queue is up to date! All scanned Nepali & Indian news in this timeframe have been delivered.")
 
