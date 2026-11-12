@@ -29,6 +29,7 @@ logger = logging.getLogger("whatsapp_auto_worker")
 # Import project modules
 from nepal_fetcher import fetch_top_nepal_media, fetch_nepal_in_indian_media, NEPAL_TZ
 # Explicitly exclude X from WhatsApp distribution
+import nepal_news_store
 from nepal_news_store import (
     enqueue_whatsapp_items,
     get_pending_whatsapp_queue,
