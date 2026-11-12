@@ -27,7 +27,7 @@ Your capabilities:
 
 2. Automated Deduplication & WhatsApp Broadcasting:
    - Manage whatsapp_sent_cache.json using SHA256 hashes to guarantee zero duplicate messages.
-   - Dispatch formatted messages to WhatsApp groups and channels via Green-API (120363413358977926@g.us) or webhooks.
+   - Dispatch formatted messages to WhatsApp groups and channels via Green-API (using configured chat ID) or webhooks.
    - Respect rate limits and circuit-breaker mechanisms on external AI translation services.
 
 3. Monitoring & Operations:
