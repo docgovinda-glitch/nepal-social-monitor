@@ -1622,16 +1622,27 @@ with tab4:
     st.subheader("WhatsApp Distribution Console (Cloud Autonomous)")
 
     # Render Worker Live Heartbeat Card
-    render_url = "https://nepal-social-monitor-worker.onrender.com"
-    render_info = {}
-    render_online = False
-    try:
-        req = urllib.request.Request(render_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            render_info = json.loads(resp.read().decode())
-            render_online = True
-    except Exception:
-        render_online = False
+    @st.cache_data(ttl=20, show_spinner=False)
+    def fetch_render_worker_status():
+        render_url = "https://nepal-social-monitor-worker.onrender.com"
+        for _ in range(2):
+            try:
+                req = urllib.request.Request(
+                    render_url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Accept": "application/json"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    data = json.loads(resp.read().decode())
+                    if isinstance(data, dict) and data.get("uptime_status") == "running":
+                        return data, True
+            except Exception:
+                time.sleep(1)
+        return {}, False
+
+    render_info, render_online = fetch_render_worker_status()
 
     r_col1, r_col2 = st.columns([2.5, 1.5])
     with r_col1:
@@ -1691,7 +1702,7 @@ with tab4:
         st.metric("📥 Persistent Queue Pending", f"{q_stats['pending_count']:,}", help="Held in persistent Supabase queue for next scheduled hourly cycle")
 
     # Fetch pending items directly from persistent Supabase queue (Nepali Media & Indian Press only)
-    pending_queue_items = get_pending_whatsapp_queue(limit=100)
+    pending_queue_items = get_pending_whatsapp_queue(limit=500)
 
     with st.expander(f"📥 Pending for Next Hourly Broadcast ({q_stats['pending_count']} eligible items queued)", expanded=False):
         q_col1, q_col2 = st.columns([3, 1.2])
@@ -1713,10 +1724,10 @@ with tab4:
             display_queue = pending_queue_items
 
         if display_queue:
-            st.caption(f"Showing **{min(15, len(display_queue))}** of {len(display_queue)} queued items in persistent queue")
+            st.caption(f"Displaying **{len(display_queue)} of {len(display_queue)}** pending items in distribution queue")
 
-            # Display Queue Cards
-            for idx, q_item in enumerate(display_queue[:15]):
+            # Display Queue Cards (All items in dropdown)
+            for idx, q_item in enumerate(display_queue):
                 item_title = q_item.get("title") or "Untitled"
                 item_source = q_item.get("source_name") or "Unknown"
                 stype = q_item.get("stream_type") or "Nepali Media"
