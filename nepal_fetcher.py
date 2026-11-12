@@ -170,6 +170,7 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25) -> list:
             to_fetch.append(art)
 
     if to_fetch:
+        newly_enriched = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_art = {
                 executor.submit(extract_article_full_text, a.get("link", "")): a
@@ -182,11 +183,18 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25) -> list:
                     existing_fc = (a.get("full_content") or a.get("summary") or "").strip()
                     if extracted and len(extracted) > len(existing_fc):
                         a["full_content"] = extracted
+                        newly_enriched.append(a)
                     elif not a.get("full_content"):
                         a["full_content"] = existing_fc or a.get("title", "")
                 except Exception:
                     if not a.get("full_content"):
                         a["full_content"] = a.get("summary") or a.get("title", "")
+        if newly_enriched:
+            try:
+                from nepal_news_store import persist_enriched_full_content
+                persist_enriched_full_content(newly_enriched)
+            except Exception:
+                pass
     return articles
 
 # The 9 Ordered Target Categories for Word Export

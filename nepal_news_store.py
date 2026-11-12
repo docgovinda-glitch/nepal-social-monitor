@@ -228,7 +228,17 @@ def batch_upsert_articles(
                 language, portal_category, primary_section, sections, secondary_tags,
                 classification_confidence, low_confidence, is_viral
             ) VALUES {', '.join(chunk)}
-            ON CONFLICT (canonical_id) DO NOTHING;
+            ON CONFLICT (canonical_id) DO UPDATE SET
+                full_content = CASE
+                    WHEN LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                    THEN EXCLUDED.full_content
+                    ELSE articles.full_content
+                END,
+                headline_english = CASE
+                    WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
+                    THEN EXCLUDED.headline_english
+                    ELSE articles.headline_english
+                END;
             """
             query_supabase(sql)
 
@@ -478,9 +488,35 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
             summary, full_content, published_dt, language, nepal_relevance_score,
             relevance_status, relevance_reason
         ) VALUES {', '.join(values_list)}
-        ON CONFLICT (canonical_id) DO NOTHING;
+        ON CONFLICT (canonical_id) DO UPDATE SET
+            full_content = CASE
+                WHEN LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(indian_media_articles.full_content, ''))
+                THEN EXCLUDED.full_content
+                ELSE indian_media_articles.full_content
+            END;
         """
         query_supabase(sql)
+
+
+def persist_enriched_full_content(articles: List[Dict[str, Any]]):
+    """Pushes newly scraped full-article text back into Supabase `articles` and `indian_media_articles`."""
+    if not articles:
+        return
+    stmts = []
+    for a in articles:
+        link = (a.get("link") or "").strip()
+        fc = (a.get("full_content") or "").strip()
+        if not link or len(fc) < 300:
+            continue
+        stream = (a.get("stream") or "").lower()
+        table = "indian_media_articles" if "indian" in stream else "articles"
+        stmts.append(
+            f"UPDATE {table} SET full_content = {esc_sql(fc)} "
+            f"WHERE link = {esc_sql(link)} AND LENGTH(COALESCE(full_content, '')) < {len(fc)};"
+        )
+    chunk_size = 25
+    for i in range(0, len(stmts), chunk_size):
+        query_supabase("\n".join(stmts[i : i + chunk_size]))
 
 def ingest_indian_articles_batch(
     articles: List[Dict[str, Any]],

@@ -1639,11 +1639,12 @@ with tab4:
                 if st.session_state.get("docx_ready_hash_univ") != univ_hash:
                     if st.button(f"📄 Prepare Executive Word Document ({len(selected_export_items):,} Stories)", key="btn_prep_univ_docx", width="stretch", type="primary"):
                         with st.spinner(f"Preparing NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full news text for all {len(selected_export_items):,} items..."):
+                            from executive_docx_exporter import generate_executive_word_digest
                             enriched_docx_items = batch_fetch_full_content(raw_items_for_docx, max_workers=25)
-                            st.session_state["docx_bytes_univ"] = generate_word_document(
-                                enriched_docx_items,
-                                report_title="NEPAL DAILY NEWS DIGEST",
+                            st.session_state["docx_bytes_univ"] = generate_executive_word_digest(
+                                articles=enriched_docx_items,
                                 report_date=digest_dt,
+                                enrich_missing_sections=False,
                             )
                             st.session_state["docx_ready_hash_univ"] = univ_hash
                         st.rerun()
