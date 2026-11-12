@@ -1715,47 +1715,48 @@ with tab4:
         if is_within_broadcast_window(item) and not is_item_broadcasted(item, "x"):
             pending_queue.append({"item": item, "type": "x", "source_type": "X (Twitter)"})
 
-    q_col1, q_col2 = st.columns([3, 1.2])
-    with q_col1:
-        st.markdown(f"##### 📥 Pending for Next Hourly Broadcast (`{len(pending_queue)}` fresh unsent items in {lookback_display_label})")
-        st.caption("ℹ️ Broadcasts are automated 24/7 on Render cloud runner. Stories in this queue will automatically dispatch at the top of the hour.")
-    with q_col2:
-        queue_filter = st.selectbox(
-            "Filter Queue Source:",
-            ["All Sources", "Nepali Media", "Indian Press", "X (Twitter)"],
-            key="wa_queue_source_filter"
-        )
+    with st.expander(f"📥 Pending for Next Hourly Broadcast ({len(pending_queue)} fresh unsent items in {lookback_display_label})", expanded=False):
+        q_col1, q_col2 = st.columns([3, 1.2])
+        with q_col1:
+            st.caption("Broadcasts are automated 24/7 on Render cloud runner. Items in this queue will automatically dispatch at the top of the hour.")
+        with q_col2:
+            queue_filter = st.selectbox(
+                "Filter Queue Source",
+                ["All Sources", "Nepali Media", "Indian Press", "X (Twitter)"],
+                key="wa_queue_source_filter",
+                label_visibility="collapsed"
+            )
 
-    if queue_filter != "All Sources":
-        display_queue = [q for q in pending_queue if q["source_type"] == queue_filter]
-    else:
-        display_queue = pending_queue
+        if queue_filter != "All Sources":
+            display_queue = [q for q in pending_queue if q["source_type"] == queue_filter]
+        else:
+            display_queue = pending_queue
 
-    if display_queue:
-        st.caption(f"Showing **{min(15, len(display_queue))}** of {len(display_queue)} queued items waiting for next automated cloud cycle")
+        if display_queue:
+            st.caption(f"Showing **{min(15, len(display_queue))}** of {len(display_queue)} queued items waiting for next automated cloud cycle")
 
-        # Display Queue Cards
-        for idx, q_item in enumerate(display_queue[:15]):
-            raw_item = q_item["item"]
-            itype = q_item["type"]
-            stype = q_item["source_type"]
-            item_title = raw_item.get("title") or raw_item.get("text") or "Untitled"
-            item_source = raw_item.get("source") or raw_item.get("author_name") or raw_item.get("handle") or "Unknown"
-            item_cat = raw_item.get("structured_category", "Others")
-            item_time = raw_item.get("exact_time") or raw_item.get("relative_time") or ""
+            # Display Queue Cards
+            for idx, q_item in enumerate(display_queue[:15]):
+                raw_item = q_item["item"]
+                itype = q_item["type"]
+                stype = q_item["source_type"]
+                item_title = raw_item.get("title") or raw_item.get("text") or "Untitled"
+                item_source = raw_item.get("source") or raw_item.get("author_name") or raw_item.get("handle") or "Unknown"
+                item_cat = raw_item.get("structured_category", "Others")
+                item_time = raw_item.get("exact_time") or raw_item.get("relative_time") or ""
 
-            st.markdown(f"""
-            <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:12px; margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype} · {item_cat}</span>
-                    <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(str(item_time))}</span>
+                st.markdown(f"""
+                <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:12px; margin-bottom:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype} · {item_cat}</span>
+                        <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(str(item_time))}</span>
+                    </div>
+                    <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
+                    <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b></div>
                 </div>
-                <div style="font-weight:650; font-size:0.95rem; color:#0F172A; margin-bottom:4px;">{html.escape(item_title[:160])}</div>
-                <div style="font-size:0.8rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b></div>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.success("🎉 All scanned items in this timeframe have been broadcasted! Deduplication engine is up to date.")
+                """, unsafe_allow_html=True)
+        else:
+            st.success("🎉 All scanned items in this timeframe have been broadcasted! Deduplication engine is up to date.")
 
     # Recent Broadcast History
     with st.expander("📜 Recent Broadcast History (Last 25 Dispatched Updates)", expanded=False):
