@@ -6,18 +6,22 @@ and global metric aggregation for all 34 Nepali Media Portals and Indian press o
 """
 
 import os
+import time
+import random
 import base64
 import hashlib
 import json
 import logging
 import datetime
 import zoneinfo
+import threading
 import urllib.parse
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional, Tuple
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
+_SUPABASE_SEM = threading.Semaphore(2)
 
 logger = logging.getLogger("nepal_news_store")
 if not logger.handlers:
@@ -73,20 +77,26 @@ def query_supabase(sql: str) -> List[Dict[str, Any]]:
         },
         method="POST"
     )
-    for attempt in range(1, 4):
+    for attempt in range(1, 5):
         try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                res = json.loads(resp.read().decode())
-                return res if isinstance(res, list) else []
+            with _SUPABASE_SEM:
+                with urllib.request.urlopen(req, timeout=25) as resp:
+                    res = json.loads(resp.read().decode())
+                    return res if isinstance(res, list) else []
         except urllib.error.HTTPError as he:
             err_msg = he.read().decode()
+            if he.code == 429 and attempt < 4:
+                time.sleep(1.5 * attempt + random.uniform(0.2, 0.8))
+                continue
             logger.error(f"Supabase HTTP Error {he.code}: {err_msg}")
-            if attempt == 3:
+            if attempt == 4:
                 return []
+            time.sleep(0.8 * attempt)
         except Exception as ex:
             logger.error(f"Supabase request error (attempt {attempt}): {ex}")
-            if attempt == 3:
+            if attempt == 4:
                 return []
+            time.sleep(0.8 * attempt)
     return []
 
 def esc_sql(v: Any) -> str:
@@ -628,6 +638,11 @@ def enqueue_whatsapp_items(items: List[Dict[str, Any]]) -> int:
         summary = it.get("summary") or ""
         headline_en = it.get("headline_english") or ""
         pub_dt = it.get("published_dt") or datetime.datetime.now(NEPAL_TZ)
+        if isinstance(pub_dt, datetime.datetime):
+            pub_cmp = pub_dt.replace(tzinfo=NEPAL_TZ) if pub_dt.tzinfo is None else pub_dt.astimezone(NEPAL_TZ)
+            cutoff_dt = datetime.datetime(2026, 11, 12, 15, 0, 0, tzinfo=NEPAL_TZ)
+            if pub_cmp < cutoff_dt:
+                continue
 
         vals = [
             esc_sql(item_key),
@@ -649,13 +664,25 @@ def enqueue_whatsapp_items(items: List[Dict[str, Any]]) -> int:
         return 0
 
     # Batch insert into whatsapp_queue with ON CONFLICT DO NOTHING
-    # Also verify that item_key is NOT already in broadcast_logs with status='delivered'
+    # Exclude any item_key already in broadcast_logs (delivered, skipped_before_3pm, cancelled_by_user, etc.)
     sql = f"""
     INSERT INTO whatsapp_queue (
         item_key, canonical_id, source_name, stream_type, title,
         headline_english, link, summary, published_dt, status,
         attempts, queued_at
-    ) VALUES {', '.join(values)}
+    )
+    SELECT
+        v.item_key, v.canonical_id, v.source_name, v.stream_type, v.title,
+        v.headline_english, v.link, v.summary,
+        v.published_dt_str::timestamptz, v.status,
+        v.attempts, v.queued_at
+    FROM (VALUES {', '.join(values)}) AS v(
+        item_key, canonical_id, source_name, stream_type, title,
+        headline_english, link, summary, published_dt_str, status,
+        attempts, queued_at
+    )
+    LEFT JOIN broadcast_logs b ON v.item_key = b.item_key
+    WHERE b.item_key IS NULL
     ON CONFLICT (item_key) DO NOTHING;
     """
     query_supabase(sql)
@@ -670,10 +697,11 @@ def get_pending_whatsapp_queue(limit: int = 200) -> List[Dict[str, Any]]:
     sql = f"""
     SELECT q.*
     FROM whatsapp_queue q
-    LEFT JOIN broadcast_logs b ON q.item_key = b.item_key AND b.status = 'delivered'
+    LEFT JOIN broadcast_logs b ON q.item_key = b.item_key AND b.status IN ('delivered', 'skipped_before_3pm', 'skipped_old_archive')
     WHERE q.status IN ('pending', 'failed')
       AND q.attempts < 5
       AND b.item_key IS NULL
+      AND q.published_dt >= '2026-11-12 15:00:00'
       AND q.stream_type IN ('Nepali Media', 'Indian Press', 'Indian Media')
     ORDER BY q.published_dt ASC NULLS LAST, q.queued_at ASC
     LIMIT {limit};
