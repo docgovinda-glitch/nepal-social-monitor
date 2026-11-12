@@ -352,24 +352,27 @@ if "is_refreshing_feeds" not in st.session_state:
 # ==========================================
 # 4. COMPACT CONTROL PANEL (APPLE TOOLBAR UX)
 # ==========================================
-st.sidebar.markdown(
-    f"""<div class="cp-header-row">
-        <span class="cp-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526A85" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-            Control Panel
-        </span>
-        <span class="cp-sync-time" title="Last successful feed refresh">Synced {st.session_state["last_sync_npt"]}</span>
-    </div>""",
-    unsafe_allow_html=True
-)
+cp_col1, cp_col2 = st.sidebar.columns([1.8, 1])
+with cp_col1:
+    st.markdown(
+        f"""<div style="padding-top:2px;">
+            <div style="font-size:0.95rem; font-weight:700; color:#1E293B; display:flex; align-items:center; gap:6px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#526A85" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+                Control Panel
+            </div>
+            <div style="font-size:0.69rem; color:#64748B; font-weight:500; margin-top:2px;">Synced {st.session_state["last_sync_npt"]}</div>
+        </div>""",
+        unsafe_allow_html=True
+    )
+with cp_col2:
+    refresh_btn = st.button(
+        "🔄 Sync",
+        key="btn_cp_refresh",
+        width="stretch",
+        disabled=st.session_state.get("is_refreshing_feeds", False),
+        help="Clear caches and fetch fresh live stories across all monitored sources"
+    )
 
-refresh_btn = st.sidebar.button(
-    "↻ Refresh Feeds",
-    width="stretch",
-    type="primary",
-    disabled=st.session_state.get("is_refreshing_feeds", False),
-    help="Clear cache and fetch live stories across all 52 monitored sources"
-)
 if refresh_btn:
     st.session_state["is_refreshing_feeds"] = True
     with st.sidebar:
