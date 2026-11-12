@@ -423,6 +423,24 @@ def get_recent_broadcast_logs(limit: int = 50) -> List[Dict[str, Any]]:
     sql = f"SELECT * FROM broadcast_logs ORDER BY dispatched_at DESC LIMIT {limit};"
     return query_supabase(sql)
 
+def get_source_broadcast_stats() -> List[Dict[str, Any]]:
+    """Fetches source-wise WhatsApp broadcast volume, latest dispatch, and success counts from Supabase."""
+    sql = """
+    SELECT 
+        source_name,
+        stream_type,
+        COUNT(*) as total_dispatches,
+        SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as delivered_count,
+        SUM(CASE WHEN status != 'delivered' THEN 1 ELSE 0 END) as failed_count,
+        MAX(dispatched_at) as last_dispatched_at
+    FROM broadcast_logs
+    GROUP BY source_name, stream_type
+    ORDER BY total_dispatches DESC;
+    """
+    return query_supabase(sql)
+
+log_broadcast_delivery = record_broadcast_dispatch
+
 def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
     """Upserts Indian media articles into Supabase."""
     if not articles:
