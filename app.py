@@ -1548,8 +1548,19 @@ with tab3:
 # TAB 4: Consolidated Intelligence & Export
 # ==========================================
 with tab4:
-    st.subheader("Consolidated Intelligence Export")
-    st.caption("Universal multi-stream export engine across all monitored Nepali Portals, Indian Press, and Live X intelligence.")
+    start_label = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
+    end_label = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
+    st.markdown(f"""
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+        <div>
+            <h3 style="margin:0; font-size:1.35rem; font-weight:700; color:#1D1D1F;">Consolidated Intelligence Export</h3>
+            <p style="margin:2px 0 0 0; font-size:0.83rem; color:#6E6E73;">Universal multi-stream export engine across all monitored Nepali Portals, Indian Press, and Live X intelligence.</p>
+        </div>
+        <div style="background:#F1F5F9; border:1px solid #CBD5E1; padding:4px 12px; border-radius:8px; font-size:0.78rem; font-weight:600; color:#334155; display:inline-flex; align-items:center; gap:6px;">
+            <span>🕒 Active Window:</span> <b>{start_label} → {end_label}</b>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # 1. Gather all items into a unified, consolidated stream
     all_unified_items = []
@@ -1683,11 +1694,13 @@ with tab4:
         x_count = sum(1 for x in filtered_export_items if x["stream"] == "X (Twitter)")
         st.metric("X Posts", f"{x_count:,}")
 
-    # Selection State for Word Document Export
+    # Selection State for Word Document Export (tracked per active filter signature)
+    current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}_{len(filtered_export_items)}"
     if "editor_ver_univ" not in st.session_state:
         st.session_state["editor_ver_univ"] = 0
-    if "selected_links_univ" not in st.session_state:
-        st.session_state["selected_links_univ"] = set(x["link"] for x in all_unified_items)
+    if st.session_state.get("last_univ_filter_sig") != current_filter_sig or "selected_links_univ" not in st.session_state:
+        st.session_state["selected_links_univ"] = set(x["link"] for x in filtered_export_items)
+        st.session_state["last_univ_filter_sig"] = current_filter_sig
 
     # Batch Selection Controls
     sc1, sc2, sc3, sc_badge = st.columns([1.3, 1.3, 1.8, 3.6])
