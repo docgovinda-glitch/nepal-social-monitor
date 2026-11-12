@@ -600,6 +600,10 @@ def dispatch_item_to_green_api(
         return False, "Green-API credentials not configured"
 
     wa_text = format_whatsapp_message(item, item_type)
+    # WhatsApp text messages support up to 4096 characters; guard against oversized summaries
+    if len(wa_text) > 4000:
+        wa_text = wa_text[:3990] + "...\n(Read full story via link above)"
+
     url = f"{api_url}/waInstance{id_inst}/sendMessage/{token}"
     payload = {
         "chatId": chat_id,
@@ -616,19 +620,23 @@ def dispatch_item_to_green_api(
                 headers={"Content-Type": "application/json; charset=utf-8"},
                 method="POST"
             )
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 resp_data = json.loads(resp.read().decode())
                 if "idMessage" in resp_data:
                     return True, resp_data["idMessage"]
                 last_error = f"Response missing idMessage: {resp_data}"
         except urllib.error.HTTPError as he:
             last_error = f"HTTP {he.code}: {he.reason}"
-            if attempt < max_retries:
+            # On 429 (Rate Limit) or 502/503/504 (Gateway temporary errors), use exponential backoff
+            if he.code in (429, 500, 502, 503, 504):
+                sleep_time = attempt * 3
+                time.sleep(sleep_time)
+            elif attempt < max_retries:
                 time.sleep(attempt * 1.5)
         except Exception as ex:
             last_error = str(ex)
             if attempt < max_retries:
-                time.sleep(attempt)
+                time.sleep(attempt * 2)
 
     return False, last_error
 
