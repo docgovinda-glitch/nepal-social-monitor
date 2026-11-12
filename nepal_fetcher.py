@@ -16,6 +16,7 @@ import concurrent.futures
 import re
 import html
 import json
+from typing import Dict, Any, List, Optional
 import requests
 import feedparser
 from bs4 import BeautifulSoup
