@@ -37,11 +37,14 @@ TEMPLATE_PATHS = [
     "/Users/pobpkf/Downloads/NEPAL DAILY NEWS DIGEST-5th November  2026.docx",
 ]
 
-# Exact section sequence from NEPAL DAILY NEWS DIGEST – 5th November 2026.docx
+# Master section sequence for NEPAL DAILY NEWS DIGEST
+# Note: Any section with 0 articles is automatically omitted.
 REFERENCE_NEWS_SECTIONS = [
     "INDIA IN NEPAL",
+    "CHINA IN NEPAL",
+    "PAKISTAN IN NEPAL",
     "BANGLADESH IN NEPAL",
-    "NEPAL-INTERNAL POLITICS ",
+    "NEPAL-INTERNAL POLITICS",
     "NEPAL-EXTERNAL",
     "ECONOMY",
 ]
@@ -167,12 +170,14 @@ def format_editorial_source(raw_source: str, link: str = "") -> str:
 
 def classify_article_to_reference_section(article: Dict[str, Any]) -> str:
     """
-    Maps an article to one of the 5 exact reference document sections:
+    Maps an article to one of the 7 ordered digest news sections:
       1. INDIA IN NEPAL
-      2. BANGLADESH IN NEPAL
-      3. NEPAL-INTERNAL POLITICS 
-      4. NEPAL-EXTERNAL
-      5. ECONOMY
+      2. CHINA IN NEPAL
+      3. PAKISTAN IN NEPAL
+      4. BANGLADESH IN NEPAL
+      5. NEPAL-INTERNAL POLITICS
+      6. NEPAL-EXTERNAL
+      7. ECONOMY
     """
     raw_cat = (article.get("structured_category") or article.get("category") or article.get("primary_section") or "").strip().lower()
     stream = (article.get("stream") or "").strip().lower()
@@ -180,11 +185,19 @@ def classify_article_to_reference_section(article: Dict[str, Any]) -> str:
     summary = (article.get("summary") or article.get("full_content") or "").strip().lower()[:600]
     combined = f"{title} {summary}"
 
-    # 1. BANGLADESH IN NEPAL (Explicit Bangladesh / Dhaka / BIMSTEC / South Asia regional bilateral stories)
-    if "bangladesh" in raw_cat or any(k in combined for k in ["bangladesh", "dhaka", "bimstec", "yunus"]):
+    # 1. BANGLADESH IN NEPAL
+    if "bangladesh" in raw_cat or any(k in combined for k in ["bangladesh", "dhaka", "yunus"]):
         return "BANGLADESH IN NEPAL"
 
-    # 2. INDIA IN NEPAL (Indian Press stream or explicit India/Indian bilateral stories)
+    # 2. PAKISTAN IN NEPAL
+    if "pakistan" in raw_cat or any(k in combined for k in ["pakistan", "pakistani", "islamabad", "lahore", "karachi"]):
+        return "PAKISTAN IN NEPAL"
+
+    # 3. CHINA IN NEPAL
+    if "china" in raw_cat or any(k in combined for k in ["china", "chinese", "beijing", "xizang", "tibet", "bri "]):
+        return "CHINA IN NEPAL"
+
+    # 4. INDIA IN NEPAL (Indian Press stream or explicit India/Indian bilateral stories)
     has_india_kw = any(
         k in combined
         for k in [
@@ -197,7 +210,7 @@ def classify_article_to_reference_section(article: Dict[str, Any]) -> str:
     ):
         return "INDIA IN NEPAL"
 
-    # 3. ECONOMY
+    # 5. ECONOMY
     if (
         "economy" in raw_cat
         or "economic" in raw_cat
@@ -215,17 +228,15 @@ def classify_article_to_reference_section(article: Dict[str, Any]) -> str:
     ):
         return "ECONOMY"
 
-    # 4. NEPAL-EXTERNAL
+    # 6. NEPAL-EXTERNAL
     if (
         "external" in raw_cat
-        or "china" in raw_cat
-        or "pakistan" in raw_cat
         or "international" in raw_cat
         or any(
             k in combined
             for k in [
                 "ambassador", "embassy", "foreign policy", "diplomat", "diplomatic",
-                "bilateral", "united nations", "israel", "beijing", "chinese", "washington",
+                "bilateral", "united nations", "israel", "washington", "cop31", "bimstec", "saarc",
                 "european union", "middle east", "gulf", "uae", "qatar", "malaysia",
                 "foreign minister", "ministry of foreign affairs", "mofa", "envoy",
             ]
@@ -233,8 +244,8 @@ def classify_article_to_reference_section(article: Dict[str, Any]) -> str:
     ):
         return "NEPAL-EXTERNAL"
 
-    # 5. Default to NEPAL-INTERNAL POLITICS
-    return "NEPAL-INTERNAL POLITICS "
+    # 7. Default to NEPAL-INTERNAL POLITICS
+    return "NEPAL-INTERNAL POLITICS"
 
 
 def _title_tokens(title: str) -> set:
@@ -656,7 +667,7 @@ def generate_executive_word_digest(
     articles: List[Dict[str, Any]],
     output_path: Optional[str] = None,
     report_date: Optional[datetime.datetime] = None,
-    enrich_missing_sections: bool = True,
+    enrich_missing_sections: bool = False,
 ) -> bytes:
     """
     Generates an Executive Word Document (.docx) using the master reference template
@@ -816,6 +827,9 @@ def generate_executive_word_digest(
 
     for sec_idx, sec_title in enumerate(REFERENCE_NEWS_SECTIONS):
         sec_stories = prepared_by_section.get(sec_title, [])
+        # Whenever there is no news in that section, simply remove/skip that section and move to the next section
+        if not sec_stories:
+            continue
 
         # Section Heading (Red FF0000 bold on F0F2F3 grey fill, firstLine=720)
         _append_p(_make_section_heading_p(sec_title, use_left_indent=False))
@@ -867,34 +881,38 @@ def generate_executive_word_digest(
                 _append_p(_make_empty_spacer_p(left_indent=720, justify=True))
 
     # 5. Final Section: 'Today’s Top Trending News' (matching P1339-P1350)
-    _append_p(_make_section_heading_p(TRENDING_SECTION_TITLE, use_left_indent=True))
-    _append_p(_make_empty_spacer_p(left_indent=720, justify=True, red_shaded=True))
+    if trending_candidates:
+        _append_p(_make_section_heading_p(TRENDING_SECTION_TITLE, use_left_indent=True))
+        _append_p(_make_empty_spacer_p(left_indent=720, justify=True, red_shaded=True))
 
-    # Select representative top trending stories across major digest sections (like reference doc: 2 India + 6-8 Internal/External/Economy)
-    top_trending: List[str] = []
-    section_quotas = [
-        ("INDIA IN NEPAL", 2),
-        ("NEPAL-INTERNAL POLITICS ", 6),
-        ("NEPAL-EXTERNAL", 1),
-        ("ECONOMY", 1),
-    ]
-    for sec_name, quota in section_quotas:
-        for st_item in prepared_by_section.get(sec_name, [])[:quota]:
-            hl = st_item.get("headline", "")
-            if hl and hl not in top_trending:
+        # Select representative top trending stories across active digest sections
+        top_trending: List[str] = []
+        section_quotas = [
+            ("INDIA IN NEPAL", 2),
+            ("CHINA IN NEPAL", 1),
+            ("PAKISTAN IN NEPAL", 1),
+            ("BANGLADESH IN NEPAL", 1),
+            ("NEPAL-INTERNAL POLITICS", 5),
+            ("NEPAL-EXTERNAL", 1),
+            ("ECONOMY", 1),
+        ]
+        for sec_name, quota in section_quotas:
+            for st_item in prepared_by_section.get(sec_name, [])[:quota]:
+                hl = st_item.get("headline", "")
+                if hl and hl not in top_trending:
+                    top_trending.append(hl)
+        for hl in trending_candidates:
+            if len(top_trending) >= 10:
+                break
+            if hl not in top_trending:
                 top_trending.append(hl)
-    for hl in trending_candidates:
-        if len(top_trending) >= 10:
-            break
-        if hl not in top_trending:
-            top_trending.append(hl)
 
-    for tr_headline in top_trending[:10]:
-        _append_p(_make_trending_item_p(tr_headline))
+        for tr_headline in top_trending[:10]:
+            _append_p(_make_trending_item_p(tr_headline))
 
-    # Trailing spacer paragraphs matching P1351-P1356
-    _append_p(_make_empty_spacer_p(left_indent=720, justify=True, red_shaded=True))
-    _append_p(_make_empty_spacer_p(left_indent=None, justify=False))
+        # Trailing spacer paragraphs matching P1351-P1356
+        _append_p(_make_empty_spacer_p(left_indent=720, justify=True, red_shaded=True))
+        _append_p(_make_empty_spacer_p(left_indent=None, justify=False))
 
     bio = io.BytesIO()
     doc.save(bio)

@@ -213,7 +213,7 @@ def generate_word_document(
         articles=articles,
         output_path=output_path,
         report_date=report_date,
-        enrich_missing_sections=True,
+        enrich_missing_sections=False,
     )
 
 # The 9 Structured Categories (Geographically and Thematically Organised)
