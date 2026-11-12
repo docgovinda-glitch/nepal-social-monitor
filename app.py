@@ -966,11 +966,9 @@ if st.session_state.get("cp_timeframe_segment") == "Custom":
     with c_dt2:
         st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
     with c_dt3:
-        if not use_current_time:
-            st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=start_date, key="filter_end_date", on_change=on_custom_datetime_edit)
+        st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date", on_change=on_custom_datetime_edit)
     with c_dt4:
-        if not use_current_time:
-            st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
+        st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
 
 # Global Cross-Channel Search Filter
 if search_query and search_query.strip():
@@ -982,9 +980,9 @@ if search_query and search_query.strip():
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     f"Nepali Media ({len(filtered_articles)})",
     f"Indian Press ({len(filtered_indian)})",
-    f"X Intel ({len(filtered_x_posts)})",
-    "Consolidated Intelligence & Export",
-    "Sources & Health"
+    f"X ({len(filtered_x_posts)})",
+    "Analytics & Export",
+    "Health"
 ])
 
 # ==========================================
@@ -993,15 +991,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     # 🎛️ Source-Specific Control Panel: Nepali Media
     with st.container():
-        st.markdown("""
-        <div class="source-control-bar">
-            <div class="source-control-header">
-                <span class="source-control-title">📰 Nepali Media Control Center</span>
-                <span class="source-control-stats">34 Monitored Portals · Live Updates</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
         npc1, npc2, npc3 = st.columns([1.6, 1.4, 1.0])
         with npc1:
             all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
@@ -1073,18 +1062,9 @@ with tab1:
 with tab2:
     indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
 
-    # 🎛️ Source-Specific Control Panel: Indian Press
+    # Source Controls: Indian Press
     with st.container():
-        st.markdown("""
-        <div class="source-control-bar">
-            <div class="source-control-header">
-                <span class="source-control-title">🇮🇳 Indian Press Control Center</span>
-                <span class="source-control-stats">18 Major Outlets · AI Nepal-Relevance Filter</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        ti_col1, ti_col2, ti_col3 = st.columns([1.6, 1.4, 1.0])
+        ti_col1, ti_col2 = st.columns([2, 1.2])
         with ti_col1:
             selected_indian_outlet = st.selectbox(
                 "Outlet",
@@ -1093,17 +1073,6 @@ with tab2:
                 label_visibility="collapsed"
             )
         with ti_col2:
-            india_rel_threshold = st.slider(
-                "Relevance Threshold",
-                min_value=0.50,
-                max_value=0.90,
-                value=float(DEFAULT_NEPAL_RELEVANCE_THRESHOLD),
-                step=0.05,
-                key="slider_india_nepal_relevance_threshold",
-                help="Only show Indian coverage scoring at or above this AI confidence threshold for Nepal focus.",
-                label_visibility="collapsed"
-            )
-        with ti_col3:
             sel_in_lang = st.selectbox(
                 "Language",
                 ["All Languages", "English", "Hindi"],
@@ -1111,26 +1080,16 @@ with tab2:
                 label_visibility="collapsed"
             )
 
-    tab_filtered_indian = [
-        a for a in filtered_indian
-        if float(a.get("nepal_relevance_score", 0.75)) >= india_rel_threshold
-    ]
+    tab_filtered_indian = filtered_indian
     if selected_indian_outlet != "All 18 Indian Outlets":
         tab_filtered_indian = [a for a in tab_filtered_indian if a["source"] == selected_indian_outlet]
     if sel_in_lang != "All Languages":
         tab_filtered_indian = [a for a in tab_filtered_indian if a.get("language") == sel_in_lang]
 
-    with ti_col3:
-        st.markdown(
-            f'<div class="apple-counter-badge" style="background:#FFF7ED; color:#C2410C; border-color:#FFEDD5; margin-top:2px; height:38px; display:flex; align-items:center; justify-content:center;">'
-            f'Showing <b>{len(tab_filtered_indian):,}</b> Nepal-relevant stories (≥{int(india_rel_threshold*100)}%)</div>',
-            unsafe_allow_html=True
-        )
-
     st.write("")
 
     if not tab_filtered_indian:
-        st.info("No Indian media articles met the strict Nepal-relevance threshold for the current timeframe or filter. Try lowering the threshold slightly or selecting 'All Recent Articles'.")
+        st.info("No Indian media articles match the current filter criteria.")
     else:
         # Incremental Loading / Pagination (20 entries initial, +20 per click)
         if "indian_visible_count" not in st.session_state:
@@ -1246,17 +1205,8 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
 
-    # 🎛️ Source-Specific Control Panel: X Intelligence
+    # Source Controls: X
     with st.container():
-        st.markdown("""
-        <div class="source-control-bar">
-            <div class="source-control-header">
-                <span class="source-control-title">🐦 X (Twitter) Intelligence Center</span>
-                <span class="source-control-stats">281+ Verified Nepali Voices · Real-Time Radar</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
         xf_col1, xf_col2, xf_col3, xf_col4 = st.columns([1.6, 1.4, 1.3, 0.9])
         with xf_col1:
             x_cat_filter = st.selectbox(
@@ -1406,16 +1356,15 @@ with tab3:
                     st.link_button(item["label"], x_url, width="stretch", help=item["help"])
 
 # ==========================================
-# TAB 4: Consolidated Intelligence & Export
+# TAB 4: Analytics & Export
 # ==========================================
 with tab4:
     start_label = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
     end_label = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
     st.markdown(f"""
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
         <div>
-            <h3 style="margin:0; font-size:1.35rem; font-weight:700; color:#1D1D1F;">Consolidated Intelligence Export</h3>
-            <p style="margin:2px 0 0 0; font-size:0.83rem; color:#6E6E73;">Universal multi-stream export engine across all monitored Nepali Portals, Indian Press, and Live X intelligence.</p>
+            <h3 style="margin:0; font-size:1.35rem; font-weight:700; color:#1D1D1F;">Analytics & Export</h3>
         </div>
         <div style="background:#F1F5F9; border:1px solid #CBD5E1; padding:4px 12px; border-radius:8px; font-size:0.78rem; font-weight:600; color:#334155; display:inline-flex; align-items:center; gap:6px;">
             <span>🕒 Active Window:</span> <b>{start_label} → {end_label}</b>
@@ -1490,14 +1439,6 @@ with tab4:
 
     # 2. Consolidated Master Filter Toolbar
     with st.container():
-        st.markdown("""
-        <div class="source-control-bar">
-            <div class="source-control-header">
-                <span class="source-control-title">🔍 Universal Filter Controls</span>
-                <span class="source-control-stats">Cross-Stream Multi-Source Engine</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
         fc1, fc2, fc3, fc4 = st.columns([1.4, 1.4, 1.2, 2])
 
         with fc1:
@@ -1833,10 +1774,10 @@ with tab4:
             st.caption("No broadcast history recorded yet.")
 
 # ==========================================
-# TAB 5: Nepali Media Monitoring & Control (Chief Admin)
+# TAB 5: Health & Diagnostics
 # ==========================================
 with tab5:
-    st.subheader("Sources & Diagnostics")
+    st.subheader("System Health")
 
     # 1. System-Wide Monitoring KPIs
     try:

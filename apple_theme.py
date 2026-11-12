@@ -1063,6 +1063,32 @@ APPLE_DESIGN_SYSTEM_CSS = """
         color: #64748B;
     }
 
+    /* Responsive adjustments for Tablets and Mobile screens */
+    @media (max-width: 900px) {
+        .block-container {
+            padding-top: 1.2rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-bottom: 2rem !important;
+        }
+        .apple-top-header {
+            padding: 10px 14px !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 8px !important;
+        }
+        .apple-top-title {
+            font-size: 1.15rem !important;
+        }
+        button[data-baseweb="tab"], div[data-testid="stTab"], [role="tab"] {
+            padding: 6px 10px !important;
+            font-size: 0.78rem !important;
+        }
+        .source-control-bar {
+            padding: 8px 12px 6px 12px !important;
+        }
+    }
+
 </style>
 """
 
