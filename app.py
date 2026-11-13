@@ -376,7 +376,6 @@ explicit_all_time = False
 if use_current_time:
     filter_end_dt = now_npt
     end_short_str = "Now"
-    status_pill_html = '<span class="status-pill-live">● LIVE</span>'
 else:
     end_date = st.session_state.get("filter_end_date", now_npt.date())
     end_time = st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0))
@@ -384,7 +383,6 @@ else:
     if filter_end_dt < filter_start_dt:
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
     end_short_str = filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
-    status_pill_html = '<span class="status-pill-paused">PAUSED</span>'
 
 start_short_str = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0")
 
@@ -412,7 +410,7 @@ def reset_all_filters():
     st.session_state["np_lang_filter"] = ALL_LANG_DEFAULT
     st.session_state["in_outlet_filter"] = "All 18 Indian Outlets"
     st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["x_acc_filter_select"] = "All Account Types"
+    st.session_state["x_acc_type_select"] = "All Account Types"
     st.session_state["cp_timeframe_segment"] = "12h"
     st.session_state["filter_start_date"] = past_12.date()
     st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)

@@ -93,55 +93,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
         z-index: 10 !important;
     }
 
-    /* Unified Dashboard Top Command Bar */
-    .top-command-bar {
-        background: #FFFFFF;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: var(--apple-radius-lg);
-        padding: 10px 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
-
-    .timeframe-strip {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .status-pill-live {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: #ECFDF5;
-        color: #047857;
-        border: 1px solid #A7F3D0;
-        padding: 3px 10px;
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-    }
-
-    .status-pill-paused {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: #FFFBEB;
-        color: #B45309;
-        border: 1px solid #FDE68A;
-        padding: 3px 10px;
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-    }
-
     hr {
         border-color: rgba(0, 0, 0, 0.06) !important;
         margin: 1.25rem 0 !important;
@@ -221,54 +172,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-weight: 600;
         color: #047857;
         letter-spacing: 0.01em;
-    }
-
-    /* Apple Segmented Control (Tabs) */
-    div[data-baseweb="tab-list"], div[role="tablist"] {
-        background: rgba(0, 0, 0, 0.05) !important;
-        padding: 4px !important;
-        border-radius: 12px !important;
-        gap: 4px !important;
-        border: none !important;
-        margin-bottom: 18px !important;
-        display: flex !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-
-    button[data-baseweb="tab"], div[data-testid="stTab"], [role="tab"] {
-        font-family: var(--apple-font) !important;
-        border-radius: 9px !important;
-        padding: 8px 14px !important;
-        font-weight: 550 !important;
-        font-size: 0.85rem !important;
-        color: var(--apple-text-secondary) !important;
-        border: none !important;
-        background: transparent !important;
-        transition: all 0.18s var(--apple-ease) !important;
-        cursor: pointer !important;
-        flex: 1 1 auto !important;
-        text-align: center !important;
-        justify-content: center !important;
-        white-space: nowrap !important;
-    }
-
-    button[data-baseweb="tab"]:hover, div[data-testid="stTab"]:hover, [role="tab"]:hover {
-        color: var(--apple-text-primary) !important;
-        background: rgba(255, 255, 255, 0.6) !important;
-    }
-
-    button[data-baseweb="tab"][aria-selected="true"], 
-    div[data-testid="stTab"][aria-selected="true"], 
-    [role="tab"][aria-selected="true"] {
-        background: #FFFFFF !important;
-        color: var(--apple-text-primary) !important;
-        font-weight: 650 !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
-    }
-
-    div[data-baseweb="tab-border"], div[data-baseweb="tab-highlight"], [data-testid="stTabHighlight"] {
-        display: none !important;
     }
 
     /* Metric Cards - Apple Style */
@@ -450,31 +353,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: var(--apple-accent);
         color: #FFFFFF !important;
         border-color: var(--apple-accent);
-    }
-
-    .apple-wa-share-btn {
-        display: none !important;
-    }
-
-    /* Filter Banner */
-    .apple-filter-banner {
-        background: #FFFFFF;
-        border: 1px solid rgba(0, 0, 0, 0.06);
-        border-radius: var(--apple-radius-md);
-        padding: 10px 16px;
-        margin-bottom: 14px;
-        font-size: 0.82rem;
-        color: var(--apple-text-secondary);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        box-shadow: var(--apple-shadow-card);
-    }
-
-    /* Sidebar Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #FAFAFC !important;
-        border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
     }
 
     /* Global Input & Select fields */
@@ -750,47 +628,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
         gap: 0.48rem !important;
     }
 
-    /* Compact Sidebar Header & Section Titles */
-    .cp-header-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 4px;
-    }
-    .cp-title {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        font-size: 0.92rem;
-        font-weight: 700;
-        color: #1E293B;
-        letter-spacing: -0.015em;
-    }
-    .cp-sync-time {
-        font-size: 0.7rem;
-        font-weight: 500;
-        color: #64748B;
-    }
-
-    .cp-sec-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 0.71rem;
-        font-weight: 650;
-        color: #64748B;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin: 8px 0 6px 0;
-    }
-
-    .cp-divider {
-        height: 1px;
-        background-color: #E2E8F0;
-        margin: 6px 0;
-        width: 100%;
-    }
-
     /* Compact Widget Labels inside Sidebar */
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] {
         min-height: 16px !important;
@@ -948,50 +785,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background-color: #526A85 !important;
     }
 
-    /* Compact Live Tracking Status Bar */
-    .cp-live-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 5px 10px;
-        margin-top: 2px;
-        font-size: 0.74rem;
-    }
-    .cp-range-text {
-        color: #334155;
-        font-weight: 550;
-        letter-spacing: -0.01em;
-    }
-    .cp-status-badge-live {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        background: #ECFDF5;
-        color: #047857;
-        border: 1px solid #A7F3D0;
-        padding: 1px 7px;
-        border-radius: 999px;
-        font-size: 0.66rem;
-        font-weight: 700;
-        letter-spacing: 0.03em;
-    }
-    .cp-status-badge-paused {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        background: #F1F5F9;
-        color: #475569;
-        border: 1px solid #CBD5E1;
-        padding: 1px 7px;
-        border-radius: 999px;
-        font-size: 0.66rem;
-        font-weight: 700;
-        letter-spacing: 0.03em;
-    }
-
     /* Active Filter Chips (st.pills) */
     section[data-testid="stSidebar"] [data-testid="stPills"] button,
     [data-testid="stPills"] button {
@@ -1039,37 +832,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
     div[data-testid="stDataFrame"] canvas {
         border-radius: 10px !important;
     }
-    
-    /* In-Tab Source Control Panel Card */
-    .source-control-bar {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 10px 16px 8px 16px;
-        margin-bottom: 14px;
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
-    }
-    .source-control-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 8px;
-        padding-bottom: 6px;
-        border-bottom: 1px solid #F1F5F9;
-    }
-    .source-control-title {
-        font-size: 0.85rem;
-        font-weight: 700;
-        color: #1E293B;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .source-control-stats {
-        font-size: 0.74rem;
-        font-weight: 600;
-        color: #64748B;
-    }
 
     /* Responsive adjustments for Tablets and Mobile screens */
     @media (max-width: 900px) {
@@ -1087,13 +849,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
         }
         .apple-top-title {
             font-size: 1.15rem !important;
-        }
-        button[data-baseweb="tab"], div[data-testid="stTab"], [role="tab"] {
-            padding: 6px 10px !important;
-            font-size: 0.78rem !important;
-        }
-        .source-control-bar {
-            padding: 8px 12px 6px 12px !important;
         }
     }
 
