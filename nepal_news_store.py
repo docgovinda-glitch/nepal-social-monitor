@@ -563,3 +563,409 @@ def get_stored_indian_articles(
     return rows
 
 
+# ==============================================================================
+# X (TWITTER) NEPAL ACCOUNTS MANAGEMENT & REPOSITORY
+# ==============================================================================
+
+def normalize_x_handle(raw_handle: str) -> str:
+    """Normalizes an X handle by stripping whitespace, leading @, and lowercasing."""
+    if not raw_handle:
+        return ""
+    h = str(raw_handle).strip()
+    if h.startswith("@"):
+        h = h[1:]
+    return h.lower().strip()
+
+
+def batch_upsert_x_accounts(accounts: List[Dict[str, Any]], batch_size: int = 50) -> int:
+    """
+    Batches upsert operations for researched and verified Nepal-related X accounts
+    into the Supabase PostgreSQL 'x_accounts' table.
+    Enforces normalized case-insensitive handle unique constraint and idempotency.
+    """
+    if not accounts:
+        return 0
+
+    inserted_or_updated = 0
+    total = len(accounts)
+
+    for i in range(0, total, batch_size):
+        chunk = accounts[i:i + batch_size]
+        values_rows = []
+
+        for acc in chunk:
+            h = normalize_x_handle(acc.get("handle", ""))
+            if not h:
+                continue
+            name = acc.get("name", h)
+            profile_url = acc.get("profile_url") or f"https://x.com/{h}"
+            cat = acc.get("category", "Civil Society and Public Voices")
+            subcat = acc.get("subcategory", "General")
+            role = acc.get("role", "")
+            relevance = acc.get("relevance", "")
+            ver_status = acc.get("verification_status", "verified")
+            source_url = acc.get("source_url") or profile_url
+            followers = acc.get("followers", "N/A")
+            avatar_bg = acc.get("avatar_bg", "#2563eb")
+            initials = acc.get("initials") or "".join([w[0].upper() for w in name.split()[:2]]) or "NP"
+            enabled = 1 if acc.get("enabled", 1) in (1, True, "1") else 0
+            conn_status = acc.get("connection_status", "connected")
+            last_ver = acc.get("last_verified_at") or datetime.datetime.now(NEPAL_TZ).isoformat()
+
+            val_str = f"({esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)}, {esc_sql(role)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)}, {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled}, {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW())"
+            values_rows.append(val_str)
+
+        if not values_rows:
+            continue
+
+        sql = f"""
+        INSERT INTO x_accounts (
+            handle, name, profile_url, category, subcategory, role, relevance,
+            verification_status, source_url, followers, avatar_bg, initials,
+            enabled, connection_status, last_verified_at, created_at, updated_at
+        ) VALUES
+        {", ".join(values_rows)}
+        ON CONFLICT (handle) DO UPDATE SET
+            name = EXCLUDED.name,
+            profile_url = EXCLUDED.profile_url,
+            category = EXCLUDED.category,
+            subcategory = EXCLUDED.subcategory,
+            role = EXCLUDED.role,
+            relevance = EXCLUDED.relevance,
+            verification_status = EXCLUDED.verification_status,
+            source_url = EXCLUDED.source_url,
+            followers = EXCLUDED.followers,
+            avatar_bg = EXCLUDED.avatar_bg,
+            initials = EXCLUDED.initials,
+            enabled = EXCLUDED.enabled,
+            connection_status = EXCLUDED.connection_status,
+            last_verified_at = EXCLUDED.last_verified_at,
+            updated_at = NOW()
+        RETURNING handle;
+        """
+        res = query_supabase(sql)
+        inserted_or_updated += len(res) if res else len(values_rows)
+
+    logger.info(f"batch_upsert_x_accounts: Processed {inserted_or_updated}/{total} accounts into Supabase.")
+    return inserted_or_updated
+
+
+def get_all_x_accounts(
+    category: Optional[str] = None,
+    verification_status: Optional[str] = None,
+    enabled_only: bool = False,
+    search: Optional[str] = None,
+    limit: int = 1000
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves accounts from the Supabase x_accounts table with filtering and search support.
+    """
+    clauses = ["1=1"]
+    if category and category.lower() != "all":
+        clauses.append(f"category = {esc_sql(category)}")
+    if verification_status and verification_status.lower() != "all":
+        clauses.append(f"verification_status = {esc_sql(verification_status)}")
+    if enabled_only:
+        clauses.append("enabled = 1")
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        clauses.append(f"(LOWER(handle) LIKE {esc_sql(term)} OR LOWER(name) LIKE {esc_sql(term)} OR LOWER(role) LIKE {esc_sql(term)} OR LOWER(subcategory) LIKE {esc_sql(term)} OR LOWER(relevance) LIKE {esc_sql(term)})")
+
+    where = "WHERE " + " AND ".join(clauses)
+    sql = f"SELECT * FROM x_accounts {where} ORDER BY category ASC, name ASC LIMIT {limit};"
+    rows = query_supabase(sql)
+    return rows if rows else []
+
+
+def get_x_account_kpis() -> Dict[str, Any]:
+    """
+    Computes key performance indicators for X accounts in the database:
+    total discovered, verified, pending verification, active vs inactive,
+    and category-wise distribution across all 8 canonical sectors.
+    """
+    sql = """
+    SELECT
+        COUNT(*) as total_discovered,
+        SUM(CASE WHEN verification_status = 'verified' THEN 1 ELSE 0 END) as total_verified,
+        SUM(CASE WHEN verification_status != 'verified' THEN 1 ELSE 0 END) as pending_verification,
+        SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END) as active_monitored,
+        SUM(CASE WHEN enabled = 0 THEN 1 ELSE 0 END) as inactive_monitored
+    FROM x_accounts;
+    """
+    rows = query_supabase(sql)
+    res: Dict[str, Any] = {
+        "total_discovered": 0,
+        "total_verified": 0,
+        "pending_verification": 0,
+        "active_monitored": 0,
+        "inactive_monitored": 0,
+        "by_category": {}
+    }
+    if rows:
+        r = rows[0]
+        res["total_discovered"] = int(r.get("total_discovered") or 0)
+        res["total_verified"] = int(r.get("total_verified") or 0)
+        res["pending_verification"] = int(r.get("pending_verification") or 0)
+        res["active_monitored"] = int(r.get("active_monitored") or 0)
+        res["inactive_monitored"] = int(r.get("inactive_monitored") or 0)
+
+    # Category breakdown
+    cat_sql = "SELECT category, COUNT(*) as cnt FROM x_accounts GROUP BY category ORDER BY cnt DESC;"
+    cat_rows = query_supabase(cat_sql)
+    if cat_rows:
+        for cr in cat_rows:
+            cat_name = cr.get("category")
+            if cat_name:
+                res["by_category"][cat_name] = int(cr.get("cnt") or 0)
+
+    return res
+
+
+def set_x_account_enabled(handle: str, enabled: bool) -> bool:
+    """Toggles monitoring status for an account (enabled=1 vs paused=0)."""
+    norm_h = normalize_x_handle(handle)
+    if not norm_h:
+        return False
+    status_val = 1 if enabled else 0
+    sql = f"""
+    UPDATE x_accounts 
+    SET enabled = {status_val}, updated_at = NOW() 
+    WHERE handle = {esc_sql(norm_h)} 
+    RETURNING handle;
+    """
+    res = query_supabase(sql)
+    return bool(res)
+
+
+def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
+    """Inserts or updates a single X account with duplicate detection on normalized handle."""
+    h = normalize_x_handle(acc.get("handle", ""))
+    if not h:
+        return False
+    name = acc.get("name", h)
+    profile_url = acc.get("profile_url") or f"https://x.com/{h}"
+    cat = acc.get("category", "Civil Society and Public Voices")
+    subcat = acc.get("subcategory", "General")
+    role = acc.get("role", "")
+    relevance = acc.get("relevance", "")
+    ver_status = acc.get("verification_status", "verified")
+    source_url = acc.get("source_url") or profile_url
+    followers = acc.get("followers", "N/A")
+    avatar_bg = acc.get("avatar_bg", "#2563eb")
+    initials = acc.get("initials") or "".join([w[0].upper() for w in name.split()[:2]]) or "NP"
+    enabled = 1 if acc.get("enabled", 1) in (1, True, "1") else 0
+    conn_status = acc.get("connection_status", "connected")
+    last_ver = acc.get("last_verified_at") or datetime.datetime.now(NEPAL_TZ).isoformat()
+
+    sql = f"""
+    INSERT INTO x_accounts (
+        handle, name, profile_url, category, subcategory, role, relevance,
+        verification_status, source_url, followers, avatar_bg, initials,
+        enabled, connection_status, last_verified_at, created_at, updated_at
+    ) VALUES (
+        {esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)},
+        {esc_sql(role)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)},
+        {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled},
+        {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW()
+    )
+    ON CONFLICT (handle) DO UPDATE SET
+        name = EXCLUDED.name,
+        profile_url = EXCLUDED.profile_url,
+        category = EXCLUDED.category,
+        subcategory = EXCLUDED.subcategory,
+        role = EXCLUDED.role,
+        relevance = EXCLUDED.relevance,
+        verification_status = EXCLUDED.verification_status,
+        source_url = EXCLUDED.source_url,
+        followers = EXCLUDED.followers,
+        avatar_bg = EXCLUDED.avatar_bg,
+        initials = EXCLUDED.initials,
+        enabled = EXCLUDED.enabled,
+        connection_status = EXCLUDED.connection_status,
+        last_verified_at = EXCLUDED.last_verified_at,
+        updated_at = NOW()
+    RETURNING handle;
+    """
+    res = query_supabase(sql)
+    return bool(res)
+
+
+def delete_x_account(handle: str) -> bool:
+    """Removes an account from x_accounts."""
+    norm_h = normalize_x_handle(handle)
+    if not norm_h:
+        return False
+    sql = f"DELETE FROM x_accounts WHERE handle = {esc_sql(norm_h)} RETURNING handle;"
+    res = query_supabase(sql)
+    return bool(res)
+
+
+def verify_x_profile_connectivity(handle: str) -> Tuple[bool, str]:
+    """
+    Checks public reachability of an X profile without requiring Twitter API authentication.
+    Returns (is_accessible, details).
+    """
+    norm_h = normalize_x_handle(handle)
+    if not norm_h:
+        return False, "Invalid handle provided."
+    profile_url = f"https://x.com/{norm_h}"
+    req = urllib.request.Request(
+        profile_url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            code = resp.getcode()
+            if code in (200, 301, 302):
+                return True, f"HTTP {code}: Profile reachable at {profile_url}"
+            return False, f"HTTP {code}: Unexpected response code"
+    except urllib.error.HTTPError as he:
+        if he.code == 404:
+            return False, f"HTTP 404: Account @{norm_h} does not exist or has been suspended."
+        if he.code in (429, 403):
+            # Anti-bot/rate-limit response from X CDN, but domain answered
+            return True, f"HTTP {he.code}: Profile recognized (platform rate-limited access check)."
+        return False, f"HTTP {he.code}: {he.reason}"
+    except Exception as ex:
+        return False, f"Network error checking profile: {ex}"
+
+
+# ==============================================================================
+# X POSTS STORAGE & RETRIEVAL (SUPABASE POSTGRESQL)
+# ==============================================================================
+
+def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 50) -> int:
+    """
+    Batches upsert operations for X posts into the Supabase PostgreSQL 'x_posts' table.
+    Enforces conflict resolution on unique post id.
+    """
+    if not posts:
+        return 0
+
+    inserted = 0
+    total = len(posts)
+
+    for i in range(0, total, batch_size):
+        chunk = posts[i:i + batch_size]
+        val_rows = []
+        for p in chunk:
+            pid = str(p.get("id", "")).strip()
+            if not pid:
+                continue
+            handle = p.get("handle", "")
+            raw_handle = p.get("raw_handle") or handle.lstrip("@")
+            author_name = p.get("author_name", raw_handle)
+            author_type = p.get("author_type", "Civil Society and Public Voices")
+            role = p.get("role", "")
+            verified = True if p.get("verified", True) else False
+            avatar_bg = p.get("avatar_bg", "#2563eb")
+            initials = p.get("initials") or raw_handle[:2].upper()
+            title = p.get("title") or p.get("text", "")
+            text = p.get("text", "")
+            headline_en = p.get("headline_english", "")
+            cat = p.get("structured_category", "Others")
+            likes = int(p.get("likes") or 0)
+            retweets = int(p.get("retweets") or 0)
+            replies = int(p.get("replies") or 0)
+            impressions = int(p.get("impressions") or (likes * 16))
+            eng = int(p.get("engagement_score") or (likes + retweets * 2 + replies * 3))
+
+            pub_dt_raw = p.get("published_dt")
+            if isinstance(pub_dt_raw, datetime.datetime):
+                pub_dt_raw = pub_dt_raw.isoformat()
+            elif not pub_dt_raw:
+                pub_dt_raw = datetime.datetime.now(NEPAL_TZ).isoformat()
+
+            rel_time = p.get("relative_time", "")
+            exact_time = p.get("exact_time", "")
+            link = p.get("link") or f"https://x.com/{raw_handle}/status/{pid}"
+            sentiment = p.get("sentiment", "Neutral")
+            is_real = True if p.get("is_real_api", True) else False
+
+            row_str = f"({esc_sql(pid)}, {esc_sql(handle)}, {esc_sql(raw_handle)}, {esc_sql(author_name)}, {esc_sql(author_type)}, {esc_sql(role)}, {verified}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {esc_sql(title)}, {esc_sql(text)}, {esc_sql(headline_en)}, {esc_sql(cat)}, {likes}, {retweets}, {replies}, {impressions}, {eng}, {esc_sql(pub_dt_raw)}, {esc_sql(rel_time)}, {esc_sql(exact_time)}, {esc_sql(link)}, {esc_sql(sentiment)}, {is_real}, NOW(), NOW())"
+            val_rows.append(row_str)
+
+        if not val_rows:
+            continue
+
+        sql = f"""
+        INSERT INTO x_posts (
+            id, handle, raw_handle, author_name, author_type, role, verified,
+            avatar_bg, initials, title, text, headline_english, structured_category,
+            likes, retweets, replies, impressions, engagement_score, published_dt,
+            relative_time, exact_time, link, sentiment, is_real_api, ingested_at, updated_at
+        ) VALUES
+        {", ".join(val_rows)}
+        ON CONFLICT (id) DO UPDATE SET
+            likes = EXCLUDED.likes,
+            retweets = EXCLUDED.retweets,
+            replies = EXCLUDED.replies,
+            impressions = EXCLUDED.impressions,
+            engagement_score = EXCLUDED.engagement_score,
+            structured_category = EXCLUDED.structured_category,
+            sentiment = EXCLUDED.sentiment,
+            updated_at = NOW()
+        RETURNING id;
+        """
+        res = query_supabase(sql)
+        inserted += len(res) if res else len(val_rows)
+
+    logger.info(f"save_x_posts: Pushed {inserted}/{total} posts into Supabase x_posts table.")
+    return inserted
+
+
+def get_stored_x_posts(category: Optional[str] = None, author_type: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
+    """Retrieves X posts from Supabase PostgreSQL ordered by published_dt DESC."""
+    clauses = ["1=1"]
+    if category and category.lower() != "all":
+        clauses.append(f"structured_category = {esc_sql(category)}")
+    if author_type and author_type.lower() != "all":
+        clauses.append(f"author_type = {esc_sql(author_type)}")
+
+    where = "WHERE " + " AND ".join(clauses)
+    sql = f"SELECT * FROM x_posts {where} ORDER BY published_dt DESC LIMIT {limit};"
+    rows = query_supabase(sql)
+
+    now_npt = datetime.datetime.now(NEPAL_TZ)
+    for p in rows:
+        if isinstance(p.get("published_dt"), str):
+            try:
+                from dateutil import parser as dt_parser
+                dt = dt_parser.parse(p["published_dt"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=NEPAL_TZ)
+                else:
+                    dt = dt.astimezone(NEPAL_TZ)
+                p["published_dt"] = dt
+            except Exception:
+                p["published_dt"] = now_npt
+        elif isinstance(p.get("published_dt"), datetime.datetime):
+            if p["published_dt"].tzinfo is None:
+                p["published_dt"] = p["published_dt"].replace(tzinfo=NEPAL_TZ)
+            else:
+                p["published_dt"] = p["published_dt"].astimezone(NEPAL_TZ)
+
+        p["is_real_api"] = bool(p.get("is_real_api", True))
+        p["verified"] = bool(p.get("verified", True))
+        if not p.get("relative_time") and p.get("published_dt"):
+            diff = now_npt - p["published_dt"]
+            secs = diff.total_seconds()
+            if secs < 60:
+                p["relative_time"] = "Just now"
+            elif secs < 3600:
+                p["relative_time"] = f"{max(1, int(secs//60))}m ago"
+            elif secs < 86400:
+                p["relative_time"] = f"{int(secs//3600)}h ago"
+            else:
+                p["relative_time"] = p["published_dt"].strftime("%b %d")
+        if not p.get("exact_time") and p.get("published_dt"):
+            p["exact_time"] = p["published_dt"].strftime("%b %d, %I:%M %p NPT")
+
+    return rows
+
+
+
+

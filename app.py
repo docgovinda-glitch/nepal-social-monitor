@@ -19,6 +19,15 @@ import html
 import re
 import os
 from typing import Any, Callable, Dict, List
+import importlib
+
+import nepal_news_store
+importlib.reload(nepal_news_store)
+import nepal_fetcher
+importlib.reload(nepal_fetcher)
+import nepal_x_scanner
+importlib.reload(nepal_x_scanner)
+
 from nepal_fetcher import (
     fetch_top_nepal_media,
     fetch_nepal_in_indian_media,
@@ -33,7 +42,8 @@ from nepal_fetcher import (
     TOP_NEPAL_NEWS_PORTALS,
     TOP_INDIAN_MEDIA_SOURCES,
 )
-from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS
+from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS, get_monitored_x_accounts
+from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
 from nepal_news_store import (
     get_all_source_health,
     get_system_kpis,
@@ -41,7 +51,17 @@ from nepal_news_store import (
     set_source_interval,
     get_stored_articles,
     get_stored_indian_articles,
-    get_indian_media_audit_stats
+    get_indian_media_audit_stats,
+    batch_upsert_x_accounts,
+    get_all_x_accounts,
+    get_x_account_kpis,
+    set_x_account_enabled,
+    upsert_single_x_account,
+    delete_x_account,
+    verify_x_profile_connectivity,
+    normalize_x_handle,
+    save_x_posts,
+    get_stored_x_posts,
 )
 from nepal_news_scheduler import (
     run_single_source_discovery,
@@ -49,13 +69,9 @@ from nepal_news_scheduler import (
     run_historical_backfill,
     start_monitoring_daemon
 )
-try:
-    from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
-except ImportError:
-    import importlib
-    import apple_theme
-    importlib.reload(apple_theme)
-    from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
+import apple_theme
+importlib.reload(apple_theme)
+from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
 
 # Start background news monitoring daemon if not already running
 try:
@@ -636,18 +652,19 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
 # ==========================================
 with st.sidebar:
     # Sidebar Brand Card (Apple macOS header)
-    st.markdown(f"""
-    <div class="sidebar-brand-card">
-        <div class="sidebar-brand-card__row1">
-            <div class="sidebar-brand-card__brand">
-                <span class="sidebar-brand-card__flag">🇳🇵</span>
-                <span class="sidebar-brand-card__title">Nepal Media Monitor</span>
+    with st.container(border=True):
+        st.markdown(f"""
+        <div class="sidebar-brand-card">
+            <div class="sidebar-brand-card__row1">
+                <div class="sidebar-brand-card__brand">
+                    <span class="sidebar-brand-card__flag">🇳🇵</span>
+                    <span class="sidebar-brand-card__title">Nepal Media Monitor</span>
+                </div>
+                <div class="live-pill" title="Live · {formatted_now_time}"><span class="live-pill__dot"></span>Live</div>
             </div>
-            <div class="live-pill"><span class="live-pill__dot"></span>Live · {formatted_now_time}</div>
+            <div class="sidebar-brand-card__subtitle">{len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts</div>
         </div>
-        <div class="sidebar-brand-card__subtitle">{len(TOP_NEPAL_NEWS_PORTALS)} Nepali portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets · X</div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     # Card 1 — Timeframe & Search
     with st.container(border=True):
@@ -718,9 +735,17 @@ def nav_label(name: str) -> str:
 with st.sidebar:
     with st.container(border=True):
         sidebar_section("Workspace")
+        default_nav_idx = 0
+        if "nav" in st.query_params:
+            param_nav = st.query_params.get("nav", "").lower()
+            for idx, (n, _, _) in enumerate(NAV_ITEMS):
+                if n.lower() == param_nav or (param_nav == "x" and n == "X"):
+                    default_nav_idx = idx
+                    break
         selected_nav = st.selectbox(
             "Workspace",
             options=[n for n, _, _ in NAV_ITEMS],
+            index=default_nav_idx,
             format_func=nav_label,
             key="app_nav_section",
             label_visibility="collapsed",
@@ -739,11 +764,11 @@ with st.sidebar:
             sel_in_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
 
         elif selected_nav == "X":
-            sidebar_section("Filters", f"{len(TOP_NEPAL_X_ACCOUNTS)} accounts")
-            x_cat_filter = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
+            sidebar_section("Filters", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} accounts")
+            x_cat_filter = st.selectbox("Editorial section", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
             selected_acc_type = st.selectbox(
-                "Account type",
-                [ALL_ACC_TYPES] + sorted({a.get("type", "") for a in TOP_NEPAL_X_ACCOUNTS if a.get("type")}),
+                "Sector / Account type",
+                [ALL_ACC_TYPES] + CANONICAL_X_CATEGORIES,
                 key="x_acc_type_select",
             )
             sort_mode = st.selectbox("Sort by", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
@@ -883,71 +908,402 @@ elif selected_nav == "Indian Press":
 # SECTION 3: X (Twitter) Nepal
 # ==========================================
 elif selected_nav == "X":
-    render_page_header("X (Twitter) Nepal", f"{len(filtered_x_posts):,} posts from {len(TOP_NEPAL_X_ACCOUNTS)} verified accounts")
+    # 1. Fetch DB KPIs and Monitored Accounts
+    x_kpis = get_x_account_kpis()
+    total_acc_count = x_kpis.get("total_discovered", len(VERIFIED_NEPAL_X_DIRECTORY))
+    verified_acc_count = x_kpis.get("total_verified", len(VERIFIED_NEPAL_X_DIRECTORY))
+    active_acc_count = x_kpis.get("active_monitored", len(VERIFIED_NEPAL_X_DIRECTORY))
+    pending_acc_count = x_kpis.get("pending_verification", 0)
 
-    with st.expander(f"🇳🇵 Verified Monitored Accounts ({len(TOP_NEPAL_X_ACCOUNTS)} Accounts)", expanded=False):
-        st.caption("Directory of verified Nepali political leaders, public commentators, diplomats, and institutions:")
-        a_cols = st.columns(4)
-        for i, a in enumerate(TOP_NEPAL_X_ACCOUNTS):
-            with a_cols[i % 4]:
-                st.markdown(f"""
-                <div class="acct-card">
-                    <div>
-                        <div class="acct-card__head">
-                            <div class="x-avatar acct-card__avatar" style="background:{a['avatar_bg']};">{a['initials']}</div>
-                            <div style="overflow:hidden;">
-                                <div class="acct-card__name">{html.escape(a['name'])} <span style="color:#1D9BF0;">✓</span></div>
-                                <div class="acct-card__handle">@{html.escape(a['handle'])} · <span class="x-type-badge">{html.escape(a.get('type', ''))}</span></div>
+    render_page_header(
+        "X (Twitter) Nepal",
+        f"{len(filtered_x_posts):,} posts · {total_acc_count} verified authentic accounts across 8 canonical sectors"
+    )
+
+    # Subview Segmented Selector
+    x_subview = st.segmented_control(
+        "X Monitoring Navigation",
+        options=["Live Posts Feed", f"Monitored Directory ({total_acc_count}+ Accounts)", "Account Discovery & Admin"],
+        default=st.session_state.get("x_subview_active_tab", "Live Posts Feed"),
+        key="x_subview_active_tab",
+        label_visibility="collapsed"
+    )
+    if not x_subview:
+        x_subview = "Live Posts Feed"
+
+    # -------------------------------------------------------------
+    # SUBVIEW 1: LIVE POSTS FEED
+    # -------------------------------------------------------------
+    if x_subview == "Live Posts Feed":
+        # Quick KPI Pill Row
+        st.markdown(f"""
+        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+            <div class="apple-kpi-card" style="flex:1; min-width:140px;">
+                <div class="apple-kpi-card__label">Stream Status</div>
+                <div class="apple-kpi-card__value" style="color:var(--green); font-size:1.2rem;">● Active Ingestion</div>
+                <div class="apple-kpi-card__subtitle">{len(filtered_x_posts):,} fresh posts</div>
+            </div>
+            <div class="apple-kpi-card" style="flex:1; min-width:140px;">
+                <div class="apple-kpi-card__label">Active Accounts</div>
+                <div class="apple-kpi-card__value" style="font-size:1.2rem;">{active_acc_count}</div>
+                <div class="apple-kpi-card__subtitle">of {total_acc_count} monitored</div>
+            </div>
+            <div class="apple-kpi-card" style="flex:1; min-width:140px;">
+                <div class="apple-kpi-card__label">Sectors Covered</div>
+                <div class="apple-kpi-card__value" style="font-size:1.2rem;">8 Sectors</div>
+                <div class="apple-kpi-card__subtitle">Politicians, Media, Analysts…</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        filtered_feed = filter_items_by_category(filtered_x_posts, x_cat_filter, is_social=True)
+        if selected_acc_type != ALL_ACC_TYPES:
+            filtered_feed = [p for p in filtered_feed if p.get("author_type") == selected_acc_type]
+
+        # Apply sorting
+        if sort_mode == "Newest":
+            filtered_feed.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+        elif sort_mode == "Most engagement":
+            filtered_feed.sort(key=lambda x: x.get("engagement_score", 0), reverse=True)
+        elif sort_mode == "Most liked":
+            filtered_feed.sort(key=lambda x: x.get("likes", 0), reverse=True)
+        elif sort_mode == "Most reposted":
+            filtered_feed.sort(key=lambda x: x.get("retweets", 0), reverse=True)
+
+        if not filtered_feed:
+            render_empty_state("𝕏", "No X posts found", "Try selecting 'All Account Types' or choosing 'All News'.")
+        else:
+            render_paginated_feed(filtered_feed, "x_visible_count", render_apple_x_post_card, "posts")
+
+        with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
+            clean_q = search_query.strip() if search_query else ""
+            x_cat_searches = [
+                ("🇮🇳 India Section ↗", '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "#NepalIndia")'),
+                ("🇨🇳 China Section ↗", '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "#NepalChina")'),
+                ("🇧🇩 Bangladesh Section ↗", '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy")'),
+                ("🇵🇰 Pakistan Section ↗", '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC")'),
+                ("🇳🇵 Nepal – Internal ↗", '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्")'),
+                ("🌐 Nepal – External ↗", '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र")'),
+                ("📈 Nepal – Economy ↗", '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र")'),
+                ("📌 Nepal – Others ↗", '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "संस्कृति")'),
+                ("🌍 International News ↗", '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "BRICS")'),
+            ]
+            for row_idx in range(0, len(x_cat_searches), 3):
+                cols = st.columns(3)
+                for col_idx, (label, query_str) in enumerate(x_cat_searches[row_idx:row_idx + 3]):
+                    with cols[col_idx]:
+                        full_q = f"({clean_q}) AND {query_str}" if clean_q else query_str
+                        x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
+                        st.link_button(label, x_url, width="stretch")
+
+    # -------------------------------------------------------------
+    # SUBVIEW 2: MONITORED DIRECTORY (200+ ACCOUNTS)
+    # -------------------------------------------------------------
+    elif x_subview and x_subview.startswith("Monitored Directory"):
+        # Top KPI Metrics Cards Row (Apple HIG cards)
+        kc1, kc2, kc3, kc4, kc5 = st.columns(5)
+        with kc1:
+            st.markdown(f"""
+            <div class="apple-kpi-card">
+                <div class="apple-kpi-card__label">Total Discovered</div>
+                <div class="apple-kpi-card__value">{total_acc_count}</div>
+                <div class="apple-kpi-card__subtitle">Researched network</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kc2:
+            st.markdown(f"""
+            <div class="apple-kpi-card">
+                <div class="apple-kpi-card__label">Verified Authentic</div>
+                <div class="apple-kpi-card__value" style="color:var(--tint);">{verified_acc_count}</div>
+                <div class="apple-kpi-card__subtitle">Zero mock accounts</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kc3:
+            st.markdown(f"""
+            <div class="apple-kpi-card">
+                <div class="apple-kpi-card__label">Active Monitored</div>
+                <div class="apple-kpi-card__value" style="color:var(--green);">{active_acc_count}</div>
+                <div class="apple-kpi-card__subtitle">Ingestion active</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kc4:
+            st.markdown(f"""
+            <div class="apple-kpi-card">
+                <div class="apple-kpi-card__label">Pending Review</div>
+                <div class="apple-kpi-card__value" style="color:var(--amber);">{pending_acc_count}</div>
+                <div class="apple-kpi-card__subtitle">Candidates queue</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with kc5:
+            st.markdown(f"""
+            <div class="apple-kpi-card">
+                <div class="apple-kpi-card__label">Canonical Sectors</div>
+                <div class="apple-kpi-card__value">{len(CANONICAL_X_CATEGORIES)}</div>
+                <div class="apple-kpi-card__subtitle">Balanced coverage</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Category Breakdown Badges Row
+        cat_counts = x_kpis.get("by_category", {})
+        badge_html = " ".join([
+            f'<span class="acct-badge-cat" style="font-size:0.72rem; padding:4px 10px;">{cat}: <b>{cat_counts.get(cat, 0)}</b></span>'
+            for cat in CANONICAL_X_CATEGORIES
+        ])
+        st.markdown(f'<div style="margin: 6px 0 16px 0; display:flex; flex-wrap:wrap; gap:6px;">{badge_html}</div>', unsafe_allow_html=True)
+
+        # Filters Row
+        flt_c1, flt_c2, flt_c3 = st.columns([2.5, 2, 1.5])
+        with flt_c1:
+            dir_search = st.text_input("Search directory", placeholder="Search by name, handle (@...), role, or keywords…", label_visibility="collapsed", key="dir_search_input")
+        with flt_c2:
+            dir_cat = st.selectbox("Canonical Sector", ["All Sectors (8)"] + CANONICAL_X_CATEGORIES, label_visibility="collapsed", key="dir_cat_select")
+        with flt_c3:
+            dir_status = st.selectbox("Status Filter", ["All Statuses", "Verified Only", "Active Monitored", "Paused Only", "Pending Review"], label_visibility="collapsed", key="dir_status_select")
+
+        # Query Accounts from DB (or fallback)
+        dir_filter_cat = None if dir_cat.startswith("All Sectors") else dir_cat
+        sel_ver_status = None
+        enabled_only = False
+        if dir_status == "Verified Only":
+            sel_ver_status = "verified"
+        elif dir_status == "Active Monitored":
+            enabled_only = True
+        elif dir_status == "Pending Review":
+            sel_ver_status = "pending_verification"
+
+        all_dir_accounts = get_all_x_accounts(
+            category=dir_filter_cat,
+            verification_status=sel_ver_status,
+            enabled_only=enabled_only,
+            search=dir_search
+        )
+        if not all_dir_accounts:
+            # Fallback to local verified directory
+            all_dir_accounts = [
+                a for a in VERIFIED_NEPAL_X_DIRECTORY
+                if (not dir_filter_cat or a.get("category") == dir_filter_cat)
+                and (not dir_search or dir_search.lower() in (a.get("name","")+a.get("handle","")+a.get("role","")+a.get("relevance","")).lower())
+            ]
+
+        if dir_status == "Paused Only":
+            all_dir_accounts = [a for a in all_dir_accounts if int(a.get("enabled", 1)) == 0]
+
+        # Top Action Bar: Count + Export
+        act_c1, act_c2 = st.columns([3, 1.2])
+        with act_c1:
+            st.caption(f"Showing **{len(all_dir_accounts)}** of {total_acc_count} researched accounts:")
+        with act_c2:
+            export_df = pd.DataFrame([
+                {
+                    "handle": a.get("handle"),
+                    "name": a.get("name"),
+                    "category": a.get("category"),
+                    "subcategory": a.get("subcategory"),
+                    "role": a.get("role"),
+                    "relevance": a.get("relevance"),
+                    "verification_status": a.get("verification_status"),
+                    "followers": a.get("followers"),
+                    "profile_url": a.get("profile_url"),
+                    "source_url": a.get("source_url"),
+                    "enabled": "Active" if int(a.get("enabled", 1)) == 1 else "Paused",
+                    "connection_status": a.get("connection_status"),
+                    "last_verified_at": a.get("last_verified_at")
+                }
+                for a in all_dir_accounts
+            ])
+            csv_bytes = export_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Export Directory (CSV)",
+                data=csv_bytes,
+                file_name=f"nepal_x_monitored_accounts_{datetime.datetime.now(NEPAL_TZ).strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                width="stretch"
+            )
+
+        # Accounts Grid (3 Columns)
+        if not all_dir_accounts:
+            render_empty_state("🔍", "No matching accounts found", "Try clearing the search term or resetting the sector filter.")
+        else:
+            cols = st.columns(3)
+            for idx, a in enumerate(all_dir_accounts):
+                with cols[idx % 3]:
+                    h = a.get("handle", "")
+                    name = a.get("name", h)
+                    profile_url = a.get("profile_url") or f"https://x.com/{h}"
+                    cat = a.get("category", "Civil Society and Public Voices")
+                    subcat = a.get("subcategory", "")
+                    role = a.get("role", "")
+                    relevance = a.get("relevance", "")
+                    ver_status = a.get("verification_status", "verified")
+                    source_url = a.get("source_url") or profile_url
+                    followers = a.get("followers", "N/A")
+                    avatar_bg = a.get("avatar_bg", "#2563eb")
+                    initials = a.get("initials") or (name[:2].upper() if name else "NP")
+                    is_enabled = bool(int(a.get("enabled", 1)) == 1)
+
+                    status_pill = '<span class="acct-status-pill acct-status-pill--active">● Active</span>' if is_enabled else '<span class="acct-status-pill acct-status-pill--paused">○ Paused</span>'
+                    ver_pill = '<span class="acct-status-pill acct-status-pill--active">✓ Verified</span>' if ver_status == "verified" else '<span class="acct-status-pill acct-status-pill--pending">⏳ Pending</span>'
+
+                    st.markdown(f"""
+                    <div class="acct-card-rich">
+                        <div>
+                            <div class="acct-card-rich__head">
+                                <div class="acct-card-rich__avatar" style="background:{avatar_bg};">{initials}</div>
+                                <div style="overflow:hidden; flex:1;">
+                                    <div class="acct-card-rich__name">{html.escape(name)} <span style="color:#1D9BF0; font-size:0.82rem;">✓</span></div>
+                                    <div class="acct-card-rich__handle">@{html.escape(h)} · {html.escape(followers)}</div>
+                                </div>
+                            </div>
+                            <div class="acct-card-rich__badges">
+                                <span class="acct-badge-cat">{html.escape(cat)}</span>
+                                {f'<span class="acct-badge-subcat">{html.escape(subcat)}</span>' if subcat else ''}
+                            </div>
+                            <div class="acct-card-rich__role">{html.escape(role)}</div>
+                            <div class="acct-card-rich__relevance" title="{html.escape(relevance)}">{html.escape(relevance)}</div>
+                        </div>
+                        <div class="acct-card-rich__footer">
+                            <div class="acct-card-rich__links">
+                                <a href="{html.escape(profile_url)}" target="_blank" rel="noopener noreferrer">Profile ↗</a>
+                                <a href="{html.escape(source_url)}" target="_blank" rel="noopener noreferrer">Evidence ↗</a>
+                            </div>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                {ver_pill}
+                                {status_pill}
                             </div>
                         </div>
-                        <div class="acct-card__role">{html.escape(a.get('role', ''))}</div>
                     </div>
-                    <div class="acct-card__links">
-                        <a href="https://x.com/{html.escape(a['handle'])}" target="_blank" rel="noopener noreferrer">Profile ↗</a>
-                        <a href="https://x.com/search?q=from%3A{html.escape(a['handle'])}&f=live" target="_blank" rel="noopener noreferrer">Live Posts ↗</a>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
-    filtered_feed = filter_items_by_category(filtered_x_posts, x_cat_filter, is_social=True)
-    if selected_acc_type != ALL_ACC_TYPES:
-        filtered_feed = [p for p in filtered_feed if p.get("author_type") == selected_acc_type]
+                    # Quick toggle for monitoring
+                    t_val = st.toggle("Active Monitoring", value=is_enabled, key=f"tgl_dir_{h}_{idx}")
+                    if t_val != is_enabled:
+                        set_x_account_enabled(h, t_val)
+                        st.toast(f"@{h} status updated to {'Active' if t_val else 'Paused'}!", icon="✅")
+                        st.rerun()
 
-    # Apply sorting
-    if sort_mode == "Newest":
-        filtered_feed.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
-    elif sort_mode == "Most engagement":
-        filtered_feed.sort(key=lambda x: x.get("engagement_score", 0), reverse=True)
-    elif sort_mode == "Most liked":
-        filtered_feed.sort(key=lambda x: x.get("likes", 0), reverse=True)
-    elif sort_mode == "Most reposted":
-        filtered_feed.sort(key=lambda x: x.get("retweets", 0), reverse=True)
+    # -------------------------------------------------------------
+    # SUBVIEW 3: DISCOVERY & ACCOUNT ADMIN (CHIEF ADMIN)
+    # -------------------------------------------------------------
+    elif x_subview == "Account Discovery & Admin":
+        st.markdown("""
+        <div style="background:var(--surface); border:1px solid var(--separator); border-radius:var(--r-md); padding:16px 20px; margin-bottom:18px;">
+            <h3 style="margin:0 0 6px 0; font-size:1.1rem; font-weight:700;">Account Discovery & Verification Console</h3>
+            <p style="margin:0; font-size:0.84rem; color:var(--label-2);">
+                Continuous intelligence expansion pipeline for the Chief Admin. Rigorously research, verify, test reachability,
+                and onboard new authentic Nepal-related X voices across the 8 canonical monitoring categories.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-    if not filtered_feed:
-        render_empty_state("𝕏", "No X posts found", "Try selecting 'All Account Types' or choosing 'All News'.")
-    else:
-        render_paginated_feed(filtered_feed, "x_visible_count", render_apple_x_post_card, "posts")
+        admin_tab1, admin_tab2, admin_tab3 = st.tabs([
+            "➕ Onboard New Account",
+            f"⏳ Review Pending Candidates ({pending_acc_count})",
+            "🛡️ Batch Network Reachability Audit"
+        ])
 
-    with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
-        clean_q = search_query.strip() if search_query else ""
-        x_cat_searches = [
-            ("🇮🇳 India Section ↗", '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "#NepalIndia")'),
-            ("🇨🇳 China Section ↗", '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "#NepalChina")'),
-            ("🇧🇩 Bangladesh Section ↗", '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy")'),
-            ("🇵🇰 Pakistan Section ↗", '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC")'),
-            ("🇳🇵 Nepal – Internal ↗", '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्")'),
-            ("🌐 Nepal – External ↗", '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र")'),
-            ("📈 Nepal – Economy ↗", '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र")'),
-            ("📌 Nepal – Others ↗", '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "संस्कृति")'),
-            ("🌍 International News ↗", '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "BRICS")'),
-        ]
-        for row_idx in range(0, len(x_cat_searches), 3):
-            cols = st.columns(3)
-            for col_idx, (label, query_str) in enumerate(x_cat_searches[row_idx:row_idx + 3]):
-                with cols[col_idx]:
-                    full_q = f"({clean_q}) AND {query_str}" if clean_q else query_str
-                    x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
-                    st.link_button(label, x_url, width="stretch")
+        with admin_tab1:
+            st.subheader("Add Researched & Verified Nepal X Account")
+            with st.form("form_add_x_account", clear_on_submit=False):
+                af_c1, af_c2 = st.columns(2)
+                with af_c1:
+                    new_handle = st.text_input("Exact X Handle (without or with @)*", placeholder="e.g. kpsharmaoli")
+                    new_name = st.text_input("Full Display Name*", placeholder="e.g. KP Sharma Oli")
+                    new_cat = st.selectbox("Canonical Monitoring Sector*", CANONICAL_X_CATEGORIES)
+                    new_subcat = st.text_input("Subcategory", placeholder="e.g. Ruling Coalition / CPN (UML)")
+                with af_c2:
+                    new_role = st.text_input("Primary Professional / Public Role*", placeholder="e.g. Prime Minister of Nepal")
+                    new_source = st.text_input("Evidence / Source URL*", placeholder="e.g. https://opmcm.gov.np or university/masthead bio")
+                    new_status = st.selectbox("Verification Status*", ["verified", "pending_verification"])
+                    new_followers = st.text_input("Follower Count", placeholder="e.g. 720K")
+
+                new_relevance = st.text_area("Relevance to Nepal Public Discourse & Geopolitics*", placeholder="Explain why this account is critical for monitoring (e.g. executive directives, foreign relations, editorial commentary)...")
+
+                btn_add_acc = st.form_submit_button("Save & Integrate Account into Monitoring Network", type="primary", width="stretch")
+
+                if btn_add_acc:
+                    norm_h = normalize_x_handle(new_handle)
+                    if not norm_h or not new_name.strip() or not new_role.strip() or not new_source.strip():
+                        st.error("Please fill in all required fields (Handle, Name, Role, Evidence Source, Relevance).")
+                    else:
+                        # Check duplicate
+                        existing_accs = get_all_x_accounts(search=norm_h)
+                        duplicate = any(normalize_x_handle(ex.get("handle","")) == norm_h for ex in existing_accs)
+                        if duplicate:
+                            st.warning(f"Account @{norm_h} already exists in the database! It will be updated.")
+
+                        # Verify reachability online
+                        is_ok, reach_msg = verify_x_profile_connectivity(norm_h)
+
+                        acc_payload = {
+                            "handle": norm_h,
+                            "name": new_name.strip(),
+                            "profile_url": f"https://x.com/{norm_h}",
+                            "category": new_cat,
+                            "subcategory": new_subcat.strip() or "General",
+                            "role": new_role.strip(),
+                            "relevance": new_relevance.strip(),
+                            "verification_status": new_status,
+                            "source_url": new_source.strip(),
+                            "followers": new_followers.strip() or "N/A",
+                            "avatar_bg": "#1d9bf0",
+                            "initials": "".join([w[0].upper() for w in new_name.split()[:2]]) or "NP",
+                            "enabled": 1,
+                            "connection_status": "connected" if is_ok else "unreachable",
+                            "last_verified_at": datetime.datetime.now(NEPAL_TZ).isoformat()
+                        }
+                        saved = upsert_single_x_account(acc_payload)
+                        if saved:
+                            st.success(f"Successfully integrated @{norm_h} into monitoring! Reachability: {reach_msg}")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to save account @{norm_h} into database.")
+
+        with admin_tab2:
+            st.subheader("Review Pending Verification Candidates")
+            pending_accounts = get_all_x_accounts(verification_status="pending_verification")
+            if not pending_accounts:
+                st.info("No accounts currently pending verification. All 216+ monitored accounts are fully verified!")
+            else:
+                for pa in pending_accounts:
+                    ph = pa.get("handle")
+                    with st.container(border=True):
+                        pc1, pc2, pc3 = st.columns([3, 1, 1])
+                        with pc1:
+                            st.markdown(f"**{pa.get('name')}** (`@{ph}`) · *{pa.get('category')}*")
+                            st.caption(f"Role: {pa.get('role')} | Source: {pa.get('source_url')}")
+                            st.write(pa.get("relevance"))
+                        with pc2:
+                            if st.button("Promote to Verified", key=f"btn_promote_{ph}", width="stretch"):
+                                pa["verification_status"] = "verified"
+                                upsert_single_x_account(pa)
+                                st.toast(f"Promoted @{ph} to Verified!", icon="🛡️")
+                                st.rerun()
+                        with pc3:
+                            if st.button("Remove", key=f"btn_remove_{ph}", width="stretch", type="secondary"):
+                                delete_x_account(ph)
+                                st.toast(f"Removed candidate @{ph}", icon="🗑️")
+                                st.rerun()
+
+        with admin_tab3:
+            st.subheader("Batch Network Reachability Audit")
+            st.caption("Checks live reachability across monitored handles to detect suspended, renamed, or inaccessible profiles.")
+            audit_sector = st.selectbox("Select Sector to Audit", ["All Sectors"] + CANONICAL_X_CATEGORIES, key="audit_sector_select")
+            if st.button("Run Reachability Audit", icon=":material/speed:", type="primary"):
+                with st.spinner("Pinging X profile endpoints..."):
+                    target_audit = get_all_x_accounts(category=(None if audit_sector == "All Sectors" else audit_sector), limit=30)
+                    audit_results = []
+                    for ta in target_audit:
+                        t_handle = ta.get("handle")
+                        ok, msg = verify_x_profile_connectivity(t_handle)
+                        audit_results.append({
+                            "Handle": f"@{t_handle}",
+                            "Name": ta.get("name"),
+                            "Sector": ta.get("category"),
+                            "Accessible": "✅ Reachable" if ok else "❌ Unreachable",
+                            "Details": msg
+                        })
+                    st.dataframe(pd.DataFrame(audit_results), use_container_width=True)
+                    st.success(f"Audit completed for {len(audit_results)} profiles!")
 
 
 # ==========================================

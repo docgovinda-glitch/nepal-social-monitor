@@ -87,10 +87,16 @@ APPLE_DESIGN_SYSTEM_CSS = """
 
     /* Sidebar Brand Card */
     .sidebar-brand-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 2px 0 8px 0;
+    }
+    .sidebar-brand-card.standalone {
         background: var(--surface);
         border: 1px solid var(--separator);
         border-radius: var(--r-md);
-        padding: 12px 14px;
+        padding: 14px 16px;
         box-shadow: var(--shadow-1);
         margin-bottom: 8px;
     }
@@ -125,13 +131,15 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-size: 0.72rem !important;
         color: var(--label-2) !important;
         letter-spacing: -0.01em !important;
-        margin: 5px 0 0 0 !important;
+        margin: 4px 0 0 0 !important;
         padding: 0 !important;
-        line-height: 1.3 !important;
+        line-height: 1.45 !important;
+        white-space: nowrap;
+        display: block !important;
     }
     .sidebar-brand-card .live-pill {
-        padding: 3px 8px;
-        font-size: 0.70rem;
+        padding: 2px 7px;
+        font-size: 0.68rem;
         font-weight: 600;
         flex-shrink: 0;
         white-space: nowrap;
@@ -271,6 +279,143 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .acct-card__links { border-top: 1px solid var(--separator); padding-top: 6px; font-size: 0.72rem; display: flex; gap: 10px; }
     .acct-card__links a { color: var(--link); text-decoration: none; font-weight: 600; }
 
+    /* Enhanced Account Directory Card (200+ Verified Accounts) */
+    .acct-card-rich {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: var(--r-md);
+        box-shadow: var(--shadow-1);
+        padding: 14px 16px;
+        margin-bottom: 14px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 200px;
+        transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .acct-card-rich:hover {
+        box-shadow: var(--shadow-2);
+        border-color: var(--tint);
+    }
+    .acct-card-rich__head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 6px;
+    }
+    .acct-card-rich__avatar {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #FFFFFF;
+        font-weight: 700;
+        font-size: 0.84rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        flex-shrink: 0;
+    }
+    .acct-card-rich__name {
+        font-weight: 700;
+        font-size: 0.90rem;
+        color: var(--label);
+        line-height: 1.25;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .acct-card-rich__handle {
+        font-size: 0.74rem;
+        color: var(--label-2);
+        margin-top: 2px;
+    }
+    .acct-card-rich__badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 6px 0 8px 0;
+    }
+    .acct-badge-cat {
+        font-size: 0.67rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: var(--r-pill);
+        background: rgba(0, 113, 227, 0.08);
+        color: var(--tint);
+    }
+    .acct-badge-subcat {
+        font-size: 0.65rem;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: var(--r-pill);
+        background: var(--surface-muted);
+        color: var(--label-2);
+    }
+    .acct-card-rich__role {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--label);
+        line-height: 1.35;
+        margin-bottom: 4px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .acct-card-rich__relevance {
+        font-size: 0.72rem;
+        color: var(--label-2);
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        margin-bottom: 10px;
+    }
+    .acct-card-rich__footer {
+        border-top: 1px solid var(--separator);
+        padding-top: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.72rem;
+    }
+    .acct-card-rich__links {
+        display: flex;
+        gap: 10px;
+    }
+    .acct-card-rich__links a {
+        color: var(--link);
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .acct-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: var(--r-pill);
+        font-size: 0.67rem;
+        font-weight: 600;
+    }
+    .acct-status-pill--active {
+        background: var(--green-soft);
+        color: var(--green);
+    }
+    .acct-status-pill--paused {
+        background: var(--amber-soft);
+        color: var(--amber);
+    }
+    .acct-status-pill--pending {
+        background: rgba(142, 78, 198, 0.12);
+        color: #8E4EC6;
+    }
+
     /* Health card */
     .health-card { position: relative; padding: 14px 18px 14px 20px; margin-bottom: 10px; overflow: hidden; }
     .health-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent, var(--green)); }
@@ -292,6 +437,37 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .empty-state__icon { font-size: 2rem; margin-bottom: 8px; }
     .empty-state__title { font-size: 1rem; font-weight: 650; color: var(--label); margin: 0 0 4px 0; }
     .empty-state__body { font-size: 0.86rem; color: var(--label-2); margin: 0; }
+
+    /* Apple HIG KPI Card */
+    .apple-kpi-card {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: var(--r-md);
+        padding: 12px 14px;
+        box-shadow: var(--shadow-1);
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        margin-bottom: 8px;
+    }
+    .apple-kpi-card__label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--label-2);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .apple-kpi-card__value {
+        font-size: 1.55rem;
+        font-weight: 700;
+        letter-spacing: -0.028em;
+        color: var(--label);
+        line-height: 1.15;
+    }
+    .apple-kpi-card__subtitle {
+        font-size: 0.70rem;
+        color: var(--label-3);
+    }
 
     .counter-badge { display: inline-block; background: var(--surface); border: 1px solid var(--separator); border-radius: var(--r-sm); padding: 6px 12px; font-size: 0.78rem; color: var(--label-2); }
     .counter-badge b { color: var(--label); }
@@ -338,12 +514,103 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: var(--tint-hover) !important;
     }
 
-    /* Segmented control — macOS style, full width parallel to inputs */
-    div[data-testid="stButtonGroup"] {
+    /* ==========================================================
+       7. SEGMENTED CONTROLS (macOS / Apple HIG)
+       ========================================================== */
+    /* Main Content Area Segmented Controls */
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"],
+    .main div[data-testid="stButtonGroup"] {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        margin: 4px 0 16px 0 !important;
+    }
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] > div,
+    .main div[data-testid="stButtonGroup"] > div {
+        display: inline-flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        width: auto !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        scrollbar-width: none !important;
+        -webkit-overflow-scrolling: touch !important;
+        background: rgba(118, 118, 128, 0.12) !important;
+        padding: 3px !important;
+        border-radius: 10px !important;
+        border: none !important;
+        gap: 3px !important;
+        box-sizing: border-box !important;
+    }
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] > div::-webkit-scrollbar,
+    .main div[data-testid="stButtonGroup"] > div::-webkit-scrollbar {
+        display: none !important;
+    }
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button,
+    .main div[data-testid="stButtonGroup"] button {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: max-content !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        padding: 0 18px !important;
+        border-radius: 8px !important;
+        border: none !important;
+        background: transparent !important;
+        color: var(--label-2) !important;
+        box-shadow: none !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        letter-spacing: -0.01em !important;
+        text-align: center !important;
+        justify-content: center !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        cursor: pointer !important;
+        transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease), color 0.2s var(--ease) !important;
+    }
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button *,
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button p,
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button div,
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button span,
+    .main div[data-testid="stButtonGroup"] button *,
+    .main div[data-testid="stButtonGroup"] button p,
+    .main div[data-testid="stButtonGroup"] button div,
+    .main div[data-testid="stButtonGroup"] button span {
+        font-size: 0.82rem !important;
+        font-weight: inherit !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 34px !important;
+        text-align: center !important;
+    }
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button:hover:not([aria-checked="true"]),
+    .main div[data-testid="stButtonGroup"] button:hover:not([aria-checked="true"]) {
+        background: rgba(255, 255, 255, 0.45) !important;
+        color: var(--label) !important;
+    }
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button[data-selected],
+    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button[aria-checked="true"],
+    .main div[data-testid="stButtonGroup"] button[data-selected],
+    .main div[data-testid="stButtonGroup"] button[aria-checked="true"] {
+        background: var(--surface) !important;
+        font-weight: 600 !important;
+        color: var(--label) !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* Sidebar Segmented Controls (compact 1-row layout for timeframe presets) */
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] {
         width: 100% !important;
         display: flex !important;
     }
-    div[data-testid="stButtonGroup"] > div {
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] > div {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
@@ -355,8 +622,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
         gap: 0 !important;
         box-sizing: border-box !important;
     }
-    div[data-testid="stButtonGroup"] button,
-    div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button,
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
         flex: 1 1 0 !important;
         width: 100% !important;
         min-width: 0 !important;
@@ -366,38 +633,39 @@ APPLE_DESIGN_SYSTEM_CSS = """
         border-radius: 7px !important;
         border: none !important;
         background: transparent !important;
-        color: var(--label) !important;
+        color: var(--label-2) !important;
         box-shadow: none !important;
-        font-size: 0.74rem !important;
+        font-size: 0.72rem !important;
         font-weight: 500 !important;
         letter-spacing: -0.01em !important;
         text-align: center !important;
         justify-content: center !important;
         align-items: center !important;
         white-space: nowrap !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
         transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease) !important;
     }
-    div[data-testid="stButtonGroup"] button *,
-    div[data-testid="stButtonGroup"] button p,
-    div[data-testid="stButtonGroup"] button div,
-    div[data-testid="stButtonGroup"] button span {
-        font-size: 0.74rem !important;
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button *,
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button p,
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button div,
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button span {
+        font-size: 0.72rem !important;
+        font-weight: inherit !important;
         white-space: nowrap !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
         margin: 0 !important;
         padding: 0 !important;
         line-height: 1 !important;
         text-align: center !important;
     }
-    div[data-testid="stButtonGroup"] button[data-selected],
-    div[data-testid="stButtonGroup"] button[aria-checked="true"] {
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button[data-selected],
+    section[data-testid="stSidebar"] div[data-testid="stButtonGroup"] button[aria-checked="true"] {
         background: var(--surface) !important;
         font-weight: 600 !important;
         color: var(--label) !important;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.04) !important;
     }
 
     /* Toggle */
@@ -425,11 +693,27 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     section[data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding: 1rem 1rem 1.5rem 1rem !important; }
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: 0.5rem !important; }
-    section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] > div {
-        background: var(--surface) !important; border: none !important;
-        border-radius: var(--r-md) !important; padding: 12px 14px !important; box-shadow: var(--shadow-1) !important;
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] > div,
+    section[data-testid="stSidebar"] div[data-testid="stLayoutWrapper"] > div[data-testid="stVerticalBlock"] {
+        background: var(--surface) !important;
+        border: 1px solid var(--separator) !important;
+        border-radius: var(--r-md) !important;
+        padding: 13px 14px 15px 14px !important;
+        box-shadow: var(--shadow-1) !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stTooltipIcon"] { display: none !important; }
+    section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"] { display: none !important; }
+    section[data-testid="stSidebar"] [data-testid="stTooltipIcon"]:not(label *) {
+        display: inline-flex !important;
+        width: 100% !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stTooltipHoverTarget"] {
+        width: 100% !important;
+        display: flex !important;
+    }
+    section[data-testid="stSidebar"] .stButton {
+        width: 100% !important;
+    }
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] { min-height: 16px !important; margin-bottom: 2px !important; }
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] p { font-size: 0.74rem !important; font-weight: 500 !important; color: var(--label-2) !important; }
     section[data-testid="stSidebar"] div[data-baseweb="input"] > div,

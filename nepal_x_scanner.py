@@ -2933,7 +2933,67 @@ TOP_NEPAL_X_ACCOUNTS = [
     }
 ]
 
-ACCOUNT_BY_HANDLE = {acc["handle"].lower(): acc for acc in TOP_NEPAL_X_ACCOUNTS}
+# Incorporate the authoritative verified Nepal X directory (216 authentic researched accounts)
+try:
+    from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY
+except Exception:
+    VERIFIED_NEPAL_X_DIRECTORY = []
+
+# Build comprehensive unified accounts lookup with duplicate detection on normalized handles
+ACCOUNT_BY_HANDLE: Dict[str, Dict[str, Any]] = {}
+
+for acc in TOP_NEPAL_X_ACCOUNTS:
+    h = acc.get("handle", "").lower().strip().lstrip("@")
+    if h:
+        ACCOUNT_BY_HANDLE[h] = {**acc, "type": acc.get("type", "Civic Voice")}
+
+for acc in VERIFIED_NEPAL_X_DIRECTORY:
+    h = acc.get("handle", "").lower().strip().lstrip("@")
+    if h:
+        existing = ACCOUNT_BY_HANDLE.get(h, {})
+        ACCOUNT_BY_HANDLE[h] = {
+            **existing,
+            **acc,
+            "type": acc.get("category", existing.get("type", "Civic Voice")),
+            "verified": True,
+        }
+
+# Update TOP_NEPAL_X_ACCOUNTS list with all verified accounts
+for acc in VERIFIED_NEPAL_X_DIRECTORY:
+    h = acc.get("handle", "").lower().strip().lstrip("@")
+    if not any(a.get("handle", "").lower().strip().lstrip("@") == h for a in TOP_NEPAL_X_ACCOUNTS):
+        TOP_NEPAL_X_ACCOUNTS.append({
+            **acc,
+            "type": acc.get("category", "Civil Society and Public Voices"),
+            "verified": True
+        })
+
+
+def get_monitored_x_accounts(enabled_only: bool = True) -> List[Dict[str, Any]]:
+    """
+    Dynamically retrieves enabled monitored X accounts from Supabase cloud database,
+    falling back to VERIFIED_NEPAL_X_DIRECTORY.
+    """
+    try:
+        from nepal_news_store import get_all_x_accounts
+        db_accounts = get_all_x_accounts(enabled_only=enabled_only)
+        if db_accounts and len(db_accounts) >= 50:
+            formatted = []
+            for a in db_accounts:
+                formatted.append({
+                    **a,
+                    "type": a.get("category", "Civil Society and Public Voices"),
+                    "verified": a.get("verification_status") == "verified"
+                })
+            return formatted
+    except Exception:
+        pass
+
+    return [
+        {**a, "type": a.get("category", "Civil Society and Public Voices"), "verified": True}
+        for a in VERIFIED_NEPAL_X_DIRECTORY
+        if (not enabled_only or a.get("enabled", 1) in (1, True, "1"))
+    ]
 
 
 def classify_x_post(text: str, author_name: str = "", handle: str = "", role: str = "") -> str:
@@ -3263,8 +3323,12 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
         except Exception:
             return []
 
+    active_accounts = get_monitored_x_accounts(enabled_only=True)
+    if not active_accounts:
+        active_accounts = TOP_NEPAL_X_ACCOUNTS
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
-        batches = list(ex.map(_fetch_profile_ids, TOP_NEPAL_X_ACCOUNTS))
+        batches = list(ex.map(_fetch_profile_ids, active_accounts))
 
     raw_items = [it for b in batches for it in b]
 
@@ -3319,6 +3383,16 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str 
                             p["relative_time"] = format_relative_time(p["published_dt"], now_npt)
                             p["exact_time"] = p["published_dt"].strftime("%b %d, %I:%M %p NPT")
                     return cached_posts
+        except Exception:
+            pass
+
+    # 2. Check Supabase cloud database if local cache is not present
+    if not force_refresh:
+        try:
+            from nepal_news_store import get_stored_x_posts
+            db_posts = get_stored_x_posts(limit=500)
+            if db_posts and len(db_posts) >= 40:
+                return db_posts
         except Exception:
             pass
 
@@ -3450,6 +3524,13 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str 
                 "total_count": len(serializable_posts),
                 "posts": serializable_posts
             }, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+    # Push freshly harvested posts directly into Supabase Cloud PostgreSQL x_posts table
+    try:
+        from nepal_news_store import save_x_posts
+        save_x_posts(all_posts)
     except Exception:
         pass
 
