@@ -21,7 +21,21 @@ import urllib.error
 from typing import List, Dict, Any, Optional, Tuple
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
-_SUPABASE_SEM = threading.Semaphore(2)
+_SUPABASE_SEM = threading.Semaphore(6)
+
+ARTICLE_FEED_COLUMNS = (
+    "canonical_id, source, title, headline_english, link, canonical_url, summary, "
+    "published_dt, relative_time, exact_time, language, portal_category, "
+    "primary_section, sections, secondary_tags, classification_confidence, "
+    "low_confidence, is_viral, ingested_at"
+)
+
+INDIAN_FEED_COLUMNS = (
+    "canonical_id, source, title, headline_english, link, canonical_url, summary, "
+    "published_dt, relative_time, exact_time, language, primary_section, sections, "
+    "secondary_tags, classification_confidence, nepal_relevance_score, "
+    "relevance_status, relevance_reason, nepal_dimensions, ingested_at"
+)
 
 logger = logging.getLogger("nepal_news_store")
 if not logger.handlers:
@@ -145,15 +159,13 @@ def generate_canonical_id(source: str, url: str, title: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 def init_news_store():
-    """Verifies connection to Supabase cloud database."""
+    """Verifies connection to Supabase cloud database (called on-demand, not at import time)."""
     try:
         res = query_supabase("SELECT 1 as test;")
         if res:
             logger.info("Connected to Supabase Cloud PostgreSQL database successfully.")
     except Exception as ex:
         logger.warning(f"Could not connect to Supabase: {ex}")
-
-init_news_store()
 
 def register_portal_sources(portals_list: List[Dict[str, Any]]):
     """Syncs the canonical 34 portal list into Supabase sources table."""
@@ -339,7 +351,8 @@ def get_stored_articles(
     end_dt: Optional[datetime.datetime] = None,
     source: Optional[str] = None,
     primary_section: Optional[str] = None,
-    limit: int = 1500
+    limit: int = 1500,
+    include_full_content: bool = False,
 ) -> List[Dict[str, Any]]:
     """Retrieves articles directly from Supabase PostgreSQL cloud table."""
     where_clauses = ["1=1"]
@@ -352,8 +365,9 @@ def get_stored_articles(
     if primary_section and not primary_section.startswith("🌐 All"):
         where_clauses.append(f"(primary_section = {esc_sql(primary_section)} OR sections ILIKE '%{primary_section}%')")
 
+    cols = "*" if include_full_content else ARTICLE_FEED_COLUMNS
     sql = f"""
-    SELECT * FROM articles 
+    SELECT {cols} FROM articles 
     WHERE {' AND '.join(where_clauses)}
     ORDER BY published_dt DESC 
     LIMIT {limit};
@@ -532,7 +546,8 @@ def get_stored_indian_articles(
     relevance_status: Optional[str] = None,
     status_filter: Optional[str] = "substantive",
     min_score: float = 0.0,
-    limit: int = 500
+    limit: int = 500,
+    include_full_content: bool = False,
 ) -> List[Dict[str, Any]]:
     """Retrieves Indian media articles from Supabase."""
     eff_status = relevance_status if relevance_status is not None else status_filter
@@ -545,7 +560,8 @@ def get_stored_indian_articles(
     if min_score and min_score > 0:
         clauses.append(f"nepal_relevance_score >= {float(min_score)}")
     where = "WHERE " + " AND ".join(clauses)
-    sql = f"SELECT * FROM indian_media_articles {where} ORDER BY published_dt DESC LIMIT {limit};"
+    cols = "*" if include_full_content else INDIAN_FEED_COLUMNS
+    sql = f"SELECT {cols} FROM indian_media_articles {where} ORDER BY published_dt DESC LIMIT {limit};"
     rows = query_supabase(sql)
     for d in rows:
         if isinstance(d.get("published_dt"), str):
@@ -561,6 +577,39 @@ def get_stored_indian_articles(
         if not d.get("stream"):
             d["stream"] = "Indian Press"
     return rows
+
+
+def get_stored_counts_by_stream(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+) -> Dict[str, int]:
+    """Lightweight aggregated counts for sidebar badges without pulling thousands of rows."""
+    where_articles = ["1=1"]
+    where_indian = ["relevance_status IN ('substantive', 'relevant')"]
+    if start_dt:
+        dt_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        where_articles.append(f"published_dt >= '{dt_str}'")
+        where_indian.append(f"published_dt >= '{dt_str}'")
+    if end_dt:
+        dt_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+        where_articles.append(f"published_dt <= '{dt_str}'")
+        where_indian.append(f"published_dt <= '{dt_str}'")
+
+    sql = f"""
+    SELECT 
+        (SELECT COUNT(*) FROM articles WHERE {' AND '.join(where_articles)}) as np_count,
+        (SELECT COUNT(*) FROM indian_media_articles WHERE {' AND '.join(where_indian)}) as in_count,
+        (SELECT COUNT(*) FROM x_posts) as x_count;
+    """
+    rows = query_supabase(sql)
+    if rows:
+        r = rows[0]
+        return {
+            "nepali_count": int(r.get("np_count") or 0),
+            "indian_count": int(r.get("in_count") or 0),
+            "x_count": int(r.get("x_count") or 0)
+        }
+    return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
 
 # ==============================================================================

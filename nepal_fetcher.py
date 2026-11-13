@@ -1133,9 +1133,9 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
     return items
 
 def _prewarm_caches_from_db():
-    """Pre-seeds ARTICLE_DATE_CACHE and FULL_ARTICLE_TEXT_CACHE (only when genuinely multi-paragraph full text) from DB."""
+    """Pre-seeds ARTICLE_DATE_CACHE and FULL_ARTICLE_TEXT_CACHE from DB (called on-demand, not on import)."""
     try:
-        stored = get_stored_articles(limit=1500)
+        stored = get_stored_articles(limit=500, include_full_content=True)
         for sa in stored:
             lnk = sa.get("link")
             pdt = sa.get("published_dt")
@@ -1147,8 +1147,6 @@ def _prewarm_caches_from_db():
                 FULL_ARTICLE_TEXT_CACHE[lnk] = fc
     except Exception:
         pass
-
-_prewarm_caches_from_db()
 
 def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
     """

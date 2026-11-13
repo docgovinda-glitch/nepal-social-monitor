@@ -19,14 +19,6 @@ import html
 import re
 import os
 from typing import Any, Callable, Dict, List
-import importlib
-
-import nepal_news_store
-importlib.reload(nepal_news_store)
-import nepal_fetcher
-importlib.reload(nepal_fetcher)
-import nepal_x_scanner
-importlib.reload(nepal_x_scanner)
 
 from nepal_fetcher import (
     fetch_top_nepal_media,
@@ -51,6 +43,7 @@ from nepal_news_store import (
     set_source_interval,
     get_stored_articles,
     get_stored_indian_articles,
+    get_stored_counts_by_stream,
     get_indian_media_audit_stats,
     batch_upsert_x_accounts,
     get_all_x_accounts,
@@ -69,8 +62,6 @@ from nepal_news_scheduler import (
     run_historical_backfill,
     start_monitoring_daemon
 )
-import apple_theme
-importlib.reload(apple_theme)
 from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
 
 # Start background news monitoring daemon if not already running
@@ -256,62 +247,82 @@ except Exception:
     pass
 x_bearer_token = default_bearer
 
-# 6. High-Performance Cached Data Pipeline (5-minute TTL, sub-second reload)
-@st.cache_data(ttl=300, show_spinner=False)
-def get_cached_nepal_media():
-    """Fetches and caches Nepali media with 5-minute TTL. Instant load on filter/tab changes."""
-    return fetch_top_nepal_media(max_workers=25)
-
-@st.cache_data(ttl=300, show_spinner=False)
-def get_cached_indian_media():
-    """Fetches and caches Nepal-relevant Indian media with 5-minute TTL."""
-    return fetch_nepal_in_indian_media(max_workers=18)
-
-@st.cache_data(ttl=300, show_spinner=False)
-def get_cached_x_posts(bearer_token: str = ""):
-    """Fetches and caches X posts with 5-minute TTL."""
-    return scan_popular_nepal_x_posts(force_refresh=False, x_bearer_token=bearer_token)
-
-all_articles = get_cached_nepal_media()
-indian_articles = get_cached_indian_media()
-
-if "x_posts" not in st.session_state or not st.session_state.get("x_posts") or not any(p.get("is_real_api") for p in st.session_state.get("x_posts", [])):
-    st.session_state["x_posts"] = get_cached_x_posts(x_bearer_token)
-all_x_posts = st.session_state["x_posts"]
-
-# Apply Date & Time Range Filter across ALL channels
+# 6. High-Performance Cached Data Pipeline (Lazy-loaded, feed-projected)
 MIN_DATE = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
 
 def in_window(item: Dict[str, Any]) -> bool:
     pdt = item.get("published_dt")
     return isinstance(pdt, datetime.datetime) and filter_start_dt <= pdt <= filter_end_dt
 
-def merge_stored(live_items: List[Dict[str, Any]], stored_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Reconciles live-fetched items with the persistent store so the window is complete."""
-    seen = {a.get("canonical_id") or a.get("link") for a in live_items}
-    for it in stored_items:
-        key = it.get("canonical_id") or it.get("link")
-        if key and key not in seen and in_window(it):
-            _, it["relative_time"], it["exact_time"] = parse_to_nepal_time(it["published_dt"], now_npt)
-            live_items.append(it)
-            seen.add(key)
-    return live_items
+def in_window_bounds(item: Dict[str, Any], start_dt: datetime.datetime, end_dt: datetime.datetime) -> bool:
+    pdt = item.get("published_dt")
+    return isinstance(pdt, datetime.datetime) and start_dt <= pdt <= end_dt
 
-filtered_articles = [a for a in all_articles if in_window(a)]
-filtered_indian = [a for a in indian_articles if in_window(a)]
-filtered_x_posts = [p for p in all_x_posts if in_window(p)]
+@st.cache_data(ttl=180, show_spinner=False)
+def get_cached_stream_counts(start_dt: datetime.datetime, end_dt: datetime.datetime) -> Dict[str, int]:
+    """Retrieves fast aggregated counts across streams without downloading article bodies."""
+    try:
+        return get_stored_counts_by_stream(start_dt=start_dt, end_dt=end_dt)
+    except Exception:
+        return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
-try:
-    filtered_articles = merge_stored(filtered_articles, get_stored_articles(start_dt=filter_start_dt, end_dt=filter_end_dt, limit=5000))
-except Exception:
-    pass
-try:
-    filtered_indian = merge_stored(filtered_indian, get_stored_indian_articles(status_filter="substantive", limit=2000))
-except Exception:
-    pass
+@st.cache_data(ttl=180, show_spinner=False)
+def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.datetime) -> List[Dict[str, Any]]:
+    """Loads Nepali media for the active window directly from Supabase with feed projection."""
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    try:
+        stored = get_stored_articles(start_dt=start_dt, end_dt=end_dt, limit=1500, include_full_content=False)
+    except Exception:
+        stored = []
+    if not stored:
+        try:
+            live = fetch_top_nepal_media(max_workers=25)
+            stored = [a for a in live if in_window_bounds(a, start_dt, end_dt)]
+        except Exception:
+            stored = []
+    else:
+        for sa in stored:
+            pdt = sa.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+    stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+    return stored
 
-for _feed in (filtered_articles, filtered_indian, filtered_x_posts):
-    _feed.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+@st.cache_data(ttl=180, show_spinner=False)
+def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.datetime) -> List[Dict[str, Any]]:
+    """Loads Indian press articles covering Nepal directly from Supabase with feed projection."""
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    try:
+        stored = get_stored_indian_articles(status_filter="substantive", limit=500, include_full_content=False)
+    except Exception:
+        stored = []
+    if not stored:
+        try:
+            live = fetch_nepal_in_indian_media(max_workers=18)
+            stored = [a for a in live if in_window_bounds(a, start_dt, end_dt)]
+        except Exception:
+            stored = []
+    else:
+        for sa in stored:
+            pdt = sa.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+    stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+    return stored
+
+@st.cache_data(ttl=180, show_spinner=False)
+def get_active_x_posts(bearer_token: str = "") -> List[Dict[str, Any]]:
+    """Loads monitored X posts from Supabase store or local cache."""
+    try:
+        posts = get_stored_x_posts(limit=500)
+    except Exception:
+        posts = []
+    if not posts:
+        try:
+            posts = scan_popular_nepal_x_posts(force_refresh=False, x_bearer_token=bearer_token)
+        except Exception:
+            posts = []
+    return posts
 
 # ==========================================
 # CATEGORY TAXONOMY (one alias map + one slug map for badges & accents)
@@ -556,26 +567,24 @@ SEARCH_EXPANSIONS = {
 def smart_search_match(item: Dict[str, Any], query: str) -> bool:
     """
     High-performance bilingual, multi-token matching function.
-    Searches across title, summary, full content, translated headlines,
-    source outlet, author name, handle, role, hashtags, and category.
-    Supports cross-lingual expansion between English and Nepali.
+    Searches across title, summary, translated headlines, source outlet,
+    author name, handle, role, category, and sentiment.
     """
     if not query or not query.strip():
         return True
 
+    # Search indexed metadata (excluding full_content body for speed)
     parts = [
         item.get("title", ""),
         item.get("headline_english", ""),
         item.get("summary", ""),
-        item.get("full_content", ""),
         item.get("text", ""),
         item.get("source", ""),
         item.get("author_name", ""),
         item.get("handle", ""),
         item.get("role", ""),
         item.get("structured_category", ""),
-        item.get("sentiment", ""),
-        item.get("feed_type", "")
+        item.get("language", ""),
     ]
     text_corpus = " ".join(str(p) for p in parts if p).lower()
 
@@ -585,11 +594,13 @@ def smart_search_match(item: Dict[str, Any], query: str) -> bool:
 
     for token in tokens:
         synonyms = [token]
-        for key, syn_list in SEARCH_EXPANSIONS.items():
-            if token == key or token in syn_list:
-                synonyms.extend(syn_list)
-        synonyms = list(set(synonyms))
-
+        if token in SEARCH_EXPANSIONS:
+            synonyms.extend(SEARCH_EXPANSIONS[token])
+        else:
+            for key, syn_list in SEARCH_EXPANSIONS.items():
+                if token in syn_list:
+                    synonyms.extend(syn_list)
+                    break
         if not any(syn in text_corpus for syn in synonyms):
             return False
 
@@ -711,19 +722,16 @@ with st.sidebar:
         with sb_btn2:
             st.button("Reset", icon=":material/restart_alt:", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
 
-# Global cross-channel search
-if search_query and search_query.strip():
-    filtered_articles = [a for a in filtered_articles if smart_search_match(a, search_query)]
-    filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
-    filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
+# Fast stream counts for workspace navigation badges
+stream_counts = get_cached_stream_counts(filter_start_dt, filter_end_dt)
 
 # ==========================================
 # 7. SIDEBAR · Card 2 — Workspace, Card 3 — Contextual filters
 # ==========================================
 NAV_ITEMS = [
-    ("Nepali Media", "📰", len(filtered_articles)),
-    ("Indian Press", "🇮🇳", len(filtered_indian)),
-    ("X", "𝕏", len(filtered_x_posts)),
+    ("Nepali Media", "📰", stream_counts.get("nepali_count", 0)),
+    ("Indian Press", "🇮🇳", stream_counts.get("indian_count", 0)),
+    ("X", "𝕏", stream_counts.get("x_count", 0)),
     ("Analytics & Export", "📈", None),
     ("System Health", "🩺", None),
 ]
@@ -805,6 +813,9 @@ with st.sidebar:
 # SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
 if selected_nav == "Nepali Media":
+    all_articles = get_active_nepal_articles(filter_start_dt, filter_end_dt)
+    filtered_articles = [a for a in all_articles if smart_search_match(a, search_query)] if search_query else all_articles
+
     render_page_header("Nepali Media", f"{len(filtered_articles):,} stories discovered across 34 portals")
 
     tab_articles = filter_items_by_category(filtered_articles, sel_np_cat, is_social=False)
@@ -833,6 +844,9 @@ if selected_nav == "Nepali Media":
 # SECTION 2: Nepal in Indian Media
 # ==========================================
 elif selected_nav == "Indian Press":
+    all_indian = get_active_indian_articles(filter_start_dt, filter_end_dt)
+    filtered_indian = [a for a in all_indian if smart_search_match(a, search_query)] if search_query else all_indian
+
     render_page_header("Indian Press", f"{len(filtered_indian):,} Nepal-focused dispatches across 18 Indian outlets")
 
     tab_filtered_indian = filtered_indian
@@ -908,6 +922,10 @@ elif selected_nav == "Indian Press":
 # SECTION 3: X (Twitter) Nepal
 # ==========================================
 elif selected_nav == "X":
+    all_x = get_active_x_posts(x_bearer_token)
+    in_win_x = [p for p in all_x if in_window(p)]
+    filtered_x_posts = [p for p in in_win_x if smart_search_match(p, search_query)] if search_query else in_win_x
+
     # 1. Fetch DB KPIs and Monitored Accounts
     x_kpis = get_x_account_kpis()
     total_acc_count = x_kpis.get("total_discovered", len(VERIFIED_NEPAL_X_DIRECTORY))
@@ -1311,6 +1329,20 @@ elif selected_nav == "X":
 # ==========================================
 elif selected_nav == "Analytics & Export":
     render_page_header("Analytics & Export", "Consolidated intelligence dataset & executive document generation")
+
+    articles_src = get_active_nepal_articles(filter_start_dt, filter_end_dt)
+    indian_src = get_active_indian_articles(filter_start_dt, filter_end_dt)
+    all_x = get_active_x_posts(x_bearer_token)
+    x_src = [p for p in all_x if in_window(p)]
+
+    if search_query and search_query.strip():
+        filtered_articles = [a for a in articles_src if smart_search_match(a, search_query)]
+        filtered_indian = [a for a in indian_src if smart_search_match(a, search_query)]
+        filtered_x_posts = [p for p in x_src if smart_search_match(p, search_query)]
+    else:
+        filtered_articles = articles_src
+        filtered_indian = indian_src
+        filtered_x_posts = x_src
 
     all_unified_items = []
     for a in filtered_articles:
