@@ -632,33 +632,34 @@ def filter_items_by_category(items: list, selected_option: str, is_social: bool 
     ]
 
 # ==========================================
-# 5. APP HEADER (frosted glass)
-# ==========================================
-st.markdown(f"""
-<div class="app-header">
-    <div class="app-header__brand">
-        <span class="app-header__flag">🇳🇵</span>
-        <div>
-            <h1 class="app-header__title">Nepal Media Monitor</h1>
-            <p class="app-header__subtitle">{len(TOP_NEPAL_NEWS_PORTALS)} Nepali portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets · X</p>
-        </div>
-    </div>
-    <div class="live-pill"><span class="live-pill__dot"></span>Live · {formatted_now_time}</div>
-</div>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# 6. SIDEBAR · Card 1 — Timeframe & Search
+# 5. SIDEBAR
 # ==========================================
 with st.sidebar:
+    # Sidebar Brand Card (Apple macOS header)
+    st.markdown(f"""
+    <div class="sidebar-brand-card">
+        <div class="sidebar-brand-card__row1">
+            <div class="sidebar-brand-card__brand">
+                <span class="sidebar-brand-card__flag">🇳🇵</span>
+                <span class="sidebar-brand-card__title">Nepal Media Monitor</span>
+            </div>
+            <div class="live-pill"><span class="live-pill__dot"></span>Live · {formatted_now_time}</div>
+        </div>
+        <div class="sidebar-brand-card__subtitle">{len(TOP_NEPAL_NEWS_PORTALS)} Nepali portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets · X</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Card 1 — Timeframe & Search
     with st.container(border=True):
         sidebar_section("Timeframe & Search")
         st.segmented_control(
             "Timeframe",
             options=TIMEFRAME_PRESETS,
+            default=st.session_state.get("cp_timeframe_segment", "12h"),
             key="cp_timeframe_segment",
             on_change=on_timeframe_preset_change,
             label_visibility="collapsed",
+            width="stretch",
         )
 
         if active_preset == "Custom":
@@ -674,7 +675,7 @@ with st.sidebar:
 
         search_query = st.text_input(
             "Search",
-            placeholder="Search all streams",
+            placeholder="Search across all streams…",
             key="global_search_input",
             label_visibility="collapsed",
             icon=":material/search:",

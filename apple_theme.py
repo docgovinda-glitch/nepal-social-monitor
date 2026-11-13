@@ -68,7 +68,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* ==========================================================
-       3. APP HEADER (frosted glass)
+       3. APP HEADER & SIDEBAR BRAND CARD (Apple HIG)
        ========================================================== */
     .app-header {
         display: flex; justify-content: space-between; align-items: center; gap: 12px;
@@ -84,6 +84,59 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .app-header__flag { font-size: 1.7rem; line-height: 1; }
     .app-header__title { font-size: 1.22rem !important; font-weight: 700 !important; letter-spacing: -0.022em !important; margin: 0 !important; line-height: 1.15 !important; color: var(--label) !important; padding: 0 !important; }
     .app-header__subtitle { font-size: 0.78rem !important; color: var(--label-2) !important; margin: 2px 0 0 0 !important; }
+
+    /* Sidebar Brand Card */
+    .sidebar-brand-card {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: var(--r-md);
+        padding: 12px 14px;
+        box-shadow: var(--shadow-1);
+        margin-bottom: 8px;
+    }
+    .sidebar-brand-card__row1 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .sidebar-brand-card__brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .sidebar-brand-card__flag {
+        font-size: 1.35rem;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+    .sidebar-brand-card__title {
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.022em !important;
+        color: var(--label) !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        white-space: nowrap;
+    }
+    .sidebar-brand-card__subtitle {
+        font-size: 0.72rem !important;
+        color: var(--label-2) !important;
+        letter-spacing: -0.01em !important;
+        margin: 5px 0 0 0 !important;
+        padding: 0 !important;
+        line-height: 1.3 !important;
+    }
+    .sidebar-brand-card .live-pill {
+        padding: 3px 8px;
+        font-size: 0.70rem;
+        font-weight: 600;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
     .live-pill {
         display: inline-flex; align-items: center; gap: 7px;
         background: var(--green-soft); color: var(--green);
@@ -285,25 +338,66 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: var(--tint-hover) !important;
     }
 
-    /* Segmented control */
-    div[data-testid="stButtonGroup"] { width: 100% !important; }
+    /* Segmented control — macOS style, full width parallel to inputs */
+    div[data-testid="stButtonGroup"] {
+        width: 100% !important;
+        display: flex !important;
+    }
     div[data-testid="stButtonGroup"] > div {
-        display: flex !important; flex-wrap: nowrap !important; width: 100% !important;
-        background: rgba(118, 118, 128, 0.12) !important; padding: 2px !important;
-        border-radius: 9px !important; border: none !important; gap: 0 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+        background: rgba(118, 118, 128, 0.12) !important;
+        padding: 2px !important;
+        border-radius: 9px !important;
+        border: none !important;
+        gap: 0 !important;
+        box-sizing: border-box !important;
     }
-    div[data-testid="stButtonGroup"] button {
-        flex: 1 1 0 !important; min-width: 0 !important; height: 28px !important; min-height: 28px !important;
-        padding: 0 2px !important; border-radius: 7px !important; border: none !important;
-        background: transparent !important; color: var(--label) !important; box-shadow: none !important;
-        font-size: 0.74rem !important; font-weight: 500 !important; letter-spacing: -0.01em !important;
-        transition: background-color 0.2s var(--ease) !important;
+    div[data-testid="stButtonGroup"] button,
+    div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
+        flex: 1 1 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0 4px !important;
+        border-radius: 7px !important;
+        border: none !important;
+        background: transparent !important;
+        color: var(--label) !important;
+        box-shadow: none !important;
+        font-size: 0.74rem !important;
+        font-weight: 500 !important;
+        letter-spacing: -0.01em !important;
+        text-align: center !important;
+        justify-content: center !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease) !important;
     }
-    div[data-testid="stButtonGroup"] button p { font-size: 0.74rem !important; white-space: nowrap !important; margin: 0 !important; }
+    div[data-testid="stButtonGroup"] button *,
+    div[data-testid="stButtonGroup"] button p,
+    div[data-testid="stButtonGroup"] button div,
+    div[data-testid="stButtonGroup"] button span {
+        font-size: 0.74rem !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1 !important;
+        text-align: center !important;
+    }
     div[data-testid="stButtonGroup"] button[data-selected],
     div[data-testid="stButtonGroup"] button[aria-checked="true"] {
-        background: var(--surface) !important; font-weight: 600 !important;
-        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04) !important;
+        background: var(--surface) !important;
+        font-weight: 600 !important;
+        color: var(--label) !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
     }
 
     /* Toggle */
@@ -390,3 +484,6 @@ AUTH_CSS = """
     .auth-footer { text-align: center; font-size: 0.76rem; color: var(--label-3); margin-top: 14px; }
 </style>
 """
+
+__all__ = ["APPLE_DESIGN_SYSTEM_CSS", "AUTH_CSS"]
+
