@@ -453,33 +453,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     .apple-wa-share-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #F0FDF4;
-        color: #15803D !important;
-        border: 1px solid #DCFCE7;
-        padding: 4.5px 11px;
-        border-radius: var(--apple-radius-pill);
-        font-size: 0.75rem;
-        font-weight: 600;
-        letter-spacing: -0.005em;
-        text-decoration: none !important;
-        transition: all 0.16s var(--apple-ease);
-    }
-
-    .apple-wa-share-btn svg {
-        width: 13.5px;
-        height: 13.5px;
-        flex-shrink: 0;
-        fill: currentColor;
-    }
-
-    .apple-wa-share-btn:hover {
-        background: #16A34A;
-        color: #FFFFFF !important;
-        border-color: #16A34A;
-        box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2);
+        display: none !important;
     }
 
     /* Filter Banner */

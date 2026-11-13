@@ -916,34 +916,53 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Sleek Global Controls Strip (Timeframe, Search, Sync, Reset)
-with st.container():
-    tb_c1, tb_c2, tb_c3, tb_c4, tb_c5 = st.columns([2.4, 1.2, 3.2, 0.9, 0.9])
-    
-    with tb_c1:
-        selected_preset = st.segmented_control(
-            "Timeframe",
-            options=["12h", "24h", "Today", "Custom"],
-            default=st.session_state.get("cp_timeframe_segment", "12h"),
-            key="cp_timeframe_segment",
-            on_change=on_timeframe_preset_change,
-            label_visibility="collapsed"
-        )
-    with tb_c2:
-        use_current_time = st.toggle(
-            "Live",
-            value=st.session_state.get("filter_use_current_time", True),
-            key="filter_use_current_time",
-            help="When on, automatically streams up to the current moment"
-        )
-    with tb_c3:
-        search_query = st.text_input(
-            "Search",
-            placeholder="Search across all streams...",
-            key="global_search_input",
-            label_visibility="collapsed"
-        )
-    with tb_c4:
+# 5. Global Command Strip (Sidebar: Timeframe, Search, Sync, Reset)
+with st.sidebar:
+    st.markdown("""
+    <div style="padding-bottom:8px; margin-bottom:10px; border-bottom:1px solid #E2E8F0;">
+        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:2px;">Timeframe & Controls</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Timeframe preset segmented control
+    selected_preset = st.segmented_control(
+        "Timeframe Window",
+        options=["12h", "24h", "Today", "Custom"],
+        default=st.session_state.get("cp_timeframe_segment", "12h"),
+        key="cp_timeframe_segment",
+        on_change=on_timeframe_preset_change,
+        label_visibility="collapsed"
+    )
+
+    # Expand custom date/time only if Custom timeframe is selected
+    if st.session_state.get("cp_timeframe_segment") == "Custom":
+        c_dt1, c_dt2 = st.columns(2)
+        with c_dt1:
+            st.date_input("Start Date", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date", on_change=on_custom_datetime_edit)
+            st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
+        with c_dt2:
+            st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date", on_change=on_custom_datetime_edit)
+            st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
+
+    # Live streaming toggle
+    use_current_time = st.toggle(
+        "⚡ Stream Live Feeds",
+        value=st.session_state.get("filter_use_current_time", True),
+        key="filter_use_current_time",
+        help="When on, automatically streams up to the current moment"
+    )
+
+    # Global cross-channel search
+    search_query = st.text_input(
+        "Global Search",
+        placeholder="🔍 Search across all streams...",
+        key="global_search_input",
+        label_visibility="collapsed"
+    )
+
+    # Action buttons: Sync & Reset
+    sb_btn1, sb_btn2 = st.columns(2)
+    with sb_btn1:
         if st.button("🔄 Sync", key="btn_top_sync", width="stretch", help="Sync latest news across all 52 sources"):
             st.session_state["is_refreshing_feeds"] = True
             with st.spinner("Syncing live feeds..."):
@@ -955,20 +974,10 @@ with st.container():
                 st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
                 st.session_state["is_refreshing_feeds"] = False
             st.rerun()
-    with tb_c5:
+    with sb_btn2:
         st.button("✕ Reset", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
 
-# Expand custom date/time only if Custom timeframe is selected
-if st.session_state.get("cp_timeframe_segment") == "Custom":
-    c_dt1, c_dt2, c_dt3, c_dt4 = st.columns(4)
-    with c_dt1:
-        st.date_input("Start Date", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date", on_change=on_custom_datetime_edit)
-    with c_dt2:
-        st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
-    with c_dt3:
-        st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date", on_change=on_custom_datetime_edit)
-    with c_dt4:
-        st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
+    st.markdown("<div style='margin-top:14px; margin-bottom:12px; border-top:1px solid #E2E8F0;'></div>", unsafe_allow_html=True)
 
 # Global Cross-Channel Search Filter
 if search_query and search_query.strip():
@@ -981,7 +990,7 @@ if search_query and search_query.strip():
 # ==========================================
 with st.sidebar:
     st.markdown("""
-    <div style="padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid #E2E8F0;">
+    <div style="padding-bottom:8px; margin-bottom:8px;">
         <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:2px;">Workspace Views</div>
         <div style="font-size:1.05rem; font-weight:700; color:#0F172A; display:flex; align-items:center; gap:6px;">
             <span>🧭</span> Intelligence Desk
