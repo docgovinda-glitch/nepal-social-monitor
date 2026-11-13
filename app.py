@@ -916,66 +916,65 @@ st.markdown(f"""
 
 # 5. Global Command Strip (Sidebar: Timeframe, Search, Sync, Reset)
 with st.sidebar:
-    st.markdown("""
-    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:6px;">
-        Timeframe & Search
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("""
+        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:6px;">
+            Timeframe & Search
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Timeframe preset segmented control
-    selected_preset = st.segmented_control(
-        "Timeframe Window",
-        options=["12h", "24h", "Today", "Custom"],
-        default=st.session_state.get("cp_timeframe_segment", "12h"),
-        key="cp_timeframe_segment",
-        on_change=on_timeframe_preset_change,
-        label_visibility="collapsed"
-    )
+        # Timeframe preset segmented control
+        selected_preset = st.segmented_control(
+            "Timeframe Window",
+            options=["12h", "24h", "Today", "Custom"],
+            default=st.session_state.get("cp_timeframe_segment", "12h"),
+            key="cp_timeframe_segment",
+            on_change=on_timeframe_preset_change,
+            label_visibility="collapsed"
+        )
 
-    # Expand custom date/time only if Custom timeframe is selected
-    if st.session_state.get("cp_timeframe_segment") == "Custom":
-        c_dt1, c_dt2 = st.columns(2)
-        with c_dt1:
-            st.date_input("Start Date", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date", on_change=on_custom_datetime_edit)
-            st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
-        with c_dt2:
-            st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date", on_change=on_custom_datetime_edit)
-            st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
+        # Expand custom date/time only if Custom timeframe is selected
+        if st.session_state.get("cp_timeframe_segment") == "Custom":
+            c_dt1, c_dt2 = st.columns(2)
+            with c_dt1:
+                st.date_input("Start Date", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date", on_change=on_custom_datetime_edit)
+                st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
+            with c_dt2:
+                st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date", on_change=on_custom_datetime_edit)
+                st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
 
-    # Live streaming toggle
-    use_current_time = st.toggle(
-        "⚡ Stream Live Feeds",
-        value=st.session_state.get("filter_use_current_time", True),
-        key="filter_use_current_time",
-        help="When on, automatically streams up to the current moment"
-    )
+        # Live streaming toggle
+        use_current_time = st.toggle(
+            "⚡ Stream Live Feeds",
+            value=st.session_state.get("filter_use_current_time", True),
+            key="filter_use_current_time",
+            help="When on, automatically streams up to the current moment"
+        )
 
-    # Global cross-channel search
-    search_query = st.text_input(
-        "Global Search",
-        placeholder="🔍 Search across all streams...",
-        key="global_search_input",
-        label_visibility="collapsed"
-    )
+        # Global cross-channel search
+        search_query = st.text_input(
+            "Global Search",
+            placeholder="🔍 Search across all streams...",
+            key="global_search_input",
+            label_visibility="collapsed"
+        )
 
-    # Action buttons: Sync & Reset
-    sb_btn1, sb_btn2 = st.columns(2)
-    with sb_btn1:
-        if st.button("🔄 Sync", key="btn_top_sync", width="stretch", help="Sync latest news across all 52 sources"):
-            st.session_state["is_refreshing_feeds"] = True
-            with st.spinner("Syncing live feeds..."):
-                fetch_top_nepal_media(max_workers=25, force_refresh=True)
-                fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
-                st.cache_data.clear()
-                if "x_posts" in st.session_state:
-                    del st.session_state["x_posts"]
-                st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
-                st.session_state["is_refreshing_feeds"] = False
-            st.rerun()
-    with sb_btn2:
-        st.button("✕ Reset", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
-
-    st.markdown("<div style='margin-top:14px; margin-bottom:12px; border-top:1px solid #E2E8F0;'></div>", unsafe_allow_html=True)
+        # Action buttons: Sync & Reset
+        sb_btn1, sb_btn2 = st.columns(2)
+        with sb_btn1:
+            if st.button("🔄 Sync", key="btn_top_sync", width="stretch", help="Sync latest news across all 52 sources"):
+                st.session_state["is_refreshing_feeds"] = True
+                with st.spinner("Syncing live feeds..."):
+                    fetch_top_nepal_media(max_workers=25, force_refresh=True)
+                    fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
+                    st.cache_data.clear()
+                    if "x_posts" in st.session_state:
+                        del st.session_state["x_posts"]
+                    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
+                    st.session_state["is_refreshing_feeds"] = False
+                st.rerun()
+        with sb_btn2:
+            st.button("✕ Reset", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
 
 # Global Cross-Channel Search Filter
 if search_query and search_query.strip():
@@ -987,163 +986,167 @@ if search_query and search_query.strip():
 # 8. Dynamic Sidebar View Dropdown & Contextual Controls
 # ==========================================
 with st.sidebar:
-    st.markdown("""
-    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:4px;">
-        Workspace View
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("""
+        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:4px;">
+            Workspace View
+        </div>
+        """, unsafe_allow_html=True)
 
-    nav_options = [
-        f"📰 Nepali Media ({len(filtered_articles)})",
-        f"🇮🇳 Indian Press ({len(filtered_indian)})",
-        f"🐦 X ({len(filtered_x_posts)})",
-        "📈 Analytics & Export",
-        "🩺 System Health"
-    ]
+        nav_options = [
+            f"📰 Nepali Media ({len(filtered_articles)})",
+            f"🇮🇳 Indian Press ({len(filtered_indian)})",
+            f"🐦 X ({len(filtered_x_posts)})",
+            "📈 Analytics & Export",
+            "🩺 System Health"
+        ]
 
-    # Map previous selection index
-    nav_index = 0
-    current_stored_nav = st.session_state.get("app_nav_section", "")
-    for idx, opt in enumerate(nav_options):
-        if opt.split(" (")[0] in current_stored_nav:
-            nav_index = idx
-            break
+        # Map previous selection index
+        nav_index = 0
+        current_stored_nav = st.session_state.get("app_nav_section", "")
+        for idx, opt in enumerate(nav_options):
+            if opt.split(" (")[0] in current_stored_nav:
+                nav_index = idx
+                break
 
-    selected_nav = st.selectbox(
-        "Active Workspace View",
-        options=nav_options,
-        index=nav_index,
-        key="app_nav_section",
-        label_visibility="collapsed",
-        help="Switch between Nepali Media, Indian Press, X, Analytics & Export, and System Health"
-    )
-
-    st.markdown("<div style='margin-top:14px; margin-bottom:12px; border-top:1px solid #E2E8F0;'></div>", unsafe_allow_html=True)
+        selected_nav = st.selectbox(
+            "Active Workspace View",
+            options=nav_options,
+            index=nav_index,
+            key="app_nav_section",
+            label_visibility="collapsed",
+            help="Switch between Nepali Media, Indian Press, X, Analytics & Export, and System Health"
+        )
 
     # 🎛️ DYNAMIC CONTEXTUAL SIDEBAR CONTROLS
     if "Nepali Media" in selected_nav:
-        st.markdown("""
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0369A1;">Filter Nepali Portals</span>
-            <span style="font-size:0.7rem; font-weight:600; color:#64748B; background:#E0F2FE; color:#0369A1; padding:2px 7px; border-radius:10px;">34 Outlets</span>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0369A1;">Filter Nepali Portals</span>
+                <span style="font-size:0.7rem; font-weight:600; background:#E0F2FE; color:#0369A1; padding:2px 7px; border-radius:10px;">34 Outlets</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
-        sel_np_portal = st.selectbox(
-            "News Portal",
-            ["All Portals (34)"] + all_portal_names,
-            key="np_portal_filter"
-        )
-        sel_np_cat = st.selectbox(
-            "Editorial Category",
-            CATEGORY_FILTER_OPTIONS,
-            key="np_cat_filter"
-        )
-        sel_np_lang = st.selectbox(
-            "Language",
-            ["All Languages", "Nepali Only", "English Only"],
-            key="np_lang_filter"
-        )
+            all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+            sel_np_portal = st.selectbox(
+                "News Portal",
+                ["All Portals (34)"] + all_portal_names,
+                key="np_portal_filter"
+            )
+            sel_np_cat = st.selectbox(
+                "Editorial Category",
+                CATEGORY_FILTER_OPTIONS,
+                key="np_cat_filter"
+            )
+            sel_np_lang = st.selectbox(
+                "Language",
+                ["All Languages", "Nepali Only", "English Only"],
+                key="np_lang_filter"
+            )
 
     elif "Indian Press" in selected_nav:
-        st.markdown("""
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#C2410C;">Filter Indian Outlets</span>
-            <span style="font-size:0.7rem; font-weight:600; background:#FFEDD5; color:#C2410C; padding:2px 7px; border-radius:10px;">18 Outlets</span>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#C2410C;">Filter Indian Outlets</span>
+                <span style="font-size:0.7rem; font-weight:600; background:#FFEDD5; color:#C2410C; padding:2px 7px; border-radius:10px;">18 Outlets</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
-        selected_indian_outlet = st.selectbox(
-            "News Outlet",
-            ["All 18 Indian Outlets"] + indian_outlet_names,
-            key="in_outlet_filter"
-        )
-        sel_in_lang = st.selectbox(
-            "Language",
-            ["All Languages", "English", "Hindi"],
-            key="in_lang_filter"
-        )
+            indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
+            selected_indian_outlet = st.selectbox(
+                "News Outlet",
+                ["All 18 Indian Outlets"] + indian_outlet_names,
+                key="in_outlet_filter"
+            )
+            sel_in_lang = st.selectbox(
+                "Language",
+                ["All Languages", "English", "Hindi"],
+                key="in_lang_filter"
+            )
 
     elif "X (" in selected_nav:
-        st.markdown("""
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0284C7;">Filter X Feed</span>
-            <span style="font-size:0.7rem; font-weight:600; background:#E0F2FE; color:#0284C7; padding:2px 7px; border-radius:10px;">281+ Verified</span>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0284C7;">Filter X Feed</span>
+                <span style="font-size:0.7rem; font-weight:600; background:#E0F2FE; color:#0284C7; padding:2px 7px; border-radius:10px;">281+ Verified</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        x_cat_filter = st.selectbox(
-            "Editorial Category",
-            CATEGORY_FILTER_OPTIONS,
-            index=0,
-            key="x_cat_filter_select"
-        )
-        acc_types = [
-            "All Account Types",
-            "Civic Voice / Public Commentator",
-            "Youth & Cultural Voice",
-            "Foreign Affairs Specialist",
-            "Journalist / Analyst",
-            "Political Leader",
-            "Government & Security",
-            "Media & News Curators",
-            "Diplomatic Missions",
-            "Think Tank & Policy",
-            "Sports & Culture"
-        ]
-        selected_acc_type = st.selectbox(
-            "Account Category",
-            acc_types,
-            key="x_acc_type_select"
-        )
-        sort_mode = st.selectbox(
-            "Sort Order",
-            ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
-            key="x_sort_mode_select"
-        )
-        st.write("")
-        if st.button("🔄 Sync Live X", width="stretch", key="btn_rescan_x_sidebar"):
-            with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
-                st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
-                st.rerun()
+            x_cat_filter = st.selectbox(
+                "Editorial Category",
+                CATEGORY_FILTER_OPTIONS,
+                index=0,
+                key="x_cat_filter_select"
+            )
+            acc_types = [
+                "All Account Types",
+                "Civic Voice / Public Commentator",
+                "Youth & Cultural Voice",
+                "Foreign Affairs Specialist",
+                "Journalist / Analyst",
+                "Political Leader",
+                "Government & Security",
+                "Media & News Curators",
+                "Diplomatic Missions",
+                "Think Tank & Policy",
+                "Sports & Culture"
+            ]
+            selected_acc_type = st.selectbox(
+                "Account Category",
+                acc_types,
+                key="x_acc_type_select"
+            )
+            sort_mode = st.selectbox(
+                "Sort Order",
+                ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
+                key="x_sort_mode_select"
+            )
+            st.write("")
+            if st.button("🔄 Sync Live X", width="stretch", key="btn_rescan_x_sidebar"):
+                with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
+                    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
+                    st.rerun()
 
     elif "Analytics" in selected_nav:
-        st.markdown("""
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7C3AED;">Export Filters</span>
-            <span style="font-size:0.7rem; font-weight:600; background:#EDE9FE; color:#7C3AED; padding:2px 7px; border-radius:10px;">Unified</span>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7C3AED;">Export Filters</span>
+                <span style="font-size:0.7rem; font-weight:600; background:#EDE9FE; color:#7C3AED; padding:2px 7px; border-radius:10px;">Unified</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
-        sel_stream = st.selectbox("Dataset Stream", stream_choices, key="univ_stream_filter")
+            stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
+            sel_stream = st.selectbox("Dataset Stream", stream_choices, key="univ_stream_filter")
 
-        # Collect unique categories across current unified dataset
-        all_export_cats = sorted(list(set(
-            [a.get("structured_category", "Others") for a in filtered_articles] +
-            [a.get("structured_category", "India Section") for a in filtered_indian] +
-            [p.get("structured_category", "Others") for p in filtered_x_posts]
-        )))
-        sel_cat = st.selectbox("Category / Section", ["All Categories"] + all_export_cats, key="univ_cat_filter")
-        sel_lang = st.selectbox("Content Language", ["All Languages", "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
-        kw_filter = st.text_input("Search Keyword", placeholder="Keyword or author...", key="univ_kw_filter")
+            # Collect unique categories across current unified dataset
+            all_export_cats = sorted(list(set(
+                [a.get("structured_category", "Others") for a in filtered_articles] +
+                [a.get("structured_category", "India Section") for a in filtered_indian] +
+                [p.get("structured_category", "Others") for p in filtered_x_posts]
+            )))
+            sel_cat = st.selectbox("Category / Section", ["All Categories"] + all_export_cats, key="univ_cat_filter")
+            sel_lang = st.selectbox("Content Language", ["All Languages", "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
+            kw_filter = st.text_input("Search Keyword", placeholder="Keyword or author...", key="univ_kw_filter")
 
     elif "Health" in selected_nav:
-        st.markdown("""
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#059669;">Matrix Filters</span>
-            <span style="font-size:0.7rem; font-weight:600; background:#D1FAE5; color:#059669; padding:2px 7px; border-radius:10px;">Status</span>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("""
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#059669;">Matrix Filters</span>
+                <span style="font-size:0.7rem; font-weight:600; background:#D1FAE5; color:#059669; padding:2px 7px; border-radius:10px;">Status</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        admin_search_src = st.text_input("Search Portal Name", placeholder="e.g. Setopati, Ratopati...", key="inp_admin_src_srch")
-        admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
-        admin_lang_filter = st.selectbox("Language Edition", ["All Languages", "Nepali Only", "English Only"], key="sel_admin_lang")
-        admin_tier_filter = st.selectbox("Monitoring Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
+            admin_search_src = st.text_input("Search Portal Name", placeholder="e.g. Setopati, Ratopati...", key="inp_admin_src_srch")
+            admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
+            admin_lang_filter = st.selectbox("Language Edition", ["All Languages", "Nepali Only", "English Only"], key="sel_admin_lang")
+            admin_tier_filter = st.selectbox("Monitoring Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
 
-    st.markdown("<div style='margin-top:24px; padding-top:14px; border-top:1px solid #E2E8F0; font-size:0.74rem; color:#94A3B8; text-align:center;'>Nepal Social & Media Monitor v3.0<br/>Autonomous Ingestion Engine</div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:20px; padding-top:12px; border-top:1px solid #E2E8F0; font-size:0.72rem; color:#94A3B8; text-align:center;'>Nepal Social & Media Monitor v3.0<br/>Autonomous Ingestion Engine</div>", unsafe_allow_html=True)
 
 # ==========================================
 # SECTION 1: Nepali Media (Top 34 Portals)

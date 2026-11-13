@@ -43,8 +43,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
         display: block !important;
         background: #F8FAFC !important;
         border-right: 1px solid #E2E8F0 !important;
-        min-width: 310px !important;
-        max-width: 350px !important;
+        min-width: 330px !important;
+        max-width: 375px !important;
         box-shadow: 1px 0 3px rgba(0, 0, 0, 0.02) !important;
     }
 
@@ -74,6 +74,20 @@ APPLE_DESIGN_SYSTEM_CSS = """
         display: flex;
         align-items: center;
         justify-content: space-between;
+    }
+
+    /* Streamlit Container Border Inset Cards inside Sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] > div {
+        background: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        padding: 12px 14px !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+        transition: border-color 0.15s ease !important;
+    }
+
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] > div:hover {
+        border-color: #CBD5E1 !important;
     }
 
     /* Polish the View Selection Dropdown inside Sidebar */
@@ -740,7 +754,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
         flex-wrap: nowrap !important;
         width: 100% !important;
         background-color: #EDF2F7 !important;
-        padding: 3px !important;
+        padding: 2px !important;
         border-radius: 9px !important;
         border: 1px solid #CBD5E1 !important;
         gap: 2px !important;
@@ -755,13 +769,14 @@ APPLE_DESIGN_SYSTEM_CSS = """
         width: 100% !important;
         height: 30px !important;
         min-height: 30px !important;
-        padding: 0 4px !important;
-        border-radius: 6px !important;
+        padding: 0 2px !important;
+        border-radius: 7px !important;
         border: none !important;
         background-color: transparent !important;
         color: #475569 !important;
-        font-size: 0.72rem !important;
+        font-size: 0.70rem !important;
         font-weight: 600 !important;
+        letter-spacing: -0.01em !important;
         white-space: nowrap !important;
         text-align: center !important;
         display: inline-flex !important;
@@ -788,8 +803,9 @@ APPLE_DESIGN_SYSTEM_CSS = """
     div[data-testid="stButtonGroup"] button p {
         margin: 0 !important;
         padding: 0 !important;
-        font-size: 0.72rem !important;
+        font-size: 0.70rem !important;
         line-height: 1 !important;
+        letter-spacing: -0.01em !important;
         white-space: nowrap !important;
     }
 
