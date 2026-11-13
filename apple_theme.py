@@ -68,23 +68,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* ==========================================================
-       3. APP HEADER & SIDEBAR BRAND CARD (Apple HIG)
+       3. SIDEBAR BRAND CARD (Apple HIG)
        ========================================================== */
-    .app-header {
-        display: flex; justify-content: space-between; align-items: center; gap: 12px;
-        padding: 14px 22px; margin-bottom: 20px;
-        background: rgba(255, 255, 255, 0.72);
-        backdrop-filter: blur(24px) saturate(180%);
-        -webkit-backdrop-filter: blur(24px) saturate(180%);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        border-radius: var(--r-lg);
-        box-shadow: var(--shadow-1);
-    }
-    .app-header__brand { display: flex; align-items: center; gap: 12px; }
-    .app-header__flag { font-size: 1.7rem; line-height: 1; }
-    .app-header__title { font-size: 1.22rem !important; font-weight: 700 !important; letter-spacing: -0.022em !important; margin: 0 !important; line-height: 1.15 !important; color: var(--label) !important; padding: 0 !important; }
-    .app-header__subtitle { font-size: 0.78rem !important; color: var(--label-2) !important; margin: 2px 0 0 0 !important; }
-
     /* Sidebar Brand Card */
     .sidebar-brand-card {
         display: flex;
@@ -203,14 +188,14 @@ APPLE_DESIGN_SYSTEM_CSS = """
     /* ==========================================================
        6. CARDS (articles, X posts, accounts, health)
        ========================================================== */
-    .apple-news-card, .x-post-card, .acct-card, .health-card {
+    .apple-news-card, .x-post-card, .health-card {
         background: var(--surface);
         border: 1px solid var(--separator);
         border-radius: var(--r-md);
         box-shadow: var(--shadow-1);
         transition: box-shadow 0.25s var(--ease), border-color 0.25s var(--ease);
     }
-    .apple-news-card:hover, .x-post-card:hover, .acct-card:hover, .health-card:hover {
+    .apple-news-card:hover, .x-post-card:hover, .health-card:hover {
         box-shadow: var(--shadow-2);
         border-color: var(--separator-strong);
     }
@@ -268,16 +253,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .x-metric-item { font-weight: 500; }
     .x-sentiment-positive { background: var(--green-soft); color: var(--green); }
     .x-sentiment-alert { background: var(--red-soft); color: var(--red); }
-
-    /* Account directory card */
-    .acct-card { padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; justify-content: space-between; min-height: 124px; }
-    .acct-card__head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .acct-card__avatar { width: 28px; height: 28px; font-size: 0.66rem; min-width: 28px; }
-    .acct-card__name { font-weight: 600; font-size: 0.82rem; color: var(--label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .acct-card__handle { font-size: 0.7rem; color: var(--label-2); }
-    .acct-card__role { font-size: 0.72rem; color: var(--label-2); line-height: 1.4; margin: 4px 0 8px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .acct-card__links { border-top: 1px solid var(--separator); padding-top: 6px; font-size: 0.72rem; display: flex; gap: 10px; }
-    .acct-card__links a { color: var(--link); text-decoration: none; font-weight: 600; }
 
     /* Enhanced Account Directory Card (200+ Verified Accounts) */
     .acct-card-rich {
@@ -741,7 +716,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
        ========================================================== */
     @media (max-width: 900px) {
         .block-container { padding: 1.2rem 0.8rem 2rem 0.8rem !important; }
-        .app-header { padding: 10px 14px; flex-direction: column; align-items: flex-start; }
         .page-header__title { font-size: 1.35rem !important; }
     }
     @media (prefers-reduced-motion: reduce) {

@@ -158,15 +158,6 @@ def generate_canonical_id(source: str, url: str, title: str) -> str:
     raw = f"{norm_url}::{norm_title}" if norm_url else f"{source}::{norm_title}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
-def init_news_store():
-    """Verifies connection to Supabase cloud database (called on-demand, not at import time)."""
-    try:
-        res = query_supabase("SELECT 1 as test;")
-        if res:
-            logger.info("Connected to Supabase Cloud PostgreSQL database successfully.")
-    except Exception as ex:
-        logger.warning(f"Could not connect to Supabase: {ex}")
-
 def register_portal_sources(portals_list: List[Dict[str, Any]]):
     """Syncs the canonical 34 portal list into Supabase sources table."""
     for p in portals_list:

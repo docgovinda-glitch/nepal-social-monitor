@@ -238,25 +238,14 @@ def reset_all_filters():
         "x_visible_count": PAGE_SIZE,
     })
 
-# Silent background credentials for Twitter API
-default_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
-try:
-    if not default_bearer and hasattr(st, "secrets"):
-        default_bearer = st.secrets.get("TWITTER_BEARER_TOKEN", "")
-except Exception:
-    pass
-x_bearer_token = default_bearer
-
 # 6. High-Performance Cached Data Pipeline (Lazy-loaded, feed-projected)
 MIN_DATE = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
 
-def in_window(item: Dict[str, Any]) -> bool:
+def in_window(item: Dict[str, Any], start_dt: datetime.datetime = None, end_dt: datetime.datetime = None) -> bool:
     pdt = item.get("published_dt")
-    return isinstance(pdt, datetime.datetime) and filter_start_dt <= pdt <= filter_end_dt
-
-def in_window_bounds(item: Dict[str, Any], start_dt: datetime.datetime, end_dt: datetime.datetime) -> bool:
-    pdt = item.get("published_dt")
-    return isinstance(pdt, datetime.datetime) and start_dt <= pdt <= end_dt
+    s = start_dt or filter_start_dt
+    e = end_dt or filter_end_dt
+    return isinstance(pdt, datetime.datetime) and s <= pdt <= e
 
 @st.cache_data(ttl=180, show_spinner=False)
 def get_cached_stream_counts(start_dt: datetime.datetime, end_dt: datetime.datetime) -> Dict[str, int]:
@@ -277,7 +266,7 @@ def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.date
     if not stored:
         try:
             live = fetch_top_nepal_media(max_workers=25)
-            stored = [a for a in live if in_window_bounds(a, start_dt, end_dt)]
+            stored = [a for a in live if in_window(a, start_dt, end_dt)]
         except Exception:
             stored = []
     else:
@@ -299,7 +288,7 @@ def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.dat
     if not stored:
         try:
             live = fetch_nepal_in_indian_media(max_workers=18)
-            stored = [a for a in live if in_window_bounds(a, start_dt, end_dt)]
+            stored = [a for a in live if in_window(a, start_dt, end_dt)]
         except Exception:
             stored = []
     else:
@@ -311,7 +300,7 @@ def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.dat
     return stored
 
 @st.cache_data(ttl=180, show_spinner=False)
-def get_active_x_posts(bearer_token: str = "") -> List[Dict[str, Any]]:
+def get_active_x_posts() -> List[Dict[str, Any]]:
     """Loads monitored X posts from Supabase store or local cache."""
     try:
         posts = get_stored_x_posts(limit=500)
@@ -319,7 +308,7 @@ def get_active_x_posts(bearer_token: str = "") -> List[Dict[str, Any]]:
         posts = []
     if not posts:
         try:
-            posts = scan_popular_nepal_x_posts(force_refresh=False, x_bearer_token=bearer_token)
+            posts = scan_popular_nepal_x_posts(force_refresh=False)
         except Exception:
             posts = []
     return posts
@@ -782,18 +771,13 @@ with st.sidebar:
             sort_mode = st.selectbox("Sort by", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
             if st.button("Rescan X", icon=":material/refresh:", width="stretch", key="btn_rescan_x_sidebar"):
                 with st.spinner("Scanning verified Nepali accounts…"):
-                    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
+                    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True)
                 st.rerun()
 
         elif selected_nav == "Analytics & Export":
             sidebar_section("Export filters")
             sel_stream = st.selectbox("Stream", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
-            all_export_cats = sorted({
-                *(a.get("structured_category", "Others") for a in filtered_articles),
-                *(a.get("structured_category", "India Section") for a in filtered_indian),
-                *(p.get("structured_category", "Others") for p in filtered_x_posts),
-            })
-            sel_cat = st.selectbox("Category", ["All Categories"] + all_export_cats, key="univ_cat_filter")
+            sel_cat = st.selectbox("Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
             sel_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
             kw_filter = st.text_input("Keyword", placeholder="Keyword or author", key="univ_kw_filter")
 
@@ -922,7 +906,7 @@ elif selected_nav == "Indian Press":
 # SECTION 3: X (Twitter) Nepal
 # ==========================================
 elif selected_nav == "X":
-    all_x = get_active_x_posts(x_bearer_token)
+    all_x = get_active_x_posts()
     in_win_x = [p for p in all_x if in_window(p)]
     filtered_x_posts = [p for p in in_win_x if smart_search_match(p, search_query)] if search_query else in_win_x
 
@@ -1332,7 +1316,7 @@ elif selected_nav == "Analytics & Export":
 
     articles_src = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     indian_src = get_active_indian_articles(filter_start_dt, filter_end_dt)
-    all_x = get_active_x_posts(x_bearer_token)
+    all_x = get_active_x_posts()
     x_src = [p for p in all_x if in_window(p)]
 
     if search_query and search_query.strip():

@@ -33,7 +33,6 @@ from typing import List, Dict, Any, Tuple
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
-CACHE_FILE = os.path.join(os.path.dirname(__file__), "nepal_x_posts_cache.json")
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
@@ -436,7 +435,7 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
     return enriched
 
 
-def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str = None) -> List[Dict[str, Any]]:
+def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, Any]]:
     """
     Comprehensive Daily X & Social Media Intelligence Scanner.
     Combines:
@@ -444,43 +443,7 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str 
       2. Authenticated status discovery via Bing News RSS across 20+ Nepal queries.
     Strictly zero mock data. All posts are 100% genuine tweets sorted newest first.
     """
-    # 1. Check local cache if fresh (<30 minutes)
-    if not force_refresh and os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            cached_posts = data.get("posts", [])
-            cached_time_str = data.get("timestamp", "")
-            if cached_posts and cached_time_str:
-                from dateutil import parser as dt_parser
-                cached_dt = dt_parser.parse(cached_time_str)
-                now_npt = datetime.datetime.now(NEPAL_TZ)
-                if (now_npt - cached_dt).total_seconds() < 1800 and len(cached_posts) >= 40:
-                    for p in cached_posts:
-                        if isinstance(p.get("published_dt"), str):
-                            try:
-                                p["published_dt"] = dt_parser.parse(p["published_dt"])
-                                if p["published_dt"].tzinfo is None:
-                                    p["published_dt"] = p["published_dt"].replace(tzinfo=NEPAL_TZ)
-                                else:
-                                    p["published_dt"] = p["published_dt"].astimezone(NEPAL_TZ)
-                            except Exception:
-                                sid = p.get("id", "")
-                                if str(sid).isdigit() and int(sid) > 10000000000000:
-                                    ms = (int(sid) >> 22) + 1288834974657
-                                    p["published_dt"] = datetime.datetime.fromtimestamp(ms / 1000.0, tz=datetime.timezone.utc).astimezone(NEPAL_TZ)
-                                else:
-                                    p["published_dt"] = now_npt
-                        if p.get("published_dt") and p["published_dt"] > now_npt:
-                            p["published_dt"] = now_npt
-                        if p.get("published_dt"):
-                            p["relative_time"] = format_relative_time(p["published_dt"], now_npt)
-                            p["exact_time"] = p["published_dt"].strftime("%b %d, %I:%M %p NPT")
-                    return cached_posts
-        except Exception:
-            pass
-
-    # 2. Check Supabase cloud database if local cache is not present
+    # 1. Check Supabase cloud database if not explicit force refresh
     if not force_refresh:
         try:
             from nepal_news_store import get_stored_x_posts
@@ -603,23 +566,6 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str 
 
     # Sort strictly descending by newest publication time
     all_posts.sort(key=lambda x: x["published_dt"], reverse=True)
-
-    # Save to disk cache
-    try:
-        serializable_posts = []
-        for p in all_posts:
-            cp = p.copy()
-            if isinstance(cp.get("published_dt"), datetime.datetime):
-                cp["published_dt"] = cp["published_dt"].isoformat()
-            serializable_posts.append(cp)
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump({
-                "timestamp": now_npt.isoformat(),
-                "total_count": len(serializable_posts),
-                "posts": serializable_posts
-            }, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
 
     # Push freshly harvested posts directly into Supabase Cloud PostgreSQL x_posts table
     try:

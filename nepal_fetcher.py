@@ -1132,22 +1132,6 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
 
     return items
 
-def _prewarm_caches_from_db():
-    """Pre-seeds ARTICLE_DATE_CACHE and FULL_ARTICLE_TEXT_CACHE from DB (called on-demand, not on import)."""
-    try:
-        stored = get_stored_articles(limit=500, include_full_content=True)
-        for sa in stored:
-            lnk = sa.get("link")
-            pdt = sa.get("published_dt")
-            fc = (sa.get("full_content") or "").strip()
-            sm = (sa.get("summary") or "").strip()
-            if lnk and isinstance(pdt, datetime.datetime) and lnk not in ARTICLE_DATE_CACHE:
-                ARTICLE_DATE_CACHE[lnk] = pdt
-            if lnk and fc and len(fc) > 800 and "\n\n" in fc and fc != sm and lnk not in FULL_ARTICLE_TEXT_CACHE:
-                FULL_ARTICLE_TEXT_CACHE[lnk] = fc
-    except Exception:
-        pass
-
 def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
     """
     Fetches real-time news items across all 34 Top Nepal Online News Portals in parallel.
@@ -1177,8 +1161,6 @@ def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
         register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
     except Exception:
         pass
-
-    _prewarm_caches_from_db()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(fetch_single_portal, p, now_npt) for p in TOP_NEPAL_NEWS_PORTALS]
