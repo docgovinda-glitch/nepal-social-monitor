@@ -977,13 +977,15 @@ if search_query and search_query.strip():
     filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
 
 # ==========================================
-# 8. Apple-Grade Dynamic Sidebar Navigation & Contextual Controls
+# 8. Dynamic Sidebar View Dropdown & Contextual Controls
 # ==========================================
 with st.sidebar:
     st.markdown("""
-    <div style="padding-bottom:12px; border-bottom:1px solid #E2E8F0; margin-bottom:16px;">
-        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:4px;">Workspace Views</div>
-        <div style="font-size:1.05rem; font-weight:700; color:#0F172A;">Intelligence Desk</div>
+    <div style="padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid #E2E8F0;">
+        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:2px;">Workspace Views</div>
+        <div style="font-size:1.05rem; font-weight:700; color:#0F172A; display:flex; align-items:center; gap:6px;">
+            <span>🧭</span> Intelligence Desk
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1003,21 +1005,22 @@ with st.sidebar:
             nav_index = idx
             break
 
-    selected_nav = st.radio(
-        "Navigation",
+    selected_nav = st.selectbox(
+        "Active Workspace View",
         options=nav_options,
         index=nav_index,
         key="app_nav_section",
-        label_visibility="collapsed"
+        help="Switch between Nepali Media, Indian Press, X, Analytics & Export, and System Health"
     )
 
-    st.markdown("<div style='margin-top:18px; margin-bottom:12px; border-top:1px solid #E2E8F0;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:14px; margin-bottom:12px; border-top:1px solid #E2E8F0;'></div>", unsafe_allow_html=True)
 
     # 🎛️ DYNAMIC CONTEXTUAL SIDEBAR CONTROLS
     if "Nepali Media" in selected_nav:
         st.markdown("""
-        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0369A1; margin-bottom:10px;">
-            Filter Nepali Portals
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0369A1;">Filter Nepali Portals</span>
+            <span style="font-size:0.7rem; font-weight:600; color:#64748B; background:#E0F2FE; color:#0369A1; padding:2px 7px; border-radius:10px;">34 Outlets</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1040,8 +1043,9 @@ with st.sidebar:
 
     elif "Indian Press" in selected_nav:
         st.markdown("""
-        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#EA580C; margin-bottom:10px;">
-            Filter Indian Outlets
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#C2410C;">Filter Indian Outlets</span>
+            <span style="font-size:0.7rem; font-weight:600; background:#FFEDD5; color:#C2410C; padding:2px 7px; border-radius:10px;">18 Outlets</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1059,8 +1063,9 @@ with st.sidebar:
 
     elif "X (" in selected_nav:
         st.markdown("""
-        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0284C7; margin-bottom:10px;">
-            Filter X Feed
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0284C7;">Filter X Feed</span>
+            <span style="font-size:0.7rem; font-weight:600; background:#E0F2FE; color:#0284C7; padding:2px 7px; border-radius:10px;">281+ Verified</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1101,8 +1106,9 @@ with st.sidebar:
 
     elif "Analytics" in selected_nav:
         st.markdown("""
-        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7C3AED; margin-bottom:10px;">
-            Export Dataset Filters
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7C3AED;">Export Filters</span>
+            <span style="font-size:0.7rem; font-weight:600; background:#EDE9FE; color:#7C3AED; padding:2px 7px; border-radius:10px;">Unified</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1121,8 +1127,9 @@ with st.sidebar:
 
     elif "Health" in selected_nav:
         st.markdown("""
-        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#059669; margin-bottom:10px;">
-            Registry & Health Filters
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#059669;">Matrix Filters</span>
+            <span style="font-size:0.7rem; font-weight:600; background:#D1FAE5; color:#059669; padding:2px 7px; border-radius:10px;">Status</span>
         </div>
         """, unsafe_allow_html=True)
 

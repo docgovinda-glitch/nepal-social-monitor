@@ -38,58 +38,41 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background-color: var(--apple-bg) !important;
     }
 
-    /* Streamlit Sidebar Visibility & Styling */
+    /* Streamlit Sidebar Visibility & Styling - Apple Modern Desktop Aesthetic */
     section[data-testid="stSidebar"] {
         display: block !important;
-        background-color: #F8FAFC !important;
+        background: #F8FAFC !important;
         border-right: 1px solid #E2E8F0 !important;
         min-width: 310px !important;
         max-width: 350px !important;
+        box-shadow: 1px 0 3px rgba(0, 0, 0, 0.02) !important;
     }
 
     section[data-testid="stSidebar"] > div {
-        padding-top: 1.5rem !important;
+        padding-top: 1.25rem !important;
         padding-left: 1.1rem !important;
         padding-right: 1.1rem !important;
     }
 
-    /* Apple-styled Sidebar Radio Navigation */
+    /* Polish the View Selection Dropdown inside Sidebar */
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"]:first-of-type div[data-baseweb="select"] > div {
+        border-radius: 10px !important;
+        border: 1.5px solid #CBD5E1 !important;
+        background-color: #FFFFFF !important;
+        font-weight: 600 !important;
+        color: #0F172A !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+        transition: all 0.15s ease-in-out !important;
+    }
+
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"]:first-of-type div[data-baseweb="select"] > div:hover {
+        border-color: #0284C7 !important;
+        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12) !important;
+    }
+
+    /* Apple-styled Sidebar Radio Navigation (fallback) */
     section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
         gap: 6px;
-    }
-
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 8px 12px !important;
-        margin-bottom: 4px;
-        font-weight: 500;
-        font-size: 0.88rem;
-        color: #1E293B;
-        transition: all 0.15s ease-in-out;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-    }
-
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
-        background: #F1F5F9;
-        border-color: #CBD5E1;
-    }
-
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label[data-checked="true"],
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
-        background: #0284C7 !important;
-        border-color: #0284C7 !important;
-        color: #FFFFFF !important;
-        font-weight: 600;
-        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
-    }
-
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label[data-checked="true"] span,
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) span {
-        color: #FFFFFF !important;
     }
 
     div[data-testid="collapsedControl"] {
