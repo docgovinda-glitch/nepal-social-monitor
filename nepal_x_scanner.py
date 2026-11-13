@@ -2934,7 +2934,6 @@ TOP_NEPAL_X_ACCOUNTS = [
 ]
 
 ACCOUNT_BY_HANDLE = {acc["handle"].lower(): acc for acc in TOP_NEPAL_X_ACCOUNTS}
-NEPALI_X_ACCOUNTS_BY_CATEGORY = {}
 
 
 def classify_x_post(text: str, author_name: str = "", handle: str = "", role: str = "") -> str:
@@ -3277,17 +3276,6 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
         enriched = [p for p in ex.map(_worker, raw_items) if p]
 
     return enriched
-
-
-def fetch_real_account_tweets(handle: str, max_tweets: int = 15) -> List[Dict[str, Any]]:
-    """Fetches genuine real-time live tweets for any specified public account on X."""
-    clean_handle = handle.lstrip("@").replace("https://x.com/", "").replace("https://twitter.com/", "").strip("/ ")
-    if not clean_handle:
-        return []
-
-    all_current = scan_popular_nepal_x_posts(force_refresh=False)
-    matched = [p for p in all_current if p.get("raw_handle", "").lower() == clean_handle.lower() or f"@{clean_handle.lower()}" in p.get("text", "").lower()]
-    return matched[:max_tweets]
 
 
 def scan_popular_nepal_x_posts(force_refresh: bool = False, x_bearer_token: str = None) -> List[Dict[str, Any]]:

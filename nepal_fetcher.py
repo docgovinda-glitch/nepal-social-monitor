@@ -50,20 +50,6 @@ FULL_ARTICLE_TEXT_CACHE = {}
 # Published date in-memory cache
 ARTICLE_DATE_CACHE = {}
 
-def translate_to_english_machine(text: str, *args, **kwargs) -> str:
-    """Returns original text directly without triggering translation services."""
-    return text or ""
-
-translate_headline_to_en = translate_to_english_machine
-
-def batch_translate_headlines(articles: list, *args, **kwargs) -> list:
-    """Returns articles directly in original language without translation."""
-    return articles
-
-def batch_translate_posts(posts: list, *args, **kwargs) -> list:
-    """Returns posts directly in original language without translation."""
-    return posts
-
 def extract_article_full_text(url: str, timeout: int = 8) -> str:
     """
     Extracts the complete news article body text from an article URL.
@@ -197,58 +183,6 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25) -> list:
                 pass
     return articles
 
-# The 9 Ordered Target Categories for Word Export
-DOCX_TARGET_CATEGORIES = [
-    "INDIA SECTION",
-    "CHINA SECTION",
-    "BANGLADESH SECTION",
-    "PAKISTAN SECTION",
-    "NEPAL – INTERNAL",
-    "NEPAL – EXTERNAL",
-    "NEPAL – ECONOMY",
-    "NEPAL – OTHERS",
-    "INTERNATIONAL NEWS"
-]
-
-def map_to_target_category(raw_category: str) -> str:
-    cat = (raw_category or "").strip().lower()
-    if "india" in cat:
-        return "INDIA SECTION"
-    elif "china" in cat:
-        return "CHINA SECTION"
-    elif "bangladesh" in cat:
-        return "BANGLADESH SECTION"
-    elif "pakistan" in cat:
-        return "PAKISTAN SECTION"
-    elif "internal" in cat or "politics" in cat:
-        return "NEPAL – INTERNAL"
-    elif "external" in cat or "foreign" in cat or "diplomacy" in cat:
-        return "NEPAL – EXTERNAL"
-    elif "economy" in cat or "economic" in cat:
-        return "NEPAL – ECONOMY"
-    elif "international" in cat or "world" in cat or "global" in cat:
-        return "INTERNATIONAL NEWS"
-    else:
-        return "NEPAL – OTHERS"
-
-def generate_word_document(
-    articles: list,
-    output_path: str = None,
-    report_title: str = "NEPAL DAILY NEWS DIGEST",
-    report_date: Optional[datetime.datetime] = None,
-) -> bytes:
-    """
-    Generates an Executive Word Document (.docx) using the master reference template
-    `NEPAL DAILY NEWS DIGEST – 5th November 2026.docx` via `executive_docx_exporter`.
-    """
-    from executive_docx_exporter import generate_executive_word_digest
-    return generate_executive_word_digest(
-        articles=articles,
-        output_path=output_path,
-        report_date=report_date,
-        enrich_missing_sections=False,
-    )
-
 # The 9 Structured Categories (Geographically and Thematically Organised)
 STRUCTURED_CATEGORIES = [
     "India Section",
@@ -344,16 +278,6 @@ TOP_INDIAN_MEDIA_SOURCES = [
     {"name": "Live Hindustan", "type": "topic_html", "url": "https://www.livehindustan.com/tags/nepal/", "lang": "Hindi", "desc": "Hindustan Times Media premier Hindi daily"},
     {"name": "Jansatta", "type": "topic_html", "url": "https://www.jansatta.com/about/nepal/", "lang": "Hindi", "desc": "Indian Express Group leading Hindi national daily"},
     {"name": "Prabhat Khabar", "type": "topic_html", "url": "https://www.prabhatkhabar.com/topic/nepal", "lang": "Hindi", "desc": "Leading Hindi daily covering Bihar-Nepal border region"}
-]
-
-# Top X (Twitter) Handles in Nepal
-POPULAR_NEPAL_X_HANDLES = [
-    {"name": "Routine of Nepal Banda", "handle": "RONBupdates", "desc": "Fastest breaking news & community updates on X"},
-    {"name": "Balen Shah", "handle": "BalenOfficial", "desc": "Mayor Balen Shah official tweets & announcements"},
-    {"name": "Cricket Association of Nepal (CAN)", "handle": "CricketNep", "desc": "Nepal National Cricket Team updates & match threads"},
-    {"name": "The Kathmandu Post", "handle": "kathmandupost", "desc": "Nepal's largest English national daily on X"},
-    {"name": "OnlineKhabar English", "handle": "Online_khabar", "desc": "English breaking news alerts"},
-    {"name": "Nepal Police Official", "handle": "NepalPoliceHQ", "desc": "Public notices, safety alerts, and cyber bureau warnings"}
 ]
 
 def classify_article_editorial(
@@ -723,13 +647,6 @@ def classify_article_editorial(
         "classification_confidence": confidence,
         "low_confidence": low_confidence
     }
-
-def classify_article(title: str, summary: str = "") -> str:
-    """
-    Backward-compatible entry point returning primary section string.
-    """
-    res = classify_article_editorial(title, summary)
-    return res["primary_section"]
 
 # Date parsing patterns for HTML news cards & metadata
 DATE_SNIPPET_REGEXES = [
@@ -1821,62 +1738,4 @@ def fetch_nepal_in_indian_media(
     )
     return filtered_feed
 
-def query_x_api(bearer_token: str = None, query: str = "Nepal", max_results: int = 15):
-    """Query official X v2 API if user provides Bearer Token or via environment variables."""
-    token = bearer_token or os.getenv("TWITTER_BEARER_TOKEN", "")
-    if not token:
-        return []
-    clean_token = urllib.parse.unquote(token.strip())
-    url = "https://api.twitter.com/2/tweets/search/recent"
-    headers = {"Authorization": f"Bearer {clean_token}"}
-    params = {
-        "query": f"{query} -is:retweet",
-        "max_results": min(max_results, 50),
-        "tweet.fields": "created_at,public_metrics,author_id"
-    }
-    try:
-        res = requests.get(url, headers=headers, params=params, timeout=10)
-        if res.status_code == 200:
-            data = res.json().get("data", [])
-            results = []
-            for t in data:
-                metrics = t.get("public_metrics", {})
-                results.append({
-                    "platform": "X (Twitter Live API)",
-                    "source": f"Tweet ID: {t.get('id')}",
-                    "title": t.get("text", "")[:120],
-                    "summary": t.get("text", ""),
-                    "link": f"https://x.com/i/status/{t.get('id')}",
-                    "published": t.get("created_at", "Recent")[:19].replace("T", " "),
-                    "likes": metrics.get("like_count", 0),
-                    "retweets": metrics.get("retweet_count", 0)
-                })
-            return results
-    except Exception:
-        pass
-    return []
-
-def get_live_nepal_trends():
-    """Curated list of hot topics in Nepal with direct hashtags."""
-    return [
-        {"topic": "Nepal Politics & Parliament", "hashtag": "#NepalPolitics", "volume": "High"},
-        {"topic": "Kathmandu Mayor & Balen Shah", "hashtag": "#BalenShah", "volume": "Very High"},
-        {"topic": "Nepal Cricket & CAN Matches", "hashtag": "#NepalCricket #Rhinos", "volume": "High"},
-        {"topic": "Economy, Gold & Inflation", "hashtag": "#NepalEconomy #GoldNepal", "volume": "Medium"},
-        {"topic": "Foreign Employment & Youth", "hashtag": "#NepalYouth #Jobs", "volume": "High"},
-        {"topic": "Tourism & Himalayas", "hashtag": "#VisitNepal #Himalayas", "volume": "Medium"}
-    ]
-
-# Backward compatibility alias - ensures older scripts/caches importing fetch_all_nepal_posts never fail
-fetch_all_nepal_posts = fetch_top_nepal_media
-
-try:
-    from nepal_x_scanner import (
-        scan_popular_nepal_x_posts,
-        TOP_NEPAL_X_ACCOUNTS,
-        fetch_real_account_tweets,
-        NEPALI_X_ACCOUNTS_BY_CATEGORY
-    )
-except Exception:
-    pass
 

@@ -11,44 +11,29 @@ Includes:
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import datetime
 import time
-import zoneinfo
 import urllib.parse
 import html
 import re
 import os
-import plotly.express as px
-import plotly.graph_objects as go
-from collections import Counter
+from typing import Any, Callable, Dict, List
 from nepal_fetcher import (
     fetch_top_nepal_media,
-    fetch_all_nepal_posts,
     fetch_nepal_in_indian_media,
     evaluate_indian_article_nepal_relevance,
+    parse_to_nepal_time,
+    batch_fetch_full_content,
     DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
     BORDERLINE_NEPAL_RELEVANCE_FLOOR,
-    query_x_api,
-    get_live_nepal_trends,
-    batch_fetch_full_content,
-    extract_article_full_text,
-    generate_word_document,
-    map_to_target_category,
-    DOCX_TARGET_CATEGORIES,
     NEPAL_TZ,
     STRUCTURED_CATEGORIES,
     CATEGORY_ICONS,
     TOP_NEPAL_NEWS_PORTALS,
     TOP_INDIAN_MEDIA_SOURCES,
-    POPULAR_NEPAL_X_HANDLES
 )
-from nepal_x_scanner import (
-    scan_popular_nepal_x_posts,
-    fetch_real_account_tweets,
-    TOP_NEPAL_X_ACCOUNTS
-)
+from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS
 from nepal_news_store import (
     get_all_source_health,
     get_system_kpis,
@@ -64,6 +49,7 @@ from nepal_news_scheduler import (
     run_historical_backfill,
     start_monitoring_daemon
 )
+from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
 
 # Start background news monitoring daemon if not already running
 try:
@@ -93,8 +79,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Modern Apple-Grade Design System & Custom Styling
-from apple_theme import APPLE_DESIGN_SYSTEM_CSS
+# 2. Apple-grade design system (tokens + components live in apple_theme.py)
 st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
 
 # ==========================================
@@ -115,195 +100,18 @@ def check_password() -> bool:
         st.session_state["authenticated"] = True
         return True
 
-    # Single Unified Authentication Card – Light Minimalist Design
-    st.markdown("""
-    <style>
-        /* Hide sidebar and header chrome during login */
-        [data-testid="stSidebar"], [data-testid="collapsedControl"], header[data-testid="stHeader"] {
-            display: none !important;
-        }
-
-        /* Page background: #F5F7FA */
-        [data-testid="stAppViewContainer"], .main {
-            background-color: #F5F7FA !important;
-        }
-
-        /* Centre the card vertically and horizontally */
-        .block-container {
-            padding-top: 12vh !important;
-            padding-bottom: 4vh !important;
-            max-width: 440px !important;
-            margin: 0 auto !important;
-        }
-
-        /* Style the SINGLE stForm as the ONE unified white authentication card */
-        div[data-testid="stForm"] {
-            background-color: #FFFFFF !important;
-            border: 1px solid #DCE5EF !important;
-            border-radius: 16px !important;
-            padding: 36px 32px 28px 32px !important;
-            box-shadow: 0 4px 20px rgba(37, 54, 75, 0.05), 0 1px 3px rgba(37, 54, 75, 0.03) !important;
-            max-width: 440px !important;
-            margin: 0 auto !important;
-        }
-
-        /* Header branding inside the single form */
-        .auth-header-block {
-            text-align: center;
-            margin-bottom: 22px;
-        }
-
-        .auth-flag-icon {
-            font-size: 28px;
-            line-height: 1;
-            margin-bottom: 12px;
-            display: inline-block;
-        }
-
-        .auth-main-heading {
-            font-size: 31px !important;
-            font-weight: 700 !important;
-            color: #25364B !important;
-            letter-spacing: -0.025em !important;
-            margin: 0 0 6px 0 !important;
-            line-height: 1.2 !important;
-        }
-
-        .auth-sub-heading {
-            font-size: 14.5px !important;
-            font-weight: 450 !important;
-            color: #788596 !important;
-            margin: 0 !important;
-            line-height: 1.4 !important;
-        }
-
-        /* Password Input Field: height ~52-54px, background #FFFFFF, border #DCE5EF */
-        div[data-testid="stForm"] div[data-baseweb="input"] {
-            background-color: #FFFFFF !important;
-            border-radius: 10px !important;
-        }
-
-        div[data-testid="stForm"] div[data-baseweb="input"] > div {
-            background-color: #FFFFFF !important;
-            border: 1.5px solid #DCE5EF !important;
-            border-radius: 10px !important;
-            min-height: 52px !important;
-            height: 52px !important;
-            padding: 0 12px !important;
-            box-shadow: none !important;
-            transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
-        }
-
-        div[data-testid="stForm"] div[data-baseweb="input"] > div:focus-within {
-            border-color: #526A85 !important;
-            box-shadow: 0 0 0 3px rgba(82, 106, 133, 0.14) !important;
-        }
-
-        div[data-testid="stForm"] input[type="password"],
-        div[data-testid="stForm"] input[type="text"] {
-            color: #25364B !important;
-            font-size: 15px !important;
-            background-color: transparent !important;
-        }
-
-        div[data-testid="stForm"] input::placeholder {
-            color: #788596 !important;
-            opacity: 0.85 !important;
-        }
-
-        /* Hide "Press Enter to submit form" instruction overlay */
-        div[data-testid="InputInstructions"] {
-            display: none !important;
-        }
-
-        /* Unlock Platform Button: Muted Slate Blue #526A85, Hover #405872, Text #FFFFFF, Height ~52px */
-        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] {
-            margin-top: 6px !important;
-        }
-
-        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button,
-        div[data-testid="stForm"] button[kind="primaryFormSubmit"],
-        div[data-testid="stForm"] button[data-testid="baseButton-primary"],
-        div[data-testid="stForm"] button[data-testid="baseButton-secondary"] {
-            background-color: #526A85 !important;
-            background: #526A85 !important;
-            color: #FFFFFF !important;
-            border: none !important;
-            border-radius: 10px !important;
-            min-height: 52px !important;
-            height: 52px !important;
-            width: 100% !important;
-            font-size: 15.5px !important;
-            font-weight: 600 !important;
-            letter-spacing: -0.01em !important;
-            box-shadow: 0 2px 6px rgba(82, 106, 133, 0.2) !important;
-            transition: background-color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease !important;
-            cursor: pointer !important;
-        }
-
-        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button *,
-        div[data-testid="stForm"] button[kind="primaryFormSubmit"] *,
-        div[data-testid="stForm"] button[data-testid="baseButton-primary"] *,
-        div[data-testid="stForm"] button[data-testid="baseButton-secondary"] * {
-            color: #FFFFFF !important;
-            font-weight: 600 !important;
-        }
-
-        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:hover,
-        div[data-testid="stForm"] button[kind="primaryFormSubmit"]:hover,
-        div[data-testid="stForm"] button[data-testid="baseButton-primary"]:hover,
-        div[data-testid="stForm"] button[data-testid="baseButton-secondary"]:hover {
-            background-color: #405872 !important;
-            background: #405872 !important;
-            color: #FFFFFF !important;
-            box-shadow: 0 4px 12px rgba(64, 88, 114, 0.28) !important;
-            transform: translateY(-1px) !important;
-        }
-
-        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:active,
-        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:focus {
-            background-color: #405872 !important;
-            color: #FFFFFF !important;
-            box-shadow: 0 0 0 3px rgba(82, 106, 133, 0.25) !important;
-            outline: none !important;
-        }
-
-        /* Security Footer inside the card */
-        .auth-security-footer {
-            text-align: center;
-            font-size: 12.5px;
-            color: #788596;
-            margin-top: 16px;
-            margin-bottom: 0;
-            font-weight: 450;
-            letter-spacing: 0.01em;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ONE Single Unified Card containing all 6 required elements in exact order
+    st.markdown(AUTH_CSS, unsafe_allow_html=True)
     with st.form("auth_form", clear_on_submit=False):
         st.markdown("""
-        <div class="auth-header-block">
-            <div class="auth-flag-icon">🇳🇵</div>
-            <h1 class="auth-main-heading">Media Monitor</h1>
-            <p class="auth-sub-heading">News Intelligence Platform</p>
+        <div class="auth-header">
+            <div class="auth-header__flag">🇳🇵</div>
+            <h1 class="auth-header__title">Media Monitor</h1>
+            <p class="auth-header__subtitle">News Intelligence Platform</p>
         </div>
         """, unsafe_allow_html=True)
-
-        pwd = st.text_input(
-            "Password",
-            type="password",
-            placeholder="Enter password",
-            label_visibility="collapsed"
-        )
-
-        submit = st.form_submit_button("Unlock Platform", width="stretch", type="primary")
-
-        st.markdown(
-            '<div class="auth-security-footer">Secure Access · Authorised Users Only</div>',
-            unsafe_allow_html=True
-        )
+        pwd = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
+        submit = st.form_submit_button("Unlock", width="stretch", type="primary")
+        st.markdown('<div class="auth-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
 
     if submit:
         if pwd.strip() == APP_PASSWORD:
@@ -314,112 +122,108 @@ def check_password() -> bool:
             st.error("Incorrect password. Please try again.")
 
     st.stop()
-    return False
 
-if not check_password():
-    st.stop()
+check_password()
 
 # 3. Time Reference
 now_npt = datetime.datetime.now(NEPAL_TZ)
-formatted_now_time = now_npt.strftime("%I:%M %p NPT")
+formatted_now_time = now_npt.strftime("%I:%M %p NPT").lstrip("0")
 past_12h_ref = now_npt - datetime.timedelta(hours=12)
 default_start_date = past_12h_ref.date()
 default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
-
-if "last_sync_npt" not in st.session_state:
-    st.session_state["last_sync_npt"] = now_npt.strftime("%I:%M %p")
-if "is_refreshing_feeds" not in st.session_state:
-    st.session_state["is_refreshing_feeds"] = False
+st.session_state.setdefault("last_sync_npt", now_npt.strftime("%I:%M %p").lstrip("0"))
+st.session_state.setdefault("cp_timeframe_segment", "12h")
 
 # ==========================================
-# 4. TIME LOGIC & STATE HELPERS
+# 4. TIME WINDOW
+# Presets (12h / 24h / Today) always run up to "now".
+# "Custom" exposes start/end pickers plus an "Up to now" toggle.
 # ==========================================
+TIMEFRAME_PRESETS = ["12h", "24h", "Today", "Custom"]
+PAGE_SIZE = 20
+
+def _preset_start(preset: str, ref: datetime.datetime) -> datetime.datetime:
+    if preset == "24h":
+        return ref - datetime.timedelta(hours=24)
+    if preset == "Today":
+        return ref.replace(hour=0, minute=0, second=0, microsecond=0)
+    return ref - datetime.timedelta(hours=12)
+
 def on_timeframe_preset_change():
-    preset = st.session_state.get("cp_timeframe_segment", "12h")
-    now_ref = datetime.datetime.now(NEPAL_TZ)
-    if preset == "12h":
-        past_12 = now_ref - datetime.timedelta(hours=12)
-        st.session_state["filter_start_date"] = past_12.date()
-        st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
-        st.session_state["filter_use_current_time"] = True
-    elif preset == "24h":
-        past_24 = now_ref - datetime.timedelta(hours=24)
-        st.session_state["filter_start_date"] = past_24.date()
-        st.session_state["filter_start_time"] = past_24.time().replace(second=0, microsecond=0)
-        st.session_state["filter_use_current_time"] = True
-    elif preset == "Today":
-        st.session_state["filter_start_date"] = now_ref.date()
-        st.session_state["filter_start_time"] = datetime.time(0, 0)
-        st.session_state["filter_use_current_time"] = True
+    # Segmented control can be deselected; fall back to the default preset.
+    if not st.session_state.get("cp_timeframe_segment"):
+        st.session_state["cp_timeframe_segment"] = "12h"
+    preset = st.session_state["cp_timeframe_segment"]
+    if preset != "Custom":
+        start = _preset_start(preset, datetime.datetime.now(NEPAL_TZ))
+        st.session_state["filter_start_date"] = start.date()
+        st.session_state["filter_start_time"] = start.time().replace(second=0, microsecond=0)
 
-def on_custom_datetime_edit():
-    st.session_state["cp_timeframe_segment"] = "Custom"
-
-if "cp_timeframe_segment" not in st.session_state:
-    st.session_state["cp_timeframe_segment"] = "12h"
-
-# Compute Time Window
-if st.session_state.get("cp_timeframe_segment") == "Custom":
-    start_date = st.session_state.get("filter_start_date", default_start_date)
-    start_time = st.session_state.get("filter_start_time", default_start_time)
+active_preset = st.session_state.get("cp_timeframe_segment") or "12h"
+if active_preset == "Custom":
+    filter_start_dt = datetime.datetime.combine(
+        st.session_state.get("filter_start_date", default_start_date),
+        st.session_state.get("filter_start_time", default_start_time),
+        tzinfo=NEPAL_TZ,
+    )
+    is_to_current = st.session_state.get("filter_use_current_time", True)
 else:
-    on_timeframe_preset_change()
-    start_date = st.session_state.get("filter_start_date", default_start_date)
-    start_time = st.session_state.get("filter_start_time", default_start_time)
+    filter_start_dt = _preset_start(active_preset, now_npt)
+    is_to_current = True
 
-filter_start_dt = datetime.datetime.combine(start_date, start_time, tzinfo=NEPAL_TZ)
-
-use_current_time = st.session_state.get("filter_use_current_time", True)
-is_to_current = use_current_time
-explicit_all_time = False
-
-if use_current_time:
+if is_to_current:
     filter_end_dt = now_npt
-    end_short_str = "Now"
 else:
-    end_date = st.session_state.get("filter_end_date", now_npt.date())
-    end_time = st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0))
-    filter_end_dt = datetime.datetime.combine(end_date, end_time, tzinfo=NEPAL_TZ)
+    filter_end_dt = datetime.datetime.combine(
+        st.session_state.get("filter_end_date", now_npt.date()),
+        st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)),
+        tzinfo=NEPAL_TZ,
+    )
     if filter_end_dt < filter_start_dt:
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
-    end_short_str = filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
 
-start_short_str = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0")
+def fmt_short(dt: datetime.datetime) -> str:
+    return dt.strftime("%d %b, %I:%M %p").lstrip("0")
 
+window_label = f"{fmt_short(filter_start_dt)} → {'Now' if is_to_current else fmt_short(filter_end_dt)}"
+
+# Filter option constants (single source of truth)
 CAT_FILTER_ALL_UNFILTERED = "🌐 All News"
 CAT_FILTER_ALL_8 = "📂 Classified"
 CAT_FILTER_UNCATEGORIZED = "⚪ Unclassified"
-
 CATEGORY_FILTER_OPTIONS = [
     CAT_FILTER_ALL_UNFILTERED,
     CAT_FILTER_ALL_8,
     CAT_FILTER_UNCATEGORIZED,
 ] + [f"{CATEGORY_ICONS.get(c, '📌')} {c}" for c in STRUCTURED_CATEGORIES]
 
-ALL_PORTALS_DEFAULT = "All Portals (34)"
+ALL_PORTALS_DEFAULT = f"All Portals ({len(TOP_NEPAL_NEWS_PORTALS)})"
+ALL_INDIAN_DEFAULT = f"All {len(TOP_INDIAN_MEDIA_SOURCES)} Indian Outlets"
 ALL_LANG_DEFAULT = "All Languages"
-
-all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+ALL_ACC_TYPES = "All Account Types"
+NEPALI_PORTAL_NAMES = sorted({p["name"] for p in TOP_NEPAL_NEWS_PORTALS})
+INDIAN_OUTLET_NAMES = sorted({s["name"] for s in TOP_INDIAN_MEDIA_SOURCES})
+india_rel_threshold = DEFAULT_NEPAL_RELEVANCE_THRESHOLD
 
 def reset_all_filters():
-    now_ref = datetime.datetime.now(NEPAL_TZ)
-    past_12 = now_ref - datetime.timedelta(hours=12)
-    st.session_state["global_search_input"] = ""
-    st.session_state["np_cat_filter"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["np_portal_filter"] = ALL_PORTALS_DEFAULT
-    st.session_state["np_lang_filter"] = ALL_LANG_DEFAULT
-    st.session_state["in_outlet_filter"] = "All 18 Indian Outlets"
-    st.session_state["x_cat_filter_select"] = CAT_FILTER_ALL_UNFILTERED
-    st.session_state["x_acc_type_select"] = "All Account Types"
-    st.session_state["cp_timeframe_segment"] = "12h"
-    st.session_state["filter_start_date"] = past_12.date()
-    st.session_state["filter_start_time"] = past_12.time().replace(second=0, microsecond=0)
-    st.session_state["filter_end_date"] = now_ref.date()
-    st.session_state["filter_end_time"] = now_ref.time().replace(second=0, microsecond=0)
-    st.session_state["filter_use_current_time"] = True
-    st.session_state["media_visible_count"] = 20
-    st.session_state["indian_visible_count"] = 20
-    st.session_state["x_visible_count"] = 20
+    start = _preset_start("12h", datetime.datetime.now(NEPAL_TZ))
+    st.session_state.update({
+        "global_search_input": "",
+        "np_cat_filter": CAT_FILTER_ALL_UNFILTERED,
+        "np_portal_filter": ALL_PORTALS_DEFAULT,
+        "np_lang_filter": ALL_LANG_DEFAULT,
+        "in_outlet_filter": ALL_INDIAN_DEFAULT,
+        "in_lang_filter": ALL_LANG_DEFAULT,
+        "x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED,
+        "x_acc_type_select": ALL_ACC_TYPES,
+        "cp_timeframe_segment": "12h",
+        "filter_start_date": start.date(),
+        "filter_start_time": start.time().replace(second=0, microsecond=0),
+        "filter_use_current_time": True,
+        "media_visible_count": PAGE_SIZE,
+        "indian_visible_count": PAGE_SIZE,
+        "x_visible_count": PAGE_SIZE,
+    })
 
 # Silent background credentials for Twitter API
 default_bearer = os.getenv("TWITTER_BEARER_TOKEN", "")
@@ -454,213 +258,145 @@ if "x_posts" not in st.session_state or not st.session_state.get("x_posts") or n
 all_x_posts = st.session_state["x_posts"]
 
 # Apply Date & Time Range Filter across ALL channels
-min_date = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
+MIN_DATE = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
 
-# Determine strict active cutoff for all feeds
-active_time_cutoff = filter_start_dt
-if not active_time_cutoff and not explicit_all_time:
-    # Default timeline: Past 48 Hours
-    active_time_cutoff = now_npt - datetime.timedelta(hours=48)
+def in_window(item: Dict[str, Any]) -> bool:
+    pdt = item.get("published_dt")
+    return isinstance(pdt, datetime.datetime) and filter_start_dt <= pdt <= filter_end_dt
 
-if active_time_cutoff:
-    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= filter_end_dt]
-    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] >= active_time_cutoff and a["published_dt"] <= filter_end_dt]
-    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] >= active_time_cutoff and p["published_dt"] <= filter_end_dt]
-else:
-    filtered_articles = [a for a in all_articles if a.get("published_dt") and a["published_dt"] <= filter_end_dt]
-    filtered_indian = [a for a in indian_articles if a.get("published_dt") and a["published_dt"] <= filter_end_dt]
-    filtered_x_posts = [p for p in all_x_posts if p.get("published_dt") and p["published_dt"] <= filter_end_dt]
+def merge_stored(live_items: List[Dict[str, Any]], stored_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Reconciles live-fetched items with the persistent store so the window is complete."""
+    seen = {a.get("canonical_id") or a.get("link") for a in live_items}
+    for it in stored_items:
+        key = it.get("canonical_id") or it.get("link")
+        if key and key not in seen and in_window(it):
+            _, it["relative_time"], it["exact_time"] = parse_to_nepal_time(it["published_dt"], now_npt)
+            live_items.append(it)
+            seen.add(key)
+    return live_items
 
-# Guarantee 100% completeness for the selected date & time range by reconciling directly with persistent store
+filtered_articles = [a for a in all_articles if in_window(a)]
+filtered_indian = [a for a in indian_articles if in_window(a)]
+filtered_x_posts = [p for p in all_x_posts if in_window(p)]
+
 try:
-    db_window_articles = get_stored_articles(
-        start_dt=active_time_cutoff,
-        end_dt=filter_end_dt,
-        limit=5000,
-    )
-    seen_art_keys = {a.get("canonical_id") or a.get("link") for a in filtered_articles}
-    for dba in db_window_articles:
-        k = dba.get("canonical_id") or dba.get("link")
-        pdt = dba.get("published_dt")
-        if k and k not in seen_art_keys and isinstance(pdt, datetime.datetime):
-            if (not active_time_cutoff or pdt >= active_time_cutoff) and pdt <= filter_end_dt:
-                _, dba["relative_time"], dba["exact_time"] = parse_to_nepal_time(pdt, now_npt)
-                filtered_articles.append(dba)
-                seen_art_keys.add(k)
+    filtered_articles = merge_stored(filtered_articles, get_stored_articles(start_dt=filter_start_dt, end_dt=filter_end_dt, limit=5000))
+except Exception:
+    pass
+try:
+    filtered_indian = merge_stored(filtered_indian, get_stored_indian_articles(status_filter="substantive", limit=2000))
 except Exception:
     pass
 
-try:
-    db_window_indian = get_stored_indian_articles(status_filter="substantive", limit=2000)
-    seen_ind_keys = {a.get("canonical_id") or a.get("link") for a in filtered_indian}
-    for dbi in db_window_indian:
-        k = dbi.get("canonical_id") or dbi.get("link")
-        pdt = dbi.get("published_dt")
-        if k and k not in seen_ind_keys and isinstance(pdt, datetime.datetime):
-            if (not active_time_cutoff or pdt >= active_time_cutoff) and pdt <= filter_end_dt:
-                _, dbi["relative_time"], dbi["exact_time"] = parse_to_nepal_time(pdt, now_npt)
-                filtered_indian.append(dbi)
-                seen_ind_keys.add(k)
-except Exception:
-    pass
+for _feed in (filtered_articles, filtered_indian, filtered_x_posts):
+    _feed.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
 
-# Sort EVERY channel strictly by newest publication timestamp first
-filtered_articles.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
-filtered_indian.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
-filtered_x_posts.sort(key=lambda x: x.get("published_dt") or min_date, reverse=True)
+# ==========================================
+# CATEGORY TAXONOMY (one alias map + one slug map for badges & accents)
+# ==========================================
+CATEGORY_ALIASES = {
+    "India in Nepal": "India Section",
+    "China in Nepal": "China Section",
+    "Pakistan in Nepal": "Pakistan Section",
+    "Bangladesh in Nepal": "Bangladesh Section",
+    "Nepal – Internal Politics": "Nepal – Internal",
+    "Nepal – External Relations (Others)": "Nepal – External",
+    "Economy": "Nepal – Economy",
+    "Others": "Nepal – Others",
+}
+CATEGORY_SLUGS = {
+    "India Section": "india",
+    "China Section": "china",
+    "Pakistan Section": "pakistan",
+    "Bangladesh Section": "bangladesh",
+    "Nepal – Internal": "internal",
+    "Nepal – External": "external",
+    "Nepal – Economy": "economy",
+    "Nepal – Others": "others",
+    "International News": "international",
+}
 
-# Calculate Category Counts for Nepali Media (based on time-filtered articles)
-cat_counts = Counter([a.get("primary_section") or a.get("structured_category", "Nepal – Others") for a in filtered_articles])
+def canonical_category(cat: str) -> str:
+    return CATEGORY_ALIASES.get(cat, cat)
 
-# Helper for category badge
-def get_badge_html(cat):
-    badge_classes = {
-        "India Section": "cat-badge-india",
-        "China Section": "cat-badge-china",
-        "Pakistan Section": "cat-badge-pakistan",
-        "Bangladesh Section": "cat-badge-bangladesh",
-        "Nepal – Internal": "cat-badge-internal",
-        "Nepal – External": "cat-badge-external",
-        "Nepal – Economy": "cat-badge-economy",
-        "Nepal – Others": "cat-badge-others",
-        "International News": "cat-badge-international",
-        # Backward compatibility aliases
-        "India in Nepal": "cat-badge-india",
-        "China in Nepal": "cat-badge-china",
-        "Pakistan in Nepal": "cat-badge-pakistan",
-        "Bangladesh in Nepal": "cat-badge-bangladesh",
-        "Nepal – Internal Politics": "cat-badge-internal",
-        "Nepal – External Relations (Others)": "cat-badge-external",
-        "Economy": "cat-badge-economy",
-        "Others": "cat-badge-others",
-    }
-    css = badge_classes.get(cat, "cat-badge-others")
+def category_slug(cat: str) -> str:
+    return CATEGORY_SLUGS.get(canonical_category(cat), "others")
+
+def get_badge_html(cat: str) -> str:
+    cat = canonical_category(cat)
     icon = CATEGORY_ICONS.get(cat, "📌")
-    return f'<span class="{css}">{icon} {cat}</span>'
+    return f'<span class="cat-badge cat-badge--{category_slug(cat)}">{icon} {html.escape(cat)}</span>'
+
+def compact_number(n: int) -> str:
+    return f"{n / 1000:.1f}K" if n >= 1000 else str(n)
+
+def time_badge_html(rel_time: str, exact_time: str) -> str:
+    rel_time, exact_time = html.escape(str(rel_time or "")), html.escape(str(exact_time or ""))
+    if rel_time and exact_time and rel_time not in exact_time:
+        label = f"{rel_time} · {exact_time}"
+    else:
+        label = exact_time or rel_time or "Recent"
+    return f'<span class="time-badge">{label}</span>'
 
 
-# Apple-Grade Article Card Renderer
-def render_apple_article_card(item, is_indian=False, auto_translate=False):
+# Article Card Renderer
+def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> str:
     source_name = html.escape(item.get("source", "Unknown"))
     cat = item.get("primary_section") or item.get("structured_category", "Nepal – Others")
-    
-    cat_accent_class = {
-        "India Section": "card-accent-india",
-        "China Section": "card-accent-china",
-        "Pakistan Section": "card-accent-pakistan",
-        "Bangladesh Section": "card-accent-bangladesh",
-        "Nepal – Internal": "card-accent-internal",
-        "Nepal – External": "card-accent-external",
-        "Nepal – Economy": "card-accent-economy",
-        "Nepal – Others": "card-accent-others",
-        "International News": "card-accent-international",
-        # Backward compatibility aliases
-        "India in Nepal": "card-accent-india",
-        "China in Nepal": "card-accent-china",
-        "Pakistan in Nepal": "card-accent-pakistan",
-        "Bangladesh in Nepal": "card-accent-bangladesh",
-        "Nepal – Internal Politics": "card-accent-internal",
-        "Nepal – External Relations (Others)": "card-accent-external",
-        "Economy": "card-accent-economy",
-        "Others": "card-accent-others",
-    }.get(cat, "card-accent-others")
 
     if is_indian:
-        cat_accent_class = "card-accent-indian-press"
+        accent = "indian-press"
         source_tag = f'<span class="indian-portal-tag">🇮🇳 {source_name}</span>'
-        cat_badge = get_badge_html(cat)
-    else:
-        source_tag = f'<span class="portal-tag">{source_name}</span>'
-        cat_badge = get_badge_html(cat)
-
-    # Low confidence warning flag or Nepal relevance badge for Indian media
-    if is_indian:
-        rel_score = float(item.get("nepal_relevance_score", 0.75))
-        rel_status = item.get("relevance_status", "substantive")
-        rel_reason = html.escape(str(item.get("relevance_reason", "Substantive Nepal connection")))
-        pct = int(round(rel_score * 100))
-        if rel_status == "borderline_review":
-            review_flag = f'<span class="conf-review-badge" title="{rel_reason}">⚠️ Borderline Review ({pct}% Relevance)</span>'
+        pct = int(round(float(item.get("nepal_relevance_score", 0.75)) * 100))
+        reason = html.escape(str(item.get("relevance_reason", "Substantive Nepal connection")))
+        if item.get("relevance_status") == "borderline_review":
+            review_flag = f'<span class="conf-review-badge" title="{reason}">Borderline · {pct}% relevance</span>'
         else:
-            review_flag = f'<span class="time-badge" style="background:#ECFDF5; color:#047857; border-color:#A7F3D0; font-weight:650;" title="{rel_reason}">🎯 {pct}% Nepal Relevance</span>'
+            review_flag = f'<span class="pill pill--success" title="{reason}">{pct}% Nepal relevance</span>'
     else:
-        review_flag = '<span class="conf-review-badge" title="Classification confidence < 0.60 - Pending Editorial Verification">⚠️ Review</span>' if item.get("low_confidence") else ''
+        accent = category_slug(cat)
+        source_tag = f'<span class="portal-tag">{source_name}</span>'
+        review_flag = '<span class="conf-review-badge" title="Classification confidence below 0.60 — pending editorial verification">Needs review</span>' if item.get("low_confidence") else ""
 
-    # Secondary tags chips & Nepal thematic dimensions
-    sec_tags = list(item.get("secondary_tags", []) or [])
+    # Secondary tags & Nepal thematic dimensions
+    sec_tags = list(item.get("secondary_tags") or [])
     if is_indian:
-        dims = item.get("nepal_dimensions", []) or []
-        for d in dims:
-            if d not in sec_tags:
-                sec_tags.insert(0, d)
+        sec_tags = [d for d in (item.get("nepal_dimensions") or []) if d not in sec_tags] + sec_tags
     sec_tags_html = ""
-    if sec_tags and isinstance(sec_tags, list):
-        chips = [f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:5]]
-        sec_tags_html = f'<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">{" ".join(chips)}</div>'
+    if sec_tags:
+        chips = "".join(f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:5])
+        sec_tags_html = f'<div class="chip-row">{chips}</div>'
 
-    rel_time = html.escape(str(item.get('relative_time', 'Recent')))
-    exact_time = html.escape(str(item.get('exact_time', '')))
-    time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
+    lang = item.get("language", "")
+    lang_badge = f'<span class="pill">{html.escape(lang)}</span>' if lang else ""
 
     raw_title = item.get("title", "")
-    summary = item.get("summary", "")
-    has_sum = bool(summary and summary.strip() != raw_title.strip())
-
-    # Language pill badge
-    lang = item.get("language", "")
-    lang_badge = f'<span class="time-badge" style="background:#F8FAFC; color:#475569; font-weight:600;">🌐 {lang}</span>' if lang else ""
-
-    link = item.get("link", "#")
-    title_display = html.escape(raw_title)
-    summary_html = f'<p class="apple-card-summary">{html.escape(summary.strip())}</p>' if has_sum else ""
-
-    btn_label = "Read in Indian Press ↗" if is_indian else "Read Story ↗"
+    summary = (item.get("summary") or "").strip()
+    summary_html = f'<p class="apple-card-summary">{html.escape(summary)}</p>' if summary and summary != raw_title.strip() else ""
+    link = html.escape(item.get("link", "#"), quote=True)
+    cta = "Read in Indian press ↗" if is_indian else "Read story ↗"
 
     return (
-        f'<article class="apple-news-card {cat_accent_class}">'
-        f'<header class="apple-card-meta">{source_tag}{cat_badge}{review_flag}{lang_badge}{time_badge}</header>'
-        f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{title_display}</a></h3>'
-        f'{summary_html}'
-        f'{sec_tags_html}'
-        f'<footer class="apple-card-footer" style="display:flex; justify-content:flex-end; align-items:center; margin-top:8px;">'
-        f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{btn_label}</a>'
-        f'</footer>'
+        f'<article class="apple-news-card accent--{accent}">'
+        f'<header class="apple-card-meta">{source_tag}{get_badge_html(cat)}{review_flag}{lang_badge}'
+        f'{time_badge_html(item.get("relative_time", "Recent"), item.get("exact_time", ""))}</header>'
+        f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(raw_title)}</a></h3>'
+        f'{summary_html}{sec_tags_html}'
+        f'<footer class="apple-card-footer"><a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{cta}</a></footer>'
         f'</article>'
     )
 
-# Apple-Grade X (Twitter) Post Card Renderer
-def render_apple_x_post_card(p, auto_translate=False):
+# X (Twitter) Post Card Renderer
+def render_apple_x_post_card(p: Dict[str, Any]) -> str:
     avatar_bg = html.escape(p.get("avatar_bg", "#1D9BF0"))
     initials = html.escape(p.get("initials", "X"))
     author_name = html.escape(p.get("author_name", "Author"))
     handle = html.escape(p.get("handle", "@handle"))
     author_type = html.escape(p.get("author_type", "Public Figure"))
-    verified_mark = ' <span class="x-verified-badge" title="Verified Account">✓</span>' if p.get("verified") else ""
-    
-    cat = p.get("structured_category", "Others")
-    cat_badge = get_badge_html(cat)
-    rel_time = html.escape(str(p.get("relative_time", "Recent")))
-    exact_time = html.escape(str(p.get("exact_time", "")))
-    if exact_time and rel_time and rel_time not in exact_time:
-        time_badge = f'<span class="time-badge">🕒 {rel_time} · {exact_time}</span>'
-    elif exact_time:
-        time_badge = f'<span class="time-badge">🕒 {exact_time}</span>'
-    else:
-        time_badge = f'<span class="time-badge">🕒 {rel_time}</span>'
+    verified_mark = ' <span class="x-verified-badge" title="Verified account">✓</span>' if p.get("verified") else ""
 
-    raw_text = p.get("text", "")
-    text = html.escape(raw_text, quote=False)
-    text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b style="color:#0284C7;">\1</b>', text)
-
-    likes = p.get("likes", 0)
-    retweets = p.get("retweets", 0)
-    replies = p.get("replies", 0)
-    impressions = p.get("impressions", 0)
-
-    likes_fmt = f"{likes/1000:.1f}K" if likes >= 1000 else str(likes)
-    rt_fmt = f"{retweets/1000:.1f}K" if retweets >= 1000 else str(retweets)
-    rep_fmt = f"{replies/1000:.1f}K" if replies >= 1000 else str(replies)
-    imp_fmt = f"{impressions/1000:.1f}K" if impressions >= 1000 else str(impressions)
+    text = html.escape(p.get("text", ""), quote=False)
+    text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b>\1</b>', text).replace("\n", "<br>")
 
     sentiment = p.get("sentiment", "Neutral")
     if "Alert" in sentiment or "Critical" in sentiment:
@@ -668,50 +404,79 @@ def render_apple_x_post_card(p, auto_translate=False):
     elif "Positive" in sentiment:
         senti_class = "x-sentiment-positive"
     else:
-        senti_class = "x-sentiment-neutral"
-    senti_html = f'<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span>'
+        senti_class = ""
 
     raw_handle = p.get("raw_handle") or p.get("handle", "").lstrip("@").split(" ")[0].strip()
-    is_real = p.get("is_real_api", False)
     orig_link = p.get("link", "#")
-
-    if is_real and orig_link and "/status/" in orig_link:
-        link = orig_link
-        cta_label = "View Post on X ↗"
-    elif raw_handle and raw_handle not in ["LiveSearch", "Author"]:
-        link = f"https://x.com/{raw_handle}"
-        cta_label = f"View @{raw_handle} on X ↗"
+    if p.get("is_real_api") and orig_link and "/status/" in orig_link:
+        link, cta_label = orig_link, "View post on X ↗"
+    elif raw_handle and raw_handle not in ("LiveSearch", "Author"):
+        link, cta_label = f"https://x.com/{raw_handle}", f"View @{raw_handle} on X ↗"
     else:
-        link = orig_link if orig_link != "#" else "https://x.com"
-        cta_label = "View on X ↗"
+        link, cta_label = (orig_link if orig_link != "#" else "https://x.com"), "View on X ↗"
+    link = html.escape(link, quote=True)
+
+    metrics = "".join(
+        f'<span class="x-metric-item" title="{label}">{icon} {compact_number(int(p.get(key, 0) or 0))}</span>'
+        for key, icon, label in (("likes", "♥", "Likes"), ("retweets", "↻", "Reposts"), ("replies", "💬", "Replies"), ("impressions", "◉", "Views"))
+    )
 
     return (
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
-        f'<div class="x-author-box">'
-        f'<div class="x-avatar" style="background:{avatar_bg};">{initials}</div>'
-        f'<div class="x-author-meta">'
-        f'<span class="x-author-name">{author_name}{verified_mark}</span>'
-        f'<span class="x-author-handle">{handle} · <span class="x-type-badge">{author_type}</span></span>'
-        f'</div>'
-        f'</div>'
-        f'<div style="display:flex; align-items:center; gap:8px;">{cat_badge}{time_badge}</div>'
+        f'<div class="x-author-box"><div class="x-avatar" style="background:{avatar_bg};">{initials}</div>'
+        f'<div class="x-author-meta"><span class="x-author-name">{author_name}{verified_mark}</span>'
+        f'<span class="x-author-handle">{handle} · <span class="x-type-badge">{author_type}</span></span></div></div>'
+        f'<div class="x-post-header__meta">{get_badge_html(p.get("structured_category", "Others"))}'
+        f'{time_badge_html(p.get("relative_time", "Recent"), p.get("exact_time", ""))}</div>'
         f'</header>'
         f'<div class="x-post-text">{text}</div>'
         f'<footer class="x-engagement-bar">'
-        f'<div class="x-metrics-group">'
-        f'<span class="x-metric-item" title="Likes">❤️ {likes_fmt}</span>'
-        f'<span class="x-metric-item" title="Retweets">🔁 {rt_fmt}</span>'
-        f'<span class="x-metric-item" title="Replies">💬 {rep_fmt}</span>'
-        f'<span class="x-metric-item" title="Impressions">👁️ {imp_fmt}</span>'
-        f'{senti_html}'
-        f'</div>'
-        f'<div style="display:flex; align-items:center; gap:8px;">'
+        f'<div class="x-metrics-group">{metrics}<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span></div>'
         f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="x-cta-link">{cta_label}</a>'
-        f'</div>'
         f'</footer>'
         f'</article>'
     )
+
+# ==========================================
+# SHARED UI COMPONENTS
+# ==========================================
+def render_page_header(title: str, subtitle: str = "", show_window: bool = True) -> None:
+    """Large-title page header used by every workspace for a consistent hierarchy."""
+    sub = f'<p class="page-header__subtitle">{subtitle}</p>' if subtitle else ""
+    meta = f'<div class="page-header__meta"><span class="pill pill--tint">🕒 {html.escape(window_label)}</span></div>' if show_window else ""
+    st.markdown(
+        f'<div class="page-header"><div><h2 class="page-header__title">{html.escape(title)}</h2>{sub}</div>{meta}</div>',
+        unsafe_allow_html=True,
+    )
+
+def render_empty_state(icon: str, title: str, body: str) -> None:
+    st.markdown(
+        f'<div class="empty-state"><div class="empty-state__icon">{icon}</div>'
+        f'<p class="empty-state__title">{html.escape(title)}</p><p class="empty-state__body">{html.escape(body)}</p></div>',
+        unsafe_allow_html=True,
+    )
+
+def sidebar_section(title: str, badge: str = "") -> None:
+    badge_html = f'<span class="sb-section__badge">{html.escape(badge)}</span>' if badge else ""
+    st.markdown(f'<div class="sb-section"><span class="sb-section__title">{html.escape(title)}</span>{badge_html}</div>', unsafe_allow_html=True)
+
+def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer: Callable[[Dict[str, Any]], str], noun: str) -> None:
+    """Renders items PAGE_SIZE at a time with a single 'Show more' control."""
+    st.session_state.setdefault(state_key, PAGE_SIZE)
+    limit = st.session_state[state_key]
+    st.markdown("".join(renderer(it) for it in items[:limit]), unsafe_allow_html=True)
+
+    remaining = len(items) - limit
+    if remaining > 0:
+        _, mid, _ = st.columns([1.5, 2, 1.5])
+        with mid:
+            if st.button(f"Show {min(PAGE_SIZE, remaining)} more {noun}", width="stretch", key=f"btn_more_{state_key}"):
+                st.session_state[state_key] += PAGE_SIZE
+                st.rerun()
+            st.caption(f"Showing {limit:,} of {len(items):,} {noun}")
+    elif items:
+        st.caption(f"You're all caught up · {len(items):,} {noun}")
 
 # ==========================================
 # BILINGUAL & CROSS-LINGUAL SEARCH ENGINE
@@ -817,418 +582,242 @@ def smart_search_match(item: Dict[str, Any], query: str) -> bool:
 # ==========================================
 
 PREDEFINED_9_CATEGORIES = set(STRUCTURED_CATEGORIES)
-PREDEFINED_8_CATEGORIES = PREDEFINED_9_CATEGORIES
-CORE_8_CATEGORIES = {c for c in STRUCTURED_CATEGORIES if c not in ["Nepal – Others", "Others"]}
-CORE_7_CATEGORIES = CORE_8_CATEGORIES
+CORE_8_CATEGORIES = PREDEFINED_9_CATEGORIES - {"Nepal – Others"}
+UNASSIGNED_VALUES = {"", "uncategorized", "none", "null", "unassigned"}
 
 def filter_items_by_category(items: list, selected_option: str, is_social: bool = False) -> list:
     """
-    Refined editorial news feed filtering mechanism:
-
-    1. Default / Unfiltered State (No Filters Selected):
-       Fetch and display all news and posts published across all sources regardless of category.
-
-    2. "All Categories" Selected:
-       Fetch and display news items that fall under any of the 9 predefined editorial sections.
-
-    3. "Uncategorized" View:
-       Filter and display items that are uncategorized, unassigned, or general feeds.
-
-    4. Single Category Selected:
-       Filter and display news items belonging to the selected section, including cross-listed
-       bilateral stories (e.g. Nepal-India bilateral story discoverable in both India Section
-       and Nepal – External).
+    Editorial category filter shared by every feed:
+      • All News      → everything, regardless of category
+      • Classified    → items in any of the 9 editorial sections
+      • Unclassified  → unassigned / general items
+      • A section     → items whose primary OR cross-listed section matches
     """
-    if not items:
-        return []
-    if not selected_option or selected_option == CAT_FILTER_ALL_UNFILTERED or "All News" in selected_option or selected_option.startswith("🌐 All"):
+    if not items or not selected_option or selected_option == CAT_FILTER_ALL_UNFILTERED:
         return items
 
-    if selected_option == CAT_FILTER_ALL_8 or "Classified" in selected_option or "All Categories" in selected_option:
-        res = []
-        for it in items:
-            cat = str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip()
-            if not cat or cat.lower() in ["uncategorized", "none", "null", "unassigned", ""]:
-                continue
-            if is_social:
-                if cat in CORE_8_CATEGORIES:
-                    res.append(it)
-            else:
-                if cat in PREDEFINED_9_CATEGORIES or any(s in PREDEFINED_9_CATEGORIES for s in it.get("sections", [])):
-                    res.append(it)
-        return res
+    def primary_of(it):
+        return canonical_category(str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip())
 
-    if selected_option == CAT_FILTER_UNCATEGORIZED or "Unclassified" in selected_option or "Uncategorized" in selected_option:
+    def in_sections(it):
+        return any(canonical_category(s) in PREDEFINED_9_CATEGORIES for s in it.get("sections", []))
+
+    if selected_option == CAT_FILTER_ALL_8:
+        allowed = CORE_8_CATEGORIES if is_social else PREDEFINED_9_CATEGORIES
+        return [it for it in items if primary_of(it).lower() not in UNASSIGNED_VALUES
+                and (primary_of(it) in allowed or (not is_social and in_sections(it)))]
+
+    if selected_option == CAT_FILTER_UNCATEGORIZED:
         res = []
         for it in items:
-            cat = str(it.get("primary_section") or it.get("structured_category") or it.get("category") or "").strip()
-            if not cat or cat.lower() in ["uncategorized", "none", "null", "unassigned", ""]:
+            cat = primary_of(it)
+            if cat.lower() in UNASSIGNED_VALUES:
                 res.append(it)
-            elif is_social and cat in ["Nepal – Others", "Others"]:
+            elif is_social and cat == "Nepal – Others":
                 res.append(it)
-            elif not is_social and cat not in PREDEFINED_9_CATEGORIES and not any(s in PREDEFINED_9_CATEGORIES for s in it.get("sections", [])):
+            elif not is_social and cat not in PREDEFINED_9_CATEGORIES and not in_sections(it):
                 res.append(it)
         return res
 
-    # Single Category Selected: extract category name
-    chosen_cat = selected_option.split(" ", 1)[1] if " " in selected_option else selected_option
+    target = canonical_category(selected_option.split(" ", 1)[1] if " " in selected_option else selected_option)
+    return [
+        it for it in items
+        if primary_of(it) == target or target in {canonical_category(s) for s in (it.get("sections") or [])}
+    ]
 
-    # Backward compatibility aliases
-    cat_aliases = {
-        "India in Nepal": "India Section",
-        "China in Nepal": "China Section",
-        "Pakistan in Nepal": "Pakistan Section",
-        "Bangladesh in Nepal": "Bangladesh Section",
-        "Nepal – Internal Politics": "Nepal – Internal",
-        "Nepal – External Relations (Others)": "Nepal – External",
-        "Economy": "Nepal – Economy",
-        "Others": "Nepal – Others"
-    }
-    target_cat = cat_aliases.get(chosen_cat, chosen_cat)
-
-    res = []
-    for it in items:
-        primary = it.get("primary_section") or it.get("structured_category") or ""
-        item_sections = it.get("sections") or [primary]
-        # Multi-section discovery: match primary or cross-listed sections list
-        if primary == chosen_cat or primary == target_cat or chosen_cat in item_sections or target_cat in item_sections:
-            res.append(it)
-    return res
-
-# Unified Top Minimalist Header & Global Control Toolbar
+# ==========================================
+# 5. APP HEADER (frosted glass)
+# ==========================================
 st.markdown(f"""
-<div class="apple-top-header" style="margin-bottom:8px;">
-    <div class="apple-top-title-group">
-        <span class="apple-flag-icon">🇳🇵</span>
+<div class="app-header">
+    <div class="app-header__brand">
+        <span class="app-header__flag">🇳🇵</span>
         <div>
-            <h1 class="apple-top-title">Nepal Media Monitor</h1>
-            <p class="apple-top-subtitle">34 Nepali · 18 Indian · Live</p>
+            <h1 class="app-header__title">Nepal Media Monitor</h1>
+            <p class="app-header__subtitle">{len(TOP_NEPAL_NEWS_PORTALS)} Nepali portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets · X</p>
         </div>
     </div>
-    <div style="display:flex; align-items:center; gap:12px;">
-        <div class="apple-top-status">
-            <span class="apple-live-pulse"></span>
-            <span class="apple-status-text">LIVE · {formatted_now_time}</span>
-        </div>
-    </div>
+    <div class="live-pill"><span class="live-pill__dot"></span>Live · {formatted_now_time}</div>
 </div>
 """, unsafe_allow_html=True)
 
-# 5. Global Command Strip (Sidebar: Timeframe, Search, Sync, Reset)
+# ==========================================
+# 6. SIDEBAR · Card 1 — Timeframe & Search
+# ==========================================
 with st.sidebar:
     with st.container(border=True):
-        st.markdown("""
-        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:6px;">
-            Timeframe & Search
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Timeframe preset segmented control
-        selected_preset = st.segmented_control(
-            "Timeframe Window",
-            options=["12h", "24h", "Today", "Custom"],
-            default=st.session_state.get("cp_timeframe_segment", "12h"),
+        sidebar_section("Timeframe & Search")
+        st.segmented_control(
+            "Timeframe",
+            options=TIMEFRAME_PRESETS,
             key="cp_timeframe_segment",
             on_change=on_timeframe_preset_change,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
 
-        # Expand custom date/time only if Custom timeframe is selected
-        if st.session_state.get("cp_timeframe_segment") == "Custom":
+        if active_preset == "Custom":
             c_dt1, c_dt2 = st.columns(2)
             with c_dt1:
-                st.date_input("Start Date", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date", on_change=on_custom_datetime_edit)
-                st.time_input("Start Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time", on_change=on_custom_datetime_edit)
-            with c_dt2:
-                st.date_input("End Date", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date", on_change=on_custom_datetime_edit)
-                st.time_input("End Time", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time", on_change=on_custom_datetime_edit)
+                st.date_input("From", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date")
+                st.time_input("Time", value=st.session_state.get("filter_start_time", default_start_time), key="filter_start_time")
+            st.toggle("Up to now", value=True, key="filter_use_current_time", help="Keep the window open-ended so new stories stream in")
+            if not st.session_state.get("filter_use_current_time", True):
+                with c_dt2:
+                    st.date_input("To", value=st.session_state.get("filter_end_date", now_npt.date()), max_value=now_npt.date(), min_value=st.session_state.get("filter_start_date", default_start_date), key="filter_end_date")
+                    st.time_input("Time ", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time")
 
-        # Live streaming toggle
-        use_current_time = st.toggle(
-            "⚡ Stream Live Feeds",
-            value=st.session_state.get("filter_use_current_time", True),
-            key="filter_use_current_time",
-            help="When on, automatically streams up to the current moment"
-        )
-
-        # Global cross-channel search
         search_query = st.text_input(
-            "Global Search",
-            placeholder="🔍 Search across all streams...",
+            "Search",
+            placeholder="Search all streams",
             key="global_search_input",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            icon=":material/search:",
         )
 
-        # Action buttons: Sync & Reset
         sb_btn1, sb_btn2 = st.columns(2)
         with sb_btn1:
-            if st.button("🔄 Sync", key="btn_top_sync", width="stretch", help="Sync latest news across all 52 sources"):
-                st.session_state["is_refreshing_feeds"] = True
-                with st.spinner("Syncing live feeds..."):
+            if st.button("Sync", icon=":material/sync:", key="btn_top_sync", width="stretch", help=f"Fetch the latest stories from all {len(TOP_NEPAL_NEWS_PORTALS) + len(TOP_INDIAN_MEDIA_SOURCES)} sources"):
+                with st.spinner("Syncing live feeds…"):
                     fetch_top_nepal_media(max_workers=25, force_refresh=True)
                     fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
                     st.cache_data.clear()
-                    if "x_posts" in st.session_state:
-                        del st.session_state["x_posts"]
-                    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p")
-                    st.session_state["is_refreshing_feeds"] = False
+                    st.session_state.pop("x_posts", None)
+                    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
                 st.rerun()
         with sb_btn2:
-            st.button("✕ Reset", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
+            st.button("Reset", icon=":material/restart_alt:", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
 
-# Global Cross-Channel Search Filter
+# Global cross-channel search
 if search_query and search_query.strip():
     filtered_articles = [a for a in filtered_articles if smart_search_match(a, search_query)]
     filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
     filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
 
 # ==========================================
-# 8. Dynamic Sidebar View Dropdown & Contextual Controls
+# 7. SIDEBAR · Card 2 — Workspace, Card 3 — Contextual filters
 # ==========================================
+NAV_ITEMS = [
+    ("Nepali Media", "📰", len(filtered_articles)),
+    ("Indian Press", "🇮🇳", len(filtered_indian)),
+    ("X", "𝕏", len(filtered_x_posts)),
+    ("Analytics & Export", "📈", None),
+    ("System Health", "🩺", None),
+]
+
+def nav_label(name: str) -> str:
+    icon, count = next((i, c) for n, i, c in NAV_ITEMS if n == name)
+    return f"{icon}  {name}" + (f"  ·  {count:,}" if count is not None else "")
+
 with st.sidebar:
     with st.container(border=True):
-        st.markdown("""
-        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:4px;">
-            Workspace View
-        </div>
-        """, unsafe_allow_html=True)
-
-        nav_options = [
-            f"📰 Nepali Media ({len(filtered_articles)})",
-            f"🇮🇳 Indian Press ({len(filtered_indian)})",
-            f"🐦 X ({len(filtered_x_posts)})",
-            "📈 Analytics & Export",
-            "🩺 System Health"
-        ]
-
-        # Map previous selection index
-        nav_index = 0
-        current_stored_nav = st.session_state.get("app_nav_section", "")
-        for idx, opt in enumerate(nav_options):
-            if opt.split(" (")[0] in current_stored_nav:
-                nav_index = idx
-                break
-
+        sidebar_section("Workspace")
         selected_nav = st.selectbox(
-            "Active Workspace View",
-            options=nav_options,
-            index=nav_index,
+            "Workspace",
+            options=[n for n, _, _ in NAV_ITEMS],
+            format_func=nav_label,
             key="app_nav_section",
             label_visibility="collapsed",
-            help="Switch between Nepali Media, Indian Press, X, Analytics & Export, and System Health"
         )
 
-    # 🎛️ DYNAMIC CONTEXTUAL SIDEBAR CONTROLS
-    if "Nepali Media" in selected_nav:
-        with st.container(border=True):
-            st.markdown("""
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0369A1;">Filter Nepali Portals</span>
-                <span style="font-size:0.7rem; font-weight:600; background:#E0F2FE; color:#0369A1; padding:2px 7px; border-radius:10px;">34 Outlets</span>
-            </div>
-            """, unsafe_allow_html=True)
+    with st.container(border=True):
+        if selected_nav == "Nepali Media":
+            sidebar_section("Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} outlets")
+            sel_np_portal = st.selectbox("News portal", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
+            sel_np_cat = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
+            sel_np_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
 
-            all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
-            sel_np_portal = st.selectbox(
-                "News Portal",
-                ["All Portals (34)"] + all_portal_names,
-                key="np_portal_filter"
-            )
-            sel_np_cat = st.selectbox(
-                "Editorial Category",
-                CATEGORY_FILTER_OPTIONS,
-                key="np_cat_filter"
-            )
-            sel_np_lang = st.selectbox(
-                "Language",
-                ["All Languages", "Nepali Only", "English Only"],
-                key="np_lang_filter"
-            )
+        elif selected_nav == "Indian Press":
+            sidebar_section("Filters", f"{len(TOP_INDIAN_MEDIA_SOURCES)} outlets")
+            selected_indian_outlet = st.selectbox("News outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
+            sel_in_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
 
-    elif "Indian Press" in selected_nav:
-        with st.container(border=True):
-            st.markdown("""
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#C2410C;">Filter Indian Outlets</span>
-                <span style="font-size:0.7rem; font-weight:600; background:#FFEDD5; color:#C2410C; padding:2px 7px; border-radius:10px;">18 Outlets</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
-            selected_indian_outlet = st.selectbox(
-                "News Outlet",
-                ["All 18 Indian Outlets"] + indian_outlet_names,
-                key="in_outlet_filter"
-            )
-            sel_in_lang = st.selectbox(
-                "Language",
-                ["All Languages", "English", "Hindi"],
-                key="in_lang_filter"
-            )
-
-    elif "X (" in selected_nav:
-        with st.container(border=True):
-            st.markdown("""
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0284C7;">Filter X Feed</span>
-                <span style="font-size:0.7rem; font-weight:600; background:#E0F2FE; color:#0284C7; padding:2px 7px; border-radius:10px;">281+ Verified</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            x_cat_filter = st.selectbox(
-                "Editorial Category",
-                CATEGORY_FILTER_OPTIONS,
-                index=0,
-                key="x_cat_filter_select"
-            )
-            acc_types = [
-                "All Account Types",
-                "Civic Voice / Public Commentator",
-                "Youth & Cultural Voice",
-                "Foreign Affairs Specialist",
-                "Journalist / Analyst",
-                "Political Leader",
-                "Government & Security",
-                "Media & News Curators",
-                "Diplomatic Missions",
-                "Think Tank & Policy",
-                "Sports & Culture"
-            ]
+        elif selected_nav == "X":
+            sidebar_section("Filters", f"{len(TOP_NEPAL_X_ACCOUNTS)} accounts")
+            x_cat_filter = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
             selected_acc_type = st.selectbox(
-                "Account Category",
-                acc_types,
-                key="x_acc_type_select"
+                "Account type",
+                [ALL_ACC_TYPES] + sorted({a.get("type", "") for a in TOP_NEPAL_X_ACCOUNTS if a.get("type")}),
+                key="x_acc_type_select",
             )
-            sort_mode = st.selectbox(
-                "Sort Order",
-                ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
-                key="x_sort_mode_select"
-            )
-            st.write("")
-            if st.button("🔄 Sync Live X", width="stretch", key="btn_rescan_x_sidebar"):
-                with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
+            sort_mode = st.selectbox("Sort by", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
+            if st.button("Rescan X", icon=":material/refresh:", width="stretch", key="btn_rescan_x_sidebar"):
+                with st.spinner("Scanning verified Nepali accounts…"):
                     st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
-                    st.rerun()
+                st.rerun()
 
-    elif "Analytics" in selected_nav:
-        with st.container(border=True):
-            st.markdown("""
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7C3AED;">Export Filters</span>
-                <span style="font-size:0.7rem; font-weight:600; background:#EDE9FE; color:#7C3AED; padding:2px 7px; border-radius:10px;">Unified</span>
-            </div>
-            """, unsafe_allow_html=True)
+        elif selected_nav == "Analytics & Export":
+            sidebar_section("Export filters")
+            sel_stream = st.selectbox("Stream", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
+            all_export_cats = sorted({
+                *(a.get("structured_category", "Others") for a in filtered_articles),
+                *(a.get("structured_category", "India Section") for a in filtered_indian),
+                *(p.get("structured_category", "Others") for p in filtered_x_posts),
+            })
+            sel_cat = st.selectbox("Category", ["All Categories"] + all_export_cats, key="univ_cat_filter")
+            sel_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
+            kw_filter = st.text_input("Keyword", placeholder="Keyword or author", key="univ_kw_filter")
 
-            stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
-            sel_stream = st.selectbox("Dataset Stream", stream_choices, key="univ_stream_filter")
+        else:
+            sidebar_section("Source filters")
+            admin_search_src = st.text_input("Portal name", placeholder="e.g. Setopati", key="inp_admin_src_srch")
+            admin_status_filter = st.selectbox("Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
+            admin_lang_filter = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
+            admin_tier_filter = st.selectbox("Polling tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
 
-            # Collect unique categories across current unified dataset
-            all_export_cats = sorted(list(set(
-                [a.get("structured_category", "Others") for a in filtered_articles] +
-                [a.get("structured_category", "India Section") for a in filtered_indian] +
-                [p.get("structured_category", "Others") for p in filtered_x_posts]
-            )))
-            sel_cat = st.selectbox("Category / Section", ["All Categories"] + all_export_cats, key="univ_cat_filter")
-            sel_lang = st.selectbox("Content Language", ["All Languages", "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
-            kw_filter = st.text_input("Search Keyword", placeholder="Keyword or author...", key="univ_kw_filter")
-
-    elif "Health" in selected_nav:
-        with st.container(border=True):
-            st.markdown("""
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#059669;">Matrix Filters</span>
-                <span style="font-size:0.7rem; font-weight:600; background:#D1FAE5; color:#059669; padding:2px 7px; border-radius:10px;">Status</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            admin_search_src = st.text_input("Search Portal Name", placeholder="e.g. Setopati, Ratopati...", key="inp_admin_src_srch")
-            admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
-            admin_lang_filter = st.selectbox("Language Edition", ["All Languages", "Nepali Only", "English Only"], key="sel_admin_lang")
-            admin_tier_filter = st.selectbox("Monitoring Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
-
-    st.markdown("<div style='margin-top:20px; padding-top:12px; border-top:1px solid #E2E8F0; font-size:0.72rem; color:#94A3B8; text-align:center;'>Nepal Social & Media Monitor v3.0<br/>Autonomous Ingestion Engine</div>", unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="sb-footer">Last synced {html.escape(st.session_state["last_sync_npt"])} NPT<br/>Nepal Social &amp; Media Monitor</div>',
+        unsafe_allow_html=True,
+    )
 
 # ==========================================
 # SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
-if "Nepali Media" in selected_nav:
-    # Filter articles based on Sidebar Controls
+if selected_nav == "Nepali Media":
+    render_page_header("Nepali Media", f"{len(filtered_articles):,} stories discovered across 34 portals")
+
     tab_articles = filter_items_by_category(filtered_articles, sel_np_cat, is_social=False)
     if sel_np_lang == "Nepali Only":
-        tab_articles = [a for a in tab_articles if a.get('language') == "Nepali"]
+        tab_articles = [a for a in tab_articles if a.get("language") == "Nepali"]
     elif sel_np_lang == "English Only":
-        tab_articles = [a for a in tab_articles if a.get('language') == "English"]
+        tab_articles = [a for a in tab_articles if a.get("language") == "English"]
 
-    if sel_np_portal != "All Portals (34)":
-        tab_articles = [a for a in tab_articles if a.get('source') == sel_np_portal]
+    if sel_np_portal != ALL_PORTALS_DEFAULT:
+        tab_articles = [a for a in tab_articles if a.get("source") == sel_np_portal]
         if not tab_articles:
-            portal_recent = [a for a in all_articles if a.get('source') == sel_np_portal]
+            portal_recent = [a for a in all_articles if a.get("source") == sel_np_portal]
             if portal_recent:
                 tab_articles = filter_items_by_category(portal_recent, sel_np_cat, is_social=False)
-                latest_pub_str = portal_recent[0]["published_dt"].strftime("%d %b %Y, %I:%M %p NPT") if portal_recent[0].get("published_dt") else "recently"
-                st.info(f"ℹ️ **{sel_np_portal}** has no stories published in the selected window (last story: **{latest_pub_str}**). Showing its **{len(tab_articles)}** most recent dispatches.")
+                last_dt = portal_recent[0].get("published_dt")
+                last_str = last_dt.strftime("%d %b %Y, %I:%M %p NPT").lstrip("0") if last_dt else "recently"
+                st.info(f"**{sel_np_portal}** has no dispatches in the active window (last story: {last_str}). Showing its {len(tab_articles)} most recent dispatches.")
 
     if not tab_articles:
-        st.warning("No Nepali news articles found matching your criteria. Try adjusting the category, portal, or timeframe window.")
+        render_empty_state("📰", "No articles found", "Try widening the timeframe or choosing 'All Portals' / 'All News'.")
     else:
-        # Incremental Loading / Pagination (20 entries initial, +20 per click)
-        if "media_visible_count" not in st.session_state:
-            st.session_state["media_visible_count"] = 20
+        render_paginated_feed(tab_articles, "media_visible_count", render_apple_article_card, "stories")
 
-        current_media_limit = st.session_state["media_visible_count"]
-        visible_articles = tab_articles[:current_media_limit]
-
-        for item in visible_articles:
-            st.markdown(render_apple_article_card(item, is_indian=False), unsafe_allow_html=True)
-
-        if len(tab_articles) > current_media_limit:
-            remaining_media = len(tab_articles) - current_media_limit
-            next_batch_media = min(20, remaining_media)
-            c_m1, c_m2, c_m3 = st.columns([1.5, 2, 1.5])
-            with c_m2:
-                if st.button(f"⬇️ Load More News (+{next_batch_media} stories)", width="stretch", key="btn_load_more_media"):
-                    st.session_state["media_visible_count"] += 20
-                    st.rerun()
-                st.caption(f"Showing {len(visible_articles):,} of {len(tab_articles):,} stories ({remaining_media:,} remaining)")
-        elif len(tab_articles) > 0:
-            st.caption(f"🏁 You've reached the end of the news feed ({len(tab_articles):,} stories displayed).")
 
 # ==========================================
 # SECTION 2: Nepal in Indian Media
 # ==========================================
-elif "Indian Press" in selected_nav:
+elif selected_nav == "Indian Press":
+    render_page_header("Indian Press", f"{len(filtered_indian):,} Nepal-focused dispatches across 18 Indian outlets")
+
     tab_filtered_indian = filtered_indian
-    if selected_indian_outlet != "All 18 Indian Outlets":
-        tab_filtered_indian = [a for a in tab_filtered_indian if a["source"] == selected_indian_outlet]
-    if sel_in_lang != "All Languages":
+    if selected_indian_outlet != ALL_INDIAN_DEFAULT:
+        tab_filtered_indian = [a for a in tab_filtered_indian if a.get("source") == selected_indian_outlet]
+    if sel_in_lang != ALL_LANG_DEFAULT:
         tab_filtered_indian = [a for a in tab_filtered_indian if a.get("language") == sel_in_lang]
 
-    st.write("")
-
     if not tab_filtered_indian:
-        st.info("No Indian media articles match the current filter criteria.")
+        render_empty_state("🇮🇳", "No Indian media coverage found", "Try selecting 'All 18 Indian Outlets' or adjusting the timeframe.")
     else:
-        # Incremental Loading / Pagination (20 entries initial, +20 per click)
-        if "indian_visible_count" not in st.session_state:
-            st.session_state["indian_visible_count"] = 20
-
-        current_indian_limit = st.session_state["indian_visible_count"]
-        visible_indian = tab_filtered_indian[:current_indian_limit]
-
-        for a in visible_indian:
-            st.markdown(render_apple_article_card(a, is_indian=True), unsafe_allow_html=True)
-
-        if len(tab_filtered_indian) > current_indian_limit:
-            remaining_indian = len(tab_filtered_indian) - current_indian_limit
-            next_batch_indian = min(20, remaining_indian)
-            c_i1, c_i2, c_i3 = st.columns([1.5, 2, 1.5])
-            with c_i2:
-                if st.button(f"⬇️ Load More Stories (+{next_batch_indian} stories)", width="stretch", key="btn_load_more_indian"):
-                    st.session_state["indian_visible_count"] += 20
-                    st.rerun()
-                st.caption(f"Showing {len(visible_indian):,} of {len(tab_filtered_indian):,} stories ({remaining_indian:,} remaining)")
-        elif len(tab_filtered_indian) > 0:
-            st.caption(f"🏁 You've reached the end of Nepal-focused Indian press coverage ({len(tab_filtered_indian):,} stories displayed).")
+        render_paginated_feed(
+            tab_filtered_indian,
+            "indian_visible_count",
+            lambda a: render_apple_article_card(a, is_indian=True),
+            "stories"
+        )
 
     # Flagged Borderline Articles for Editorial Review & Central DB Retention Audit
     try:
@@ -1254,15 +843,15 @@ elif "Indian Press" in selected_nav:
         ind_audit = {"total": 0, "substantive": 0, "borderline_review": 0, "excluded": 0}
         borderline_items = []
 
-    with st.expander(f"⚠️ Flagged Borderline Articles for Editorial Review ({len(borderline_items)}) & Central Database Retention", expanded=False):
+    with st.expander(f"⚠️ Flagged Borderline Articles for Editorial Review ({len(borderline_items)})", expanded=False):
         st.caption(
-            "Borderline articles (scoring between 40% and the active relevance threshold) and excluded domestic Indian articles are retained in the central SQLite database (`indian_media_articles`) without cluttering the main India Media feed."
+            "Borderline articles (scoring between 40% and the active relevance threshold) and excluded domestic Indian articles are retained in the central database (`indian_media_articles`) without cluttering the main feed."
         )
         m_c1, m_c2, m_c3, m_c4 = st.columns(4)
-        m_c1.metric("Substantive (Displayed)", f"{len(tab_filtered_indian):,}")
-        m_c2.metric("Flagged Borderline (Review)", f"{len(borderline_items):,}")
-        m_c3.metric("Excluded Domestic (DB Archived)", f"{ind_audit.get('excluded', 0):,}")
-        m_c4.metric("Total Retained in Central DB", f"{ind_audit.get('total', 0):,}")
+        m_c1.metric("Substantive", f"{len(tab_filtered_indian):,}")
+        m_c2.metric("Borderline Review", f"{len(borderline_items):,}")
+        m_c3.metric("Excluded Domestic", f"{ind_audit.get('excluded', 0):,}")
+        m_c4.metric("Total Stored", f"{ind_audit.get('total', 0):,}")
 
         if borderline_items:
             for b_art in borderline_items[:15]:
@@ -1270,181 +859,97 @@ elif "Indian Press" in selected_nav:
         else:
             st.success("No borderline articles currently pending editorial review.")
 
-    with st.expander("⚡ Quick Jump to Dedicated Nepal Desks in Indian Media", expanded=False):
+    with st.expander("⚡ Dedicated Nepal Desks in Indian Media", expanded=False):
         q1, q2, q3, q4 = st.columns(4)
-        with q1:
-            st.link_button("🇮🇳 The Indian Express ↗", "https://indianexpress.com/about/nepal/", width='stretch')
-        with q2:
-            st.link_button("🇮🇳 The Hindu (World) ↗", "https://www.thehindu.com/news/international/", width='stretch')
-        with q3:
-            st.link_button("🇮🇳 India Today (Nepal) ↗", "https://www.indiatoday.in/topic/nepal", width='stretch')
-        with q4:
-            st.link_button("🇮🇳 Business Standard ↗", "https://www.business-standard.com/topic/nepal", width='stretch')
-
+        q1.link_button("The Indian Express ↗", "https://indianexpress.com/about/nepal/", width="stretch")
+        q2.link_button("The Hindu ↗", "https://www.thehindu.com/news/international/", width="stretch")
+        q3.link_button("India Today ↗", "https://www.indiatoday.in/topic/nepal", width="stretch")
+        q4.link_button("Business Standard ↗", "https://www.business-standard.com/topic/nepal", width="stretch")
         q5, q6, q7, q8 = st.columns(4)
-        with q5:
-            st.link_button("🇮🇳 Livemint (Mint) ↗", "https://www.livemint.com/topic/nepal", width='stretch')
-        with q6:
-            st.link_button("🇮🇳 The Tribune ↗", "https://www.tribuneindia.com/topic/nepal", width='stretch')
-        with q7:
-            st.link_button("🇮🇳 Amar Ujala (नेपाल) ↗", "https://www.amarujala.com/tags/nepal", width='stretch')
-        with q8:
-            st.link_button("🇮🇳 Live Hindustan (हिन्दुस्तान) ↗", "https://www.livehindustan.com/tags/nepal/", width='stretch')
+        q5.link_button("Livemint ↗", "https://www.livemint.com/topic/nepal", width="stretch")
+        q6.link_button("The Tribune ↗", "https://www.tribuneindia.com/topic/nepal", width="stretch")
+        q7.link_button("Amar Ujala ↗", "https://www.amarujala.com/tags/nepal", width="stretch")
+        q8.link_button("Live Hindustan ↗", "https://www.livehindustan.com/tags/nepal/", width="stretch")
+
 
 # ==========================================
 # SECTION 3: X (Twitter) Nepal
 # ==========================================
-elif "X (" in selected_nav:
-    # Seamlessly integrated X posts (filtered by global search, category, and time)
-    tab_x_posts = filtered_x_posts
+elif selected_nav == "X":
+    render_page_header("X (Twitter) Nepal", f"{len(filtered_x_posts):,} posts from {len(TOP_NEPAL_X_ACCOUNTS)} verified accounts")
 
-    with st.expander(f"🇳🇵 Verified Monitored Nepali Accounts ({len(TOP_NEPAL_X_ACCOUNTS)} Accounts)", expanded=False):
-        st.write(f"Direct directory of **{len(TOP_NEPAL_X_ACCOUNTS)} verified Nepali accounts** across civic commentators, political leaders, foreign affairs analysts, and diplomatic desks:")
+    with st.expander(f"🇳🇵 Verified Monitored Accounts ({len(TOP_NEPAL_X_ACCOUNTS)} Accounts)", expanded=False):
+        st.caption("Directory of verified Nepali political leaders, public commentators, diplomats, and institutions:")
         a_cols = st.columns(4)
         for i, a in enumerate(TOP_NEPAL_X_ACCOUNTS):
             with a_cols[i % 4]:
                 st.markdown(f"""
-                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); display:flex; flex-direction:column; justify-content:space-between; min-height:120px;">
+                <div class="acct-card">
                     <div>
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                            <div style="width:28px; height:28px; border-radius:50%; background:{a['avatar_bg']}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0;">{a['initials']}</div>
+                        <div class="acct-card__head">
+                            <div class="x-avatar acct-card__avatar" style="background:{a['avatar_bg']};">{a['initials']}</div>
                             <div style="overflow:hidden;">
-                                <div style="font-weight:600; font-size:13px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{a['name']} <span style="color:#0284c7;">✓</span></div>
-                                <div style="font-size:11px; color:#64748b;">@{a['handle']} · <span style="color:#0284c7; font-weight:500;">{a.get('type', '')}</span></div>
+                                <div class="acct-card__name">{html.escape(a['name'])} <span style="color:#1D9BF0;">✓</span></div>
+                                <div class="acct-card__handle">@{html.escape(a['handle'])} · <span class="x-type-badge">{html.escape(a.get('type', ''))}</span></div>
                             </div>
                         </div>
-                        <div style="font-size:11px; color:#475569; line-height:1.35; margin-top:4px; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">{a.get('role', '')}</div>
+                        <div class="acct-card__role">{html.escape(a.get('role', ''))}</div>
                     </div>
-                    <div style="border-top:1px solid #f1f5f9; padding-top:6px; font-size:11px;">
-                        <a href="https://x.com/{a['handle']}" target="_blank" style="font-weight:600; color:#0284c7; text-decoration:none;">Profile on X ↗</a> · 
-                        <a href="https://x.com/search?q=from%3A{a['handle']}&f=live" target="_blank" style="color:#64748b; text-decoration:none;">Live Posts ↗</a>
+                    <div class="acct-card__links">
+                        <a href="https://x.com/{html.escape(a['handle'])}" target="_blank" rel="noopener noreferrer">Profile ↗</a>
+                        <a href="https://x.com/search?q=from%3A{html.escape(a['handle'])}&f=live" target="_blank" rel="noopener noreferrer">Live Posts ↗</a>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Apply category filter (from dynamic sidebar controls)
-    filtered_feed = filter_items_by_category(tab_x_posts, x_cat_filter, is_social=True)
-
-    if selected_acc_type != "All Account Types":
+    filtered_feed = filter_items_by_category(filtered_x_posts, x_cat_filter, is_social=True)
+    if selected_acc_type != ALL_ACC_TYPES:
         filtered_feed = [p for p in filtered_feed if p.get("author_type") == selected_acc_type]
 
     # Apply sorting
-    if sort_mode == "🕒 Newest First (NPT)":
-        filtered_feed = sorted(filtered_feed, key=lambda x: x.get("published_dt"), reverse=True)
-    elif sort_mode == "🔥 Most Viral / Engagement":
-        filtered_feed = sorted(filtered_feed, key=lambda x: x.get("engagement_score", 0), reverse=True)
-    elif sort_mode == "❤️ Most Liked":
-        filtered_feed = sorted(filtered_feed, key=lambda x: x.get("likes", 0), reverse=True)
-    elif sort_mode == "🔁 Most Retweeted":
-        filtered_feed = sorted(filtered_feed, key=lambda x: x.get("retweets", 0), reverse=True)
+    if sort_mode == "Newest":
+        filtered_feed.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+    elif sort_mode == "Most engagement":
+        filtered_feed.sort(key=lambda x: x.get("engagement_score", 0), reverse=True)
+    elif sort_mode == "Most liked":
+        filtered_feed.sort(key=lambda x: x.get("likes", 0), reverse=True)
+    elif sort_mode == "Most reposted":
+        filtered_feed.sort(key=lambda x: x.get("retweets", 0), reverse=True)
 
-    # Render Post Cards with "Load More Feeds" button
-    if "x_visible_count" not in st.session_state:
-        st.session_state["x_visible_count"] = 20
+    if not filtered_feed:
+        render_empty_state("𝕏", "No X posts found", "Try selecting 'All Account Types' or choosing 'All News'.")
+    else:
+        render_paginated_feed(filtered_feed, "x_visible_count", render_apple_x_post_card, "posts")
 
-    current_x_limit = st.session_state["x_visible_count"]
-    visible_x_posts = filtered_feed[:current_x_limit]
-
-    for p in visible_x_posts:
-        st.markdown(render_apple_x_post_card(p), unsafe_allow_html=True)
-
-    if len(filtered_feed) > current_x_limit:
-        remaining_x = len(filtered_feed) - current_x_limit
-        next_batch_x = min(20, remaining_x)
-        c_lm1, c_lm2, c_lm3 = st.columns([1.5, 2, 1.5])
-        with c_lm2:
-            if st.button(f"⬇️ Load More Feeds (+{next_batch_x} posts)", width="stretch", key="btn_load_more_x"):
-                st.session_state["x_visible_count"] += 20
-                st.rerun()
-            st.caption(f"Showing {len(visible_x_posts):,} of {len(filtered_feed):,} posts ({remaining_x:,} remaining)")
-    elif len(filtered_feed) > 0:
-        st.caption(f"🏁 You've reached the end of the feed ({len(filtered_feed):,} posts displayed).")
-
-    with st.expander("⚡ Quick Jump to Live X Searches Across 9 Editorial Sections", expanded=False):
+    with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
         clean_q = search_query.strip() if search_query else ""
-        if clean_q:
-            st.caption(f"Launch live X searches combining your search keyword **'{html.escape(clean_q)}'** with any of the 9 editorial sections:")
-        else:
-            st.caption("One-click direct access to real-time live posts on X (Twitter) across the 9 editorial sections:")
-
         x_cat_searches = [
-            {
-                "label": "🇮🇳 India Section ↗",
-                "query": '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "security" OR "#NepalIndia")',
-                "help": "Search live X posts on India Section, bilateral relations, governance & border"
-            },
-            {
-                "label": "🇨🇳 China Section ↗",
-                "query": '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "Tibet" OR "#NepalChina")',
-                "help": "Search live X posts on China Section, BRI, diplomacy & strategic developments"
-            },
-            {
-                "label": "🇧🇩 Bangladesh Section ↗",
-                "query": '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy" OR "transit")',
-                "help": "Search live X posts on Bangladesh Section, tripartite electricity trade & transit"
-            },
-            {
-                "label": "🇵🇰 Pakistan Section ↗",
-                "query": '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC" OR "Kashmir")',
-                "help": "Search live X posts on Pakistan Section, regional diplomacy & bilateral relations"
-            },
-            {
-                "label": "🇳🇵 Nepal – Internal ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्" OR "सरकार" OR "भ्रष्टाचार")',
-                "help": "Search live X posts on Nepal internal politics, parliament, governance & societal developments"
-            },
-            {
-                "label": "🌐 Nepal – External ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र" OR "कूटनीति")',
-                "help": "Search live X posts on Nepal foreign policy, multilateral relations, US, EU & global partners"
-            },
-            {
-                "label": "📈 Nepal – Economy ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "NEPSE" OR "अर्थतन्त्र")',
-                "help": "Search live X posts on Nepal economy, banking, NEPSE, remittances & fiscal policy"
-            },
-            {
-                "label": "📌 Nepal – Others ↗",
-                "query": '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "earthquake" OR "संस्कृति")',
-                "help": "Search live X posts on sports, culture, climate, tourism & civic society"
-            },
-            {
-                "label": "🌍 International News ↗",
-                "query": '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "UN" OR "BRICS")',
-                "help": "Search live X posts on major global geopolitical conflicts, diplomacy & world affairs"
-            },
+            ("🇮🇳 India Section ↗", '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "#NepalIndia")'),
+            ("🇨🇳 China Section ↗", '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "#NepalChina")'),
+            ("🇧🇩 Bangladesh Section ↗", '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy")'),
+            ("🇵🇰 Pakistan Section ↗", '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC")'),
+            ("🇳🇵 Nepal – Internal ↗", '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्")'),
+            ("🌐 Nepal – External ↗", '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र")'),
+            ("📈 Nepal – Economy ↗", '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र")'),
+            ("📌 Nepal – Others ↗", '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "संस्कृति")'),
+            ("🌍 International News ↗", '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "BRICS")'),
         ]
-
-        # 3x3 Grid Display
         for row_idx in range(0, len(x_cat_searches), 3):
             cols = st.columns(3)
-            for col_idx, item in enumerate(x_cat_searches[row_idx:row_idx+3]):
+            for col_idx, (label, query_str) in enumerate(x_cat_searches[row_idx:row_idx + 3]):
                 with cols[col_idx]:
-                    full_q = f"({clean_q}) AND {item['query']}" if clean_q else item["query"]
+                    full_q = f"({clean_q}) AND {query_str}" if clean_q else query_str
                     x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
-                    st.link_button(item["label"], x_url, width="stretch", help=item["help"])
+                    st.link_button(label, x_url, width="stretch")
+
 
 # ==========================================
 # SECTION 4: Analytics & Export
 # ==========================================
-elif "Analytics" in selected_nav:
-    start_label = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
-    end_label = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
-    st.markdown(f"""
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-        <div>
-            <h3 style="margin:0; font-size:1.35rem; font-weight:700; color:#1D1D1F;">Analytics & Export</h3>
-        </div>
-        <div style="background:#F1F5F9; border:1px solid #CBD5E1; padding:4px 12px; border-radius:8px; font-size:0.78rem; font-weight:600; color:#334155; display:inline-flex; align-items:center; gap:6px;">
-            <span>🕒 Active Window:</span> <b>{start_label} → {end_label}</b>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+elif selected_nav == "Analytics & Export":
+    render_page_header("Analytics & Export", "Consolidated intelligence dataset & executive document generation")
 
-    # 1. Gather all items into a unified, consolidated stream
     all_unified_items = []
-
-    # Nepali Media
     for a in filtered_articles:
         all_unified_items.append({
             "stream": "Nepali Media",
@@ -1458,10 +963,8 @@ elif "Analytics" in selected_nav:
             "published_dt": a.get("published_dt"),
             "link": a.get("link", ""),
             "raw_item": a,
-            "item_type": "article"
         })
 
-    # Nepal in Indian Media
     for a in filtered_indian:
         all_unified_items.append({
             "stream": "Indian Press",
@@ -1475,44 +978,33 @@ elif "Analytics" in selected_nav:
             "published_dt": a.get("published_dt"),
             "link": a.get("link", ""),
             "raw_item": a,
-            "item_type": "article"
         })
 
-    # Live X (Twitter) Posts
     for p in filtered_x_posts:
-        auth_name = p.get('author_name', '')
-        auth_handle = p.get('handle', '')
+        auth_name = p.get("author_name", "")
+        auth_handle = p.get("handle", "")
         all_unified_items.append({
             "stream": "X (Twitter)",
             "title": (p.get("text") or "").strip(),
             "headline_en": "",
             "content": p.get("text", ""),
             "category": p.get("structured_category", "Others"),
-            "source": f"{auth_name} (@{auth_handle})",
+            "source": f"{auth_name} ({auth_handle})" if auth_handle else auth_name,
             "language": "Nepali / English",
             "timestamp": p.get("exact_time") or p.get("relative_time", ""),
             "published_dt": p.get("published_dt"),
             "link": p.get("link", ""),
             "raw_item": p,
-            "item_type": "x"
         })
 
-    # Sort chronological (newest first)
-    def _parse_sort_dt(x):
-        dt = x.get("published_dt")
-        if isinstance(dt, datetime.datetime):
-            return dt if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
-        return datetime.datetime.min.replace(tzinfo=NEPAL_TZ)
+    all_unified_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
 
-    all_unified_items.sort(key=_parse_sort_dt, reverse=True)
-
-    # Apply Consolidated Filtering (from dynamic sidebar controls)
     filtered_export_items = all_unified_items
-    if sel_stream != "All Streams (All 3)":
+    if sel_stream != "All Streams":
         filtered_export_items = [x for x in filtered_export_items if x["stream"] == sel_stream]
     if sel_cat != "All Categories":
         filtered_export_items = [x for x in filtered_export_items if x["category"] == sel_cat]
-    if sel_lang != "All Languages":
+    if sel_lang != ALL_LANG_DEFAULT:
         filtered_export_items = [x for x in filtered_export_items if x["language"] == sel_lang]
     if kw_filter.strip():
         q_lower = kw_filter.strip().lower()
@@ -1521,10 +1013,8 @@ elif "Analytics" in selected_nav:
             if q_lower in x["title"].lower() or q_lower in x["content"].lower() or q_lower in x["source"].lower()
         ]
 
-    # Convert to Structured DataFrame
-    rows_data = []
-    for it in filtered_export_items:
-        rows_data.append({
+    rows_data = [
+        {
             "Stream": it["stream"],
             "Headline / Text": it["title"],
             "English Translation": it["headline_en"],
@@ -1534,67 +1024,53 @@ elif "Analytics" in selected_nav:
             "Published Date & Time": it["timestamp"],
             "Link": it["link"],
             "Content": it["content"]
-        })
+        }
+        for it in filtered_export_items
+    ]
     df_export = pd.DataFrame(rows_data)
 
-    st.markdown("---")
-
-    # Metrics Summary Row (No charts, concise KPIs)
     sum1, sum2, sum3, sum4 = st.columns(4)
-    with sum1:
-        st.metric("Consolidated Matches", f"{len(df_export):,}")
-    with sum2:
-        nep_count = sum(1 for x in filtered_export_items if x["stream"] == "Nepali Media")
-        st.metric("Nepali Media", f"{nep_count:,}")
-    with sum3:
-        ind_count = sum(1 for x in filtered_export_items if x["stream"] == "Indian Press")
-        st.metric("Indian Press", f"{ind_count:,}")
-    with sum4:
-        x_count = sum(1 for x in filtered_export_items if x["stream"] == "X (Twitter)")
-        st.metric("X Posts", f"{x_count:,}")
+    sum1.metric("Total Matches", f"{len(df_export):,}")
+    sum2.metric("Nepali Media", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Nepali Media'):,}")
+    sum3.metric("Indian Press", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Indian Press'):,}")
+    sum4.metric("X Posts", f"{sum(1 for x in filtered_export_items if x['stream'] == 'X (Twitter)'):,}")
 
-    # Selection State for Word Document Export (tracked per active filter signature)
     current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}_{len(filtered_export_items)}"
-    if "editor_ver_univ" not in st.session_state:
-        st.session_state["editor_ver_univ"] = 0
+    st.session_state.setdefault("editor_ver_univ", 0)
     if st.session_state.get("last_univ_filter_sig") != current_filter_sig or "selected_links_univ" not in st.session_state:
-        st.session_state["selected_links_univ"] = set(x["link"] for x in filtered_export_items)
+        st.session_state["selected_links_univ"] = {x["link"] for x in filtered_export_items}
         st.session_state["last_univ_filter_sig"] = current_filter_sig
 
-    # Batch Selection Controls
     sc1, sc2, sc3, sc_badge = st.columns([1.3, 1.3, 1.8, 3.6])
     with sc1:
-        if st.button("☑️ Select All", key="btn_univ_sel_all"):
-            st.session_state["selected_links_univ"] = set(x["link"] for x in filtered_export_items)
+        if st.button("Select All", icon=":material/select_all:", key="btn_univ_sel_all"):
+            st.session_state["selected_links_univ"] = {x["link"] for x in filtered_export_items}
             st.session_state["editor_ver_univ"] += 1
             st.rerun()
     with sc2:
-        if st.button("⬜ Deselect All", key="btn_univ_desel_all"):
+        if st.button("Deselect All", icon=":material/deselect:", key="btn_univ_desel_all"):
             st.session_state["selected_links_univ"] = set()
             st.session_state["editor_ver_univ"] += 1
             st.rerun()
     with sc3:
-        if st.button("⚡ Select Top 30 Fresh", key="btn_univ_top30"):
-            st.session_state["selected_links_univ"] = set(x["link"] for x in filtered_export_items[:30])
+        if st.button("Select Top 30", icon=":material/bolt:", key="btn_univ_top30"):
+            st.session_state["selected_links_univ"] = {x["link"] for x in filtered_export_items[:30]}
             st.session_state["editor_ver_univ"] += 1
             st.rerun()
 
-    # Determine Active Selected Set
     selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
     with sc_badge:
-        st.markdown(f'<div class="apple-counter-badge">📋 <b>{len(selected_export_items)} of {len(filtered_export_items)}</b> items selected for Word Dossier</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="counter-badge">📋 <b>{len(selected_export_items)} of {len(filtered_export_items)}</b> selected for Executive Word Document</div>',
+            unsafe_allow_html=True
+        )
 
-    # Data Editor Table
     if not df_export.empty:
         df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
         df_for_editor.insert(0, "Include?", [link in st.session_state["selected_links_univ"] for link in df_for_editor["Link"]])
 
         col_config_univ = {
-            "Include?": st.column_config.CheckboxColumn(
-                "Include in Export?",
-                help="Check this box to include in Word Document",
-                default=True
-            ),
+            "Include?": st.column_config.CheckboxColumn("Include?", default=True),
             "Stream": st.column_config.TextColumn("Stream", width="small"),
             "Headline / Text": st.column_config.TextColumn("Headline / Post Text", width="large"),
             "Category": st.column_config.TextColumn("Category", width="small"),
@@ -1620,25 +1096,21 @@ elif "Analytics" in selected_nav:
             else:
                 st.session_state["selected_links_univ"].discard(link)
 
-        # Refresh selected items list
         selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
 
-        # Word Document & CSV One-Click Export Actions
-        st.markdown("##### 📦 Download Intelligence Outputs")
+        st.write("")
         c_csv, c_docx = st.columns(2)
-
-        # 1. Comprehensive CSV
         with c_csv:
-            csv_bytes = df_export.to_csv(index=False).encode('utf-8-sig')
+            csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
             st.download_button(
-                label=f"📥 Download Filtered CSV ({len(df_export):,} Records)",
+                label=f"Download CSV ({len(df_export):,} Records)",
+                icon=":material/download:",
                 data=csv_bytes,
                 file_name=f"nepal_intelligence_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
                 width="stretch"
             )
 
-        # 2. Executive Word Document (Master Reference Template: NEPAL DAILY NEWS DIGEST)
         with c_docx:
             if selected_export_items:
                 raw_items_for_docx = []
@@ -1657,8 +1129,8 @@ elif "Analytics" in selected_nav:
                 univ_hash = hash((tuple(x["link"] for x in selected_export_items), digest_dt.strftime("%Y-%m-%d")))
 
                 if st.session_state.get("docx_ready_hash_univ") != univ_hash:
-                    if st.button(f"📄 Prepare Executive Word Document ({len(selected_export_items):,} Stories)", key="btn_prep_univ_docx", width="stretch", type="primary"):
-                        with st.spinner(f"Preparing NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full news text for all {len(selected_export_items):,} items..."):
+                    if st.button(f"Generate Executive Word Document ({len(selected_export_items):,} Stories)", icon=":material/description:", key="btn_prep_univ_docx", width="stretch", type="primary"):
+                        with st.spinner(f"Compiling NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full body text…"):
                             from executive_docx_exporter import generate_executive_word_digest
                             enriched_docx_items = batch_fetch_full_content(raw_items_for_docx, max_workers=25)
                             st.session_state["docx_bytes_univ"] = generate_executive_word_digest(
@@ -1670,7 +1142,8 @@ elif "Analytics" in selected_nav:
                         st.rerun()
                 else:
                     st.download_button(
-                        label=f"⬇️ Download {digest_filename}",
+                        label=f"Download {digest_filename}",
+                        icon=":material/download:",
                         data=st.session_state["docx_bytes_univ"],
                         file_name=digest_filename,
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1678,26 +1151,24 @@ elif "Analytics" in selected_nav:
                         type="primary"
                     )
             else:
-                st.warning("⚠️ No items selected. Check items in the table above or click 'Select All' to export Word document.")
+                st.warning("No items selected. Select items in the table above to generate the Word document.")
     else:
-        st.info("No items match the chosen filter criteria. Try adjusting the search keyword or selecting 'All Streams'.")
-
+        render_empty_state("📊", "No export records", "Try adjusting the search keyword or selecting 'All Streams'.")
 
 
 # ==========================================
 # SECTION 5: Health & Diagnostics
 # ==========================================
-elif "Health" in selected_nav:
-    st.subheader("System Health")
+elif selected_nav == "System Health":
+    render_page_header("System Health & Diagnostics", "Portal telemetry, discovery latency, and background worker status", show_window=False)
 
-    # 1. System-Wide Monitoring KPIs
     try:
         kpis = get_system_kpis()
-    except Exception as e:
+    except Exception:
         kpis = {
-            "total_sources": 34,
-            "active_sources": 34,
-            "operational": 34,
+            "total_sources": len(TOP_NEPAL_NEWS_PORTALS),
+            "active_sources": len(TOP_NEPAL_NEWS_PORTALS),
+            "operational": len(TOP_NEPAL_NEWS_PORTALS),
             "degraded": 0,
             "failing": 0,
             "avg_latency_secs": 0.75,
@@ -1708,63 +1179,50 @@ elif "Health" in selected_nav:
         }
 
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    with k1:
-        st.metric("Total Portals", f"{kpis['total_sources']} Portals", help="28 Priority Sources + 6 English Editions")
-    with k2:
-        st.metric("Operational", f"{kpis['operational']} Portals", delta="100% Healthy" if kpis["failing"] == 0 else f"-{kpis['failing']} failing")
-    with k3:
-        st.metric("Ingested (Last 1h)", f"{kpis['articles_1h']:,} arts", help="Newly published articles discovered within the last 60 minutes")
-    with k4:
-        st.metric("Ingested (Last 24h)", f"{kpis['articles_24h']:,} arts", help="Articles published within the last 24 hours")
-    with k5:
-        st.metric("Total Stored", f"{kpis['total_stored_articles']:,} arts", help="Total canonical deduplicated articles in SQLite database")
-    with k6:
-        st.metric("Avg Latency", f"{kpis['avg_latency_secs']}s", help="Average discovery latency per source")
+    k1.metric("Total Portals", f"{kpis['total_sources']}")
+    k2.metric("Operational", f"{kpis['operational']}", delta="100% Healthy" if kpis["failing"] == 0 else f"-{kpis['failing']} failing")
+    k3.metric("Last 1 Hour", f"{kpis['articles_1h']:,}")
+    k4.metric("Last 24 Hours", f"{kpis['articles_24h']:,}")
+    k5.metric("Total Stored", f"{kpis['total_stored_articles']:,}")
+    k6.metric("Avg Latency", f"{kpis['avg_latency_secs']}s")
 
-    st.markdown("---")
+    st.write("")
 
-    # 2. Chief Admin Control Panel
     ctrl_col1, ctrl_col2 = st.columns([1.8, 2.2])
-
     with ctrl_col1:
         st.markdown("##### ⚡ Live Ingestion Controls")
-        if st.button("🔄 Trigger Manual Ingestion (All 34 Portals)", width="stretch", key="btn_trigger_all_ingest"):
-            with st.spinner("Executing parallel discovery across all 34 Nepali news portals..."):
+        if st.button("Trigger Ingestion (All 34 Portals)", icon=":material/refresh:", width="stretch", key="btn_trigger_all_ingest"):
+            with st.spinner("Executing parallel discovery across all 34 Nepali news portals…"):
                 sync_res = run_all_sources_discovery(parallel_workers=20, force_all=True)
-                st.success(f"✓ Completed! Checked {sync_res['total_checked']} portals · Ingested {sync_res['total_ingested']} fresh articles.")
+                st.success(f"✓ Checked {sync_res['total_checked']} portals · Ingested {sync_res['total_ingested']} fresh articles.")
                 time.sleep(1)
                 st.rerun()
-
-        st.caption("Scheduled background monitoring continues running automatically via daemon worker.")
+        st.caption("Background daemon continuously polls portals based on configured tiers.")
 
     with ctrl_col2:
-        st.markdown("##### ⏪ Deep Historical Backfill & Archive Recovery")
-        with st.expander("Configure Historical Backfill Tool", expanded=False):
-            st.write("Inspect past days' archives, category pagination, and XML sitemaps to backfill missed articles:")
+        st.markdown("##### ⏪ Historical Backfill & Archive Recovery")
+        with st.expander("Configure Historical Backfill", expanded=False):
+            st.caption("Inspect past days' archives, category pagination, and XML sitemaps:")
             bf_days = st.select_slider("Backfill Time Horizon:", options=[1, 3, 5, 7, 14], value=3, format_func=lambda x: f"Past {x} Days")
-            portal_options = ["All 34 Portals"] + sorted([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])
+            portal_options = ["All 34 Portals"] + NEPALI_PORTAL_NAMES
             bf_targets = st.multiselect("Select Target Portals:", portal_options, default=["All 34 Portals"])
 
-            if st.button("🚀 Start Deep Historical Backfill", width="stretch", key="btn_exec_backfill"):
+            if st.button("Start Historical Backfill", icon=":material/history:", width="stretch", key="btn_exec_backfill"):
                 targets = None if "All 34 Portals" in bf_targets else bf_targets
-                with st.spinner(f"Initiating deep backfill for {len(targets) if targets else 34} portals across the past {bf_days} days..."):
+                with st.spinner(f"Initiating deep backfill for {len(targets) if targets else 34} portals across the past {bf_days} days…"):
                     bf_res = run_historical_backfill(source_names=targets, days_back=bf_days, parallel_workers=10)
                     st.success(f"✓ Backfill Complete! Ingested {bf_res['total_ingested']} historical articles from {bf_res['sources_backfilled']} outlets.")
                     time.sleep(1)
                     st.rerun()
 
-    st.markdown("---")
+    st.write("")
+    st.markdown("##### 📋 Monitored Media Source Registry")
 
-    # 3. Source Health Matrix & Discovery Table
-    st.markdown("##### 📋 Complete 34 Nepali Media Source Registry & Live Health Matrix")
-
-    # Load Source Health Rows
     try:
         health_data = get_all_source_health()
     except Exception:
         health_data = []
 
-    # Apply Admin Filters (configured dynamically in left sidebar)
     filtered_health = health_data
     if admin_search_src and admin_search_src.strip():
         q_src = admin_search_src.strip().lower()
@@ -1788,33 +1246,28 @@ elif "Health" in selected_nav:
     elif admin_tier_filter == "Low (40m)":
         filtered_health = [h for h in filtered_health if h.get("priority") == "low"]
 
-    st.markdown(f'<div class="apple-counter-badge">Displaying <b>{len(filtered_health)} of {len(health_data)}</b> monitored media sources</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="counter-badge">Displaying <b>{len(filtered_health)} of {len(health_data)}</b> monitored media sources</div>', unsafe_allow_html=True)
     st.write("")
 
-    # Render Source Cards
     for s_idx, src in enumerate(filtered_health):
         s_name = src["name"]
         s_status = src.get("status", "operational")
         s_lang = src.get("lang", "Nepali")
         s_type = src.get("type", "rss").upper()
-        s_cat = src.get("category", "General News")
         s_priority = src.get("priority", "standard").capitalize()
         s_interval = src.get("check_interval_mins", 15)
         s_enabled = bool(src.get("enabled", 1))
 
-        # Status badge styling
         if s_status == "operational":
-            status_html = '<span style="background:#DEF7EC; color:#03543F; border:1px solid #BCF0DA; padding:3px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700;">🟢 Operational</span>'
+            status_cls, status_txt = "status-pill--ok", "Operational"
+            card_accent = "health-card--ok"
         elif s_status == "degraded":
-            status_html = '<span style="background:#FEF08A; color:#713F12; border:1px solid #FDE047; padding:3px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700;">🟡 Degraded (Retrying)</span>'
+            status_cls, status_txt = "status-pill--warn", "Degraded"
+            card_accent = "health-card--warn"
         else:
-            status_html = '<span style="background:#FDE8E8; color:#9B1C1C; border:1px solid #F8B4B4; padding:3px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700;">🔴 Failing</span>'
+            status_cls, status_txt = "status-pill--fail", "Failing"
+            card_accent = "health-card--fail"
 
-        tier_badge = f'<span style="background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600;">⏱ Every {s_interval}m ({s_priority})</span>'
-        type_badge = f'<span style="background:#EFF6FF; color:#1D4ED8; padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600;">📡 {s_type}</span>'
-        lang_badge = f'<span style="background:#FAF5FF; color:#7E22CE; padding:2px 8px; border-radius:6px; font-size:0.72rem; font-weight:600;">🌐 {s_lang}</span>'
-
-        # Metrics
         c_1h = src.get("count_1h") or 0
         c_24h = src.get("count_24h") or 0
         c_7d = src.get("count_7d") or 0
@@ -1824,74 +1277,69 @@ elif "Health" in selected_nav:
 
         last_disc = src.get("last_discovery_time") or "Pending first cycle"
         latest_title = src.get("latest_article_title") or "No article recorded yet"
-        latest_link = src.get("latest_article_link") or src.get("url")
+        latest_link = src.get("latest_article_link") or src.get("url") or "#"
         latest_pub = src.get("latest_article_pub_dt") or ""
 
-        with st.container():
-            st.markdown(f"""
-            <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid {'#10B981' if s_status=='operational' else '#EF4444' if s_status=='failing' else '#F59E0B'}; border-radius:10px; padding:14px 18px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <span style="font-size:1.05rem; font-weight:700; color:#0F172A;">{html.escape(s_name)}</span>
-                        {status_html}
-                        {tier_badge}
-                        {type_badge}
-                        {lang_badge}
-                    </div>
-                    <div style="font-size:0.8rem; color:#64748B;">
-                        Last Polled: <b>{html.escape(str(last_disc)[:19])}</b> · Latency: <b>{lat}s</b>
-                    </div>
+        st.markdown(f"""
+        <div class="health-card {card_accent}">
+            <div class="health-card__head">
+                <div class="health-card__title">
+                    <span class="health-card__name">{html.escape(s_name)}</span>
+                    <span class="status-pill {status_cls}">● {status_txt}</span>
+                    <span class="pill">⏱ Every {s_interval}m ({s_priority})</span>
+                    <span class="pill">📡 {s_type}</span>
+                    <span class="pill">🌐 {s_lang}</span>
                 </div>
-                <div style="display:flex; gap:16px; margin:8px 0; font-size:0.84rem; color:#334155; flex-wrap:wrap;">
-                    <div>📊 Discovered: <b>{c_1h}</b> in 1h · <b>{c_24h}</b> in 24h · <b>{c_7d}</b> in 7d (<b>{c_tot:,}</b> Total Stored)</div>
-                    <div>🔗 Feed Endpoint: <a href="{html.escape(src.get('url', ''))}" target="_blank" rel="noopener noreferrer" style="color:#0284C7; text-decoration:none;">{html.escape(src.get('url', ''))[:45]}... ↗</a></div>
-                </div>
-                <div style="background:#F8FAFC; border:1px solid #F1F5F9; border-radius:6px; padding:8px 12px; margin-top:6px; font-size:0.83rem;">
-                    <div style="color:#64748B; font-size:0.75rem; font-weight:600; margin-bottom:2px;">LATEST DISCOVERED STORY ({html.escape(str(latest_pub)[:19])}):</div>
-                    <div style="font-weight:600; color:#0F172A;"><a href="{html.escape(latest_link)}" target="_blank" rel="noopener noreferrer" style="color:#0F172A; text-decoration:none;">• {html.escape(latest_title[:110])} ↗</a></div>
+                <div class="health-card__meta">
+                    Last Polled: <b>{html.escape(str(last_disc)[:19])}</b> · Latency: <b>{lat}s</b>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            <div class="health-card__stats">
+                <div>Discovered: <b>{c_1h}</b> in 1h · <b>{c_24h}</b> in 24h · <b>{c_7d}</b> in 7d (<b>{c_tot:,}</b> Total Stored)</div>
+                <div>Endpoint: <a href="{html.escape(src.get('url', ''))}" target="_blank" rel="noopener noreferrer">{html.escape(src.get('url', ''))[:45]}… ↗</a></div>
+            </div>
+            <div class="health-card__latest">
+                <div class="health-card__eyebrow">Latest Discovered Story ({html.escape(str(latest_pub)[:19])}):</div>
+                <div><a href="{html.escape(latest_link)}" target="_blank" rel="noopener noreferrer">• {html.escape(latest_title[:110])} ↗</a></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-            sc1, sc2, sc3, sc4 = st.columns([1.5, 1.5, 1.5, 1.5])
-            with sc1:
-                if st.button(f"🔄 Refresh {s_name}", key=f"btn_ref_src_{s_name}_{s_idx}", width="stretch"):
-                    with st.spinner(f"Ingesting latest feeds from {s_name}..."):
-                        portal_cfg = next((p for p in TOP_NEPAL_NEWS_PORTALS if p["name"] == s_name), None)
-                        if portal_cfg:
-                            run_single_source_discovery(portal_cfg, max_articles=40)
-                            st.success(f"✓ Refreshed {s_name}!")
-                            time.sleep(0.5)
-                            st.rerun()
-            with sc2:
-                # Interval update selector
-                new_int = st.selectbox(
-                    f"Interval ({s_name}):",
-                    [5, 8, 15, 18, 30, 40, 60],
-                    index=[5, 8, 15, 18, 30, 40, 60].index(s_interval) if s_interval in [5, 8, 15, 18, 30, 40, 60] else 3,
-                    key=f"sel_int_{s_name}_{s_idx}",
-                    label_visibility="collapsed"
-                )
-                if new_int != s_interval:
-                    set_source_interval(s_name, new_int)
-                    st.rerun()
-            with sc3:
-                # Enable / Disable toggle
-                toggle_label = "🔴 Disable Source" if s_enabled else "🟢 Enable Source"
-                if st.button(toggle_label, key=f"btn_tog_en_{s_name}_{s_idx}", width="stretch"):
-                    set_source_enabled(s_name, not s_enabled)
-                    st.rerun()
-            with sc4:
-                # Error log indicator
-                if src.get("last_error_message"):
-                    with st.expander("⚠️ View Error Log", expanded=False):
-                        st.error(src.get("last_error_message"))
-                else:
-                    st.caption("✓ Zero active errors")
+        sc1, sc2, sc3, sc4 = st.columns([1.5, 1.5, 1.5, 1.5])
+        with sc1:
+            if st.button(f"Refresh {s_name}", icon=":material/refresh:", key=f"btn_ref_src_{s_name}_{s_idx}", width="stretch"):
+                with st.spinner(f"Ingesting latest feeds from {s_name}…"):
+                    portal_cfg = next((p for p in TOP_NEPAL_NEWS_PORTALS if p["name"] == s_name), None)
+                    if portal_cfg:
+                        run_single_source_discovery(portal_cfg, max_articles=40)
+                        st.success(f"✓ Refreshed {s_name}!")
+                        time.sleep(0.5)
+                        st.rerun()
+        with sc2:
+            new_int = st.selectbox(
+                f"Interval ({s_name}):",
+                [5, 8, 15, 18, 30, 40, 60],
+                index=[5, 8, 15, 18, 30, 40, 60].index(s_interval) if s_interval in [5, 8, 15, 18, 30, 40, 60] else 3,
+                key=f"sel_int_{s_name}_{s_idx}",
+                label_visibility="collapsed"
+            )
+            if new_int != s_interval:
+                set_source_interval(s_name, new_int)
+                st.rerun()
+        with sc3:
+            toggle_label = "Disable Source" if s_enabled else "Enable Source"
+            toggle_icon = ":material/cancel:" if s_enabled else ":material/check_circle:"
+            if st.button(toggle_label, icon=toggle_icon, key=f"btn_tog_en_{s_name}_{s_idx}", width="stretch"):
+                set_source_enabled(s_name, not s_enabled)
+                st.rerun()
+        with sc4:
+            if src.get("last_error_message"):
+                with st.expander("View Error Log", expanded=False):
+                    st.error(src.get("last_error_message"))
+            else:
+                st.caption("✓ Zero active errors")
 
-    # 4. Coverage Diagnostics & Anomaly Detection
     with st.expander("🔍 Coverage Diagnostics & Anomaly Detection", expanded=False):
-        # A source is only an anomaly if it has had zero articles ingested in the last 48 hours AND has active errors
         low_coverage_sources = [
             h for h in health_data 
             if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and (h.get("count_7d", 0) == 0 or h.get("status") in ["failing", "degraded"])
@@ -1908,4 +1356,4 @@ elif "Health" in selected_nav:
             st.success("🎉 All active media portal feeds and web scrapers are healthy with zero degraded endpoints!")
 
         if quiet_sources:
-            st.info(f"ℹ️ **Quiet / Weekly Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")
+            st.info(f"ℹ️ **Quiet / Periodic Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")

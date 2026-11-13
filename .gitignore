@@ -18,9 +18,8 @@ ENV/
 *.json
 !package.json
 *.docx
-green_api_qr.png
+!templates/*.docx
 *.db
-!nepal_news_store.db
 *.db-shm
 *.db-wal
 *.sqlite
@@ -34,8 +33,5 @@ green_api_qr.png
 .idea/
 .vscode/
 *.log
-.agents/skills/developing-with-streamlit
 .claude/
-*.db
-*.db-wal
-*.db-shm
+.agents/skills/developing-with-streamlit

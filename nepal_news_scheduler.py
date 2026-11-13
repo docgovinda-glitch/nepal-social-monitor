@@ -27,41 +27,6 @@ if not logger.handlers:
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
 
-# Tier definitions for adaptive discovery frequency
-FREQUENCY_TIERS = {
-    "high": 8,       # 8 minutes: eKantipur, OnlineKhabar, Setopati, Ratopati, Annapurna Post, Nagarik, NepalKhabar
-    "standard": 18,  # 18 minutes: Broadsheets, main English dailies, wire agencies
-    "low": 40        # 40 minutes: Specialized tech, finance, weekly journals
-}
-
-# High-frequency priority media names
-HIGH_FREQUENCY_PORTALS = {
-    "eKantipur", "OnlineKhabar (NP)", "Setopati", "Ratopati",
-    "Annapurna Post", "Nagarik News", "NepalKhabar", "The Kathmandu Post"
-}
-
-LOW_FREQUENCY_PORTALS = {
-    "TechPana", "ArthaSarokar", "Nepali Times", "The Annapurna Express"
-}
-
-def assign_portal_tiers(portals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Enriches portal definitions with priority tiers and check intervals."""
-    enriched = []
-    for p in portals:
-        p_copy = dict(p)
-        name = p_copy["name"]
-        if name in HIGH_FREQUENCY_PORTALS:
-            p_copy["priority"] = "high"
-            p_copy["check_interval_mins"] = FREQUENCY_TIERS["high"]
-        elif name in LOW_FREQUENCY_PORTALS:
-            p_copy["priority"] = "low"
-            p_copy["check_interval_mins"] = FREQUENCY_TIERS["low"]
-        else:
-            p_copy["priority"] = "standard"
-            p_copy["check_interval_mins"] = FREQUENCY_TIERS["standard"]
-        enriched.append(p_copy)
-    return enriched
-
 def run_single_source_discovery(source_config: Dict[str, Any], max_articles: int = 50) -> Dict[str, Any]:
     """
     Executes deep discovery for a single portal using RSS, category feeds, or HTML scraping.
@@ -238,7 +203,4 @@ def start_monitoring_daemon():
     _MONITOR_THREAD.start()
     logger.info("Launched NepalNewsMonitorDaemon thread.")
 
-def stop_monitoring_daemon():
-    """Signals the monitoring daemon to stop."""
-    _STOP_EVENT.set()
 
