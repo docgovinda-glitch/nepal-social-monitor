@@ -36,26 +36,51 @@ from nepal_fetcher import (
 )
 from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS, get_monitored_x_accounts
 from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
-from nepal_news_store import (
-    get_all_source_health,
-    get_system_kpis,
-    set_source_enabled,
-    set_source_interval,
-    get_stored_articles,
-    get_stored_indian_articles,
-    get_stored_counts_by_stream,
-    get_indian_media_audit_stats,
-    batch_upsert_x_accounts,
-    get_all_x_accounts,
-    get_x_account_kpis,
-    set_x_account_enabled,
-    upsert_single_x_account,
-    delete_x_account,
-    verify_x_profile_connectivity,
-    normalize_x_handle,
-    save_x_posts,
-    get_stored_x_posts,
-)
+try:
+    from nepal_news_store import (
+        get_all_source_health,
+        get_system_kpis,
+        set_source_enabled,
+        set_source_interval,
+        get_stored_articles,
+        get_stored_indian_articles,
+        get_stored_counts_by_stream,
+        get_indian_media_audit_stats,
+        batch_upsert_x_accounts,
+        get_all_x_accounts,
+        get_x_account_kpis,
+        set_x_account_enabled,
+        upsert_single_x_account,
+        delete_x_account,
+        verify_x_profile_connectivity,
+        normalize_x_handle,
+        save_x_posts,
+        get_stored_x_posts,
+    )
+except ImportError:
+    import importlib
+    import nepal_news_store
+    importlib.reload(nepal_news_store)
+    from nepal_news_store import (
+        get_all_source_health,
+        get_system_kpis,
+        set_source_enabled,
+        set_source_interval,
+        get_stored_articles,
+        get_stored_indian_articles,
+        get_stored_counts_by_stream,
+        get_indian_media_audit_stats,
+        batch_upsert_x_accounts,
+        get_all_x_accounts,
+        get_x_account_kpis,
+        set_x_account_enabled,
+        upsert_single_x_account,
+        delete_x_account,
+        verify_x_profile_connectivity,
+        normalize_x_handle,
+        save_x_posts,
+        get_stored_x_posts,
+    )
 from nepal_news_scheduler import (
     run_single_source_discovery,
     run_all_sources_discovery,
