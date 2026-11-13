@@ -49,7 +49,13 @@ from nepal_news_scheduler import (
     run_historical_backfill,
     start_monitoring_daemon
 )
-from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
+try:
+    from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
+except ImportError:
+    import importlib
+    import apple_theme
+    importlib.reload(apple_theme)
+    from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
 
 # Start background news monitoring daemon if not already running
 try:
