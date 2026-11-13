@@ -38,11 +38,62 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background-color: var(--apple-bg) !important;
     }
 
-    /* Hide Streamlit Sidebar Completely for Native In-Dashboard Control */
-    [data-testid="stSidebar"],
-    section[data-testid="stSidebar"],
+    /* Streamlit Sidebar Visibility & Styling */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+        background-color: #F8FAFC !important;
+        border-right: 1px solid #E2E8F0 !important;
+        min-width: 310px !important;
+        max-width: 350px !important;
+    }
+
+    section[data-testid="stSidebar"] > div {
+        padding-top: 1.5rem !important;
+        padding-left: 1.1rem !important;
+        padding-right: 1.1rem !important;
+    }
+
+    /* Apple-styled Sidebar Radio Navigation */
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
+        gap: 6px;
+    }
+
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 8px 12px !important;
+        margin-bottom: 4px;
+        font-weight: 500;
+        font-size: 0.88rem;
+        color: #1E293B;
+        transition: all 0.15s ease-in-out;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+    }
+
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
+        background: #F1F5F9;
+        border-color: #CBD5E1;
+    }
+
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label[data-checked="true"],
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
+        background: #0284C7 !important;
+        border-color: #0284C7 !important;
+        color: #FFFFFF !important;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+    }
+
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label[data-checked="true"] span,
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) span {
+        color: #FFFFFF !important;
+    }
+
     div[data-testid="collapsedControl"] {
-        display: none !important;
+        display: flex !important;
     }
 
     /* Main Container Padding - Full width dashboard layout */

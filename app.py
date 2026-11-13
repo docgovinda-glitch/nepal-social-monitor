@@ -90,7 +90,7 @@ st.set_page_config(
     page_title="Nepal Media & Geo-Political Intelligence Dashboard",
     page_icon="🇳🇵",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # 2. Modern Apple-Grade Design System & Custom Styling
@@ -976,46 +976,168 @@ if search_query and search_query.strip():
     filtered_indian = [a for a in filtered_indian if smart_search_match(a, search_query)]
     filtered_x_posts = [p for p in filtered_x_posts if smart_search_match(p, search_query)]
 
-# 8. Navigation Tabs (Dynamic Live Counts)
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    f"Nepali Media ({len(filtered_articles)})",
-    f"Indian Press ({len(filtered_indian)})",
-    f"X ({len(filtered_x_posts)})",
-    "Analytics & Export",
-    "Health"
-])
+# ==========================================
+# 8. Apple-Grade Dynamic Sidebar Navigation & Contextual Controls
+# ==========================================
+with st.sidebar:
+    st.markdown("""
+    <div style="padding-bottom:12px; border-bottom:1px solid #E2E8F0; margin-bottom:16px;">
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:4px;">Workspace Views</div>
+        <div style="font-size:1.05rem; font-weight:700; color:#0F172A;">Intelligence Desk</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    nav_options = [
+        f"📰 Nepali Media ({len(filtered_articles)})",
+        f"🇮🇳 Indian Press ({len(filtered_indian)})",
+        f"🐦 X ({len(filtered_x_posts)})",
+        "📈 Analytics & Export",
+        "🩺 System Health"
+    ]
+
+    # Map previous selection index
+    nav_index = 0
+    current_stored_nav = st.session_state.get("app_nav_section", "")
+    for idx, opt in enumerate(nav_options):
+        if opt.split(" (")[0] in current_stored_nav:
+            nav_index = idx
+            break
+
+    selected_nav = st.radio(
+        "Navigation",
+        options=nav_options,
+        index=nav_index,
+        key="app_nav_section",
+        label_visibility="collapsed"
+    )
+
+    st.markdown("<div style='margin-top:18px; margin-bottom:12px; border-top:1px solid #E2E8F0;'></div>", unsafe_allow_html=True)
+
+    # 🎛️ DYNAMIC CONTEXTUAL SIDEBAR CONTROLS
+    if "Nepali Media" in selected_nav:
+        st.markdown("""
+        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0369A1; margin-bottom:10px;">
+            Filter Nepali Portals
+        </div>
+        """, unsafe_allow_html=True)
+
+        all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
+        sel_np_portal = st.selectbox(
+            "News Portal",
+            ["All Portals (34)"] + all_portal_names,
+            key="np_portal_filter"
+        )
+        sel_np_cat = st.selectbox(
+            "Editorial Category",
+            CATEGORY_FILTER_OPTIONS,
+            key="np_cat_filter"
+        )
+        sel_np_lang = st.selectbox(
+            "Language",
+            ["All Languages", "Nepali Only", "English Only"],
+            key="np_lang_filter"
+        )
+
+    elif "Indian Press" in selected_nav:
+        st.markdown("""
+        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#EA580C; margin-bottom:10px;">
+            Filter Indian Outlets
+        </div>
+        """, unsafe_allow_html=True)
+
+        indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
+        selected_indian_outlet = st.selectbox(
+            "News Outlet",
+            ["All 18 Indian Outlets"] + indian_outlet_names,
+            key="in_outlet_filter"
+        )
+        sel_in_lang = st.selectbox(
+            "Language",
+            ["All Languages", "English", "Hindi"],
+            key="in_lang_filter"
+        )
+
+    elif "X (" in selected_nav:
+        st.markdown("""
+        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#0284C7; margin-bottom:10px;">
+            Filter X Feed
+        </div>
+        """, unsafe_allow_html=True)
+
+        x_cat_filter = st.selectbox(
+            "Editorial Category",
+            CATEGORY_FILTER_OPTIONS,
+            index=0,
+            key="x_cat_filter_select"
+        )
+        acc_types = [
+            "All Account Types",
+            "Civic Voice / Public Commentator",
+            "Youth & Cultural Voice",
+            "Foreign Affairs Specialist",
+            "Journalist / Analyst",
+            "Political Leader",
+            "Government & Security",
+            "Media & News Curators",
+            "Diplomatic Missions",
+            "Think Tank & Policy",
+            "Sports & Culture"
+        ]
+        selected_acc_type = st.selectbox(
+            "Account Category",
+            acc_types,
+            key="x_acc_type_select"
+        )
+        sort_mode = st.selectbox(
+            "Sort Order",
+            ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
+            key="x_sort_mode_select"
+        )
+        st.write("")
+        if st.button("🔄 Sync Live X", width="stretch", key="btn_rescan_x_sidebar"):
+            with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
+                st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
+                st.rerun()
+
+    elif "Analytics" in selected_nav:
+        st.markdown("""
+        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#7C3AED; margin-bottom:10px;">
+            Export Dataset Filters
+        </div>
+        """, unsafe_allow_html=True)
+
+        stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
+        sel_stream = st.selectbox("Dataset Stream", stream_choices, key="univ_stream_filter")
+
+        # Collect unique categories across current unified dataset
+        all_export_cats = sorted(list(set(
+            [a.get("structured_category", "Others") for a in filtered_articles] +
+            [a.get("structured_category", "India Section") for a in filtered_indian] +
+            [p.get("structured_category", "Others") for p in filtered_x_posts]
+        )))
+        sel_cat = st.selectbox("Category / Section", ["All Categories"] + all_export_cats, key="univ_cat_filter")
+        sel_lang = st.selectbox("Content Language", ["All Languages", "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
+        kw_filter = st.text_input("Search Keyword", placeholder="Keyword or author...", key="univ_kw_filter")
+
+    elif "Health" in selected_nav:
+        st.markdown("""
+        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#059669; margin-bottom:10px;">
+            Registry & Health Filters
+        </div>
+        """, unsafe_allow_html=True)
+
+        admin_search_src = st.text_input("Search Portal Name", placeholder="e.g. Setopati, Ratopati...", key="inp_admin_src_srch")
+        admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
+        admin_lang_filter = st.selectbox("Language Edition", ["All Languages", "Nepali Only", "English Only"], key="sel_admin_lang")
+        admin_tier_filter = st.selectbox("Monitoring Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
+
+    st.markdown("<div style='margin-top:24px; padding-top:14px; border-top:1px solid #E2E8F0; font-size:0.74rem; color:#94A3B8; text-align:center;'>Nepal Social & Media Monitor v3.0<br/>Autonomous Ingestion Engine</div>", unsafe_allow_html=True)
 
 # ==========================================
-# TAB 1: Nepali Media (Top 34 Portals)
+# SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
-with tab1:
-    # 🎛️ Source-Specific Control Panel: Nepali Media
-    with st.container():
-        npc1, npc2, npc3 = st.columns([1.6, 1.4, 1.0])
-        with npc1:
-            all_portal_names = sorted(list(set([p["name"] for p in TOP_NEPAL_NEWS_PORTALS])))
-            sel_np_portal = st.selectbox(
-                "News Portal",
-                ["All Portals (34)"] + all_portal_names,
-                key="np_portal_filter",
-                label_visibility="collapsed"
-            )
-        with npc2:
-            sel_np_cat = st.selectbox(
-                "Editorial Category",
-                CATEGORY_FILTER_OPTIONS,
-                key="np_cat_filter",
-                label_visibility="collapsed"
-            )
-        with npc3:
-            sel_np_lang = st.selectbox(
-                "Language",
-                ["All Languages", "Nepali Only", "English Only"],
-                key="np_lang_filter",
-                label_visibility="collapsed"
-            )
-
-    # Filter articles based on Tab 1 Controls
+if "Nepali Media" in selected_nav:
+    # Filter articles based on Sidebar Controls
     tab_articles = filter_items_by_category(filtered_articles, sel_np_cat, is_social=False)
     if sel_np_lang == "Nepali Only":
         tab_articles = [a for a in tab_articles if a.get('language') == "Nepali"]
@@ -1057,29 +1179,9 @@ with tab1:
             st.caption(f"🏁 You've reached the end of the news feed ({len(tab_articles):,} stories displayed).")
 
 # ==========================================
-# TAB 2: Nepal in Indian Media
+# SECTION 2: Nepal in Indian Media
 # ==========================================
-with tab2:
-    indian_outlet_names = sorted(list(set([s["name"] for s in TOP_INDIAN_MEDIA_SOURCES])))
-
-    # Source Controls: Indian Press
-    with st.container():
-        ti_col1, ti_col2 = st.columns([2, 1.2])
-        with ti_col1:
-            selected_indian_outlet = st.selectbox(
-                "Outlet",
-                ["All 18 Indian Outlets"] + indian_outlet_names,
-                key="in_outlet_filter",
-                label_visibility="collapsed"
-            )
-        with ti_col2:
-            sel_in_lang = st.selectbox(
-                "Language",
-                ["All Languages", "English", "Hindi"],
-                key="in_lang_filter",
-                label_visibility="collapsed"
-            )
-
+elif "Indian Press" in selected_nav:
     tab_filtered_indian = filtered_indian
     if selected_indian_outlet != "All 18 Indian Outlets":
         tab_filtered_indian = [a for a in tab_filtered_indian if a["source"] == selected_indian_outlet]
@@ -1175,9 +1277,9 @@ with tab2:
             st.link_button("🇮🇳 Live Hindustan (हिन्दुस्तान) ↗", "https://www.livehindustan.com/tags/nepal/", width='stretch')
 
 # ==========================================
-# TAB 3: X (Twitter) Nepal
+# SECTION 3: X (Twitter) Nepal
 # ==========================================
-with tab3:
+elif "X (" in selected_nav:
     # Seamlessly integrated X posts (filtered by global search, category, and time)
     tab_x_posts = filtered_x_posts
 
@@ -1205,51 +1307,7 @@ with tab3:
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Source Controls: X
-    with st.container():
-        xf_col1, xf_col2, xf_col3, xf_col4 = st.columns([1.6, 1.4, 1.3, 0.9])
-        with xf_col1:
-            x_cat_filter = st.selectbox(
-                "Editorial Category",
-                CATEGORY_FILTER_OPTIONS,
-                index=0,
-                key="x_cat_filter_select",
-                label_visibility="collapsed"
-            )
-        with xf_col2:
-            acc_types = [
-                "All Account Types",
-                "Civic Voice / Public Commentator",
-                "Youth & Cultural Voice",
-                "Foreign Affairs Specialist",
-                "Journalist / Analyst",
-                "Political Leader",
-                "Government & Security",
-                "Media & News Curators",
-                "Diplomatic Missions",
-                "Think Tank & Policy",
-                "Sports & Culture"
-            ]
-            selected_acc_type = st.selectbox(
-                "Account Category",
-                acc_types,
-                key="x_acc_type_select",
-                label_visibility="collapsed"
-            )
-        with xf_col3:
-            sort_mode = st.selectbox(
-                "Sort Posts",
-                ["🕒 Newest First (NPT)", "🔥 Most Viral / Engagement", "❤️ Most Liked", "🔁 Most Retweeted"],
-                key="x_sort_mode_select",
-                label_visibility="collapsed"
-            )
-        with xf_col4:
-            if st.button("🔄 Sync X", width="stretch", key="btn_rescan_x"):
-                with st.spinner("Deep scanning authentic real-time X posts across verified Nepali accounts..."):
-                    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True, x_bearer_token=x_bearer_token)
-                    st.rerun()
-
-    # Apply category filter
+    # Apply category filter (from dynamic sidebar controls)
     filtered_feed = filter_items_by_category(tab_x_posts, x_cat_filter, is_social=True)
 
     if selected_acc_type != "All Account Types":
@@ -1352,9 +1410,9 @@ with tab3:
                     st.link_button(item["label"], x_url, width="stretch", help=item["help"])
 
 # ==========================================
-# TAB 4: Analytics & Export
+# SECTION 4: Analytics & Export
 # ==========================================
-with tab4:
+elif "Analytics" in selected_nav:
     start_label = filter_start_dt.strftime("%d %b, %I:%M %p").lstrip("0") if filter_start_dt else "Start"
     end_label = "Now" if is_to_current else filter_end_dt.strftime("%d %b, %I:%M %p").lstrip("0")
     st.markdown(f"""
@@ -1433,27 +1491,7 @@ with tab4:
 
     all_unified_items.sort(key=_parse_sort_dt, reverse=True)
 
-    # 2. Consolidated Master Filter Toolbar
-    with st.container():
-        fc1, fc2, fc3, fc4 = st.columns([1.4, 1.4, 1.2, 2])
-
-        with fc1:
-            stream_choices = ["All Streams (All 3)", "Nepali Media", "Indian Press", "X (Twitter)"]
-            sel_stream = st.selectbox("Dataset Stream", stream_choices, key="univ_stream_filter", label_visibility="collapsed")
-
-        with fc2:
-            all_cats = sorted(list(set(x["category"] for x in all_unified_items if x.get("category"))))
-            cat_choices = ["All Categories"] + all_cats
-            sel_cat = st.selectbox("Category / Section", cat_choices, key="univ_cat_filter", label_visibility="collapsed")
-
-        with fc3:
-            all_langs = ["All Languages", "Nepali", "English", "Nepali / English"]
-            sel_lang = st.selectbox("Content Language", all_langs, key="univ_lang_filter", label_visibility="collapsed")
-
-        with fc4:
-            kw_filter = st.text_input("Search Keyword", placeholder="Search keyword or author...", key="univ_kw_filter", label_visibility="collapsed")
-
-    # Apply Consolidated Filtering
+    # Apply Consolidated Filtering (from dynamic sidebar controls)
     filtered_export_items = all_unified_items
     if sel_stream != "All Streams (All 3)":
         filtered_export_items = [x for x in filtered_export_items if x["stream"] == sel_stream]
@@ -1632,9 +1670,9 @@ with tab4:
 
 
 # ==========================================
-# TAB 5: Health & Diagnostics
+# SECTION 5: Health & Diagnostics
 # ==========================================
-with tab5:
+elif "Health" in selected_nav:
     st.subheader("System Health")
 
     # 1. System-Wide Monitoring KPIs
@@ -1705,24 +1743,13 @@ with tab5:
     # 3. Source Health Matrix & Discovery Table
     st.markdown("##### 📋 Complete 34 Nepali Media Source Registry & Live Health Matrix")
 
-    # Table Filter Controls
-    f_c1, f_c2, f_c3, f_c4 = st.columns([2, 1.5, 1.5, 1.5])
-    with f_c1:
-        admin_search_src = st.text_input("🔍 Search Portal Name:", placeholder="e.g. Setopati, Ratopati, Kantipur...", key="inp_admin_src_srch")
-    with f_c2:
-        admin_status_filter = st.selectbox("Health Status:", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
-    with f_c3:
-        admin_lang_filter = st.selectbox("Language Edition:", ["All Languages", "Nepali Only", "English Only"], key="sel_admin_lang")
-    with f_c4:
-        admin_tier_filter = st.selectbox("Monitoring Tier:", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
-
     # Load Source Health Rows
     try:
         health_data = get_all_source_health()
     except Exception:
         health_data = []
 
-    # Apply Admin Filters
+    # Apply Admin Filters (configured dynamically in left sidebar)
     filtered_health = health_data
     if admin_search_src and admin_search_src.strip():
         q_src = admin_search_src.strip().lower()
