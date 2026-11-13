@@ -917,8 +917,8 @@ st.markdown(f"""
 # 5. Global Command Strip (Sidebar: Timeframe, Search, Sync, Reset)
 with st.sidebar:
     st.markdown("""
-    <div style="padding-bottom:8px; margin-bottom:10px; border-bottom:1px solid #E2E8F0;">
-        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:2px;">Timeframe & Controls</div>
+    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:6px;">
+        Timeframe & Search
     </div>
     """, unsafe_allow_html=True)
 
@@ -988,11 +988,8 @@ if search_query and search_query.strip():
 # ==========================================
 with st.sidebar:
     st.markdown("""
-    <div style="padding-bottom:8px; margin-bottom:8px;">
-        <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:2px;">Workspace Views</div>
-        <div style="font-size:1.05rem; font-weight:700; color:#0F172A; display:flex; align-items:center; gap:6px;">
-            <span>🧭</span> Intelligence Desk
-        </div>
+    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748B; margin-bottom:4px;">
+        Workspace View
     </div>
     """, unsafe_allow_html=True)
 
@@ -1017,6 +1014,7 @@ with st.sidebar:
         options=nav_options,
         index=nav_index,
         key="app_nav_section",
+        label_visibility="collapsed",
         help="Switch between Nepali Media, Indian Press, X, Analytics & Export, and System Health"
     )
 

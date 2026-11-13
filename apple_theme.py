@@ -38,7 +38,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background-color: var(--apple-bg) !important;
     }
 
-    /* Streamlit Sidebar Visibility & Styling - Apple Modern Desktop Aesthetic */
+    /* Streamlit Sidebar Visibility & Styling - Apple Modern Inset Aesthetic */
     section[data-testid="stSidebar"] {
         display: block !important;
         background: #F8FAFC !important;
@@ -49,9 +49,31 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     section[data-testid="stSidebar"] > div {
-        padding-top: 1.25rem !important;
-        padding-left: 1.1rem !important;
-        padding-right: 1.1rem !important;
+        padding-top: 1.1rem !important;
+        padding-left: 0.95rem !important;
+        padding-right: 0.95rem !important;
+    }
+
+    /* Apple Grouped Inset Card for Sidebar Sections */
+    .apple-sidebar-group {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+    }
+
+    .apple-sidebar-group-title {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #64748B;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
 
     /* Polish the View Selection Dropdown inside Sidebar */
@@ -98,19 +120,19 @@ APPLE_DESIGN_SYSTEM_CSS = """
         margin: 1.25rem 0 !important;
     }
 
-    /* Apple Top Navigation / Header */
+    /* Apple Top Navigation / Header - Modern Glassmorphic Treatment */
     .apple-top-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 14px 22px;
         margin-bottom: 16px;
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(20px) saturate(180%);
-        -webkit-backdrop-filter: blur(20px) saturate(180%);
-        border: 1px solid rgba(0, 0, 0, 0.06);
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(24px) saturate(190%);
+        -webkit-backdrop-filter: blur(24px) saturate(190%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
         border-radius: var(--apple-radius-lg);
-        box-shadow: var(--apple-shadow-card);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 6px 16px rgba(0, 0, 0, 0.02);
     }
 
     .apple-top-title-group {
@@ -210,22 +232,23 @@ APPLE_DESIGN_SYSTEM_CSS = """
         text-overflow: clip !important;
     }
 
-    /* Article Cards - Clean Apple Design */
+    /* Article Cards - Clean Apple Design with Micro-Interactions */
     .apple-news-card {
         background: #FFFFFF;
         border-radius: var(--apple-radius-md);
         border: 1px solid rgba(0, 0, 0, 0.06);
         border-left: 3.5px solid #CBD5E1;
-        box-shadow: var(--apple-shadow-card);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 2px 6px rgba(0, 0, 0, 0.02);
         padding: 16px 20px;
         margin-bottom: 12px;
-        transition: all 0.2s var(--apple-ease);
+        transition: transform 0.22s var(--apple-ease), box-shadow 0.22s var(--apple-ease), border-color 0.22s var(--apple-ease);
         position: relative;
     }
 
     .apple-news-card:hover {
-        box-shadow: var(--apple-shadow-hover);
-        border-color: rgba(0, 113, 227, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+        border-color: rgba(2, 132, 199, 0.25);
     }
 
     .card-accent-india { border-left-color: #F59E0B !important; }
@@ -409,21 +432,20 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* X Posts Card - Matching render_apple_x_post_card() DOM classes */
-    .apple-x-card,
     .x-post-card {
         background: #FFFFFF;
         border-radius: var(--apple-radius-md);
         border: 1px solid rgba(0, 0, 0, 0.06);
-        box-shadow: var(--apple-shadow-card);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 2px 6px rgba(0, 0, 0, 0.02);
         padding: 16px 20px;
         margin-bottom: 12px;
-        transition: all 0.2s var(--apple-ease);
+        transition: transform 0.22s var(--apple-ease), box-shadow 0.22s var(--apple-ease), border-color 0.22s var(--apple-ease);
     }
 
-    .apple-x-card:hover,
     .x-post-card:hover {
-        box-shadow: var(--apple-shadow-hover);
-        border-color: rgba(82, 106, 133, 0.28);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+        border-color: rgba(2, 132, 199, 0.25);
     }
 
     .x-post-header {
@@ -610,12 +632,6 @@ APPLE_DESIGN_SYSTEM_CSS = """
     /* ==========================================
        APPLE TOOLBAR SIDEBAR & COMPACT CONTROLS
        ========================================== */
-    section[data-testid="stSidebar"] {
-        background-color: #F8FAFC !important;
-        border-right: 1px solid #E2E8F0 !important;
-        min-width: 300px !important;
-    }
-
     section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
         padding-top: 1rem !important;
         padding-left: 1rem !important;
