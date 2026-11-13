@@ -71,28 +71,7 @@ try:
     start_monitoring_daemon()
 except Exception:
     pass
-from whatsapp_dispatcher import (
-    load_sent_cache,
-    save_sent_cache,
-    is_item_broadcasted,
-    mark_item_broadcasted,
-    unmark_item_broadcasted,
-    get_broadcasted_stats,
-    format_whatsapp_message,
-    generate_whatsapp_share_url,
-    get_item_key,
-    DEFAULT_CHANNEL_URL,
-    get_env_variable,
-    dispatch_item_to_webhook,
-    send_test_webhook_ping,
-    get_green_api_credentials,
-    get_green_api_status,
-    dispatch_item_to_green_api,
-    send_test_green_api_message,
-    get_green_api_chats,
-    find_channel_newsletter_id,
-    is_substantially_related_to_nepal
-)
+
 
 # Load environment variables from .env if present
 def load_env():
@@ -562,12 +541,6 @@ def get_badge_html(cat):
     icon = CATEGORY_ICONS.get(cat, "📌")
     return f'<span class="{css}">{icon} {cat}</span>'
 
-# Minimalist Vector WhatsApp Icon (SVG)
-WA_SVG_ICON = (
-    '<svg viewBox="0 0 24 24" aria-hidden="true">'
-    '<path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm5.82 14.01c-.24.68-1.41 1.3-1.95 1.38-.5.08-1.13.11-1.82-.11-.42-.13-.96-.31-1.65-.61-2.91-1.26-4.81-4.19-4.96-4.38-.14-.19-1.18-1.57-1.18-3 0-1.42.75-2.12 1.01-2.41.27-.29.58-.36.78-.36.19 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.82 2 .89 2.15.07.15.12.31.02.51-.1.19-.15.31-.29.48-.15.17-.31.38-.44.51-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.35 1.45.29.15.46.12.63-.07.17-.19.73-.85.92-1.14.19-.29.39-.24.65-.15.27.1 1.7.8 1.99.94.29.15.48.22.56.34.07.12.07.7-.17 1.38z"/>'
-    '</svg>'
-)
 
 # Apple-Grade Article Card Renderer
 def render_apple_article_card(item, is_indian=False, auto_translate=False):
@@ -645,7 +618,6 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
     summary_html = f'<p class="apple-card-summary">{html.escape(summary.strip())}</p>' if has_sum else ""
 
     btn_label = "Read in Indian Press ↗" if is_indian else "Read Story ↗"
-    wa_share_url = generate_whatsapp_share_url(item, "article")
 
     return (
         f'<article class="apple-news-card {cat_accent_class}">'
@@ -653,8 +625,7 @@ def render_apple_article_card(item, is_indian=False, auto_translate=False):
         f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{title_display}</a></h3>'
         f'{summary_html}'
         f'{sec_tags_html}'
-        f'<footer class="apple-card-footer" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">'
-        f'<a href="{wa_share_url}" target="_blank" rel="noopener noreferrer" class="apple-wa-share-btn" title="Share individual story to WhatsApp">{WA_SVG_ICON}<span>WhatsApp</span></a>'
+        f'<footer class="apple-card-footer" style="display:flex; justify-content:flex-end; align-items:center; margin-top:8px;">'
         f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{btn_label}</a>'
         f'</footer>'
         f'</article>'
@@ -717,8 +688,6 @@ def render_apple_x_post_card(p, auto_translate=False):
         link = orig_link if orig_link != "#" else "https://x.com"
         cta_label = "View on X ↗"
 
-    wa_share_url = generate_whatsapp_share_url(p, "x")
-
     return (
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
@@ -741,7 +710,6 @@ def render_apple_x_post_card(p, auto_translate=False):
         f'{senti_html}'
         f'</div>'
         f'<div style="display:flex; align-items:center; gap:8px;">'
-        f'<a href="{wa_share_url}" target="_blank" rel="noopener noreferrer" class="apple-wa-share-btn" title="Share tweet to WhatsApp">{WA_SVG_ICON}<span>WhatsApp</span></a>'
         f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="x-cta-link">{cta_label}</a>'
         f'</div>'
         f'</footer>'
@@ -1662,171 +1630,7 @@ with tab4:
     else:
         st.info("No items match the chosen filter criteria. Try adjusting the search keyword or selecting 'All Streams'.")
 
-    # ==========================================
-    # WHATSAPP CHANNEL BROADCAST ENGINE (RENDER CLOUD DAEMON)
-    # ==========================================
-    st.markdown("---")
-    st.subheader("WhatsApp Distribution Console (Cloud Autonomous)")
 
-    # Render Worker Live Heartbeat Card
-    @st.cache_data(ttl=25, show_spinner=False)
-    def fetch_render_worker_status():
-        import ssl
-        ctx = ssl._create_unverified_context()
-        render_url = "https://nepal-social-monitor-worker.onrender.com"
-        for _ in range(2):
-            try:
-                req = urllib.request.Request(
-                    render_url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        "Accept": "application/json"
-                    }
-                )
-                with urllib.request.urlopen(req, context=ctx, timeout=18) as resp:
-                    data = json.loads(resp.read().decode())
-                    if isinstance(data, dict) and data.get("uptime_status") in ("running", "starting"):
-                        return data, True
-            except Exception:
-                time.sleep(1)
-        return {}, False
-
-    render_info, render_online = fetch_render_worker_status()
-    if render_online and render_info:
-        st.session_state["last_render_info"] = render_info
-    elif st.session_state.get("last_render_info"):
-        render_info = st.session_state["last_render_info"]
-        render_online = True
-
-    r_col1, r_col2 = st.columns([2.5, 1.5])
-    with r_col1:
-        if render_online:
-            st.markdown(f"""
-            <div style="background:linear-gradient(135deg, rgba(16,185,129,0.08), rgba(5,150,105,0.02)); border:1px solid #10B981; border-radius:10px; padding:12px 16px; margin-bottom:14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="height:10px; width:10px; background:#10B981; border-radius:50%; display:inline-block; box-shadow:0 0 8px #10B981;"></span>
-                        <strong style="color:#065F46; font-size:0.95rem;">Render 24/7 Cloud Worker: ACTIVE</strong>
-                    </div>
-                    <span style="font-size:0.75rem; background:#D1FAE5; color:#065F46; font-weight:700; padding:3px 8px; border-radius:6px;">Uptime: Running</span>
-                </div>
-                <div style="font-size:0.8rem; color:#047857; margin-top:6px;">
-                    Started: <b>{render_info.get('started_at', '')[:16].replace('T', ' ')} NPT</b> · Completed Runs: <b>{render_info.get('runs_completed', 0)}</b>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div style="background:#FEF2F2; border:1px solid #EF4444; border-radius:10px; padding:12px 16px; margin-bottom:14px;">
-                <strong style="color:#991B1B;">⚠️ Render Worker Status: Contacting Cloud Runner...</strong>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with r_col2:
-        now_np = datetime.datetime.now(NEPAL_TZ)
-        from whatsapp_auto_worker import get_next_run_time
-        next_run_dt = get_next_run_time(now_np)
-        mins_left = max(0, int((next_run_dt - now_np).total_seconds() // 60))
-        if 6 <= now_np.hour < 22 or (now_np.hour == 22 and now_np.minute <= 1):
-            next_run_str = next_run_dt.strftime("%I:%M %p NPT")
-            status_caption = f"⏱️ Next Cycle: **{next_run_str}** (~{mins_left}m)"
-        else:
-            status_caption = f"🌙 Night Window (Resumes 06:01 AM NPT, ~{mins_left // 60}h)"
-        st.markdown(f"""
-        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:10px; padding:12px 16px; margin-bottom:14px; text-align:center;">
-            <div style="font-size:0.75rem; color:#64748B; font-weight:600; text-transform:uppercase;">Scheduled Timing</div>
-            <div style="font-size:0.95rem; font-weight:700; color:#1E293B; margin-top:4px;">{status_caption}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    wa_stats = get_broadcasted_stats()
-    by_stream = wa_stats.get("by_stream", {})
-
-    from nepal_news_store import get_whatsapp_queue_stats, get_pending_whatsapp_queue
-    q_stats = get_whatsapp_queue_stats()
-
-    nep_b_count = int(by_stream.get("nepali_media", 0))
-    ind_b_count = int(by_stream.get("indian_media", 0))
-    total_b_count = nep_b_count + ind_b_count
-
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("Total Broadcasted", f"{total_b_count:,}")
-    with m2:
-        st.metric("📰 Nepali Media", f"{nep_b_count:,}")
-    with m3:
-        st.metric("🇮🇳 Indian Media (Nepal)", f"{ind_b_count:,}")
-    with m4:
-        st.metric("📥 Persistent Queue Pending", f"{q_stats['pending_count']:,}", help="Held in persistent Supabase queue for next scheduled hourly cycle")
-
-    # Fetch pending items directly from persistent Supabase queue (Nepali Media & Indian Press only)
-    pending_queue_items = get_pending_whatsapp_queue(limit=500)
-
-    with st.expander(f"📥 Pending for Next Hourly Broadcast ({q_stats['pending_count']} eligible items queued)", expanded=False):
-        q_col1, q_col2 = st.columns([3, 1.2])
-        with q_col1:
-            st.caption("Broadcasts are automated 24/7 on Render cloud worker (Nepali Media & Indian Press only; X excluded). All items in this queue will dispatch sequentially at :01.")
-        with q_col2:
-            queue_filter = st.selectbox(
-                "Filter Queue Source",
-                ["All Allowed Streams", "Nepali Media", "Indian Press"],
-                key="wa_queue_source_filter",
-                label_visibility="collapsed"
-            )
-
-        if queue_filter == "Nepali Media":
-            display_queue = [q for q in pending_queue_items if q["stream_type"] == "Nepali Media"]
-        elif queue_filter == "Indian Press":
-            display_queue = [q for q in pending_queue_items if q["stream_type"] in ("Indian Press", "Indian Media")]
-        else:
-            display_queue = pending_queue_items
-
-        if display_queue:
-            st.caption(f"Displaying **{len(display_queue)} of {len(display_queue)}** pending items in distribution queue")
-
-            # Display Queue Cards (All items in dropdown with manual remove option)
-            from nepal_news_store import remove_whatsapp_queue_item
-            for idx, q_item in enumerate(display_queue):
-                item_key = q_item.get("item_key") or ""
-                item_title = q_item.get("title") or "Untitled"
-                item_source = q_item.get("source_name") or "Unknown"
-                stype = q_item.get("stream_type") or "Nepali Media"
-                item_time = q_item.get("published_dt") or q_item.get("queued_at") or ""
-                time_str = item_time.strftime("%d %b, %I:%M %p") if isinstance(item_time, datetime.datetime) else str(item_time)[:16]
-
-                card_col, btn_col = st.columns([11, 1])
-                with card_col:
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-left:4px solid #526A85; border-radius:8px; padding:10px 12px; margin-bottom:6px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                            <span style="font-size:0.75rem; background:#F1F5F9; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{stype}</span>
-                            <span style="font-size:0.75rem; color:#64748B;">🕒 {html.escape(time_str)}</span>
-                        </div>
-                        <div style="font-weight:650; font-size:0.92rem; color:#0F172A; margin-bottom:3px;">{html.escape(item_title[:160])}</div>
-                        <div style="font-size:0.78rem; color:#64748B;">Source: <b>{html.escape(item_source)}</b> · Status: <span style="color:#2563EB; font-weight:600;">{q_item.get('status', 'pending')}</span></div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                with btn_col:
-                    st.write("")
-                    if st.button("✕", key=f"btn_rm_q_{item_key}_{idx}", help=f"Remove '{item_title[:40]}' from distribution queue"):
-                        remove_whatsapp_queue_item(item_key)
-                        st.toast(f"Removed from queue: {item_title[:35]}...", icon="🗑️")
-                        st.rerun()
-        else:
-            st.success("🎉 Queue is up to date! All scanned Nepali & Indian news in this timeframe have been delivered.")
-
-    # Recent Broadcast History
-    with st.expander("📜 Recent Broadcast History (Last 25 Dispatched Updates)", expanded=False):
-        if wa_stats["recent_history"]:
-            for h in wa_stats["recent_history"][:15]:
-                hc1, hc2 = st.columns([4, 1.5])
-                with hc1:
-                    st.markdown(f"**{html.escape(h.get('title', ''))}**\n\n_{html.escape(h.get('source', ''))}_ · `{h.get('stream', h.get('type'))}`")
-                with hc2:
-                    st.caption(f"Sent: {h.get('sent_at', '')[:16]}")
-        else:
-            st.caption("No broadcast history recorded yet.")
 
 # ==========================================
 # TAB 5: Health & Diagnostics

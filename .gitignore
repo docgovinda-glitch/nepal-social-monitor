@@ -17,7 +17,6 @@ ENV/
 # Cache & Data
 *.json
 !package.json
-!whatsapp_sent_cache.json
 *.docx
 green_api_qr.png
 *.db
