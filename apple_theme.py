@@ -533,10 +533,29 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-weight: 600;
         border: 1px solid rgba(30, 142, 62, 0.18);
     }
-    .main .stButton > button p {
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: fit-content !important;
+    }
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button * {
         white-space: nowrap !important;
         overflow: visible !important;
         text-overflow: unset !important;
+        width: auto !important;
+    }
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button {
+        padding: 0 14px !important;
+        height: 36px !important;
+        min-height: 36px !important;
     }
 
     /* ==========================================================

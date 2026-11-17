@@ -624,6 +624,7 @@ def _render_copy_button(text_to_copy: str, uid: str) -> None:
         </html>
         """,
         height=38,
+        width=100,
     )
 
 
@@ -709,25 +710,25 @@ def render_feed_item_with_actions(
 
         wa_clicked = False
         if generated and generated.get("ok"):
-            c1, c2, c3, _ = st.columns([1.15, 1.85, 0.95, 2.05], gap="small")
+            c1, c2, c3 = st.columns(3, gap="small")
             with c1:
                 _render_copy_button(generated["formatted_text"], uid=item_uid)
             with c2:
-                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
+                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
             with c3:
-                if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}", width="stretch"):
+                if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
                     st.session_state["ondemand_generated"].pop(cache_id, None)
                     st.rerun()
         else:
-            c1, c2, _ = st.columns([1.65, 1.85, 2.5], gap="small")
+            c1, c2 = st.columns(2, gap="small")
             with c1:
-                if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
+                if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
                     with st.spinner("Generating…"):
                         res = _generate_unified_item_content(item, is_x=is_x)
                         st.session_state["ondemand_generated"][cache_id] = res
                         st.rerun()
             with c2:
-                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
+                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
 
         if wa_clicked:
             if not generated or not generated.get("ok"):
