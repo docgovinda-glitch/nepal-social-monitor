@@ -722,10 +722,18 @@ def render_feed_item_with_actions(
                 view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
                 shown_text = fulltext_data["translated_text"] if (view_mode == "en" and has_tr) else fulltext_data["original_text"]
                 ft_eyebrow = "Full Article Text · English Translation" if (view_mode == "en" and has_tr) else f"Full Article Text · {ft_lang.upper()}"
+                ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
+                ft_src_html = (
+                    f'<div class="unified-brief-box__source">Source: '
+                    f'<a href="{html.escape(ft_src, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(ft_src)}</a></div>'
+                    if ft_src
+                    else ""
+                )
                 st.markdown(
                     f'<div class="fulltext-reader-box">'
                     f'<div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>'
                     f'<div class="fulltext-reader-box__body">{html.escape(shown_text)}</div>'
+                    f'{ft_src_html}'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
