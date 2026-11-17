@@ -845,13 +845,13 @@ def _show_share_dialog() -> None:
             st.caption(f"Source: {src_url}")
         ec1, ec2 = st.columns(2, gap="small")
         with ec1:
-            if st.button("Save & Confirm", icon=":material/check:", type="primary", key=f"dlg_save_edit_{item_uid}"):
+            if st.button("Save", icon=":material/save:", type="primary", key=f"dlg_save_edit_{item_uid}"):
                 clean_edit = (edited_val or "").strip()
                 if clean_edit:
                     generated["content"] = clean_edit
                     generated["formatted_text"] = f"{clean_edit}\n\nSource: {src_url}" if src_url else clean_edit
                     st.session_state["ondemand_generated"][cache_id] = generated
-                    st.session_state["ondemand_confirmed"][cache_id] = True
+                    st.session_state["ondemand_confirmed"][cache_id] = False
                     st.session_state["ondemand_edit_mode"][cache_id] = False
                     st.rerun()
         with ec2:
@@ -882,7 +882,7 @@ def _show_share_dialog() -> None:
     with c1:
         if not is_confirmed:
             if st.button(
-                "Confirm Share",
+                "Confirm to Send",
                 icon=":material/check_circle:",
                 type="primary",
                 key=f"dlg_conf_{item_uid}",
