@@ -220,7 +220,16 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .apple-card-title a { color: var(--label) !important; text-decoration: none !important; }
     .apple-card-title a:hover { color: var(--link) !important; }
     .apple-card-native-title { font-size: 0.78rem; color: var(--label-3); margin: -2px 0 6px 0; line-height: 1.35; }
-    .apple-card-summary { color: var(--label-2); font-size: 0.88rem; line-height: 1.55; margin: 0 0 6px 0; }
+    .apple-card-summary {
+        color: var(--label-2);
+        font-size: 0.88rem;
+        line-height: 1.5;
+        margin: 0 0 6px 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
     .apple-summary-badge {
         display: inline-block; padding: 1px 6px; margin-right: 6px; border-radius: 5px;
         background: var(--tint-soft); color: var(--tint); font-size: 0.65rem; font-weight: 700;
@@ -630,9 +639,42 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: #FAFAFC;
         border: 1px solid var(--separator-strong);
         border-radius: 10px;
-        padding: 13px 16px;
+        padding: 14px 16px;
         margin: 6px 0 8px 0;
     }
+    .fulltext-reader-box__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .fulltext-reader-box__title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--label);
+        line-height: 1.38;
+        margin: 0 0 4px 0;
+    }
+    .fulltext-reader-box__meta {
+        font-size: 0.74rem;
+        color: var(--label-2);
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--separator);
+    }
+    .extraction-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: var(--r-pill);
+        font-size: 0.68rem;
+        font-weight: 600;
+    }
+    .extraction-badge--full { background: var(--green-soft); color: var(--green); }
+    .extraction-badge--partial { background: var(--amber-soft); color: var(--amber); }
     .fulltext-reader-box__body {
         font-size: 0.88rem;
         line-height: 1.62;

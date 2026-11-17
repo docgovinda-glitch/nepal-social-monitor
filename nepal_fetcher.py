@@ -182,7 +182,7 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
         pass
     return ""
 
-def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_english: bool = True) -> list:
+def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_english: bool = False) -> list:
     """
     Extracts full article text in parallel and enriches articles with LexRank English
     headlines and summaries, persisting all enriched fields back to Supabase.

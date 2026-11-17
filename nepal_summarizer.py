@@ -1045,16 +1045,20 @@ def extract_on_demand_full_article(
     except Exception:
         pass
 
+    scraped_ok = False
     if _needs_body_scrape(work) and source_url.startswith("http"):
         try:
             from nepal_fetcher import extract_article_full_text
             fetched = extract_article_full_text(source_url, timeout=7)
             if fetched and len(fetched) > len((work.get("full_content") or "").strip()):
                 work["full_content"] = fetched
+                scraped_ok = True
         except Exception:
             pass
 
-    raw_body = (work.get("full_content") or work.get("summary") or raw_title or "").strip()
+    full_body = (work.get("full_content") or "").strip()
+    excerpt_body = (work.get("summary") or "").strip()
+    raw_body = (full_body or excerpt_body or raw_title or "").strip()
     # Clean paragraph breaks and strip trailing RSS boilerplate without collapsing paragraphs
     paras = []
     for p in re.split(r"\n\s*\n", raw_body.replace("\xa0", " ")):
@@ -1064,6 +1068,17 @@ def extract_on_demand_full_article(
             paras.append(cp)
     original_text = "\n\n".join(paras).strip() or raw_body
     lang_code = detect_text_language(original_text, declared_lang=work.get("language", ""))
+
+    # Distinguish full article extraction from incomplete/fallback excerpt extraction
+    if not original_text or original_text == raw_title:
+        extraction_status = "failed"
+        is_complete = False
+    elif scraped_ok or (len(full_body) > len(excerpt_body) + 80 and len(original_text) >= 260):
+        extraction_status = "full"
+        is_complete = True
+    else:
+        extraction_status = "partial"
+        is_complete = False
 
     translated_text = ""
     tr_error = ""
@@ -1081,7 +1096,9 @@ def extract_on_demand_full_article(
                 tr_error = "Translation service temporarily unavailable. Please try again."
 
     return {
-        "ok": bool(original_text),
+        "ok": bool(original_text) and extraction_status != "failed",
+        "is_complete": is_complete,
+        "extraction_status": extraction_status,
         "original_text": original_text,
         "translated_text": translated_text,
         "lang": lang_code,

@@ -223,8 +223,8 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
     if not target_batch:
         return 0
 
-    batch_fetch_full_content(target_batch, max_workers=12, summarize_english=True)
-    logger.info(f"Summary enrichment backfill completed for {len(target_batch)} articles.")
+    batch_fetch_full_content(target_batch, max_workers=12, summarize_english=False)
+    logger.info(f"Full-content backfill completed for {len(target_batch)} articles (on-demand AI briefs enabled).")
     return len(target_batch)
 
 
