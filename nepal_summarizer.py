@@ -58,7 +58,7 @@ _DATELINE_RE = re.compile(
     r"Edited\s+by\s+[^|\n।]{2,55}\s*"
     r"|"
     r"(?:By\s+[A-Z][a-zA-Z\.\-\s\(\)]{2,60}\s+)?"
-    r"(?:Published|Updated|Last\s+Updated)\s*:\s*(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*)?(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s*,?\s*\d{1,2}:\d{1,2}(?::\d{1,2})?\s*(?:am|pm|IST|NPT)?)?(?:\s*\([A-Z]{2,5}\))?\s*"
+    r"(?:Published|Updated|Last\s+Updated)\s*:\s*(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*)?(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s*,?\s*\d{1,2}:\d{1,2}(?::\d{1,2})?\s*(?:am|pm|IST|NPT)?)?(?:\s*[\(\[][A-Z]{2,5}[\)\]])?\s*"
     r"|"
     r"By\s+[A-Za-z\.\-\s\(\)\|]{2,60}(?=\s+(?:Published|The|A|In|Nepal|India|[A-Z][a-z]+|[\u0900-\u097F]))"
     r"|"
@@ -70,14 +70,14 @@ _DATELINE_RE = re.compile(
     r"|"
     r"[A-Za-z][A-Za-z\s\.,/\-]{1,35}(?:\[[^\]]{2,30}\])?(?:,?\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?)?\s*\([A-Z0-9/\-]{2,15}\)\s*[:\-–—]\s*"
     r"|"
-    r"[A-Z][A-Z\s\.\-]{1,22}\s*:\s*"
+    r"[A-Z][A-Z\s\.\-]{1,22}\s*[:/]\s*"
     r"|"
     r"(?:kathmandu|new\s+york|washington(?:\s+d\.?c\.?)?|mumbai|new\s+delhi|beijing|london|tokyo|geneva|antalya|"
     r"pokhara|chitwan|morang|biratnagar|birgunj|janakpur|lalitpur|bhaktapur|bardia|bardiya|tansen|sindhuli|"
     r"dhangadhi|butwal|hetauda|nepalgunj|surkhet|dhaka|islamabad|jamshedpur\s+news|bhagalpur\s+news|pti|ani|rss|ians|reuters|ap|afp)"
-    r"(?:\s*\[[^\]]{2,30}\])?(?:\s*,\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?|\s*,\s*[a-zA-Z0-9\s\.]+)?\s*[\.:\-–—|।]\s*"
+    r"(?:\s*\[[^\]]{2,30}\])?(?:\s*,\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?|\s*,\s*[a-zA-Z0-9\s\.]+)?\s*[\.:\-–—|।/]\s*"
     r"|"
-    r"(?:प्रभात\s+खबर\s+को\s+Google\s+पर\s+पसंदीदा\s+सोर्स\s+बनाएं\s*[→\-]*\s*|Make\s+Prabhat\s+Khabar\s+your\s+favorite\s+source\s+on\s+Google\s*[→\-]*\s*)"
+    r"(?:प्रभात\s+खबर\s+को\s+Google\s+पर\s+पसंदीदा\s+सोर्स\s+बनाएं\s*[→\-]*\s*|Make\s+Prabhat\s+Khabar\s+your\s+favorite\s+source\s+on\s+Google\s*[→\-]*\s*|Add\s+as\s+a\s+preferred\s+source\s+on\s+Google\s*)"
     r"|"
     r"(?:काठमाडौँ|काठमाडौं|पोखरा|विराटनगर|वीरगन्ज|जनकपुर(?:\s+धाम)?(?:/मुजफ्फरपुर)?|ललितपुर|लण्डन|नयाँदिल्ली|तानसेन|सिन्धुली|मधुबनी|रक्सौल|भागलपुर|अर्घाखाँची|घोराही)(?:\s+सड़क\s+मार्ग)?(?:,\s*[\u0900-\u097F\s०-९0-9]+)?\s*[:\-–—|।]\s*"
     r"|"
@@ -736,7 +736,12 @@ def _summary_needs_enrichment(art: Dict[str, Any]) -> bool:
         or (cur_title and _has_devanagari(cur_title) and (not cur_en_head or _has_devanagari(cur_en_head)))
     ):
         return True
-    if _DATELINE_RE.match(cur_sum) or cur_sum.startswith(("By ", "Author ", "Edited by ", "Published:", "Updated:")) or "favorite source on google" in cur_sum.lower():
+    if (
+        _DATELINE_RE.match(cur_sum)
+        or cur_sum.startswith(("By ", "Author ", "Edited by ", "Published:", "Updated:"))
+        or "favorite source on google" in cur_sum.lower()
+        or "preferred source on google" in cur_sum.lower()
+    ):
         return True
     if re.match(r"^[A-Z]{4,}:\s", cur_sum):
         return True

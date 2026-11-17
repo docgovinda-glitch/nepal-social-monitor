@@ -191,8 +191,10 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
     needs_sql = (
         "(summary IS NULL OR summary = '' OR summary = title OR summary LIKE '%...%' "
         "OR summary ~ '[\u0900-\u097F]' OR summary LIKE 'Author %' OR summary LIKE 'By %' "
-        "OR summary LIKE 'Edited by %' OR summary LIKE 'Kathmandu [%' "
-        "OR summary LIKE '%Prabhat Khabar your favorite source%' "
+        "OR summary LIKE 'Edited by %' OR summary LIKE 'Published:%' OR summary LIKE 'Updated:%' "
+        "OR summary LIKE 'Kathmandu [%' OR summary LIKE 'New Delhi [%' "
+        "OR summary LIKE 'Kathmandu/%' OR summary LIKE 'KATHMANDU/%' OR summary LIKE 'Nepalgunj - %' "
+        "OR summary LIKE '%Prabhat Khabar your favorite source%' OR summary LIKE '%preferred source on Google%' "
         "OR summary LIKE '%appeared first on%' "
         "OR headline_english IS NULL OR headline_english = '' OR headline_english ~ '[\u0900-\u097F]')"
     )
