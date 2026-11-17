@@ -257,12 +257,28 @@ def batch_upsert_articles(
                 END,
                 summary = CASE
                     WHEN COALESCE(EXCLUDED.summary, '') <> ''
-                         AND (COALESCE(articles.summary, '') = '' OR articles.summary = articles.title OR articles.summary LIKE '%...' OR articles.summary ~ '[\u0900-\u097F]')
+                         AND NOT (EXCLUDED.summary ~ '[\u0900-\u097F]')
+                         AND (
+                             COALESCE(articles.summary, '') = ''
+                             OR articles.summary = articles.title
+                             OR articles.summary LIKE '%...%'
+                             OR articles.summary LIKE '%appeared first on%'
+                             OR articles.summary LIKE 'Author %'
+                             OR articles.summary LIKE 'By %'
+                             OR articles.summary LIKE 'Edited by %'
+                             OR articles.summary LIKE 'Kathmandu [%'
+                             OR articles.summary ~ '[\u0900-\u097F]'
+                         )
                     THEN EXCLUDED.summary
                     ELSE articles.summary
                 END,
                 headline_english = CASE
                     WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
+                         AND NOT (EXCLUDED.headline_english ~ '[\u0900-\u097F]')
+                         AND (
+                             COALESCE(articles.headline_english, '') = ''
+                             OR articles.headline_english ~ '[\u0900-\u097F]'
+                         )
                     THEN EXCLUDED.headline_english
                     ELSE articles.headline_english
                 END;
@@ -486,17 +502,52 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
             END,
             summary = CASE
                 WHEN COALESCE(EXCLUDED.summary, '') <> ''
-                     AND (COALESCE(indian_media_articles.summary, '') = '' OR indian_media_articles.summary = indian_media_articles.title OR indian_media_articles.summary LIKE '%...' OR indian_media_articles.summary ~ '[\u0900-\u097F]')
+                     AND NOT (EXCLUDED.summary ~ '[\u0900-\u097F]')
+                     AND (
+                         COALESCE(indian_media_articles.summary, '') = ''
+                         OR indian_media_articles.summary = indian_media_articles.title
+                         OR indian_media_articles.summary LIKE '%...%'
+                         OR indian_media_articles.summary LIKE '%appeared first on%'
+                         OR indian_media_articles.summary LIKE 'Author %'
+                         OR indian_media_articles.summary LIKE 'By %'
+                         OR indian_media_articles.summary LIKE 'Edited by %'
+                         OR indian_media_articles.summary LIKE 'Kathmandu [%'
+                         OR indian_media_articles.summary ~ '[\u0900-\u097F]'
+                     )
                 THEN EXCLUDED.summary
                 ELSE indian_media_articles.summary
             END,
             headline_english = CASE
                 WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
+                     AND NOT (EXCLUDED.headline_english ~ '[\u0900-\u097F]')
+                     AND (
+                         COALESCE(indian_media_articles.headline_english, '') = ''
+                         OR indian_media_articles.headline_english ~ '[\u0900-\u097F]'
+                     )
                 THEN EXCLUDED.headline_english
                 ELSE indian_media_articles.headline_english
             END;
         """
         query_supabase(sql)
+
+
+def hydrate_article_full_content(art: Dict[str, Any]) -> None:
+    """Fetches stored full_content from Supabase if omitted by feed projection."""
+    if not art or (art.get("full_content") and len(str(art.get("full_content")).strip()) >= 350):
+        return
+    stream = (art.get("stream") or art.get("portal_category") or "").lower()
+    table = "indian_media_articles" if "indian" in stream or "nepal_relevance_score" in art else "articles"
+    cid = (art.get("canonical_id") or "").strip()
+    link = (art.get("link") or "").strip()
+    if cid:
+        where = f"canonical_id = {esc_sql(cid)}"
+    elif link:
+        where = f"link = {esc_sql(link)}"
+    else:
+        return
+    rows = query_supabase(f"SELECT full_content FROM {table} WHERE {where} LIMIT 1;")
+    if rows and rows[0].get("full_content"):
+        art["full_content"] = rows[0]["full_content"]
 
 
 def persist_enriched_full_content(articles: List[Dict[str, Any]]):
@@ -519,7 +570,7 @@ def persist_enriched_full_content(articles: List[Dict[str, Any]]):
             updates.append(
                 f"full_content = CASE WHEN LENGTH(COALESCE(full_content, '')) < {len(fc)} THEN {esc_sql(fc)} ELSE full_content END"
             )
-        if en_head:
+        if en_head and not any(0x0900 <= ord(ch) <= 0x097F for ch in en_head):
             updates.append(f"headline_english = {esc_sql(en_head)}")
         if summ and not summ.endswith("...") and not any(0x0900 <= ord(ch) <= 0x097F for ch in summ):
             updates.append(f"summary = {esc_sql(summ)}")
@@ -527,7 +578,7 @@ def persist_enriched_full_content(articles: List[Dict[str, Any]]):
         if updates:
             cid = (a.get("canonical_id") or "").strip()
             if cid:
-                stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE canonical_id = {esc_sql(cid)};")
+                stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE canonical_id = {esc_sql(cid)} OR link = {esc_sql(link)};")
             else:
                 stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE link = {esc_sql(link)};")
 

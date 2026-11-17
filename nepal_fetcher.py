@@ -195,10 +195,12 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_en
         title = (art.get("title") or "").strip()
         needs_body = (
             len(existing_fc) < 400
+            or "..." in existing_fc
+            or "appeared first on" in existing_fc.lower()
             or existing_fc == summary
             or existing_fc == title
             or summary == title
-            or summary.endswith("...")
+            or "..." in summary
         )
         if link in FULL_ARTICLE_TEXT_CACHE and len(FULL_ARTICLE_TEXT_CACHE[link]) > max(len(existing_fc), 400):
             art["full_content"] = FULL_ARTICLE_TEXT_CACHE[link]
@@ -1177,9 +1179,7 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
         # Enrich all newly discovered items with full body + LexRank English summary before persistence
         if items:
             try:
-                batch_fetch_full_content(items[:20], max_workers=10, summarize_english=True)
-                if len(items) > 20:
-                    enrich_articles_with_english_summaries(items[20:], max_workers=10)
+                batch_fetch_full_content(items, max_workers=12, summarize_english=True)
             except Exception:
                 pass
 

@@ -180,48 +180,48 @@ def run_historical_backfill(
         "details": results
     }
 
-def run_summary_enrichment_backfill(batch_size: int = 60) -> int:
+def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
     """
     Finds recent Nepali Media and Indian Press articles lacking clean English summaries
     or English headlines, extracts full body text, and generates LexRank English briefs.
     """
     from nepal_fetcher import batch_fetch_full_content
+    from nepal_summarizer import _summary_needs_enrichment
 
-    def _needs_enrichment(row: Dict[str, Any]) -> bool:
-        title = (row.get("title") or "").strip()
-        summ = (row.get("summary") or "").strip()
-        en_head = (row.get("headline_english") or "").strip()
-        if not summ or summ == title or summ.endswith("...") or _has_devanagari(summ):
-            return True
-        if title and _has_devanagari(title) and (not en_head or _has_devanagari(en_head)):
-            return True
-        return False
+    needs_sql = (
+        "(summary IS NULL OR summary = '' OR summary = title OR summary LIKE '%...%' "
+        "OR summary ~ '[\u0900-\u097F]' OR summary LIKE 'Author %' OR summary LIKE 'By %' "
+        "OR summary LIKE 'Edited by %' OR summary LIKE 'Kathmandu [%' "
+        "OR summary LIKE '%Prabhat Khabar your favorite source%' "
+        "OR summary LIKE '%appeared first on%' "
+        "OR headline_english IS NULL OR headline_english = '' OR headline_english ~ '[\u0900-\u097F]')"
+    )
 
     np_rows = query_supabase(
         "SELECT canonical_id, source, title, headline_english, link, summary, full_content, language "
-        "FROM articles ORDER BY published_dt DESC LIMIT 250;"
+        f"FROM articles WHERE {needs_sql} ORDER BY published_dt DESC LIMIT {int(batch_size)};"
     )
     in_rows = query_supabase(
         "SELECT canonical_id, source, title, headline_english, link, summary, full_content, language "
         "FROM indian_media_articles WHERE relevance_status IN ('substantive', 'relevant') "
-        "ORDER BY published_dt DESC LIMIT 150;"
+        f"AND {needs_sql} ORDER BY published_dt DESC LIMIT {int(batch_size)};"
     )
 
     candidates: List[Dict[str, Any]] = []
-    for r in np_rows:
-        r["stream"] = "Nepali Media"
-        if _needs_enrichment(r):
-            candidates.append(r)
     for r in in_rows:
         r["stream"] = "Indian Press"
-        if _needs_enrichment(r):
+        if _summary_needs_enrichment(r):
+            candidates.append(r)
+    for r in np_rows:
+        r["stream"] = "Nepali Media"
+        if _summary_needs_enrichment(r):
             candidates.append(r)
 
     target_batch = candidates[:batch_size]
     if not target_batch:
         return 0
 
-    batch_fetch_full_content(target_batch, max_workers=20, summarize_english=True)
+    batch_fetch_full_content(target_batch, max_workers=12, summarize_english=True)
     logger.info(f"Summary enrichment backfill completed for {len(target_batch)} articles.")
     return len(target_batch)
 

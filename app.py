@@ -431,14 +431,15 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
 
     # Safety-net on-the-fly LexRank + translation enrichment if a record lacks a clean English brief
     if _summary_needs_enrichment(item):
-        enrich_articles_with_english_summaries([item], max_workers=1)
         try:
-            from nepal_news_store import persist_enriched_full_content
+            from nepal_news_store import hydrate_article_full_content, persist_enriched_full_content
             if is_indian:
                 item["stream"] = "Indian Press"
+            hydrate_article_full_content(item)
+            enrich_articles_with_english_summaries([item], max_workers=1)
             persist_enriched_full_content([item])
         except Exception:
-            pass
+            enrich_articles_with_english_summaries([item], max_workers=1)
         headline_en = (item.get("headline_english") or "").strip()
         summary = (item.get("summary") or "").strip()
 
