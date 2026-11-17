@@ -728,6 +728,74 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     .extraction-badge--full { background: var(--green-soft); color: var(--green); }
     .extraction-badge--partial { background: var(--amber-soft); color: var(--amber); }
+
+    /* Minimalist Share Modal */
+    .share-modal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .share-modal-type {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--label-2);
+    }
+    .share-modal-pills {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .share-draft-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 9px;
+        border-radius: var(--r-pill);
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .share-draft-pill--saved { background: var(--surface-muted); color: var(--label-2); }
+    .share-draft-pill--unsaved { background: var(--amber-soft); color: var(--amber); }
+    .share-draft-pill--sent { background: var(--green-soft); color: var(--green); }
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: max-content !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
+        margin-left: auto !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) .stButton > button {
+        height: 36px !important;
+        min-height: 36px !important;
+        border-radius: 10px !important;
+        padding: 0 12px !important;
+        font-size: 0.83rem !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) .stButton > button[kind="primary"] {
+        background: #0066CC !important;
+        color: #FFFFFF !important;
+        border-color: #0066CC !important;
+        padding: 0 16px !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) .stButton > button[kind="primary"]:hover {
+        background: #0052A3 !important;
+        border-color: #0052A3 !important;
+    }
     .fulltext-reader-box__body {
         font-size: 0.88rem;
         line-height: 1.62;

@@ -558,10 +558,20 @@ def sidebar_section(title: str, badge: str = "") -> None:
     badge_html = f'<span class="sb-section__badge">{html.escape(badge)}</span>' if badge else ""
     st.markdown(f'<div class="sb-section"><span class="sb-section__title">{html.escape(title)}</span>{badge_html}</div>', unsafe_allow_html=True)
 
-def _render_copy_button(text_to_copy: str, uid: str) -> None:
+def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) -> None:
     """Renders a single-click browser clipboard button matching the Apple HIG button style."""
     js_payload = json.dumps(text_to_copy)
     btn_id = f"cp_{uid}"
+    default_html = (
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>'
+        '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
+        if icon_only
+        else "📋 Copy"
+    )
+    copied_html = "✓" if icon_only else "✓ Copied"
+    btn_width = 40 if icon_only else 100
     components.html(
         f"""
         <!DOCTYPE html>
@@ -596,16 +606,18 @@ def _render_copy_button(text_to_copy: str, uid: str) -> None:
         </style>
         </head>
         <body>
-            <button id="{btn_id}" class="cp-btn" type="button" onclick="copyUnified()">📋 Copy</button>
+            <button id="{btn_id}" class="cp-btn" type="button" title="Copy content and full source URL" aria-label="Copy content and full source URL" onclick="copyUnified()">{default_html}</button>
             <script>
             const TEXT = {js_payload};
+            const DEFAULT_HTML = {json.dumps(default_html)};
+            const COPIED_HTML = {json.dumps(copied_html)};
             function copyUnified() {{
                 const btn = document.getElementById("{btn_id}");
                 const markCopied = () => {{
-                    btn.textContent = "✓ Copied";
+                    btn.innerHTML = COPIED_HTML;
                     btn.classList.add("copied");
                     setTimeout(() => {{
-                        btn.textContent = "📋 Copy";
+                        btn.innerHTML = DEFAULT_HTML;
                         btn.classList.remove("copied");
                     }}, 2000);
                 }};
@@ -630,7 +642,7 @@ def _render_copy_button(text_to_copy: str, uid: str) -> None:
         </html>
         """,
         height=38,
-        width=100,
+        width=btn_width,
     )
 
 
@@ -778,7 +790,7 @@ def _show_read_in_app_dialog() -> None:
                 st.rerun()
 
 
-@st.dialog("Share", width="large", icon=":material/share:", on_dismiss=_clear_active_modal)
+@st.dialog("Share", width="medium", icon=":material/share:", on_dismiss=_clear_active_modal)
 def _show_share_dialog() -> None:
     ctx = st.session_state.get("active_modal") or {}
     item = ctx.get("item") or {}
@@ -788,145 +800,252 @@ def _show_share_dialog() -> None:
     item_link = (ctx.get("item_link") or item.get("link") or "").strip()
 
     st.session_state.setdefault("ondemand_generated", {})
-    st.session_state.setdefault("ondemand_edit_mode", {})
-    st.session_state.setdefault("ondemand_confirmed", {})
+    st.session_state.setdefault("share_drafts", {})
     st.session_state.setdefault("wa_sent_registry", set())
     st.session_state.setdefault("wa_item_status", {})
 
     if is_x:
         raw_x_txt = (item.get("text") or item.get("title") or "").strip()
         x_lang = detect_text_language(raw_x_txt)
-        box_eyebrow = "Complete X Post" if x_lang == "en" else "English Translation"
+        content_type_lbl = "Complete X Post" if x_lang == "en" else "X Translation"
     else:
-        box_eyebrow = "English Brief"
+        content_type_lbl = "English Brief"
 
     generated = st.session_state["ondemand_generated"].get(cache_id)
     if not generated:
-        with st.spinner("Generating English content…"):
+        with st.spinner("Generating…"):
             generated = _generate_unified_item_content(item, is_x=is_x)
             st.session_state["ondemand_generated"][cache_id] = generated
-            st.session_state["ondemand_confirmed"][cache_id] = False
-            st.session_state["ondemand_edit_mode"][cache_id] = False
-
-    is_editing = bool(st.session_state["ondemand_edit_mode"].get(cache_id, False))
-    is_confirmed = bool(st.session_state["ondemand_confirmed"].get(cache_id, False))
-    persisted_sent = _get_wa_sent_map().get(cache_id)
-
-    if persisted_sent:
-        sent_gname = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
-        sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
-        sent_id = html.escape(str(persisted_sent.get("id_message") or ""))
-        ts_part = f" · {html.escape(sent_ts)}" if sent_ts else ""
-        st.markdown(
-            f'<div class="wa-already-sent-notice" title="Green API Message ID: {sent_id}">'
-            f'✓ Notice: Already sent to <strong>{sent_gname}</strong>{ts_part} (avoid duplicate distribution)'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
 
     if not generated or not generated.get("ok"):
         st.error((generated or {}).get("error") or "Could not generate English output for this item.")
-        if st.button("Close", icon=":material/close:", key=f"dlg_sh_err_cls_{item_uid}"):
+        if st.button("", icon=":material/close:", key=f"dlg_sh_err_cls_{item_uid}", help="Close"):
             st.session_state["active_modal"] = None
             st.rerun()
         return
 
     src_url = generated.get("source_url", "")
-    if is_editing:
-        st.caption(f"Editing {box_eyebrow} (original feed item is untouched; Source URL is preserved):")
+    draft = st.session_state["share_drafts"].get(cache_id)
+    if not draft:
+        init_text = (generated.get("content") or "").strip()
+        draft = {
+            "original_content": init_text,
+            "saved_content": init_text,
+            "draft_content": init_text,
+            "source_url": src_url,
+            "version": 1,
+            "saved_at": "",
+            "is_editing": False,
+            "close_guard": False,
+            "unsaved_send_warn": False,
+        }
+        st.session_state["share_drafts"][cache_id] = draft
+
+    ta_key = f"dlg_ta_edit_{item_uid}"
+    if draft.get("is_editing") and ta_key in st.session_state:
+        draft["draft_content"] = str(st.session_state[ta_key] or "")
+
+    saved_text = (draft.get("saved_content") or "").strip()
+    current_draft_text = (draft.get("draft_content") or "").strip()
+    has_unsaved = current_draft_text != saved_text
+    active_text = current_draft_text if has_unsaved else saved_text
+    saved_formatted = f"{saved_text}\n\nSource: {src_url}" if src_url else saved_text
+    current_formatted = f"{active_text}\n\nSource: {src_url}" if src_url else active_text
+
+    persisted_sent = _get_wa_sent_map().get(cache_id)
+    ver = int(draft.get("version") or 1)
+    saved_at = draft.get("saved_at") or ""
+
+    status_pill = (
+        '<span class="share-draft-pill share-draft-pill--unsaved">● Unsaved</span>'
+        if has_unsaved
+        else (
+            f'<span class="share-draft-pill share-draft-pill--saved">✓ Saved v{ver} · {html.escape(saved_at)}</span>'
+            if saved_at
+            else f'<span class="share-draft-pill share-draft-pill--saved">Draft v{ver}</span>'
+        )
+    )
+    sent_pill = ""
+    if persisted_sent:
+        gname_esc = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+        ts_str = _format_wa_sent_time(persisted_sent.get("sent_at"))
+        msg_id_esc = html.escape(str(persisted_sent.get("id_message") or ""))
+        ts_txt = f" · {html.escape(ts_str)}" if ts_str else ""
+        sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
+
+    st.markdown('<div class="share-modal-anchor"></div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="share-modal-head">'
+        f'<span class="share-modal-type">{html.escape(content_type_lbl)}</span>'
+        f'<span class="share-modal-pills">{status_pill}{sent_pill}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    if draft.get("is_editing"):
         edited_val = st.text_area(
-            f"Edit {box_eyebrow}",
-            value=generated["content"],
-            height=160,
-            key=f"dlg_ta_edit_{item_uid}",
+            f"Edit {content_type_lbl}",
+            value=draft["draft_content"],
+            height=150,
+            key=ta_key,
             label_visibility="collapsed",
         )
+        draft["draft_content"] = edited_val or ""
+        current_draft_text = draft["draft_content"].strip()
+        has_unsaved = current_draft_text != saved_text
         if src_url:
-            st.caption(f"Source: {src_url}")
-        ec1, ec2 = st.columns(2, gap="small")
+            st.markdown(
+                f'<div class="unified-brief-box__source" style="border-top:none;padding-top:2px;margin-bottom:6px;">'
+                f'Source: <a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>',
+                unsafe_allow_html=True,
+            )
+        ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
         with ec1:
-            if st.button("Save", icon=":material/save:", type="primary", key=f"dlg_save_edit_{item_uid}"):
-                clean_edit = (edited_val or "").strip()
-                if clean_edit:
-                    generated["content"] = clean_edit
-                    generated["formatted_text"] = f"{clean_edit}\n\nSource: {src_url}" if src_url else clean_edit
-                    st.session_state["ondemand_generated"][cache_id] = generated
-                    st.session_state["ondemand_confirmed"][cache_id] = False
-                    st.session_state["ondemand_edit_mode"][cache_id] = False
+            if st.button("Save", icon=":material/save:", type="primary", key=f"dlg_save_edit_{item_uid}", help="Save draft without sending"):
+                if current_draft_text:
+                    if current_draft_text != saved_text:
+                        draft["saved_content"] = current_draft_text
+                        draft["version"] = ver + 1
+                        draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+                    draft["draft_content"] = draft["saved_content"]
+                    draft["is_editing"] = False
+                    draft["unsaved_send_warn"] = False
+                    draft["close_guard"] = False
+                    generated["content"] = draft["saved_content"]
+                    generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
                     st.rerun()
         with ec2:
-            if st.button("Cancel", icon=":material/close:", key=f"dlg_cancel_edit_{item_uid}"):
-                st.session_state["ondemand_edit_mode"][cache_id] = False
+            if st.button("", icon=":material/close:", key=f"dlg_cancel_edit_{item_uid}", help="Discard unsaved edits"):
+                draft["draft_content"] = draft["saved_content"]
+                draft["is_editing"] = False
+                draft["unsaved_send_warn"] = False
                 st.rerun()
         return
 
-    body_html = html.escape(generated["content"])
     src_html = (
         f'<div class="unified-brief-box__source">Source: '
         f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
         if src_url
         else ""
     )
-    conf_badge = " · ✓ Confirmed" if is_confirmed else " · Pending Confirmation"
     st.markdown(
         f'<div class="unified-brief-box">'
-        f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow + conf_badge)}</div>'
-        f'<div class="unified-brief-box__body">{body_html}</div>'
+        f'<div class="unified-brief-box__body">{html.escape(active_text)}</div>'
         f'{src_html}'
         f'</div>',
         unsafe_allow_html=True,
     )
 
-    wa_clicked = False
-    c1, c2, c3, c4 = st.columns(4, gap="small")
-    with c1:
-        if not is_confirmed:
-            if st.button(
-                "Confirm to Send",
-                icon=":material/check_circle:",
-                type="primary",
-                key=f"dlg_conf_{item_uid}",
-                help="Confirm text before sending to Media Monitor",
-            ):
-                st.session_state["ondemand_confirmed"][cache_id] = True
+    if draft.get("close_guard") and has_unsaved:
+        st.warning("Save changes before closing?")
+        g1, g2, g3 = st.columns(3, gap="small")
+        with g1:
+            if st.button("Save & Close", icon=":material/save:", type="primary", key=f"dlg_sc_{item_uid}"):
+                if current_draft_text:
+                    draft["saved_content"] = current_draft_text
+                    draft["version"] = ver + 1
+                    draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+                    generated["content"] = draft["saved_content"]
+                    generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
+                draft["close_guard"] = False
+                st.session_state["active_modal"] = None
                 st.rerun()
-        else:
-            wa_clicked = st.button(
-                "WhatsApp",
-                icon=":material/send:",
-                type="primary",
-                key=f"dlg_wa_{item_uid}",
-                help="Send confirmed content to Media Monitor",
-            )
-    with c2:
-        _render_copy_button(generated["formatted_text"], uid=f"dlg_{item_uid}")
-    with c3:
-        if st.button("Edit", icon=":material/edit:", key=f"dlg_edit_{item_uid}"):
-            st.session_state["ondemand_edit_mode"][cache_id] = True
-            st.rerun()
-    with c4:
-        if st.button("Close", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}"):
-            st.session_state["active_modal"] = None
-            st.rerun()
+        with g2:
+            if st.button("Discard", icon=":material/delete_outline:", key=f"dlg_dc_{item_uid}"):
+                draft["draft_content"] = draft["saved_content"]
+                draft["close_guard"] = False
+                st.session_state["active_modal"] = None
+                st.rerun()
+        with g3:
+            if st.button("Keep Editing", icon=":material/edit:", key=f"dlg_ke_{item_uid}"):
+                draft["close_guard"] = False
+                draft["is_editing"] = True
+                st.rerun()
+        return
 
-    if wa_clicked and is_confirmed:
-        dest = _get_cached_wa_dest()
+    if draft.get("unsaved_send_warn") and has_unsaved:
+        st.warning("Unsaved edits exist. Save or discard them before sending.")
+        u1, u2 = st.columns(2, gap="small")
+        with u1:
+            if st.button("Save Draft", icon=":material/save:", type="primary", key=f"dlg_sd_{item_uid}"):
+                if current_draft_text:
+                    draft["saved_content"] = current_draft_text
+                    draft["version"] = ver + 1
+                    draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+                    generated["content"] = draft["saved_content"]
+                    generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
+                draft["unsaved_send_warn"] = False
+                st.rerun()
+        with u2:
+            if st.button("Discard Edits", icon=":material/undo:", key=f"dlg_dd_{item_uid}"):
+                draft["draft_content"] = draft["saved_content"]
+                draft["unsaved_send_warn"] = False
+                st.rerun()
+
+    dest = _get_cached_wa_dest()
+    dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+
+    c_copy, c_edit, c_save, c_cls, c_send = st.columns([1, 1, 1, 1, 3], gap="small")
+    with c_copy:
+        _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=True)
+    with c_edit:
+        if st.button("", icon=":material/edit:", key=f"dlg_edit_{item_uid}", help="Edit draft"):
+            draft["is_editing"] = True
+            draft["close_guard"] = False
+            draft["unsaved_send_warn"] = False
+            st.rerun()
+    with c_save:
+        if st.button(
+            "",
+            icon=":material/save:",
+            key=f"dlg_save_bar_{item_uid}",
+            disabled=not has_unsaved,
+            help="Save current draft without sending" if has_unsaved else "All changes saved",
+        ):
+            if current_draft_text:
+                draft["saved_content"] = current_draft_text
+                draft["version"] = ver + 1
+                draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+                draft["unsaved_send_warn"] = False
+                generated["content"] = draft["saved_content"]
+                generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
+                st.rerun()
+    with c_cls:
+        if st.button("", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close"):
+            if has_unsaved:
+                draft["close_guard"] = True
+                st.rerun()
+            else:
+                st.session_state["active_modal"] = None
+                st.rerun()
+    with c_send:
+        send_clicked = st.button(
+            "Confirm to Send",
+            icon=":material/send:",
+            type="primary",
+            key=f"dlg_conf_{item_uid}",
+            help=f"Send latest saved draft (v{ver}) to {dest_name}",
+        )
+
+    if send_clicked:
+        if has_unsaved:
+            draft["unsaved_send_warn"] = True
+            st.rerun()
         selected_gid = dest.get("id", "") if dest.get("ok") else ""
-        selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
         wa_res = send_wa_group_message(
             chat_id=selected_gid,
-            message=generated["formatted_text"],
+            message=saved_formatted,
             session_approved=True,
             sent_registry=st.session_state["wa_sent_registry"],
         )
-        wa_res["group_name"] = selected_gname
+        wa_res["group_name"] = dest_name
         st.session_state["wa_item_status"][cache_id] = wa_res
         if wa_res.get("ok") and wa_res.get("accepted"):
             try:
                 record_whatsapp_sent(
                     item_key=cache_id,
                     group_id=selected_gid,
-                    group_name=selected_gname,
+                    group_name=dest_name,
                     id_message=str(wa_res.get("id_message") or ""),
                     item_link=item_link,
                 )
@@ -939,15 +1058,15 @@ def _show_share_dialog() -> None:
     if wa_status:
         st_code = wa_status.get("status")
         if wa_status.get("ok") and wa_status.get("accepted"):
-            gname = html.escape(wa_status.get("group_name") or "Media Monitor")
+            gname = html.escape(wa_status.get("group_name") or dest_name)
             msg_id = html.escape(str(wa_status.get("id_message") or ""))
-            st.success(f"✓ Accepted by Green API for {gname} · Message ID: {msg_id}")
+            st.success(f"✓ Accepted by Green API for {gname} · ID: {msg_id}")
         elif st_code == "inactive":
             st.info(wa_status.get("error"))
         elif st_code == "duplicate_prevented":
             st.warning(wa_status.get("error"))
         else:
-            st.error(wa_status.get("error") or "Failed to send WhatsApp message.")
+            st.error(f"{wa_status.get('error') or 'Failed to send WhatsApp message.'} Your draft is preserved — click Confirm to Send to retry.")
 
 
 def render_feed_item_with_actions(
