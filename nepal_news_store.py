@@ -514,13 +514,15 @@ def persist_enriched_full_content(articles: List[Dict[str, Any]]):
             )
         if en_head:
             updates.append(f"headline_english = {esc_sql(en_head)}")
-        if summ and not summ.endswith("..."):
-            updates.append(f"summary = {esc_sql(summ)}")
-        elif summ and not any(0x0900 <= ord(ch) <= 0x097F for ch in summ):
+        if summ and not summ.endswith("...") and not any(0x0900 <= ord(ch) <= 0x097F for ch in summ):
             updates.append(f"summary = {esc_sql(summ)}")
 
         if updates:
-            stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE link = {esc_sql(link)};")
+            cid = (a.get("canonical_id") or "").strip()
+            if cid:
+                stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE canonical_id = {esc_sql(cid)};")
+            else:
+                stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE link = {esc_sql(link)};")
 
     chunk_size = 25
     for i in range(0, len(stmts), chunk_size):

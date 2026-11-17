@@ -5,9 +5,12 @@ Zero external AI models, zero Ollama, zero paid APIs. Pure Python deterministic 
 """
 
 import re
+import ssl
 import html
 import math
 import json
+import time
+import threading
 import urllib.request
 import urllib.parse
 import concurrent.futures
@@ -15,6 +18,8 @@ from collections import Counter
 from typing import List, Dict, Any
 
 _TRANSLATION_CACHE: Dict[str, str] = {}
+_SSL_CTX = ssl._create_unverified_context()
+_TRANSLATE_SEM = threading.Semaphore(6)
 
 _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "can",
@@ -39,9 +44,11 @@ _INSTITUTIONAL_TERMS = {
 
 _DATELINE_RE = re.compile(
     r"^\s*(?:"
+    r"(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{1,2}(?::\d{1,2})?)?\s*"
+    r"|"
     r"(?:by\s+)?[a-z\s]+\s*\|\s*(?:bureau|desk|correspondent|team)\s*"
     r"|"
-    r"(?:kathmandu|new delhi|pokhara|biratnagar|birgunj|janakpur|lalitpur|bhaktapur|"
+    r"(?:kathmandu|new delhi|pokhara|biratnagar|birgunj|janakpur|lalitpur|bhaktapur|bardia|bardiya|"
     r"london|washington|beijing|dhaka|islamabad|jamshedpur\s+news|pti|ani|rss|ians|reuters|ap|afp)"
     r"(?:\s*,\s*[a-zA-Z0-9\s\.]+)?\s*[:\-–—|।]\s*"
     r"|"
@@ -49,7 +56,7 @@ _DATELINE_RE = re.compile(
     r"\s*[:\-–—|।]\s*"
     r"|"
     r"\d{1,2}\s+[\u0900-\u097F]+\s*,\s*[\u0900-\u097F]+\s*[।:]\s*"
-    r")",
+    r")+",
     re.IGNORECASE,
 )
 
@@ -60,6 +67,89 @@ _BOILERPLATE_TAIL_RE = re.compile(
 )
 
 
+_DEVANAGARI_PRE_MAP = [
+    ("वालेन्द्र", "बालेन्द्र"),
+    ("वालेंन", "बालेन"),
+    ("वालेन", "बालेन"),
+    ("वालुवाटार", "बालुवाटार"),
+    ("सुर्यविनायक", "सूर्यबिनायक"),
+    ("सूर्यविनायक", "सूर्यबिनायक"),
+    ("वीरगन्ज", "बिरगन्ज"),
+    ("बीरगन्ज", "बिरगन्ज"),
+    ("विराटनगर", "बिराटनगर"),
+    ("देउवा", "देउबा"),
+    ("रास्वपा", "राष्ट्रिय स्वतन्त्र पार्टी (RSP)"),
+    ("नेकपा एमाले", "CPN-UML"),
+    ("नेकपा (एमाले)", "CPN-UML"),
+    ("माओवादी केन्द्र", "CPN (Maoist Centre)"),
+]
+
+_ENGLISH_PROPER_NOUN_PATTERNS = [
+    (re.compile(r"\b[WV]alendra\b"), "Balendra"),
+    (re.compile(r"\b[WV]alen\b"), "Balen"),
+    (re.compile(r"\b[WV]aluwatar\b"), "Baluwatar"),
+    (re.compile(r"\bDeu[wv]a\b"), "Deuba"),
+    (re.compile(r"\bRavi\s+Lamichhane\b"), "Rabi Lamichhane"),
+    (re.compile(r"\bPrachand\b"), "Prachanda"),
+    (re.compile(r"\bSuryavinayak\b"), "Suryabinayak"),
+    (re.compile(r"\b(?:Veerganj|Virgunj|Birganj)\b"), "Birgunj"),
+    (re.compile(r"\b(?:Viratnagar|Wiratnagar)\b"), "Biratnagar"),
+    (re.compile(r"\bBardia\b"), "Bardiya"),
+    (re.compile(r"\bGulria\b"), "Gulariya"),
+    (re.compile(r"\b(?:Singhadarbar|Singha\s+Darbar|Lion\s+Palace)\b", re.I), "Singha Durbar"),
+    (re.compile(r"\b(?:Shital\s+Niwas|Cold\s+Residence)\b", re.I), "Sheetal Niwas"),
+    (re.compile(r"\bNepalese\b"), "Nepali"),
+    (re.compile(r"\b1\s+million\s+gifts\b", re.I), "Rs 1 million prize"),
+    (re.compile(r"\b10\s+lakhs?\b", re.I), "Rs 1 million"),
+    (re.compile(r"\b(\d+)\s+lakh\s+prize\b", re.I), r"Rs \1 lakh prize"),
+]
+
+_DANGLING_LEAD_PREFIX_RE = re.compile(
+    r"^(?:This\s+time,\s+|Meanwhile,\s+|According\s+to\s+(?:him|her|them),\s+|"
+    r"Similarly,\s+|In\s+this\s+regard,\s+|On\s+the\s+other\s+hand,\s+|However,\s+)",
+    re.IGNORECASE,
+)
+
+_FINITE_VERB_RE = re.compile(
+    r"\b(?:is|are|was|were|be|been|has|have|had|will|would|can|could|may|might|must|shall|should|"
+    r"said|says|stated|announced|reported|held|won|lost|died|started|reached|approved|signed|"
+    r"demanded|warned|urged|decided|arrested|launched|issued|passed|failed|increased|decreased|"
+    r"honored|honoured|celebrated|visited|met|addressed|directed|formed|appointed|suspended|"
+    r"investigated|found|showed|revealed|confirmed|denied|rejected|agreed|proposed|began|ended|"
+    r"continues|continued|remained|became|become|took|made|gave|got|went|came|rose|fell|hit|"
+    r"[a-z]{3,}ed|[a-z]{3,}ing)\b",
+    re.IGNORECASE,
+)
+
+
+_BS_NEPALI_DATE_RE = re.compile(
+    r"^\s*(?:बैशाख|वैशाख|जेठ|जेष्ठ|असार|आषाढ|साउन|श्रावण|भदौ|भाद्र|असोज|आश्विन|कात्तिक|कार्तिक|मंसिर|मङ्सिर|मार्ग|पुस|पौष|माघ|फागुन|फाल्गुण|चैत|चैत्र)"
+    r"\s+[०-९0-9]{1,2}\s*,?\s*[०-९0-9]{4}(?:\s+(?:आइतबार|सोमबार|मंगलबार|मङ्गलबार|बुधबार|बिहिबार|बिहीबार|शुक्रबार|शनिबार))?"
+    r"(?:\s+[०-९0-9]{1,2}:[०-९0-9]{1,2}(?::[०-९0-9]{1,2})?)?\s*",
+    re.UNICODE,
+)
+
+
+def _normalize_devanagari_before_translation(text: str) -> str:
+    """Strips Nepali BS date headers and normalizes proper-noun variations before translation."""
+    if not text:
+        return text
+    out = _BS_NEPALI_DATE_RE.sub("", text).strip()
+    for src, dst in _DEVANAGARI_PRE_MAP:
+        out = out.replace(src, dst)
+    return out
+
+
+def normalize_english_proper_nouns(text: str) -> str:
+    """Corrects machine-translated Nepali/Hindi proper nouns and terminology in English output."""
+    if not text:
+        return ""
+    out = text
+    for pat, repl in _ENGLISH_PROPER_NOUN_PATTERNS:
+        out = pat.sub(repl, out)
+    return re.sub(r"\s+", " ", out).strip()
+
+
 def _has_devanagari(text: str) -> bool:
     """Returns True if text contains Devanagari characters."""
     if not text:
@@ -67,19 +157,73 @@ def _has_devanagari(text: str) -> bool:
     return any(0x0900 <= ord(ch) <= 0x097F for ch in text)
 
 
-def _translate_ne_to_en(text: str, timeout: int = 5) -> str:
-    """Translates Nepali or Hindi (Devanagari) text into clean English using standard web translation."""
+def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 5) -> str:
+    """3-tier zero-key translation failover: clients5 -> gtx -> MyMemory."""
+    q = urllib.parse.quote(chunk)
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+
+    # Tier 1: clients5 dict-chrome-ex endpoint
+    try:
+        url1 = f"https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl={sl_code}&tl=en&q={q}"
+        req1 = urllib.request.Request(url1, headers=headers)
+        with _TRANSLATE_SEM:
+            with urllib.request.urlopen(req1, context=_SSL_CTX, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                if isinstance(data, list) and data:
+                    if isinstance(data[0], str):
+                        return data[0].strip()
+                    if isinstance(data[0], list) and data[0]:
+                        return str(data[0][0]).strip()
+    except Exception:
+        pass
+
+    # Tier 2: translate.googleapis.com gtx endpoint
+    try:
+        url2 = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl_code}&tl=en&dt=t&q={q}"
+        req2 = urllib.request.Request(url2, headers=headers)
+        with _TRANSLATE_SEM:
+            with urllib.request.urlopen(req2, context=_SSL_CTX, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                out = "".join(seg[0] for seg in data[0] if seg and seg[0])
+                if out and out.strip():
+                    return out.strip()
+    except Exception:
+        pass
+
+    # Tier 3: MyMemory free translation endpoint (<= 500 char segments)
+    try:
+        short_chunk = chunk[:480]
+        url3 = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(short_chunk)}&langpair={sl_code}|en"
+        req3 = urllib.request.Request(url3, headers=headers)
+        with _TRANSLATE_SEM:
+            with urllib.request.urlopen(req3, context=_SSL_CTX, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                txt = (data.get("responseData") or {}).get("translatedText", "")
+                if txt and not _has_devanagari(txt) and "QUERY LENGTH LIMIT" not in txt.upper():
+                    return txt.strip()
+    except Exception:
+        pass
+
+    return chunk
+
+
+def _translate_ne_to_en(text: str, timeout: int = 5, source_lang: str = "ne") -> str:
+    """Translates Nepali or Hindi (Devanagari) text into clean English with proper-noun normalization."""
     clean = (text or "").strip()
     if not clean or not _has_devanagari(clean):
-        return clean
-    if clean in _TRANSLATION_CACHE:
-        return _TRANSLATION_CACHE[clean]
+        return normalize_english_proper_nouns(clean) if clean else clean
+    cache_key = f"{source_lang}::{clean}"
+    if cache_key in _TRANSLATION_CACHE:
+        return _TRANSLATION_CACHE[cache_key]
+
+    prepped = _normalize_devanagari_before_translation(clean) if source_lang != "hi" else clean
+    sl_code = "hi" if source_lang == "hi" else "ne"
 
     chunks = []
-    if len(clean) <= 2500:
-        chunks = [clean]
+    if len(prepped) <= 2500:
+        chunks = [prepped]
     else:
-        paras = clean.split("\n\n")
+        paras = prepped.split("\n\n")
         cur = ""
         for p in paras:
             if len(cur) + len(p) + 2 <= 2500:
@@ -97,22 +241,16 @@ def _translate_ne_to_en(text: str, timeout: int = 5) -> str:
             chunks.append(cur)
 
     translated_chunks = []
+    any_failed = False
     for chunk in chunks:
-        try:
-            url = (
-                "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q="
-                + urllib.parse.quote(chunk)
-            )
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                out = "".join(seg[0] for seg in data[0] if seg and seg[0])
-                translated_chunks.append(out.strip() if out else chunk)
-        except Exception:
-            translated_chunks.append(chunk)
+        tr = _translate_chunk_with_failover(chunk, sl_code=sl_code, timeout=timeout)
+        if _has_devanagari(tr) and tr == chunk:
+            any_failed = True
+        translated_chunks.append(normalize_english_proper_nouns(tr))
 
     result = "\n\n".join(translated_chunks).strip()
-    _TRANSLATION_CACHE[clean] = result
+    if not any_failed:
+        _TRANSLATION_CACHE[cache_key] = result
     return result
 
 
@@ -144,16 +282,28 @@ def _tokenize_content_words(text: str) -> List[str]:
 
 def _split_sentences(text: str) -> List[str]:
     """Splits cleaned text into well-formed sentences without slicing inside numbers/abbreviations."""
-    # Protect common abbreviations before splitting
+    # Protect common abbreviations and numbered list markers (e.g., "1. ", "2. ")
     protected = re.sub(r"\b(Mr|Mrs|Ms|Dr|Prof|Hon|Rs|No|St|vs|etc|U\.S|U\.K)\.", r"\1<DOT>", text)
     protected = re.sub(r"(\d)\.(\d)", r"\1<DOT>\2", protected)
+    protected = re.sub(r"(?:^|\s)(\d{1,2})\.\s+", r" ", protected)
     raw_sents = re.split(r"(?<=[.!?।])\s+", protected)
     sents = []
     for s in raw_sents:
         restored = s.replace("<DOT>", ".").strip()
         restored = _DATELINE_RE.sub("", restored).strip()
-        if len(restored.split()) >= 5:
-            sents.append(restored)
+        restored = _DANGLING_LEAD_PREFIX_RE.sub("", restored).strip()
+        if not restored:
+            continue
+        # Ensure first char is capitalized after prefix stripping
+        if restored[0].islower():
+            continue
+        word_count = len(restored.split())
+        if word_count < 7 or word_count > 55:
+            continue
+        # Filter bare image captions / noun phrases lacking a finite verb
+        if not _FINITE_VERB_RE.search(restored):
+            continue
+        sents.append(restored)
     return sents
 
 
@@ -179,19 +329,30 @@ def _jaccard_overlap(tokens_a: set, tokens_b: set) -> float:
     return inter / union if union else 0.0
 
 
+def _scope_top_paragraphs(text: str, max_paras: int = 6) -> str:
+    """Restricts body text to the opening paragraphs so sidebar/related widgets cannot leak in."""
+    if not text:
+        return ""
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if len(p.strip()) > 25]
+    if paras:
+        return "\n\n".join(paras[:max_paras])
+    return text
+
+
 def generate_lexrank_english_summary(
     title: str,
     full_text: str,
-    max_sentences: int = 3,
-    max_chars: int = 360,
+    max_sentences: int = 2,
+    max_chars: int = 320,
 ) -> str:
     """
-    Hybrid LexRank + Journalistic Salience Summarizer.
-    Scores sentences by graph centrality, position decay, factual/entity density,
-    and title alignment while enforcing MMR novelty against the headline and prior picks.
+    Lead-Anchored Hybrid LexRank + Journalistic Salience Summarizer.
+    Scores paragraph-scoped sentences by graph centrality, lead position, factual density,
+    and topical alignment against the headline, producing a tight 2-sentence executive brief.
     """
-    clean_title = clean_journalistic_text(title)
-    clean_body = clean_journalistic_text(full_text, title=clean_title)
+    clean_title = normalize_english_proper_nouns(clean_journalistic_text(title))
+    scoped_body = _scope_top_paragraphs(full_text, max_paras=6)
+    clean_body = normalize_english_proper_nouns(clean_journalistic_text(scoped_body, title=clean_title))
     if not clean_body:
         return clean_title
 
@@ -205,7 +366,6 @@ def generate_lexrank_english_summary(
         joined = " ".join(sentences)
         if len(joined) <= max_chars:
             return joined
-        # Prefer first complete sentence if 2 exceed max_chars
         if len(sentences[0]) <= max_chars:
             return sentences[0]
         return sentences[0][:max_chars].rsplit(" ", 1)[0].rstrip(",;:") + "..."
@@ -214,6 +374,8 @@ def generate_lexrank_english_summary(
     sent_tokens = [_tokenize_content_words(s) for s in sentences]
     sent_sets = [set(toks) for toks in sent_tokens]
     n_sents = len(sentences)
+    title_tokens = set(_tokenize_content_words(clean_title))
+    lead_tokens = sent_sets[0] | title_tokens
 
     df: Counter = Counter()
     for s_set in sent_sets:
@@ -255,7 +417,6 @@ def generate_lexrank_english_summary(
         lex_scores = new_scores
 
     max_lex = max(lex_scores) or 1.0
-    title_tokens = set(_tokenize_content_words(clean_title))
 
     scored_indices = []
     for idx, sent in enumerate(sentences):
@@ -269,45 +430,47 @@ def generate_lexrank_english_summary(
         fact_density = min(1.0, 0.35 * has_num + 0.35 * has_unit + 0.15 * inst_hits)
 
         overlap = _jaccard_overlap(sent_sets[idx], title_tokens)
-        if overlap > 0.75:
-            # Penalize sentences that just echo the headline verbatim
+        topical_link = 1.0 if (sent_sets[idx] & lead_tokens) else 0.0
+        if overlap > 0.78:
             title_align = -0.35
-        elif 0.15 <= overlap <= 0.65:
+        elif 0.12 <= overlap <= 0.65:
             title_align = 1.0
         else:
-            title_align = 0.3
+            title_align = 0.2 if topical_link else -0.4
 
         total_score = (
-            0.45 * lex_norm
-            + 0.25 * pos_weight
+            0.40 * lex_norm
+            + 0.30 * pos_weight
             + 0.20 * fact_density
             + 0.10 * title_align
         )
         scored_indices.append((total_score, idx))
 
-    scored_indices.sort(key=lambda x: x[0], reverse=True)
+    # Anchor sentence 1 on the stronger of the first 2 sentences to guarantee lead coherence
+    lead_candidates = [x for x in scored_indices if x[1] in (0, 1)]
+    lead_candidates.sort(key=lambda x: x[0], reverse=True)
+    selected_indices: List[int] = [lead_candidates[0][1]] if lead_candidates else [0]
 
-    # MMR selection avoiding redundancy
-    selected_indices: List[int] = []
+    # Pick highest-scoring non-redundant supporting sentence sharing topical continuity
+    scored_indices.sort(key=lambda x: x[0], reverse=True)
     for _, cand_idx in scored_indices:
         if len(selected_indices) >= max_sentences:
             break
+        if cand_idx in selected_indices:
+            continue
         cand_set = sent_sets[cand_idx]
-        if any(_jaccard_overlap(cand_set, sent_sets[sel_i]) > 0.60 for sel_i in selected_indices):
+        if any(_jaccard_overlap(cand_set, sent_sets[sel_i]) > 0.58 for sel_i in selected_indices):
+            continue
+        if not (cand_set & lead_tokens):
             continue
         selected_indices.append(cand_idx)
 
-    if not selected_indices:
-        selected_indices = [0]
-
-    # Re-order chronologically for natural reading flow
     selected_indices.sort()
 
     chosen_sents: List[str] = []
     curr_len = 0
     for idx in selected_indices:
         s = sentences[idx]
-        # Ensure proper ending punctuation
         if s and s[-1] not in ".!?":
             s += "."
         added_len = len(s) + (1 if chosen_sents else 0)
@@ -324,18 +487,19 @@ def generate_lexrank_english_summary(
 
 def enrich_single_article_english_summary(art: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Populates English `headline_english` and a complete 2-3 sentence LexRank `summary`
+    Populates English `headline_english` and a complete 2-sentence LexRank `summary`
     on a single article dictionary without altering native `title` or `full_content`.
     """
     raw_title = (art.get("title") or "").strip()
     existing_en_title = (art.get("headline_english") or "").strip()
+    lang_code = "hi" if (art.get("language") or "").strip().lower() == "hindi" else "ne"
 
     if existing_en_title and not _has_devanagari(existing_en_title):
-        headline_en = existing_en_title
+        headline_en = normalize_english_proper_nouns(existing_en_title)
     elif raw_title and _has_devanagari(raw_title):
-        headline_en = _translate_ne_to_en(raw_title)
+        headline_en = _translate_ne_to_en(raw_title, source_lang=lang_code)
     else:
-        headline_en = raw_title
+        headline_en = normalize_english_proper_nouns(raw_title)
 
     art["headline_english"] = headline_en
 
@@ -345,23 +509,23 @@ def enrich_single_article_english_summary(art: Dict[str, Any]) -> Dict[str, Any]
     if not source_text:
         source_text = raw_title
 
-    # Limit translation payload to lead 1600 characters (enough for 6-10 rich paragraphs)
-    if _has_devanagari(source_text):
-        lead_chunk = source_text[:1600]
-        if len(source_text) > 1600:
-            # Cut cleanly at space/sentence boundary before translating
+    scoped_source = _scope_top_paragraphs(source_text, max_paras=6)
+
+    if _has_devanagari(scoped_source):
+        lead_chunk = scoped_source[:1500]
+        if len(scoped_source) > 1500:
             last_sep = max(lead_chunk.rfind("।"), lead_chunk.rfind("."), lead_chunk.rfind(" "))
             if last_sep > 400:
                 lead_chunk = lead_chunk[: last_sep + 1]
-        english_body = _translate_ne_to_en(lead_chunk)
+        english_body = _translate_ne_to_en(lead_chunk, source_lang=lang_code)
     else:
-        english_body = source_text
+        english_body = normalize_english_proper_nouns(scoped_source)
 
     english_brief = generate_lexrank_english_summary(
         title=headline_en,
         full_text=english_body,
-        max_sentences=3,
-        max_chars=360,
+        max_sentences=2,
+        max_chars=320,
     )
     if english_brief:
         art["summary"] = english_brief

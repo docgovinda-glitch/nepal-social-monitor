@@ -99,13 +99,14 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
                 if len(cand) > len(meta_desc):
                     meta_desc = cand
 
-        # Strip script, styles, buttons, navigation, headers, footers, comments, and related widgets
-        for tag in soup(["script", "style", "noscript", "svg", "button", "header", "footer", "nav", "form", "iframe"]):
+        # Strip script, styles, buttons, navigation, headers, footers, captions, sidebars, and related widgets
+        for tag in soup(["script", "style", "noscript", "svg", "button", "header", "footer", "nav", "form", "iframe", "figcaption"]):
             tag.decompose()
         for noisy in soup.select(
             ".comments, #comments, .comment-box, .comment-section, .related-news, .trending-news, "
-            ".popular-news, .share-box, .social-share, .author-box, .login-box, .signup-box, "
-            ".ok-conv-box, .post-navigation, .breadcrumb, .tags, .tag-list, .advertisement, .ad-box"
+            ".popular-news, .share-box, .social-share, .author-box, .author-bio, .login-box, .signup-box, "
+            ".ok-conv-box, .post-navigation, .breadcrumb, .tags, .tag-list, .advertisement, .ad-box, "
+            ".sidebar, .widget, .most-read, .recommended, .more-news, .also-read, .caption, .wp-caption-text"
         ):
             noisy.decompose()
         for tag in soup.find_all("aside"):

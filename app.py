@@ -446,7 +446,7 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
     )
 
     if summary and summary != display_title and summary != raw_title:
-        summary_html = f'<p class="apple-card-summary"><span class="apple-summary-badge">EN BRIEF</span>{html.escape(summary)}</p>'
+        summary_html = f'<p class="apple-card-summary">{html.escape(summary)}</p>'
     else:
         summary_html = ""
 
