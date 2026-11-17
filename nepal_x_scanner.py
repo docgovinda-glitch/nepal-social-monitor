@@ -408,11 +408,12 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
         h = acc["handle"]
         try:
             r = requests.get(f"https://x.com/{h}", headers=DEFAULT_HEADERS, timeout=5)
-            ids = list(set(re.findall(rf"/{h}/status/(\d+)", r.text, re.IGNORECASE)))
-            if not ids:
-                ids = list(set(re.findall(r"/status/(\d+)", r.text)))
-            # Top status IDs per handle (harvest up to 6 per account)
-            return [(sid, acc) for sid in ids[:6]]
+            raw_ids = re.findall(rf"/{h}/status/(\d+)", r.text, re.IGNORECASE)
+            if not raw_ids:
+                raw_ids = re.findall(r"/status/(\d+)", r.text)
+            # Sort Snowflake IDs descending so newest tweets on every profile are harvested first
+            ids = sorted({sid for sid in raw_ids if sid.isdigit()}, key=lambda x: int(x), reverse=True)
+            return [(sid, acc) for sid in ids[:8]]
         except Exception:
             return []
 

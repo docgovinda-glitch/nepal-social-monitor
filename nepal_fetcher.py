@@ -1676,6 +1676,93 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
     except Exception:
         pass
 
+    # Bing News RSS fallback when primary outlet yields < 3 substantive Nepal stories (e.g., NDTV, Jansatta, anti-bot pages)
+    if sum(1 for x in items if x.get("relevance_status") == "substantive") < 3:
+        try:
+            domain_map = {
+                "NDTV": "ndtv.com",
+                "The Hindu": "thehindu.com",
+                "Jansatta": "jansatta.com",
+                "Livemint": "livemint.com",
+                "The Quint": "thequint.com",
+                "The Indian Express": "indianexpress.com",
+                "India Today": "indiatoday.in",
+                "Business Standard": "business-standard.com",
+                "Financial Express": "financialexpress.com",
+                "Moneycontrol": "moneycontrol.com",
+                "ABP Live": "abplive.com",
+                "Outlook India": "outlookindia.com",
+                "Swarajya": "swarajyamag.com",
+                "OneIndia": "oneindia.com",
+                "The Tribune": "tribuneindia.com",
+                "Amar Ujala": "amarujala.com",
+                "Live Hindustan": "livehindustan.com",
+                "Prabhat Khabar": "prabhatkhabar.com",
+            }
+            dom = domain_map.get(src["name"])
+            if not dom:
+                dom = urllib.parse.urlparse(src["url"]).netloc.lower().lstrip("www.")
+            q = f"site:{dom} नेपाल" if src.get("lang") == "Hindi" else f"site:{dom} Nepal"
+            bing_url = f"https://www.bing.com/news/search?q={urllib.parse.quote(q)}&format=rss"
+            b_req = urllib.request.Request(bing_url, headers=DEFAULT_HEADERS)
+            with urllib.request.urlopen(b_req, context=SSL_CTX, timeout=4.0) as b_resp:
+                b_feed = feedparser.parse(b_resp.read())
+            for be in b_feed.entries[:12]:
+                raw_t = (be.get("title") or "").strip()
+                clean_t = re.sub(r"\s*[-–|]\s*[^-–|]+$", "", raw_t).strip() or raw_t
+                if not clean_t or clean_t in seen or _NAV_BOILERPLATE_RE.search(clean_t):
+                    continue
+                b_link = (be.get("link") or "").strip()
+                if "url=" in b_link:
+                    qs = urllib.parse.parse_qs(urllib.parse.urlparse(b_link).query)
+                    if "url" in qs:
+                        b_link = qs["url"][0]
+                if not b_link.startswith("http"):
+                    continue
+                b_sum = html.unescape(re.sub(r"<[^>]+>", " ", be.get("summary") or be.get("description") or "")).strip() or clean_t
+                rel_eval = evaluate_indian_article_nepal_relevance(
+                    title=clean_t,
+                    summary=b_sum,
+                    full_content=b_sum,
+                    link=b_link,
+                    source=src["name"],
+                    threshold=relevance_threshold,
+                )
+                if rel_eval["relevance_status"] == "excluded":
+                    continue
+                seen.add(clean_t)
+                pub_raw = be.get("published", "") or be.get("updated", "")
+                pub_dt, rel_time, exact_time = parse_to_nepal_time(pub_raw, now_npt)
+                cls_res = classify_article_editorial(clean_t, b_sum, src["name"], b_sum)
+                if "India Section" not in cls_res["sections"]:
+                    cls_res["sections"].insert(0, "India Section")
+                items.append({
+                    "source": src["name"],
+                    "language": src["lang"],
+                    "portal_category": "Indian Press",
+                    "structured_category": cls_res["primary_section"],
+                    "primary_section": cls_res["primary_section"],
+                    "sections": cls_res["sections"],
+                    "secondary_tags": cls_res["secondary_tags"],
+                    "classification_confidence": cls_res["confidence"],
+                    "low_confidence": cls_res["low_confidence"],
+                    "category_icon": CATEGORY_ICONS.get(cls_res["primary_section"], "🇮🇳"),
+                    "title": clean_t,
+                    "headline_english": clean_t if src["lang"] == "English" else "",
+                    "link": b_link,
+                    "summary": b_sum[:280] + ("..." if len(b_sum) > 280 else ""),
+                    "full_content": b_sum,
+                    "published_dt": pub_dt,
+                    "relative_time": rel_time,
+                    "exact_time": exact_time,
+                    "nepal_relevance_score": rel_eval["nepal_relevance_score"],
+                    "relevance_status": rel_eval["relevance_status"],
+                    "relevance_reason": rel_eval["relevance_reason"],
+                    "nepal_dimensions": rel_eval["nepal_dimensions"],
+                })
+        except Exception:
+            pass
+
     if items:
         try:
             # Enrich relevant/borderline Indian press stories with full text + LexRank English summary

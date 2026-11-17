@@ -291,7 +291,7 @@ def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.date
     """Loads Nepali media for the active window directly from Supabase with feed projection."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
     try:
-        stored = get_stored_articles(start_dt=start_dt, end_dt=end_dt, limit=1500, include_full_content=False)
+        stored = get_stored_articles(start_dt=start_dt, end_dt=end_dt, limit=3000, include_full_content=False)
     except Exception:
         stored = []
     if not stored:
@@ -305,6 +305,7 @@ def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.date
             pdt = sa.get("published_dt")
             if isinstance(pdt, datetime.datetime):
                 _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+        stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
     stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
     return stored
 

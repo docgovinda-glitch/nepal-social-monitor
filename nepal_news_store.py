@@ -371,22 +371,22 @@ def get_stored_articles(
     """
     rows = query_supabase(sql)
     articles = []
+    now_npt = datetime.datetime.now(NEPAL_TZ)
     for d in rows:
         if isinstance(d.get("published_dt"), str):
             try:
-                dt = datetime.datetime.fromisoformat(d["published_dt"])
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=NEPAL_TZ)
-                else:
-                    dt = dt.astimezone(NEPAL_TZ)
+                # published_dt is persisted in NPT wall-clock time; interpret first 19 chars directly as NPT
+                dt = datetime.datetime.fromisoformat(d["published_dt"][:19]).replace(tzinfo=NEPAL_TZ)
+                if dt > now_npt:
+                    dt = now_npt
                 d["published_dt"] = dt
             except Exception:
                 pass
         elif isinstance(d.get("published_dt"), datetime.datetime):
-            if d["published_dt"].tzinfo is None:
-                d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
-            else:
-                d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
+            dt = d["published_dt"].replace(tzinfo=NEPAL_TZ)
+            if dt > now_npt:
+                dt = now_npt
+            d["published_dt"] = dt
         try:
             d["sections"] = json.loads(d.get("sections") or "[]")
         except Exception:
@@ -594,22 +594,22 @@ def get_stored_indian_articles(
     cols = "*" if include_full_content else INDIAN_FEED_COLUMNS
     sql = f"SELECT {cols} FROM indian_media_articles {where} ORDER BY published_dt DESC LIMIT {limit};"
     rows = query_supabase(sql)
+    now_npt = datetime.datetime.now(NEPAL_TZ)
     for d in rows:
         if isinstance(d.get("published_dt"), str):
             try:
-                dt = datetime.datetime.fromisoformat(d["published_dt"])
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=NEPAL_TZ)
-                else:
-                    dt = dt.astimezone(NEPAL_TZ)
+                # published_dt is persisted in NPT wall-clock time; interpret first 19 chars directly as NPT
+                dt = datetime.datetime.fromisoformat(d["published_dt"][:19]).replace(tzinfo=NEPAL_TZ)
+                if dt > now_npt:
+                    dt = now_npt
                 d["published_dt"] = dt
             except Exception:
                 pass
         elif isinstance(d.get("published_dt"), datetime.datetime):
-            if d["published_dt"].tzinfo is None:
-                d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
-            else:
-                d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
+            dt = d["published_dt"].replace(tzinfo=NEPAL_TZ)
+            if dt > now_npt:
+                dt = now_npt
+            d["published_dt"] = dt
         if not d.get("structured_category"):
             d["structured_category"] = "India Section"
         if not d.get("stream"):
@@ -630,14 +630,14 @@ def get_stored_counts_by_stream(
         dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')
         dt_local_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
         where_articles.append(f"published_dt >= '{dt_local_str}'")
-        where_indian.append(f"published_dt >= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S')}'")
+        where_indian.append(f"published_dt >= '{dt_local_str}'")
         where_x.append(f"published_dt >= '{dt_str}'")
     if end_dt:
         dt_utc = end_dt.astimezone(datetime.timezone.utc) if end_dt.tzinfo else end_dt
         dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')
         dt_local_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
         where_articles.append(f"published_dt <= '{dt_local_str}'")
-        where_indian.append(f"published_dt <= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S')}'")
+        where_indian.append(f"published_dt <= '{dt_local_str}'")
         where_x.append(f"published_dt <= '{dt_str}'")
 
     sql = f"""
