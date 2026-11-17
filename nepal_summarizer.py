@@ -15,7 +15,7 @@ import urllib.request
 import urllib.parse
 import concurrent.futures
 from collections import Counter
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable, Optional
 
 _TRANSLATION_CACHE: Dict[str, str] = {}
 _SSL_CTX = ssl._create_unverified_context()
@@ -893,7 +893,18 @@ def enrich_articles_with_english_summaries(
     return articles
 
 
-def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
+def _emit_progress(on_progress: Optional[Callable[[str, float], None]], msg: str, pct: float) -> None:
+    if on_progress is not None:
+        try:
+            on_progress(msg, max(0.0, min(1.0, float(pct))))
+        except Exception:
+            pass
+
+
+def generate_on_demand_news_brief(
+    item: Dict[str, Any],
+    on_progress: Optional[Callable[[str, float], None]] = None,
+) -> Dict[str, Any]:
     """
     On-demand user-initiated English Brief generator for Nepali, Hindi, and English news articles.
     Hydrates full content from DB/URL if needed, translates if non-English, summarizes concisely,
@@ -907,6 +918,7 @@ def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
         declared_lang=work.get("language", ""),
     )
 
+    _emit_progress(on_progress, "Checking stored article text…", 0.15)
     try:
         from nepal_news_store import hydrate_article_full_content
         hydrate_article_full_content(work)
@@ -914,6 +926,7 @@ def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
     if _needs_body_scrape(work) and source_url.startswith("http"):
+        _emit_progress(on_progress, "Fetching full article from publisher…", 0.35)
         try:
             from nepal_fetcher import extract_article_full_text
             fetched = extract_article_full_text(source_url, timeout=6)
@@ -927,6 +940,11 @@ def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
     source_text = full_body if len(full_body) >= len(raw_summary) else raw_summary
     if not source_text:
         source_text = raw_title
+
+    if lang_code != "en":
+        _emit_progress(on_progress, "Translating key facts to English…", 0.6)
+    else:
+        _emit_progress(on_progress, "Extracting key facts…", 0.6)
 
     existing_en_title = (work.get("headline_english") or "").strip()
     if existing_en_title and not _has_devanagari(existing_en_title):
@@ -957,6 +975,7 @@ def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
             "lang": lang_code,
         }
 
+    _emit_progress(on_progress, "Formatting concise English Brief…", 0.88)
     brief = generate_lexrank_english_summary(
         title=headline_en or raw_title,
         full_text=english_body,
@@ -966,6 +985,7 @@ def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
     if not brief:
         brief = headline_en or raw_title
 
+    _emit_progress(on_progress, "Ready", 1.0)
     formatted = f"{brief}\n\nSource: {source_url}" if source_url else brief
     return {
         "ok": True,
@@ -978,7 +998,10 @@ def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def generate_on_demand_x_content(post: Dict[str, Any]) -> Dict[str, Any]:
+def generate_on_demand_x_content(
+    post: Dict[str, Any],
+    on_progress: Optional[Callable[[str, float], None]] = None,
+) -> Dict[str, Any]:
     """
     On-demand user-initiated X post processor.
     - English X posts: returns the complete original post text untouched (no summarization/rewriting).
@@ -994,18 +1017,22 @@ def generate_on_demand_x_content(post: Dict[str, Any]) -> Dict[str, Any]:
 
     lang_code = detect_text_language(raw_text)
     if lang_code == "en":
+        _emit_progress(on_progress, "Retrieving complete English X post…", 0.7)
         content = raw_text
     else:
+        _emit_progress(on_progress, "Translating X post to English…", 0.35)
         # Translate line-by-line preserving original paragraph & line-break structure
         lines = raw_text.splitlines()
         translated_lines: List[str] = []
-        for ln in lines:
+        total_lines = max(1, len(lines))
+        for idx, ln in enumerate(lines, start=1):
             stripped = ln.strip()
             if not stripped:
                 translated_lines.append("")
                 continue
             tr_ln = _translate_ne_to_en(stripped, source_lang=lang_code, force_translate=True)
             translated_lines.append(tr_ln)
+            _emit_progress(on_progress, f"Translating line {idx} of {total_lines}…", 0.35 + 0.55 * (idx / total_lines))
         content = "\n".join(translated_lines).strip()
         if not content or (_has_devanagari(raw_text) and _has_devanagari(content)):
             return {
@@ -1017,6 +1044,7 @@ def generate_on_demand_x_content(post: Dict[str, Any]) -> Dict[str, Any]:
                 "lang": lang_code,
             }
 
+    _emit_progress(on_progress, "Ready", 1.0)
     formatted = f"{content}\n\nSource: {source_url}" if source_url else content
     return {
         "ok": True,
@@ -1031,6 +1059,7 @@ def generate_on_demand_x_content(post: Dict[str, Any]) -> Dict[str, Any]:
 def extract_on_demand_full_article(
     item: Dict[str, Any],
     translate_to_english: bool = False,
+    on_progress: Optional[Callable[[str, float], None]] = None,
 ) -> Dict[str, Any]:
     """
     On-demand full article text extractor with optional complete English translation.
@@ -1041,6 +1070,7 @@ def extract_on_demand_full_article(
     source_url = (work.get("link") or "").strip()
     raw_title = (work.get("title") or "").strip()
 
+    _emit_progress(on_progress, "Checking stored article content…", 0.15)
     try:
         from nepal_news_store import hydrate_article_full_content
         hydrate_article_full_content(work)
@@ -1049,6 +1079,7 @@ def extract_on_demand_full_article(
 
     scraped_ok = False
     if _needs_body_scrape(work) and source_url.startswith("http"):
+        _emit_progress(on_progress, "Fetching full article from publisher…", 0.4)
         try:
             from nepal_fetcher import extract_article_full_text
             fetched = extract_article_full_text(source_url, timeout=7)
@@ -1058,6 +1089,7 @@ def extract_on_demand_full_article(
         except Exception:
             pass
 
+    _emit_progress(on_progress, "Formatting paragraphs & detecting language…", 0.6)
     full_body = (work.get("full_content") or "").strip()
     excerpt_body = (work.get("summary") or "").strip()
     raw_body = (full_body or excerpt_body or raw_title or "").strip()
@@ -1088,8 +1120,11 @@ def extract_on_demand_full_article(
         if lang_code == "en" and not _has_devanagari(original_text):
             translated_text = original_text
         else:
+            src_paras = [p for p in original_text.split("\n\n") if p.strip()]
+            total_p = max(1, len(src_paras))
             tr_paras: List[str] = []
-            for p in original_text.split("\n\n"):
+            for idx, p in enumerate(src_paras, start=1):
+                _emit_progress(on_progress, f"Translating paragraph {idx} of {total_p}…", 0.2 + 0.75 * (idx / total_p))
                 tr_p = _translate_ne_to_en(p, timeout=10, source_lang=lang_code, force_translate=True)
                 tr_paras.append(tr_p)
             translated_text = "\n\n".join(tr_paras).strip()
@@ -1097,6 +1132,7 @@ def extract_on_demand_full_article(
                 translated_text = ""
                 tr_error = "Translation service temporarily unavailable. Please try again."
 
+    _emit_progress(on_progress, "Ready", 1.0)
     return {
         "ok": bool(original_text) and extraction_status != "failed",
         "is_complete": is_complete,

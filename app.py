@@ -660,10 +660,14 @@ def _resolve_item_flags(item: Dict[str, Any], renderer: Callable[[Dict[str, Any]
     return (False, False)
 
 
-def _generate_unified_item_content(item: Dict[str, Any], is_x: bool) -> Dict[str, Any]:
+def _generate_unified_item_content(
+    item: Dict[str, Any],
+    is_x: bool,
+    on_progress: Optional[Callable[[str, float], None]] = None,
+) -> Dict[str, Any]:
     if is_x:
-        return generate_on_demand_x_content(item)
-    return generate_on_demand_news_brief(item)
+        return generate_on_demand_x_content(item, on_progress=on_progress)
+    return generate_on_demand_news_brief(item, on_progress=on_progress)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -716,6 +720,7 @@ def _commit_share_draft(draft: Dict[str, Any], new_text: str) -> None:
         draft["saved_content"] = clean
         draft["version"] = int(draft.get("version") or 1) + 1
         draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+        st.toast(f"Saved draft v{draft['version']}", icon="💾")
     draft["draft_content"] = draft.get("saved_content") or ""
     draft["is_editing"] = False
     draft["unsaved_send_warn"] = False
@@ -735,8 +740,14 @@ def _show_read_in_app_dialog() -> None:
 
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
     if not fulltext_data:
-        with st.spinner("Fetching complete article…"):
-            fulltext_data = extract_on_demand_full_article(item, translate_to_english=False)
+        with st.status("Opening article…", expanded=True) as status:
+            prog = st.progress(0.05, text="Checking stored article content…")
+            def _read_prog(msg: str, pct: float) -> None:
+                status.update(label=msg)
+                prog.progress(pct, text=msg)
+            fulltext_data = extract_on_demand_full_article(item, translate_to_english=False, on_progress=_read_prog)
+            prog.empty()
+            status.update(label="Article ready", state="complete", expanded=False)
             st.session_state["ondemand_fulltext"][cache_id] = fulltext_data
             st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
 
@@ -789,12 +800,16 @@ def _show_read_in_app_dialog() -> None:
         if ft_lang != "en" and not has_tr:
             with ft_cols[col_i]:
                 if st.button("Translate to English", icon=":material/translate:", type="primary", key=f"dlg_ft_tr_{item_uid}"):
-                    with st.spinner("Translating full article…"):
-                        ft_tr = extract_on_demand_full_article(item, translate_to_english=True)
-                        st.session_state["ondemand_fulltext"][cache_id] = ft_tr
-                        if ft_tr.get("translated_text"):
-                            st.session_state["ondemand_fulltext_view"][cache_id] = "en"
-                        st.rerun()
+                    prog = st.progress(0.05, text="Starting full-article translation…")
+                    def _tr_prog(msg: str, pct: float) -> None:
+                        prog.progress(pct, text=msg)
+                    ft_tr = extract_on_demand_full_article(item, translate_to_english=True, on_progress=_tr_prog)
+                    prog.empty()
+                    st.session_state["ondemand_fulltext"][cache_id] = ft_tr
+                    if ft_tr.get("translated_text"):
+                        st.session_state["ondemand_fulltext_view"][cache_id] = "en"
+                        st.toast("Full article translated to English", icon="✅")
+                    st.rerun()
             col_i += 1
         elif has_tr and ft_lang != "en":
             with ft_cols[col_i]:
@@ -845,8 +860,14 @@ def _show_share_dialog() -> None:
 
     generated = st.session_state["ondemand_generated"].get(cache_id)
     if not generated:
-        with st.spinner("Generating…"):
-            generated = _generate_unified_item_content(item, is_x=is_x)
+        with st.status(f"Preparing {content_type_lbl}…", expanded=True) as status:
+            prog = st.progress(0.05, text="Initializing…")
+            def _gen_prog(msg: str, pct: float) -> None:
+                status.update(label=msg)
+                prog.progress(pct, text=msg)
+            generated = _generate_unified_item_content(item, is_x=is_x, on_progress=_gen_prog)
+            prog.empty()
+            status.update(label=f"{content_type_lbl} ready", state="complete", expanded=False)
             st.session_state["ondemand_generated"][cache_id] = generated
 
     if not generated or not generated.get("ok"):
@@ -1029,26 +1050,33 @@ def _show_share_dialog() -> None:
             draft["unsaved_send_warn"] = True
             st.rerun()
         selected_gid = dest.get("id", "") if dest.get("ok") else ""
-        wa_res = send_wa_group_message(
-            chat_id=selected_gid,
-            message=saved_formatted,
-            session_approved=True,
-            sent_registry=st.session_state["wa_sent_registry"],
-        )
-        wa_res["group_name"] = dest_name
-        st.session_state["wa_item_status"][cache_id] = wa_res
-        if wa_res.get("ok") and wa_res.get("accepted"):
-            try:
-                record_whatsapp_sent(
-                    item_key=cache_id,
-                    group_id=selected_gid,
-                    group_name=dest_name,
-                    id_message=str(wa_res.get("id_message") or ""),
-                    item_link=item_link,
-                )
-                _get_wa_sent_map.clear()
-            except Exception:
-                pass
+        with st.status(f"Sending to {dest_name}…", expanded=True) as send_status:
+            send_status.write("Delivering confirmed draft to Green API…")
+            wa_res = send_wa_group_message(
+                chat_id=selected_gid,
+                message=saved_formatted,
+                session_approved=True,
+                sent_registry=st.session_state["wa_sent_registry"],
+            )
+            wa_res["group_name"] = dest_name
+            st.session_state["wa_item_status"][cache_id] = wa_res
+            if wa_res.get("ok") and wa_res.get("accepted"):
+                send_status.write("Recording delivery in Media Monitor log…")
+                try:
+                    record_whatsapp_sent(
+                        item_key=cache_id,
+                        group_id=selected_gid,
+                        group_name=dest_name,
+                        id_message=str(wa_res.get("id_message") or ""),
+                        item_link=item_link,
+                    )
+                    _get_wa_sent_map.clear()
+                except Exception as log_exc:
+                    wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
+                send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
+                st.toast(f"Sent to {dest_name}!", icon="✅")
+            else:
+                send_status.update(label="Delivery not completed", state="error", expanded=False)
         st.rerun()
 
     wa_status = st.session_state["wa_item_status"].get(cache_id)
@@ -1380,16 +1408,23 @@ with st.sidebar:
         sb_btn1, sb_btn2 = st.columns([1.1, 0.9])
         with sb_btn1:
             if st.button("Sync Now", icon=":material/sync:", key="btn_top_sync", width="stretch", help=f"Fetch immediate live updates across all {len(TOP_NEPAL_NEWS_PORTALS) + len(TOP_INDIAN_MEDIA_SOURCES)} media outlets and verified X voices"):
-                with st.spinner("Syncing live feeds across all streams…"):
+                with st.status("Syncing live feeds…", expanded=True) as sync_status:
+                    sync_prog = st.progress(0.1, text="Scanning 34 Nepali news portals…")
                     fetch_top_nepal_media(max_workers=25, force_refresh=True)
+                    sync_prog.progress(0.5, text="Scanning 18 Indian media sources…")
                     fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
+                    sync_prog.progress(0.8, text="Updating verified X voices…")
                     try:
                         scan_popular_nepal_x_posts(force_refresh=True)
-                    except Exception:
-                        pass
+                    except Exception as x_exc:
+                        sync_status.write(f"⚠️ X feed skipped: {type(x_exc).__name__}")
+                    sync_prog.progress(1.0, text="Refreshing dashboard cache…")
                     st.cache_data.clear()
                     st.session_state.pop("x_posts", None)
                     st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
+                    sync_prog.empty()
+                    sync_status.update(label="All feeds synced", state="complete", expanded=False)
+                st.toast("Live feeds synced!", icon="🔄")
                 st.rerun()
         with sb_btn2:
             st.button("Reset", icon=":material/restart_alt:", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
