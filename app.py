@@ -659,6 +659,8 @@ def render_feed_item_with_actions(
 ) -> None:
     """Renders a single consolidated card containing post content, brief/full-text panels, and one single-row action bar."""
     st.session_state.setdefault("ondemand_generated", {})
+    st.session_state.setdefault("ondemand_edit_mode", {})
+    st.session_state.setdefault("ondemand_confirmed", {})
     st.session_state.setdefault("ondemand_fulltext", {})
     st.session_state.setdefault("ondemand_fulltext_view", {})
     st.session_state.setdefault("wa_sent_registry", set())
@@ -668,6 +670,8 @@ def render_feed_item_with_actions(
     cache_id = _compute_item_uid(item, "global")
     generated = st.session_state["ondemand_generated"].get(cache_id)
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
+    is_editing = bool(st.session_state["ondemand_edit_mode"].get(cache_id, False))
+    is_confirmed = bool(st.session_state["ondemand_confirmed"].get(cache_id, False))
 
     item_link = (item.get("link") or "").strip()
     if is_x:
@@ -692,25 +696,53 @@ def render_feed_item_with_actions(
         st.markdown('<div class="feed-card-anchor"></div>', unsafe_allow_html=True)
         st.markdown(renderer(item), unsafe_allow_html=True)
 
-        # 1. Unified Copyable Brief / Translation Box (when generated)
+        # 1. Unified Copyable Brief / Translation Box (View or Manual Edit Mode)
         if generated:
             if generated.get("ok"):
-                body_html = html.escape(generated["content"])
                 src_url = generated.get("source_url", "")
-                src_html = (
-                    f'<div class="unified-brief-box__source">Source: '
-                    f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
-                    if src_url
-                    else ""
-                )
-                st.markdown(
-                    f'<div class="unified-brief-box">'
-                    f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow)}</div>'
-                    f'<div class="unified-brief-box__body">{body_html}</div>'
-                    f'{src_html}'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+                if is_editing:
+                    st.caption(f"Editing {box_eyebrow} (Source URL is preserved automatically):")
+                    edited_val = st.text_area(
+                        f"Edit {box_eyebrow}",
+                        value=generated["content"],
+                        height=140,
+                        key=f"ta_edit_{item_uid}",
+                        label_visibility="collapsed",
+                    )
+                    if src_url:
+                        st.caption(f"Source: {src_url}")
+                    ec1, ec2 = st.columns(2, gap="small")
+                    with ec1:
+                        if st.button("Save & Confirm", icon=":material/check:", type="primary", key=f"btn_save_edit_{item_uid}"):
+                            clean_edit = (edited_val or "").strip()
+                            if clean_edit:
+                                generated["content"] = clean_edit
+                                generated["formatted_text"] = f"{clean_edit}\n\nSource: {src_url}" if src_url else clean_edit
+                                st.session_state["ondemand_generated"][cache_id] = generated
+                                st.session_state["ondemand_confirmed"][cache_id] = True
+                                st.session_state["ondemand_edit_mode"][cache_id] = False
+                                st.rerun()
+                    with ec2:
+                        if st.button("Cancel", icon=":material/close:", key=f"btn_cancel_edit_{item_uid}"):
+                            st.session_state["ondemand_edit_mode"][cache_id] = False
+                            st.rerun()
+                else:
+                    body_html = html.escape(generated["content"])
+                    src_html = (
+                        f'<div class="unified-brief-box__source">Source: '
+                        f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
+                        if src_url
+                        else ""
+                    )
+                    conf_badge = " · ✓ Confirmed" if is_confirmed else " · Pending Confirmation"
+                    st.markdown(
+                        f'<div class="unified-brief-box">'
+                        f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow + conf_badge)}</div>'
+                        f'<div class="unified-brief-box__body">{body_html}</div>'
+                        f'{src_html}'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
             else:
                 st.error(generated.get("error") or "Could not generate English output for this item.")
 
@@ -772,27 +804,51 @@ def render_feed_item_with_actions(
 
         st.markdown('<div class="feed-action-divider"></div>', unsafe_allow_html=True)
 
-        # 3. Single Unified Bottom Action Row (English Brief / Copy, Full Text, WhatsApp Share, Read Story)
+        # 3. Single Unified Bottom Action Row (English Brief/Copy, Edit, Confirm, Full Text, WhatsApp Share, Read Story)
         wa_clicked = False
         has_brief = bool(generated and generated.get("ok"))
         has_link = bool(item_link and item_link.startswith("http"))
 
+        n_cols = (
+            (1 if has_brief else 1)  # Copy or Primary Generate
+            + (1 if has_brief else 0)  # Edit
+            + (1 if (has_brief and not is_confirmed) else 0)  # Confirm
+            + (1 if not is_x else 0)  # Full Text (news only)
+            + 1  # WhatsApp Share (enabled only after confirmation)
+            + (1 if has_brief else 0)  # Hide
+            + (1 if has_link else 0)  # Read story / View post
+        )
+        cols = st.columns(n_cols, gap="small")
+        ci = 0
+
+        if has_brief:
+            with cols[ci]:
+                _render_copy_button(generated["formatted_text"], uid=item_uid)
+            ci += 1
+            with cols[ci]:
+                if st.button("Edit", icon=":material/edit:", key=f"btn_edit_{item_uid}"):
+                    st.session_state["ondemand_edit_mode"][cache_id] = not is_editing
+                    st.rerun()
+            ci += 1
+            if not is_confirmed:
+                with cols[ci]:
+                    if st.button("Confirm", icon=":material/check_circle:", type="primary", key=f"btn_conf_{item_uid}"):
+                        st.session_state["ondemand_confirmed"][cache_id] = True
+                        st.session_state["ondemand_edit_mode"][cache_id] = False
+                        st.rerun()
+                ci += 1
+        else:
+            with cols[ci]:
+                if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
+                    with st.spinner("Generating…"):
+                        res = _generate_unified_item_content(item, is_x=is_x)
+                        st.session_state["ondemand_generated"][cache_id] = res
+                        st.session_state["ondemand_confirmed"][cache_id] = False
+                        st.session_state["ondemand_edit_mode"][cache_id] = False
+                        st.rerun()
+            ci += 1
+
         if not is_x:
-            n_cols = (4 if has_brief else 3) + (1 if has_link else 0)
-            cols = st.columns(n_cols, gap="small")
-            ci = 0
-            if has_brief:
-                with cols[ci]:
-                    _render_copy_button(generated["formatted_text"], uid=item_uid)
-                ci += 1
-            else:
-                with cols[ci]:
-                    if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
-                        with st.spinner("Generating…"):
-                            res = _generate_unified_item_content(item, is_x=False)
-                            st.session_state["ondemand_generated"][cache_id] = res
-                            st.rerun()
-                ci += 1
             with cols[ci]:
                 if st.button("Full Text", icon=":material/article:", key=f"btn_ft_{item_uid}"):
                     if cache_id in st.session_state["ondemand_fulltext"]:
@@ -804,71 +860,42 @@ def render_feed_item_with_actions(
                             st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
                     st.rerun()
             ci += 1
-            with cols[ci]:
-                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
-            ci += 1
-            if has_brief:
-                with cols[ci]:
-                    if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
-                        st.session_state["ondemand_generated"].pop(cache_id, None)
-                        st.rerun()
-                ci += 1
-            if has_link:
-                with cols[ci]:
-                    st.link_button(read_label, item_link)
-        else:
-            n_cols = (3 if has_brief else 2) + (1 if has_link else 0)
-            cols = st.columns(n_cols, gap="small")
-            ci = 0
-            if has_brief:
-                with cols[ci]:
-                    _render_copy_button(generated["formatted_text"], uid=item_uid)
-                ci += 1
-            else:
-                with cols[ci]:
-                    if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
-                        with st.spinner("Generating…"):
-                            res = _generate_unified_item_content(item, is_x=True)
-                            st.session_state["ondemand_generated"][cache_id] = res
-                            st.rerun()
-                ci += 1
-            with cols[ci]:
-                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
-            ci += 1
-            if has_brief:
-                with cols[ci]:
-                    if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
-                        st.session_state["ondemand_generated"].pop(cache_id, None)
-                        st.rerun()
-                ci += 1
-            if has_link:
-                with cols[ci]:
-                    st.link_button(read_label, item_link)
 
-        if wa_clicked:
-            if not generated or not generated.get("ok"):
-                with st.spinner("Preparing content…"):
-                    generated = _generate_unified_item_content(item, is_x=is_x)
-                    st.session_state["ondemand_generated"][cache_id] = generated
+        with cols[ci]:
+            wa_clicked = st.button(
+                "WhatsApp Share",
+                icon=":material/share:",
+                key=f"btn_wa_{item_uid}",
+                disabled=not (has_brief and is_confirmed),
+                help="Generate and confirm the English Brief / Translation first" if not (has_brief and is_confirmed) else "Send confirmed content to Media Monitor",
+            )
+        ci += 1
 
-            if generated.get("ok"):
-                dest = _get_cached_wa_dest()
-                selected_gid = dest.get("id", "") if dest.get("ok") else ""
-                selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
-                wa_res = send_wa_group_message(
-                    chat_id=selected_gid,
-                    message=generated["formatted_text"],
-                    session_approved=True,
-                    sent_registry=st.session_state["wa_sent_registry"],
-                )
-                wa_res["group_name"] = selected_gname
-                st.session_state["wa_item_status"][cache_id] = wa_res
-            else:
-                st.session_state["wa_item_status"][cache_id] = {
-                    "ok": False,
-                    "status": "generation_failed",
-                    "error": generated.get("error", "Failed to prepare content."),
-                }
+        if has_brief:
+            with cols[ci]:
+                if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
+                    st.session_state["ondemand_generated"].pop(cache_id, None)
+                    st.session_state["ondemand_edit_mode"].pop(cache_id, None)
+                    st.session_state["ondemand_confirmed"].pop(cache_id, None)
+                    st.rerun()
+            ci += 1
+
+        if has_link:
+            with cols[ci]:
+                st.link_button(read_label, item_link)
+
+        if wa_clicked and has_brief and is_confirmed:
+            dest = _get_cached_wa_dest()
+            selected_gid = dest.get("id", "") if dest.get("ok") else ""
+            selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+            wa_res = send_wa_group_message(
+                chat_id=selected_gid,
+                message=generated["formatted_text"],
+                session_approved=True,
+                sent_registry=st.session_state["wa_sent_registry"],
+            )
+            wa_res["group_name"] = selected_gname
+            st.session_state["wa_item_status"][cache_id] = wa_res
             st.rerun()
 
         wa_status = st.session_state["wa_item_status"].get(cache_id)

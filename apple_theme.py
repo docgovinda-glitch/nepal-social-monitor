@@ -542,17 +542,21 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
         flex: 0 0 auto !important;
-        width: auto !important;
-        min-width: fit-content !important;
+        width: max-content !important;
+        min-width: max-content !important;
+        max-width: none !important;
     }
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton,
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button *,
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"],
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a,
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a * {
         white-space: nowrap !important;
         overflow: visible !important;
         text-overflow: unset !important;
         width: auto !important;
+        max-width: none !important;
     }
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
