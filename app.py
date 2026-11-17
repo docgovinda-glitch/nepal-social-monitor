@@ -767,7 +767,7 @@ total_combined_count = (
 # 7. SIDEBAR · Card 2 — Workspace, Card 3 — Contextual filters
 # ==========================================
 NAV_ITEMS = [
-    ("Combined Feed", "🌐", total_combined_count),
+    ("Unified Intelligence Feed", "🌐", total_combined_count),
     ("Nepali Media", "📰", stream_counts.get("nepali_count", 0)),
     ("Indian Press", "🇮🇳", stream_counts.get("indian_count", 0)),
     ("X", "𝕏", stream_counts.get("x_count", 0)),
@@ -781,16 +781,16 @@ def nav_label(name: str) -> str:
 
 with st.sidebar:
     with st.container(border=True):
-        sidebar_section("Workspace")
+        sidebar_section("Intelligence Workspace")
         default_nav_idx = 0
         if "nav" in st.query_params:
             param_nav = st.query_params.get("nav", "").lower()
             for idx, (n, _, _) in enumerate(NAV_ITEMS):
-                if n.lower() == param_nav or (param_nav == "x" and n == "X"):
+                if n.lower() == param_nav or (param_nav == "x" and n == "X") or (param_nav in ("unified", "combined") and "Unified" in n):
                     default_nav_idx = idx
                     break
         selected_nav = st.selectbox(
-            "Workspace",
+            "Intelligence Workspace",
             options=[n for n, _, _ in NAV_ITEMS],
             index=default_nav_idx,
             format_func=nav_label,
@@ -799,56 +799,56 @@ with st.sidebar:
         )
 
     with st.container(border=True):
-        if selected_nav == "Combined Feed":
-            sidebar_section("Filters", "All streams")
-            sel_comb_stream = st.selectbox("Stream source", ["All Streams", "Nepali Media Only", "Indian Press Only", "X (Twitter) Only"], key="comb_stream_filter")
-            sel_comb_cat = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
-            comb_sort_mode = st.selectbox("Sort by", ["Newest First", "Oldest First"], key="comb_sort_mode")
-            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+        if selected_nav == "Unified Intelligence Feed":
+            sidebar_section("Feed Controls", "All Sources")
+            sel_comb_stream = st.selectbox("Information Stream", ["All Intelligence Streams", "Nepali Media Only", "Indian Press Only", "Verified X Voices Only"], key="comb_stream_filter")
+            sel_comb_cat = st.selectbox("Editorial Section", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
+            comb_sort_mode = st.selectbox("Chronological Order", ["Newest First", "Oldest First"], key="comb_sort_mode")
+            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest intelligence dispatches every 60 seconds")
 
         elif selected_nav == "Nepali Media":
-            sidebar_section("Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} outlets")
-            sel_np_portal = st.selectbox("News portal", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
-            sel_np_cat = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
-            sel_np_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
-            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+            sidebar_section("Media Portal Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} Outlets")
+            sel_np_portal = st.selectbox("Publication Outlet", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
+            sel_np_cat = st.selectbox("Editorial Section", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
+            sel_np_lang = st.selectbox("Article Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
+            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         elif selected_nav == "Indian Press":
-            sidebar_section("Filters", f"{len(TOP_INDIAN_MEDIA_SOURCES)} outlets")
-            selected_indian_outlet = st.selectbox("News outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
-            sel_in_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
-            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+            sidebar_section("Indian Desk Filters", f"{len(TOP_INDIAN_MEDIA_SOURCES)} Outlets")
+            selected_indian_outlet = st.selectbox("Media Network", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
+            sel_in_lang = st.selectbox("Edition Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
+            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         elif selected_nav == "X":
-            sidebar_section("Filters", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} accounts")
-            x_cat_filter = st.selectbox("Editorial section", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
+            sidebar_section("Social Intelligence Filters", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} Voices")
+            x_cat_filter = st.selectbox("Geopolitical Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
             selected_acc_type = st.selectbox(
-                "Sector / Account type",
+                "Public Domain / Role",
                 [ALL_ACC_TYPES] + CANONICAL_X_CATEGORIES,
                 key="x_acc_type_select",
             )
-            sort_mode = st.selectbox("Sort by", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
-            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
-            if st.button("Rescan X", icon=":material/refresh:", width="stretch", key="btn_rescan_x_sidebar"):
+            sort_mode = st.selectbox("Post Ranking", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
+            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+            if st.button("Rescan X Network", icon=":material/refresh:", width="stretch", key="btn_rescan_x_sidebar"):
                 with st.spinner("Scanning verified Nepali accounts…"):
                     st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True)
                 st.rerun()
 
         elif selected_nav == "Analytics & Export":
-            sidebar_section("Export filters")
-            sel_stream = st.selectbox("Stream", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
-            sel_cat = st.selectbox("Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
-            sel_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
-            kw_filter = st.text_input("Keyword", placeholder="Keyword or author", key="univ_kw_filter")
-            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+            sidebar_section("Consolidated Export Parameters")
+            sel_stream = st.selectbox("Target Stream", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
+            sel_cat = st.selectbox("Topical Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
+            sel_lang = st.selectbox("Language Edition", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
+            kw_filter = st.text_input("Entity or Keyword Search", placeholder="e.g. Lipulekh, Budget, @PM_nepal", key="univ_kw_filter")
+            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         else:
-            sidebar_section("Source filters")
-            admin_search_src = st.text_input("Portal name", placeholder="e.g. Setopati", key="inp_admin_src_srch")
-            admin_status_filter = st.selectbox("Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
-            admin_lang_filter = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
-            admin_tier_filter = st.selectbox("Polling tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
-            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+            sidebar_section("Diagnostics & Source Registry")
+            admin_search_src = st.text_input("Search Source", placeholder="e.g. Setopati, Kantipur", key="inp_admin_src_srch")
+            admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
+            admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
+            admin_tier_filter = st.selectbox("Polling Frequency Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
+            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
     auto_sync_badge = (
         ' <span style="display:inline-block; margin-left:4px; padding:1px 6px; font-size:0.68rem; font-weight:600; border-radius:10px; background:var(--green-soft); color:var(--green);">Auto Sync ON</span>'
@@ -872,9 +872,9 @@ if st.session_state.get("auto_sync_enabled", False):
         st.rerun()
 
 # ==========================================
-# SECTION 0: Combined Feed (Nepali Media, Indian Press, X Posts)
+# SECTION 0: Unified Intelligence Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
-if selected_nav == "Combined Feed":
+if selected_nav == "Unified Intelligence Feed":
     nepal_arts = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     indian_arts = get_active_indian_articles(filter_start_dt, filter_end_dt)
     x_posts_all = get_active_x_posts()
@@ -899,7 +899,7 @@ if selected_nav == "Combined Feed":
         comb_items = [it for it in comb_items if it.get("_feed_type") == "nepali"]
     elif sel_comb_stream == "Indian Press Only":
         comb_items = [it for it in comb_items if it.get("_feed_type") == "indian"]
-    elif sel_comb_stream == "X (Twitter) Only":
+    elif sel_comb_stream in ("X (Twitter) Only", "Verified X Voices Only"):
         comb_items = [it for it in comb_items if it.get("_feed_type") == "x"]
 
     # Filter by category
@@ -917,7 +917,7 @@ if selected_nav == "Combined Feed":
         comb_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
 
     render_page_header(
-        "Combined Feed",
+        "Unified Intelligence Feed",
         f"{len(comb_items):,} dispatches and posts across Nepali Media (34 portals), Indian Press (18 outlets), and Verified X"
     )
 
