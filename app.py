@@ -36,6 +36,7 @@ from nepal_fetcher import (
 )
 from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS, get_monitored_x_accounts
 from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
+from nepal_summarizer import _has_devanagari, enrich_articles_with_english_summaries
 try:
     from nepal_news_store import (
         get_all_source_health,
@@ -422,9 +423,33 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
     lang = item.get("language", "")
     lang_badge = f'<span class="pill">{html.escape(lang)}</span>' if lang else ""
 
-    raw_title = item.get("title", "")
+    raw_title = (item.get("title") or "").strip()
+    headline_en = (item.get("headline_english") or "").strip()
     summary = (item.get("summary") or "").strip()
-    summary_html = f'<p class="apple-card-summary">{html.escape(summary)}</p>' if summary and summary != raw_title.strip() else ""
+
+    # Safety-net on-the-fly LexRank + translation enrichment if an older DB record isn't summarized in English yet
+    if (
+        not summary
+        or summary == raw_title
+        or _has_devanagari(summary)
+        or (raw_title and _has_devanagari(raw_title) and (not headline_en or _has_devanagari(headline_en)))
+    ):
+        enrich_articles_with_english_summaries([item], max_workers=1)
+        headline_en = (item.get("headline_english") or "").strip()
+        summary = (item.get("summary") or "").strip()
+
+    display_title = headline_en if (headline_en and not _has_devanagari(headline_en)) else raw_title
+    native_title_html = (
+        f'<div class="apple-card-native-title">{html.escape(raw_title)}</div>'
+        if raw_title and display_title and raw_title != display_title
+        else ""
+    )
+
+    if summary and summary != display_title and summary != raw_title:
+        summary_html = f'<p class="apple-card-summary"><span class="apple-summary-badge">EN BRIEF</span>{html.escape(summary)}</p>'
+    else:
+        summary_html = ""
+
     link = html.escape(item.get("link", "#"), quote=True)
     cta = "Read in Indian press ↗" if is_indian else "Read story ↗"
 
@@ -432,7 +457,8 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
         f'<article class="apple-news-card accent--{accent}">'
         f'<header class="apple-card-meta">{source_tag}{get_badge_html(cat)}{review_flag}{lang_badge}'
         f'{time_badge_html(item.get("relative_time", "Recent"), item.get("exact_time", ""))}</header>'
-        f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(raw_title)}</a></h3>'
+        f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(display_title)}</a></h3>'
+        f'{native_title_html}'
         f'{summary_html}{sec_tags_html}'
         f'<footer class="apple-card-footer"><a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{cta}</a></footer>'
         f'</article>'

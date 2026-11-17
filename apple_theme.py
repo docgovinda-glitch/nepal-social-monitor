@@ -218,7 +218,13 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .apple-card-title { margin: 0 0 6px 0 !important; padding: 0 !important; font-size: 1.04rem !important; font-weight: 650 !important; line-height: 1.4 !important; letter-spacing: -0.014em !important; }
     .apple-card-title a { color: var(--label) !important; text-decoration: none !important; }
     .apple-card-title a:hover { color: var(--link) !important; }
+    .apple-card-native-title { font-size: 0.78rem; color: var(--label-3); margin: -2px 0 6px 0; line-height: 1.35; }
     .apple-card-summary { color: var(--label-2); font-size: 0.88rem; line-height: 1.55; margin: 0 0 6px 0; }
+    .apple-summary-badge {
+        display: inline-block; padding: 1px 6px; margin-right: 6px; border-radius: 5px;
+        background: var(--tint-soft); color: var(--tint); font-size: 0.65rem; font-weight: 700;
+        letter-spacing: 0.04em; vertical-align: 1px;
+    }
     .apple-card-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
     .apple-card-cta, .x-cta-link {
         display: inline-flex; align-items: center; gap: 4px;

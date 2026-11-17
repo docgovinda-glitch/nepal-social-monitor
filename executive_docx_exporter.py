@@ -79,65 +79,7 @@ SOURCE_NAME_MAP = {
     "Naya Patrika": "Naya Patrika",
 }
 
-_TRANSLATION_CACHE: Dict[str, str] = {}
-
-
-def _has_devanagari(text: str) -> bool:
-    """Returns True if text contains Devanagari characters."""
-    if not text:
-        return False
-    return any(0x0900 <= ord(ch) <= 0x097F for ch in text)
-
-
-def _translate_ne_to_en(text: str, timeout: int = 5) -> str:
-    """Translates Nepali (Devanagari) text into clean English for executive digest uniformity."""
-    clean = (text or "").strip()
-    if not clean or not _has_devanagari(clean):
-        return clean
-    if clean in _TRANSLATION_CACHE:
-        return _TRANSLATION_CACHE[clean]
-
-    # Split long bodies into chunks <= 2500 chars for reliable translation without truncating any text
-    chunks = []
-    if len(clean) <= 2500:
-        chunks = [clean]
-    else:
-        paras = clean.split("\n\n")
-        cur = ""
-        for p in paras:
-            if len(cur) + len(p) + 2 <= 2500:
-                cur = f"{cur}\n\n{p}" if cur else p
-            else:
-                if cur:
-                    chunks.append(cur)
-                if len(p) <= 2500:
-                    cur = p
-                else:
-                    # Split very long single paragraph in 2000-char slices without losing any characters
-                    for i in range(0, len(p), 2000):
-                        chunks.append(p[i : i + 2000])
-                    cur = ""
-        if cur:
-            chunks.append(cur)
-
-    translated_chunks = []
-    for chunk in chunks:
-        try:
-            url = (
-                "https://translate.googleapis.com/translate_a/single?client=gtx&sl=ne&tl=en&dt=t&q="
-                + urllib.parse.quote(chunk)
-            )
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                out = "".join(seg[0] for seg in data[0] if seg and seg[0])
-                translated_chunks.append(out.strip() if out else chunk)
-        except Exception:
-            translated_chunks.append(chunk)
-
-    result = "\n\n".join(translated_chunks).strip()
-    _TRANSLATION_CACHE[clean] = result
-    return result
+from nepal_summarizer import _has_devanagari, _translate_ne_to_en
 
 
 def format_editorial_source(raw_source: str, link: str = "") -> str:

@@ -18,8 +18,10 @@ from nepal_news_store import (
     get_all_source_health,
     set_source_enabled,
     set_source_interval,
-    register_portal_sources
+    register_portal_sources,
+    query_supabase,
 )
+from nepal_summarizer import _has_devanagari
 
 logger = logging.getLogger("nepal_news_scheduler")
 if not logger.handlers:
@@ -178,6 +180,52 @@ def run_historical_backfill(
         "details": results
     }
 
+def run_summary_enrichment_backfill(batch_size: int = 60) -> int:
+    """
+    Finds recent Nepali Media and Indian Press articles lacking clean English summaries
+    or English headlines, extracts full body text, and generates LexRank English briefs.
+    """
+    from nepal_fetcher import batch_fetch_full_content
+
+    def _needs_enrichment(row: Dict[str, Any]) -> bool:
+        title = (row.get("title") or "").strip()
+        summ = (row.get("summary") or "").strip()
+        en_head = (row.get("headline_english") or "").strip()
+        if not summ or summ == title or summ.endswith("...") or _has_devanagari(summ):
+            return True
+        if title and _has_devanagari(title) and (not en_head or _has_devanagari(en_head)):
+            return True
+        return False
+
+    np_rows = query_supabase(
+        "SELECT canonical_id, source, title, headline_english, link, summary, full_content, language "
+        "FROM articles ORDER BY published_dt DESC LIMIT 250;"
+    )
+    in_rows = query_supabase(
+        "SELECT canonical_id, source, title, headline_english, link, summary, full_content, language "
+        "FROM indian_media_articles WHERE relevance_status IN ('substantive', 'relevant') "
+        "ORDER BY published_dt DESC LIMIT 150;"
+    )
+
+    candidates: List[Dict[str, Any]] = []
+    for r in np_rows:
+        r["stream"] = "Nepali Media"
+        if _needs_enrichment(r):
+            candidates.append(r)
+    for r in in_rows:
+        r["stream"] = "Indian Press"
+        if _needs_enrichment(r):
+            candidates.append(r)
+
+    target_batch = candidates[:batch_size]
+    if not target_batch:
+        return 0
+
+    batch_fetch_full_content(target_batch, max_workers=20, summarize_english=True)
+    logger.info(f"Summary enrichment backfill completed for {len(target_batch)} articles.")
+    return len(target_batch)
+
+
 # Background Monitoring Worker Thread
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
@@ -193,6 +241,12 @@ def _monitoring_daemon_loop():
             run_all_sources_discovery(parallel_workers=12, force_all=False)
         except Exception as e:
             logger.error(f"Error in monitoring loop cycle: {e}")
+
+        # Background English summary enrichment for any unsummarized articles
+        try:
+            run_summary_enrichment_backfill(batch_size=50)
+        except Exception as e:
+            logger.error(f"Error in background summary enrichment cycle: {e}")
 
         # Automated continuous X scanning
         now_sec = time.time()

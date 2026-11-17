@@ -45,6 +45,11 @@ DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
+from nepal_summarizer import (
+    _has_devanagari,
+    enrich_articles_with_english_summaries,
+)
+
 # Full article news text in-memory cache
 FULL_ARTICLE_TEXT_CACHE = {}
 # Published date in-memory cache
@@ -53,7 +58,8 @@ ARTICLE_DATE_CACHE = {}
 def extract_article_full_text(url: str, timeout: int = 8) -> str:
     """
     Extracts the complete news article body text from an article URL.
-    Returns cleaned text with all article paragraphs separated by double newlines.
+    Harvests JSON-LD articleBody and OpenGraph meta descriptions before DOM stripping
+    so teaser-only RSS or JS portals still yield complete multi-sentence text.
     """
     if not url or not url.startswith("http"):
         return ""
@@ -65,7 +71,34 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
         with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout) as resp:
             raw_html = resp.read().decode("utf-8", errors="ignore")
         soup = BeautifulSoup(raw_html, "html.parser")
-        
+
+        # Extract JSON-LD articleBody and meta description BEFORE stripping tags
+        json_ld_texts = []
+        for ld_tag in soup.find_all("script", type="application/ld+json"):
+            try:
+                ld_raw = ld_tag.string or ld_tag.get_text() or ""
+                if not ld_raw.strip():
+                    continue
+                ld_obj = json.loads(ld_raw)
+                items_ld = ld_obj if isinstance(ld_obj, list) else [ld_obj]
+                for node in items_ld:
+                    if isinstance(node, dict):
+                        for graph_item in (node.get("@graph") or [node]):
+                            if isinstance(graph_item, dict):
+                                body_val = graph_item.get("articleBody") or graph_item.get("description") or ""
+                                if isinstance(body_val, str) and len(body_val.strip()) > 80:
+                                    json_ld_texts.append(html.unescape(body_val.strip()))
+            except Exception:
+                pass
+
+        meta_desc = ""
+        for meta_prop in [("property", "og:description"), ("name", "description"), ("name", "twitter:description")]:
+            m_tag = soup.find("meta", attrs={meta_prop[0]: meta_prop[1]})
+            if m_tag and m_tag.get("content"):
+                cand = html.unescape(str(m_tag["content"]).strip())
+                if len(cand) > len(meta_desc):
+                    meta_desc = cand
+
         # Strip script, styles, buttons, navigation, headers, footers, comments, and related widgets
         for tag in soup(["script", "style", "noscript", "svg", "button", "header", "footer", "nav", "form", "iframe"]):
             tag.decompose()
@@ -132,7 +165,15 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
                 continue
             clean.append(p)
 
-        full_text = "\n\n".join(clean).strip()
+        dom_text = "\n\n".join(clean).strip()
+        best_ld = max(json_ld_texts, key=len) if json_ld_texts else ""
+        if len(best_ld) > len(dom_text) + 100:
+            full_text = best_ld
+        elif len(dom_text) >= 120:
+            full_text = dom_text
+        else:
+            full_text = max([dom_text, best_ld, meta_desc], key=len).strip()
+
         if full_text:
             FULL_ARTICLE_TEXT_CACHE[url] = full_text
             return full_text
@@ -140,23 +181,30 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
         pass
     return ""
 
-def batch_fetch_full_content(articles: list, max_workers: int = 25) -> list:
+def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_english: bool = True) -> list:
     """
-    Extracts the full news article body text for a list of articles in parallel.
-    Populates 'full_content' on each article dictionary with the complete extracted news text.
+    Extracts full article text in parallel and enriches articles with LexRank English
+    headlines and summaries, persisting all enriched fields back to Supabase.
     """
     to_fetch = []
     for art in articles:
         link = art.get("link", "")
         existing_fc = (art.get("full_content") or "").strip()
         summary = (art.get("summary") or "").strip()
-        if link in FULL_ARTICLE_TEXT_CACHE and len(FULL_ARTICLE_TEXT_CACHE[link]) > max(len(existing_fc), 600):
+        title = (art.get("title") or "").strip()
+        needs_body = (
+            len(existing_fc) < 400
+            or existing_fc == summary
+            or existing_fc == title
+            or summary == title
+            or summary.endswith("...")
+        )
+        if link in FULL_ARTICLE_TEXT_CACHE and len(FULL_ARTICLE_TEXT_CACHE[link]) > max(len(existing_fc), 400):
             art["full_content"] = FULL_ARTICLE_TEXT_CACHE[link]
-        elif link.startswith("http") and (len(existing_fc) < 700 or existing_fc == summary or "\n\n" not in existing_fc):
+        elif link.startswith("http") and needs_body:
             to_fetch.append(art)
 
     if to_fetch:
-        newly_enriched = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_art = {
                 executor.submit(extract_article_full_text, a.get("link", "")): a
@@ -169,18 +217,21 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25) -> list:
                     existing_fc = (a.get("full_content") or a.get("summary") or "").strip()
                     if extracted and len(extracted) > len(existing_fc):
                         a["full_content"] = extracted
-                        newly_enriched.append(a)
                     elif not a.get("full_content"):
                         a["full_content"] = existing_fc or a.get("title", "")
                 except Exception:
                     if not a.get("full_content"):
                         a["full_content"] = a.get("summary") or a.get("title", "")
-        if newly_enriched:
-            try:
-                from nepal_news_store import persist_enriched_full_content
-                persist_enriched_full_content(newly_enriched)
-            except Exception:
-                pass
+
+    if summarize_english and articles:
+        enrich_articles_with_english_summaries(articles, max_workers=min(max_workers, 20))
+
+    if articles:
+        try:
+            from nepal_news_store import persist_enriched_full_content
+            persist_enriched_full_content(articles)
+        except Exception:
+            pass
     return articles
 
 # The 9 Structured Categories (Geographically and Thematically Organised)
@@ -1122,7 +1173,16 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
                     if len(items) >= max_entries:
                         break
 
-        # Persist discovered batch into durable SQLite news store
+        # Enrich top newly discovered items with full body + LexRank English summary before persistence
+        if items:
+            try:
+                batch_fetch_full_content(items[:15], max_workers=10, summarize_english=True)
+                if len(items) > 15:
+                    enrich_articles_with_english_summaries(items[15:], max_workers=10)
+            except Exception:
+                pass
+
+        # Persist discovered batch into durable news store
         latency = round(time.time() - t0, 3)
         if items:
             batch_upsert_articles(items, portal["name"], latency_secs=latency)
@@ -1614,6 +1674,15 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
                     break
     except Exception:
         pass
+
+    if items:
+        try:
+            # Enrich relevant/borderline Indian press stories with full text + LexRank English summary
+            relevant_items = [x for x in items if x.get("relevance_status") != "excluded"]
+            if relevant_items:
+                batch_fetch_full_content(relevant_items[:15], max_workers=10, summarize_english=True)
+        except Exception:
+            pass
     return items
 
 

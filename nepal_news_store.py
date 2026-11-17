@@ -255,6 +255,12 @@ def batch_upsert_articles(
                     THEN EXCLUDED.full_content
                     ELSE articles.full_content
                 END,
+                summary = CASE
+                    WHEN COALESCE(EXCLUDED.summary, '') <> ''
+                         AND (COALESCE(articles.summary, '') = '' OR articles.summary = articles.title OR articles.summary LIKE '%...' OR articles.summary ~ '[\u0900-\u097F]')
+                    THEN EXCLUDED.summary
+                    ELSE articles.summary
+                END,
                 headline_english = CASE
                     WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
                     THEN EXCLUDED.headline_english
@@ -470,27 +476,52 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
                 WHEN LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(indian_media_articles.full_content, ''))
                 THEN EXCLUDED.full_content
                 ELSE indian_media_articles.full_content
+            END,
+            summary = CASE
+                WHEN COALESCE(EXCLUDED.summary, '') <> ''
+                     AND (COALESCE(indian_media_articles.summary, '') = '' OR indian_media_articles.summary = indian_media_articles.title OR indian_media_articles.summary LIKE '%...' OR indian_media_articles.summary ~ '[\u0900-\u097F]')
+                THEN EXCLUDED.summary
+                ELSE indian_media_articles.summary
+            END,
+            headline_english = CASE
+                WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
+                THEN EXCLUDED.headline_english
+                ELSE indian_media_articles.headline_english
             END;
         """
         query_supabase(sql)
 
 
 def persist_enriched_full_content(articles: List[Dict[str, Any]]):
-    """Pushes newly scraped full-article text back into Supabase `articles` and `indian_media_articles`."""
+    """Pushes newly scraped full-article text, English headlines, and LexRank summaries back into Supabase."""
     if not articles:
         return
     stmts = []
     for a in articles:
         link = (a.get("link") or "").strip()
         fc = (a.get("full_content") or "").strip()
-        if not link or len(fc) < 300:
+        en_head = (a.get("headline_english") or "").strip()
+        summ = (a.get("summary") or "").strip()
+        if not link:
             continue
-        stream = (a.get("stream") or "").lower()
+        stream = (a.get("stream") or a.get("portal_category") or "").lower()
         table = "indian_media_articles" if "indian" in stream else "articles"
-        stmts.append(
-            f"UPDATE {table} SET full_content = {esc_sql(fc)} "
-            f"WHERE link = {esc_sql(link)} AND LENGTH(COALESCE(full_content, '')) < {len(fc)};"
-        )
+
+        updates = []
+        if len(fc) >= 200:
+            updates.append(
+                f"full_content = CASE WHEN LENGTH(COALESCE(full_content, '')) < {len(fc)} THEN {esc_sql(fc)} ELSE full_content END"
+            )
+        if en_head:
+            updates.append(f"headline_english = {esc_sql(en_head)}")
+        if summ and not summ.endswith("..."):
+            updates.append(f"summary = {esc_sql(summ)}")
+        elif summ and not any(0x0900 <= ord(ch) <= 0x097F for ch in summ):
+            updates.append(f"summary = {esc_sql(summ)}")
+
+        if updates:
+            stmts.append(f"UPDATE {table} SET {', '.join(updates)} WHERE link = {esc_sql(link)};")
+
     chunk_size = 25
     for i in range(0, len(stmts), chunk_size):
         query_supabase("\n".join(stmts[i : i + chunk_size]))
