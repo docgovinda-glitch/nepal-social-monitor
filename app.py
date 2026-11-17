@@ -11,8 +11,11 @@ Includes:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import datetime
+import hashlib
+import json
 import time
 import urllib.parse
 import html
@@ -36,7 +39,18 @@ from nepal_fetcher import (
 )
 from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS, get_monitored_x_accounts
 from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
-from nepal_summarizer import _has_devanagari, enrich_articles_with_english_summaries, _summary_needs_enrichment
+from nepal_summarizer import (
+    _has_devanagari,
+    detect_text_language,
+    generate_on_demand_news_brief,
+    generate_on_demand_x_content,
+)
+from whatsapp_greenapi import (
+    get_instance_status as get_wa_instance_status,
+    get_destination_group as get_wa_destination_group,
+    is_sending_active as is_wa_sending_active,
+    send_group_message as send_wa_group_message,
+)
 try:
     from nepal_news_store import (
         get_all_source_health,
@@ -429,20 +443,6 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
     headline_en = (item.get("headline_english") or "").strip()
     summary = (item.get("summary") or "").strip()
 
-    # Safety-net on-the-fly LexRank + translation enrichment if a record lacks a clean English brief
-    if _summary_needs_enrichment(item):
-        try:
-            from nepal_news_store import hydrate_article_full_content, persist_enriched_full_content
-            if is_indian:
-                item["stream"] = "Indian Press"
-            hydrate_article_full_content(item)
-            enrich_articles_with_english_summaries([item], max_workers=1)
-            persist_enriched_full_content([item])
-        except Exception:
-            enrich_articles_with_english_summaries([item], max_workers=1)
-        headline_en = (item.get("headline_english") or "").strip()
-        summary = (item.get("summary") or "").strip()
-
     display_title = headline_en if (headline_en and not _has_devanagari(headline_en)) else raw_title
     native_title_html = (
         f'<div class="apple-card-native-title">{html.escape(raw_title)}</div>'
@@ -554,11 +554,223 @@ def sidebar_section(title: str, badge: str = "") -> None:
     badge_html = f'<span class="sb-section__badge">{html.escape(badge)}</span>' if badge else ""
     st.markdown(f'<div class="sb-section"><span class="sb-section__title">{html.escape(title)}</span>{badge_html}</div>', unsafe_allow_html=True)
 
+def _render_copy_button(text_to_copy: str, uid: str) -> None:
+    """Renders a single-click browser clipboard button matching the Apple HIG button style."""
+    js_payload = json.dumps(text_to_copy)
+    btn_id = f"cp_{uid}"
+    components.html(
+        f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+            html, body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif; }}
+            .cp-btn {{
+                width: 100%;
+                height: 36px;
+                border-radius: 10px;
+                border: 1px solid rgba(0, 0, 0, 0.14);
+                background: #FFFFFF;
+                color: #1D1D1F;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+                transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                box-sizing: border-box;
+            }}
+            .cp-btn:hover {{ background: #F5F5F7; }}
+            .cp-btn.copied {{
+                background: #E8F5EC;
+                color: #1E8E3E;
+                border-color: rgba(30, 142, 62, 0.35);
+            }}
+        </style>
+        </head>
+        <body>
+            <button id="{btn_id}" class="cp-btn" type="button" onclick="copyUnified()">📋 Copy</button>
+            <script>
+            const TEXT = {js_payload};
+            function copyUnified() {{
+                const btn = document.getElementById("{btn_id}");
+                const markCopied = () => {{
+                    btn.textContent = "✓ Copied";
+                    btn.classList.add("copied");
+                    setTimeout(() => {{
+                        btn.textContent = "📋 Copy";
+                        btn.classList.remove("copied");
+                    }}, 2000);
+                }};
+                if (navigator.clipboard && window.isSecureContext) {{
+                    navigator.clipboard.writeText(TEXT).then(markCopied).catch(() => fallbackCopy(markCopied));
+                }} else {{
+                    fallbackCopy(markCopied);
+                }}
+            }}
+            function fallbackCopy(onDone) {{
+                const ta = document.createElement("textarea");
+                ta.value = TEXT;
+                ta.style.position = "fixed";
+                ta.style.left = "-9999px";
+                document.body.appendChild(ta);
+                ta.select();
+                try {{ document.execCommand("copy"); onDone(); }} catch (e) {{}}
+                document.body.removeChild(ta);
+            }}
+            </script>
+        </body>
+        </html>
+        """,
+        height=38,
+    )
+
+
+def _compute_item_uid(item: Dict[str, Any], prefix: str) -> str:
+    raw_key = f"{prefix}|{item.get('canonical_id') or item.get('id') or item.get('link') or item.get('title') or ''}"
+    return hashlib.md5(raw_key.encode("utf-8", errors="ignore")).hexdigest()[:12]
+
+
+def _resolve_item_flags(item: Dict[str, Any], renderer: Callable[[Dict[str, Any]], str]) -> tuple:
+    feed_type = item.get("_feed_type") or item.get("stream") or ""
+    if renderer is render_apple_x_post_card or feed_type == "x" or "raw_handle" in item or "handle" in item:
+        return (False, True)
+    if feed_type == "indian" or feed_type == "Indian Press" or "nepal_relevance_score" in item:
+        return (True, False)
+    return (False, False)
+
+
+def _generate_unified_item_content(item: Dict[str, Any], is_x: bool) -> Dict[str, Any]:
+    if is_x:
+        return generate_on_demand_x_content(item)
+    return generate_on_demand_news_brief(item)
+
+
+def render_feed_item_with_actions(
+    item: Dict[str, Any],
+    renderer: Callable[[Dict[str, Any]], str],
+    state_key: str,
+    idx: int,
+) -> None:
+    """Renders a feed card with on-demand English Brief / Translate, unified copyable box, Copy, and WhatsApp Share."""
+    st.session_state.setdefault("ondemand_generated", {})
+    st.session_state.setdefault("wa_sent_registry", set())
+    st.session_state.setdefault("wa_item_status", {})
+
+    is_indian, is_x = _resolve_item_flags(item, renderer)
+    item_uid = f"{_compute_item_uid(item, state_key)}_{idx}"
+    cache_id = _compute_item_uid(item, "global")
+
+    st.markdown(renderer(item), unsafe_allow_html=True)
+
+    generated = st.session_state["ondemand_generated"].get(cache_id)
+
+    if is_x:
+        raw_x_txt = (item.get("text") or item.get("title") or "").strip()
+        x_lang = detect_text_language(raw_x_txt)
+        primary_label = "Full Post" if x_lang == "en" else "Translate"
+        primary_icon = ":material/article:" if x_lang == "en" else ":material/translate:"
+        box_eyebrow = "Complete X Post (Ready to Copy & Share)" if x_lang == "en" else "English Translation"
+    else:
+        primary_label = "English Brief"
+        primary_icon = ":material/summarize:"
+        box_eyebrow = "English Brief"
+
+    if generated and generated.get("ok"):
+        c1, c2, c3, _ = st.columns([1.15, 0.9, 1.25, 2.7])
+        with c1:
+            if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
+                with st.spinner("Generating…"):
+                    res = _generate_unified_item_content(item, is_x=is_x)
+                    st.session_state["ondemand_generated"][cache_id] = res
+                    generated = res
+        with c2:
+            _render_copy_button(generated["formatted_text"], uid=item_uid)
+        with c3:
+            wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
+    else:
+        c1, c2, _ = st.columns([1.2, 1.3, 3.5])
+        with c1:
+            if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
+                with st.spinner("Generating…"):
+                    res = _generate_unified_item_content(item, is_x=is_x)
+                    st.session_state["ondemand_generated"][cache_id] = res
+                    st.rerun()
+        with c2:
+            wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
+
+    if wa_clicked:
+        if not generated or not generated.get("ok"):
+            with st.spinner("Preparing content…"):
+                generated = _generate_unified_item_content(item, is_x=is_x)
+                st.session_state["ondemand_generated"][cache_id] = generated
+
+        if generated.get("ok"):
+            selected_gid = st.session_state.get("wa_selected_group_id", "")
+            selected_gname = st.session_state.get("wa_selected_group_name", "")
+            wa_res = send_wa_group_message(
+                chat_id=selected_gid,
+                message=generated["formatted_text"],
+                session_approved=st.session_state.get("wa_sending_approved", True),
+                sent_registry=st.session_state["wa_sent_registry"],
+            )
+            wa_res["group_name"] = selected_gname
+            st.session_state["wa_item_status"][cache_id] = wa_res
+        else:
+            st.session_state["wa_item_status"][cache_id] = {
+                "ok": False,
+                "status": "generation_failed",
+                "error": generated.get("error", "Failed to prepare content."),
+            }
+        st.rerun()
+
+    # Render Unified Copyable Box when generated
+    if generated:
+        if generated.get("ok"):
+            body_html = html.escape(generated["content"])
+            src_url = generated.get("source_url", "")
+            src_html = (
+                f'<div class="unified-brief-box__source">Source: '
+                f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
+                if src_url
+                else ""
+            )
+            st.markdown(
+                f'<div class="unified-brief-box">'
+                f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow)}</div>'
+                f'<div class="unified-brief-box__body">{body_html}</div>'
+                f'{src_html}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.error(generated.get("error") or "Could not generate English output for this item.")
+
+    wa_status = st.session_state["wa_item_status"].get(cache_id)
+    if wa_status:
+        st_code = wa_status.get("status")
+        if wa_status.get("ok") and wa_status.get("accepted"):
+            gname = wa_status.get("group_name") or "selected group"
+            st.success(f"Accepted by Green API for **{gname}** (ID: `{wa_status.get('id_message')}`). Queued for WhatsApp delivery.")
+        elif st_code == "inactive":
+            st.info(wa_status.get("error"))
+        elif st_code == "duplicate_prevented":
+            st.warning(wa_status.get("error"))
+        else:
+            st.error(wa_status.get("error") or "Failed to send WhatsApp message.")
+
+    st.markdown('<div class="feed-item-spacer"></div>', unsafe_allow_html=True)
+
+
 def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer: Callable[[Dict[str, Any]], str], noun: str) -> None:
-    """Renders items PAGE_SIZE at a time with a single 'Show more' control."""
+    """Renders items PAGE_SIZE at a time with on-demand action controls and a single 'Show more' control."""
     st.session_state.setdefault(state_key, PAGE_SIZE)
     limit = st.session_state[state_key]
-    st.markdown("".join(renderer(it) for it in items[:limit]), unsafe_allow_html=True)
+    for idx, it in enumerate(items[:limit]):
+        render_feed_item_with_actions(it, renderer=renderer, state_key=state_key, idx=idx)
 
     remaining = len(items) - limit
     if remaining > 0:
@@ -870,6 +1082,38 @@ with st.sidebar:
             admin_status_filter = st.selectbox("Status Filter", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
             admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
             admin_tier_filter = st.selectbox("Check Interval", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
+
+    with st.container(border=True):
+        wa_state = get_wa_instance_status()
+        st.session_state.setdefault("wa_sending_approved", True)
+        wa_sending_on = is_wa_sending_active(st.session_state.get("wa_sending_approved", True))
+        wa_badge = "Active" if (wa_sending_on and wa_state.get("authorized")) else ("Authorized" if wa_state.get("authorized") else "Setup Needed")
+        sidebar_section("WhatsApp Share", wa_badge)
+
+        if wa_state.get("authorized"):
+            @st.cache_data(ttl=300, show_spinner=False)
+            def _cached_wa_dest():
+                return get_wa_destination_group()
+
+            dest = _cached_wa_dest()
+            if dest.get("ok") and dest.get("id"):
+                st.session_state["wa_selected_group_id"] = dest["id"]
+                st.session_state["wa_selected_group_name"] = dest["name"]
+                st.selectbox(
+                    "Destination Group",
+                    options=[dest["name"]],
+                    index=0,
+                    disabled=True,
+                    key="wa_dest_display",
+                )
+                st.toggle("Enable WhatsApp Sending", key="wa_sending_approved")
+                st.caption(f"Ready to share to **{dest['name']}**" if st.session_state.get("wa_sending_approved") else "WhatsApp sending paused for this session.")
+            else:
+                st.session_state["wa_selected_group_id"] = ""
+                st.session_state["wa_selected_group_name"] = ""
+                st.caption(dest.get("error") or "Destination group not configured.")
+        else:
+            st.caption(wa_state.get("error") or "Green API setup required.")
 
     st.markdown(
         f'<div class="sb-footer"><span class="live-pill" style="font-size:0.7rem; padding:3px 8px;"><span class="live-pill__dot"></span>Auto Sync Active</span><br/>Last synced {html.escape(st.session_state["last_sync_npt"])} NPT<br/>Nepal Social &amp; Media Monitor</div>',

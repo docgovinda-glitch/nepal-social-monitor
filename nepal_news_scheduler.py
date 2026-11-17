@@ -258,11 +258,7 @@ def _monitoring_daemon_loop():
             except Exception as e:
                 logger.error(f"Error in background Indian Press scan cycle: {e}")
 
-        # Background English summary enrichment for any unsummarized articles
-        try:
-            run_summary_enrichment_backfill(batch_size=50)
-        except Exception as e:
-            logger.error(f"Error in background summary enrichment cycle: {e}")
+        # On-demand brief/translation strategy: do not auto-run background summarization/translation on incoming feeds
 
         # Automated continuous X scanning
         now_sec = time.time()

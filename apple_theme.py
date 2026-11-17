@@ -201,7 +201,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* Article card */
-    .apple-news-card { position: relative; padding: 16px 20px 14px 22px; margin-bottom: 12px; overflow: hidden; }
+    .apple-news-card { position: relative; padding: 16px 20px 14px 22px; margin-bottom: 6px; overflow: hidden; }
     .apple-news-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent, #C7C7CC); }
     .accent--india { --accent: #F5A623; }
     .accent--china { --accent: #E5484D; }
@@ -234,7 +234,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .apple-card-cta:hover, .x-cta-link:hover { text-decoration: underline !important; }
 
     /* X post card */
-    .x-post-card { padding: 16px 20px; margin-bottom: 12px; }
+    .x-post-card { padding: 16px 20px; margin-bottom: 6px; }
     .x-post-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .x-post-header__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .x-author-box { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -452,6 +452,51 @@ APPLE_DESIGN_SYSTEM_CSS = """
 
     .counter-badge { display: inline-block; background: var(--surface); border: 1px solid var(--separator); border-radius: var(--r-sm); padding: 6px 12px; font-size: 0.78rem; color: var(--label-2); }
     .counter-badge b { color: var(--label); }
+
+    /* Unified Copyable Brief / Translation Box */
+    .unified-brief-box {
+        background: #F9FAFB;
+        border: 1px solid var(--separator-strong);
+        border-left: 3px solid var(--tint);
+        border-radius: var(--r-md);
+        padding: 13px 16px;
+        margin: 4px 0 8px 0;
+        box-shadow: var(--shadow-1);
+    }
+    .unified-brief-box__eyebrow {
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--tint);
+        margin-bottom: 6px;
+    }
+    .unified-brief-box__body {
+        font-size: 0.90rem;
+        line-height: 1.58;
+        color: var(--label);
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin-bottom: 10px;
+        user-select: all;
+    }
+    .unified-brief-box__source {
+        font-size: 0.78rem;
+        line-height: 1.4;
+        color: var(--label-2);
+        padding-top: 8px;
+        border-top: 1px solid var(--separator);
+        word-break: break-all;
+    }
+    .unified-brief-box__source a {
+        color: var(--link) !important;
+        text-decoration: none !important;
+        font-weight: 500;
+    }
+    .unified-brief-box__source a:hover {
+        text-decoration: underline !important;
+    }
+    .feed-item-spacer { height: 10px; }
 
     /* ==========================================================
        7. NATIVE STREAMLIT WIDGETS (global)

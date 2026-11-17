@@ -1176,10 +1176,10 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
                     if len(items) >= max_entries:
                         break
 
-        # Enrich all newly discovered items with full body + LexRank English summary before persistence
+        # Store raw discovered items without automatic English brief or translation processing
         if items:
             try:
-                batch_fetch_full_content(items, max_workers=12, summarize_english=True)
+                batch_fetch_full_content(items, max_workers=12, summarize_english=False)
             except Exception:
                 pass
 
@@ -1765,10 +1765,10 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
 
     if items:
         try:
-            # Enrich relevant/borderline Indian press stories with full text + LexRank English summary
+            # Fetch full article text for relevant Indian press items without automatic summarization/translation
             relevant_items = [x for x in items if x.get("relevance_status") != "excluded"]
             if relevant_items:
-                batch_fetch_full_content(relevant_items[:15], max_workers=10, summarize_english=True)
+                batch_fetch_full_content(relevant_items[:15], max_workers=10, summarize_english=False)
         except Exception:
             pass
     return items

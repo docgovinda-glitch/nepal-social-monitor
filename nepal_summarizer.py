@@ -191,7 +191,29 @@ def normalize_english_proper_nouns(text: str) -> str:
     out = text
     for pat, repl in _ENGLISH_PROPER_NOUN_PATTERNS:
         out = pat.sub(repl, out)
-    return re.sub(r"\s+", " ", out).strip()
+    return re.sub(r"[ \t]+", " ", out).strip()
+
+
+def detect_text_language(text: str, declared_lang: str = "") -> str:
+    """
+    Detects whether text is English ('en'), Nepali ('ne'), Hindi ('hi'), or another non-English language ('auto').
+    Uses Devanagari script + Hindi/Nepali lexical markers, plus non-ASCII script detection.
+    """
+    raw = (text or "").strip()
+    decl = (declared_lang or "").strip().lower()
+    if _has_devanagari(raw):
+        if decl == "hindi":
+            return "hi"
+        if re.search(r"(?:^|\s)(?:है|हैं|था|थी|थे|में|से|की|के|को|पर|और|नहीं|कहा|किया)(?:\s|[।,.!?]|$)", raw):
+            return "hi"
+        return "ne"
+
+    # Strip URLs, @mentions, #hashtags, emojis/punctuation before checking non-Latin scripts
+    stripped = re.sub(r"https?://\S+|@[A-Za-z0-9_]+|#[A-Za-z0-9_]+", "", raw)
+    non_ascii_letters = [ch for ch in stripped if ord(ch) > 127 and ch.isalpha()]
+    if len(non_ascii_letters) >= 4:
+        return "auto"
+    return "en"
 
 
 def _has_devanagari(text: str) -> bool:
@@ -325,17 +347,19 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
     return results
 
 
-def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne") -> str:
-    """Translates Nepali or Hindi (Devanagari) text into clean English with proper-noun normalization."""
+def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", force_translate: bool = False) -> str:
+    """Translates Nepali, Hindi, or auto-detected non-English text into English with proper-noun normalization."""
     clean = (text or "").strip()
-    if not clean or not _has_devanagari(clean):
-        return normalize_english_proper_nouns(clean) if clean else clean
+    if not clean:
+        return clean
+    if not force_translate and source_lang != "auto" and not _has_devanagari(clean):
+        return normalize_english_proper_nouns(clean)
     cache_key = f"{source_lang}::{clean}"
     if cache_key in _TRANSLATION_CACHE:
         return _TRANSLATION_CACHE[cache_key]
 
-    prepped = _normalize_devanagari_before_translation(clean) if source_lang != "hi" else clean
-    sl_code = "hi" if source_lang == "hi" else "ne"
+    prepped = _normalize_devanagari_before_translation(clean) if source_lang == "ne" else clean
+    sl_code = source_lang if source_lang in ("ne", "hi", "auto") else "ne"
 
     chunks = []
     if len(prepped) <= 2500:
@@ -865,3 +889,138 @@ def enrich_articles_with_english_summaries(
             art["summary"] = english_brief
 
     return articles
+
+
+def generate_on_demand_news_brief(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    On-demand user-initiated English Brief generator for Nepali, Hindi, and English news articles.
+    Hydrates full content from DB/URL if needed, translates if non-English, summarizes concisely,
+    and returns unified output + full clickable source URL without altering original item fields.
+    """
+    work = dict(item)
+    source_url = (work.get("link") or "").strip()
+    raw_title = (work.get("title") or "").strip()
+    lang_code = detect_text_language(
+        raw_title + " " + (work.get("summary") or ""),
+        declared_lang=work.get("language", ""),
+    )
+
+    try:
+        from nepal_news_store import hydrate_article_full_content
+        hydrate_article_full_content(work)
+    except Exception:
+        pass
+
+    if _needs_body_scrape(work) and source_url.startswith("http"):
+        try:
+            from nepal_fetcher import extract_article_full_text
+            fetched = extract_article_full_text(source_url, timeout=6)
+            if fetched and len(fetched) > len((work.get("full_content") or "").strip()):
+                work["full_content"] = fetched
+        except Exception:
+            pass
+
+    full_body = (work.get("full_content") or "").strip()
+    raw_summary = (work.get("summary") or "").strip()
+    source_text = full_body if len(full_body) >= len(raw_summary) else raw_summary
+    if not source_text:
+        source_text = raw_title
+
+    existing_en_title = (work.get("headline_english") or "").strip()
+    if existing_en_title and not _has_devanagari(existing_en_title):
+        headline_en = normalize_english_proper_nouns(existing_en_title)
+    elif lang_code != "en":
+        headline_en = _translate_ne_to_en(raw_title, source_lang=lang_code, force_translate=True)
+    else:
+        headline_en = normalize_english_proper_nouns(raw_title)
+
+    if _has_devanagari(source_text) or lang_code in ("ne", "hi", "auto"):
+        if _has_devanagari(source_text):
+            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=2)
+            if not compact_native:
+                compact_native = raw_title
+            english_body = _translate_ne_to_en(compact_native, source_lang=lang_code, force_translate=True)
+        else:
+            english_body = normalize_english_proper_nouns(source_text)
+    else:
+        english_body = normalize_english_proper_nouns(source_text)
+
+    if _has_devanagari(english_body):
+        return {
+            "ok": False,
+            "error": "Translation service temporarily unavailable. Please try again.",
+            "content": "",
+            "source_url": source_url,
+            "formatted_text": "",
+            "lang": lang_code,
+        }
+
+    brief = generate_lexrank_english_summary(
+        title=headline_en or raw_title,
+        full_text=english_body,
+        max_sentences=2,
+        max_chars=450,
+    )
+    if not brief:
+        brief = headline_en or raw_title
+
+    formatted = f"{brief}\n\nSource: {source_url}" if source_url else brief
+    return {
+        "ok": True,
+        "error": "",
+        "headline_english": headline_en,
+        "content": brief,
+        "source_url": source_url,
+        "formatted_text": formatted,
+        "lang": lang_code,
+    }
+
+
+def generate_on_demand_x_content(post: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    On-demand user-initiated X post processor.
+    - English X posts: returns the complete original post text untouched (no summarization/rewriting).
+    - Non-English X posts (Nepali, Hindi, etc.): translates the complete post preserving line breaks and tone.
+    """
+    raw_text = (post.get("text") or post.get("title") or "").strip()
+    source_url = (post.get("link") or "").strip()
+    if not source_url:
+        raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").strip()
+        sid = str(post.get("id") or "").strip()
+        if raw_h and sid:
+            source_url = f"https://x.com/{raw_h}/status/{sid}"
+
+    lang_code = detect_text_language(raw_text)
+    if lang_code == "en":
+        content = raw_text
+    else:
+        # Translate line-by-line preserving original paragraph & line-break structure
+        lines = raw_text.splitlines()
+        translated_lines: List[str] = []
+        for ln in lines:
+            stripped = ln.strip()
+            if not stripped:
+                translated_lines.append("")
+                continue
+            tr_ln = _translate_ne_to_en(stripped, source_lang=lang_code, force_translate=True)
+            translated_lines.append(tr_ln)
+        content = "\n".join(translated_lines).strip()
+        if not content or (_has_devanagari(raw_text) and _has_devanagari(content)):
+            return {
+                "ok": False,
+                "error": "Translation service temporarily unavailable. Please try again.",
+                "content": "",
+                "source_url": source_url,
+                "formatted_text": "",
+                "lang": lang_code,
+            }
+
+    formatted = f"{content}\n\nSource: {source_url}" if source_url else content
+    return {
+        "ok": True,
+        "error": "",
+        "content": content,
+        "source_url": source_url,
+        "formatted_text": formatted,
+        "lang": lang_code,
+    }
