@@ -937,6 +937,7 @@ def _show_share_dialog() -> None:
         return
 
     src_url = generated.get("source_url", "")
+    profile_line = (generated.get("profile_line") or "").strip()
     draft = st.session_state["share_drafts"].get(cache_id)
     if not draft:
         init_text = (generated.get("content") or "").strip()
@@ -944,6 +945,7 @@ def _show_share_dialog() -> None:
             "original_content": init_text,
             "saved_content": init_text,
             "draft_content": init_text,
+            "profile_line": profile_line,
             "source_url": src_url,
             "version": 1,
             "saved_at": "",
@@ -961,8 +963,18 @@ def _show_share_dialog() -> None:
     current_draft_text = (draft.get("draft_content") or "").strip()
     has_unsaved = current_draft_text != saved_text
     active_text = current_draft_text if has_unsaved else saved_text
-    saved_formatted = f"{saved_text}\n\nRead Original Source: {src_url}" if src_url else saved_text
-    current_formatted = f"{active_text}\n\nRead Original Source: {src_url}" if src_url else active_text
+    eff_profile = (draft.get("profile_line") or profile_line or "").strip()
+
+    def _fmt_payload(body_txt: str) -> str:
+        pts = [body_txt] if body_txt else []
+        if eff_profile:
+            pts.append(f"_{eff_profile}_")
+        if src_url:
+            pts.append(f"Read Original Source: {src_url}")
+        return "\n\n".join(pts)
+
+    saved_formatted = _fmt_payload(saved_text)
+    current_formatted = _fmt_payload(active_text)
 
     dest = _get_cached_wa_dest()
     dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
@@ -1065,10 +1077,12 @@ def _show_share_dialog() -> None:
             )
         return
 
+    profile_html = f'<div class="unified-brief-box__profile">{html.escape(eff_profile)}</div>' if eff_profile else ""
     src_html = _render_source_link_html(src_url)
     st.markdown(
         f'<div class="unified-brief-box">'
         f'<div class="unified-brief-box__body">{html.escape(active_text)}</div>'
+        f'{profile_html}'
         f'{src_html}'
         f'</div>',
         unsafe_allow_html=True,

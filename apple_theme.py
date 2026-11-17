@@ -525,6 +525,15 @@ APPLE_DESIGN_SYSTEM_CSS = """
         margin-bottom: 8px;
         user-select: all;
     }
+    .unified-brief-box__profile {
+        font-size: 0.8rem;
+        font-style: italic;
+        line-height: 1.45;
+        color: #526A85;
+        padding-top: 8px;
+        margin-bottom: 8px;
+        border-top: 1px solid rgba(0, 0, 0, 0.07);
+    }
     .unified-brief-box__source {
         font-size: 0.77rem;
         line-height: 1.4;

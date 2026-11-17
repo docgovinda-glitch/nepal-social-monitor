@@ -1012,6 +1012,33 @@ def generate_on_demand_news_brief(
     }
 
 
+def _build_x_profile_line(post: Dict[str, Any]) -> str:
+    """Builds a concise one-line X account profile brief from post metadata or verified directory."""
+    raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").split(" ")[0].strip()
+    author_name = (post.get("author_name") or "").strip()
+    role = (post.get("role") or "").strip()
+    author_type = (post.get("author_type") or "").strip()
+
+    if (not role or role in ("Public Figure", "Account")) and raw_h:
+        try:
+            from nepal_verified_x_directory import DIRECTORY_BY_HANDLE
+            acc = DIRECTORY_BY_HANDLE.get(raw_h.lower())
+            if acc:
+                role = (acc.get("role") or acc.get("category") or role).strip()
+                if not author_name:
+                    author_name = (acc.get("name") or "").strip()
+        except Exception:
+            pass
+
+    descriptor = role or author_type
+    who = f"{author_name} (@{raw_h})" if (author_name and raw_h) else (author_name or (f"@{raw_h}" if raw_h else ""))
+    if who and descriptor:
+        return f"Profile: {who} — {descriptor}"
+    if who:
+        return f"Profile: {who}"
+    return ""
+
+
 def generate_on_demand_x_content(
     post: Dict[str, Any],
     on_progress: Optional[Callable[[str, float], None]] = None,
@@ -1059,11 +1086,18 @@ def generate_on_demand_x_content(
             }
 
     _emit_progress(on_progress, "Ready", 1.0)
-    formatted = f"{content}\n\nRead Original Source: {source_url}" if source_url else content
+    profile_line = _build_x_profile_line(post)
+    parts = [content]
+    if profile_line:
+        parts.append(f"_{profile_line}_")
+    if source_url:
+        parts.append(f"Read Original Source: {source_url}")
+    formatted = "\n\n".join(parts)
     return {
         "ok": True,
         "error": "",
         "content": content,
+        "profile_line": profile_line,
         "source_url": source_url,
         "formatted_text": formatted,
         "lang": lang_code,
