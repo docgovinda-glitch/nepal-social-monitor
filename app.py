@@ -727,6 +727,15 @@ def _commit_share_draft(draft: Dict[str, Any], new_text: str) -> None:
     draft["close_guard"] = False
 
 
+def _on_req_read_translate(cache_id: str) -> None:
+    st.session_state["pending_read_translate"] = cache_id
+
+
+def _on_toggle_read_view(cache_id: str) -> None:
+    cur = st.session_state.get("ondemand_fulltext_view", {}).get(cache_id, "orig")
+    st.session_state.setdefault("ondemand_fulltext_view", {})[cache_id] = "orig" if cur == "en" else "en"
+
+
 @st.dialog("Read in App", width="large", icon=":material/menu_book:", on_dismiss=_clear_active_modal)
 def _show_read_in_app_dialog() -> None:
     ctx = st.session_state.get("active_modal") or {}
@@ -738,15 +747,25 @@ def _show_read_in_app_dialog() -> None:
     st.session_state.setdefault("ondemand_fulltext", {})
     st.session_state.setdefault("ondemand_fulltext_view", {})
 
+    if st.session_state.pop("pending_read_translate", None) == cache_id:
+        with st.status("Translating full article to English…", expanded=True) as tr_status:
+            def _tr_prog(msg: str, pct: float) -> None:
+                tr_status.update(label=f"{msg} ({int(pct * 100)}%)")
+            ft_tr = extract_on_demand_full_article(item, translate_to_english=True, on_progress=_tr_prog)
+            st.session_state["ondemand_fulltext"][cache_id] = ft_tr
+            if ft_tr.get("translated_text"):
+                st.session_state["ondemand_fulltext_view"][cache_id] = "en"
+                tr_status.update(label="English translation ready", state="complete", expanded=False)
+                st.toast("Full article translated to English", icon="✅")
+            else:
+                tr_status.update(label="Translation unavailable", state="error", expanded=False)
+
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
     if not fulltext_data:
         with st.status("Opening article…", expanded=True) as status:
-            prog = st.progress(0.05, text="Checking stored article content…")
             def _read_prog(msg: str, pct: float) -> None:
-                status.update(label=msg)
-                prog.progress(pct, text=msg)
+                status.update(label=f"{msg} ({int(pct * 100)}%)")
             fulltext_data = extract_on_demand_full_article(item, translate_to_english=False, on_progress=_read_prog)
-            prog.empty()
             status.update(label="Article ready", state="complete", expanded=False)
             st.session_state["ondemand_fulltext"][cache_id] = fulltext_data
             st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
@@ -799,24 +818,26 @@ def _show_read_in_app_dialog() -> None:
         col_i = 0
         if ft_lang != "en" and not has_tr:
             with ft_cols[col_i]:
-                if st.button("Translate to English", icon=":material/translate:", type="primary", key=f"dlg_ft_tr_{item_uid}"):
-                    prog = st.progress(0.05, text="Starting full-article translation…")
-                    def _tr_prog(msg: str, pct: float) -> None:
-                        prog.progress(pct, text=msg)
-                    ft_tr = extract_on_demand_full_article(item, translate_to_english=True, on_progress=_tr_prog)
-                    prog.empty()
-                    st.session_state["ondemand_fulltext"][cache_id] = ft_tr
-                    if ft_tr.get("translated_text"):
-                        st.session_state["ondemand_fulltext_view"][cache_id] = "en"
-                        st.toast("Full article translated to English", icon="✅")
-                    st.rerun()
+                st.button(
+                    "Translate to English",
+                    icon=":material/translate:",
+                    type="primary",
+                    key=f"dlg_ft_tr_{item_uid}",
+                    on_click=_on_req_read_translate,
+                    args=(cache_id,),
+                )
             col_i += 1
         elif has_tr and ft_lang != "en":
             with ft_cols[col_i]:
                 toggle_lbl = "Original" if view_mode == "en" else "English Translation"
-                if st.button(toggle_lbl, icon=":material/swap_horiz:", type="primary", key=f"dlg_ft_tog_{item_uid}"):
-                    st.session_state["ondemand_fulltext_view"][cache_id] = "orig" if view_mode == "en" else "en"
-                    st.rerun()
+                st.button(
+                    toggle_lbl,
+                    icon=":material/swap_horiz:",
+                    type="primary",
+                    key=f"dlg_ft_tog_{item_uid}",
+                    on_click=_on_toggle_read_view,
+                    args=(cache_id,),
+                )
             col_i += 1
         with ft_cols[col_i]:
             ft_copy_payload = f"{shown_text}\n\nSource: {ft_src}" if ft_src else shown_text
@@ -835,6 +856,47 @@ def _show_read_in_app_dialog() -> None:
             if st.button("Close", icon=":material/close:", key=f"dlg_ft_err_cls_{item_uid}"):
                 st.session_state["active_modal"] = None
                 st.rerun()
+
+
+def _on_share_enter_edit(cache_id: str) -> None:
+    d = st.session_state.get("share_drafts", {}).get(cache_id)
+    if d:
+        d["is_editing"] = True
+        d["close_guard"] = False
+        d["unsaved_send_warn"] = False
+
+
+def _on_share_cancel_edit(cache_id: str) -> None:
+    d = st.session_state.get("share_drafts", {}).get(cache_id)
+    if d:
+        d["draft_content"] = d.get("saved_content") or ""
+        d["is_editing"] = False
+        d["unsaved_send_warn"] = False
+
+
+def _on_share_save(cache_id: str, ta_key: str = "") -> None:
+    d = st.session_state.get("share_drafts", {}).get(cache_id)
+    if not d:
+        return
+    txt = str(st.session_state[ta_key]) if (ta_key and ta_key in st.session_state) else (d.get("draft_content") or "")
+    _commit_share_draft(d, txt)
+
+
+def _on_share_discard_unsaved(cache_id: str) -> None:
+    d = st.session_state.get("share_drafts", {}).get(cache_id)
+    if d:
+        d["draft_content"] = d.get("saved_content") or ""
+        d["unsaved_send_warn"] = False
+
+
+def _on_share_req_send(cache_id: str) -> None:
+    st.session_state["pending_share_send"] = cache_id
+
+
+def _on_share_req_close_guard(cache_id: str) -> None:
+    d = st.session_state.get("share_drafts", {}).get(cache_id)
+    if d:
+        d["close_guard"] = True
 
 
 @st.dialog("Share", width="medium", icon=":material/share:", on_dismiss=_clear_active_modal)
@@ -861,12 +923,9 @@ def _show_share_dialog() -> None:
     generated = st.session_state["ondemand_generated"].get(cache_id)
     if not generated:
         with st.status(f"Preparing {content_type_lbl}…", expanded=True) as status:
-            prog = st.progress(0.05, text="Initializing…")
             def _gen_prog(msg: str, pct: float) -> None:
-                status.update(label=msg)
-                prog.progress(pct, text=msg)
+                status.update(label=f"{msg} ({int(pct * 100)}%)")
             generated = _generate_unified_item_content(item, is_x=is_x, on_progress=_gen_prog)
-            prog.empty()
             status.update(label=f"{content_type_lbl} ready", state="complete", expanded=False)
             st.session_state["ondemand_generated"][cache_id] = generated
 
@@ -904,6 +963,42 @@ def _show_share_dialog() -> None:
     active_text = current_draft_text if has_unsaved else saved_text
     saved_formatted = f"{saved_text}\n\nSource: {src_url}" if src_url else saved_text
     current_formatted = f"{active_text}\n\nSource: {src_url}" if src_url else active_text
+
+    dest = _get_cached_wa_dest()
+    dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+
+    if st.session_state.pop("pending_share_send", None) == cache_id:
+        if has_unsaved:
+            draft["unsaved_send_warn"] = True
+        else:
+            selected_gid = dest.get("id", "") if dest.get("ok") else ""
+            with st.status(f"Sending to {dest_name}…", expanded=True) as send_status:
+                send_status.write("Delivering confirmed draft to Green API…")
+                wa_res = send_wa_group_message(
+                    chat_id=selected_gid,
+                    message=saved_formatted,
+                    session_approved=True,
+                    sent_registry=st.session_state["wa_sent_registry"],
+                )
+                wa_res["group_name"] = dest_name
+                st.session_state["wa_item_status"][cache_id] = wa_res
+                if wa_res.get("ok") and wa_res.get("accepted"):
+                    send_status.write("Recording delivery in Media Monitor log…")
+                    try:
+                        record_whatsapp_sent(
+                            item_key=cache_id,
+                            group_id=selected_gid,
+                            group_name=dest_name,
+                            id_message=str(wa_res.get("id_message") or ""),
+                            item_link=item_link,
+                        )
+                        _get_wa_sent_map.clear()
+                    except Exception as log_exc:
+                        wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
+                    send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
+                    st.toast(f"Sent to {dest_name}!", icon="✅")
+                else:
+                    send_status.update(label="Delivery not completed", state="error", expanded=False)
 
     persisted_sent = _get_wa_sent_map().get(cache_id)
     ver = int(draft.get("version") or 1)
@@ -950,16 +1045,24 @@ def _show_share_dialog() -> None:
             st.markdown(_render_source_link_html(src_url, inline=True), unsafe_allow_html=True)
         ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
         with ec1:
-            if st.button("Save", icon=":material/save:", type="primary", key=f"dlg_save_edit_{item_uid}", help="Save draft without sending"):
-                if current_draft_text:
-                    _commit_share_draft(draft, current_draft_text)
-                    st.rerun()
+            st.button(
+                "Save",
+                icon=":material/save:",
+                type="primary",
+                key=f"dlg_save_edit_{item_uid}",
+                help="Save draft without sending",
+                on_click=_on_share_save,
+                args=(cache_id, ta_key),
+            )
         with ec2:
-            if st.button("", icon=":material/close:", key=f"dlg_cancel_edit_{item_uid}", help="Discard unsaved edits"):
-                draft["draft_content"] = draft["saved_content"]
-                draft["is_editing"] = False
-                draft["unsaved_send_warn"] = False
-                st.rerun()
+            st.button(
+                "",
+                icon=":material/close:",
+                key=f"dlg_cancel_edit_{item_uid}",
+                help="Discard unsaved edits",
+                on_click=_on_share_cancel_edit,
+                args=(cache_id,),
+            )
         return
 
     src_html = _render_source_link_html(src_url)
@@ -986,98 +1089,82 @@ def _show_share_dialog() -> None:
                 st.session_state["active_modal"] = None
                 st.rerun()
         with g3:
-            if st.button("Keep Editing", icon=":material/edit:", key=f"dlg_ke_{item_uid}"):
-                draft["close_guard"] = False
-                draft["is_editing"] = True
-                st.rerun()
+            st.button(
+                "Keep Editing",
+                icon=":material/edit:",
+                key=f"dlg_ke_{item_uid}",
+                on_click=_on_share_enter_edit,
+                args=(cache_id,),
+            )
         return
 
     if draft.get("unsaved_send_warn") and has_unsaved:
         st.warning("Unsaved edits exist. Save or discard them before sending.")
         u1, u2 = st.columns(2, gap="small")
         with u1:
-            if st.button("Save Draft", icon=":material/save:", type="primary", key=f"dlg_sd_{item_uid}"):
-                _commit_share_draft(draft, current_draft_text)
-                st.rerun()
+            st.button(
+                "Save Draft",
+                icon=":material/save:",
+                type="primary",
+                key=f"dlg_sd_{item_uid}",
+                on_click=_on_share_save,
+                args=(cache_id, ""),
+            )
         with u2:
-            if st.button("Discard Edits", icon=":material/undo:", key=f"dlg_dd_{item_uid}"):
-                draft["draft_content"] = draft["saved_content"]
-                draft["unsaved_send_warn"] = False
-                st.rerun()
-
-    dest = _get_cached_wa_dest()
-    dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+            st.button(
+                "Discard Edits",
+                icon=":material/undo:",
+                key=f"dlg_dd_{item_uid}",
+                on_click=_on_share_discard_unsaved,
+                args=(cache_id,),
+            )
 
     c_copy, c_edit, c_save, c_cls, c_send = st.columns(5, gap="small")
     with c_copy:
         _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=True)
     with c_edit:
-        if st.button("", icon=":material/edit:", key=f"dlg_edit_{item_uid}", help="Edit draft"):
-            draft["is_editing"] = True
-            draft["close_guard"] = False
-            draft["unsaved_send_warn"] = False
-            st.rerun()
+        st.button(
+            "",
+            icon=":material/edit:",
+            key=f"dlg_edit_{item_uid}",
+            help="Edit draft",
+            on_click=_on_share_enter_edit,
+            args=(cache_id,),
+        )
     with c_save:
-        if st.button(
+        st.button(
             "",
             icon=":material/save:",
             key=f"dlg_save_bar_{item_uid}",
             disabled=not has_unsaved,
             help="Save current draft without sending" if has_unsaved else "All changes saved",
-        ):
-            if current_draft_text:
-                _commit_share_draft(draft, current_draft_text)
-                st.rerun()
+            on_click=_on_share_save,
+            args=(cache_id, ""),
+        )
     with c_cls:
-        if st.button("", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close"):
-            if has_unsaved:
-                draft["close_guard"] = True
-                st.rerun()
-            else:
+        if has_unsaved:
+            st.button(
+                "",
+                icon=":material/close:",
+                key=f"dlg_sh_cls_{item_uid}",
+                help="Close",
+                on_click=_on_share_req_close_guard,
+                args=(cache_id,),
+            )
+        else:
+            if st.button("", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close"):
                 st.session_state["active_modal"] = None
                 st.rerun()
     with c_send:
-        send_clicked = st.button(
+        st.button(
             "",
             icon=":material/send:",
             type="primary",
             key=f"dlg_conf_{item_uid}",
             help=f"Confirm to Send: send latest saved draft (v{ver}) to {dest_name}",
+            on_click=_on_share_req_send,
+            args=(cache_id,),
         )
-
-    if send_clicked:
-        if has_unsaved:
-            draft["unsaved_send_warn"] = True
-            st.rerun()
-        selected_gid = dest.get("id", "") if dest.get("ok") else ""
-        with st.status(f"Sending to {dest_name}…", expanded=True) as send_status:
-            send_status.write("Delivering confirmed draft to Green API…")
-            wa_res = send_wa_group_message(
-                chat_id=selected_gid,
-                message=saved_formatted,
-                session_approved=True,
-                sent_registry=st.session_state["wa_sent_registry"],
-            )
-            wa_res["group_name"] = dest_name
-            st.session_state["wa_item_status"][cache_id] = wa_res
-            if wa_res.get("ok") and wa_res.get("accepted"):
-                send_status.write("Recording delivery in Media Monitor log…")
-                try:
-                    record_whatsapp_sent(
-                        item_key=cache_id,
-                        group_id=selected_gid,
-                        group_name=dest_name,
-                        id_message=str(wa_res.get("id_message") or ""),
-                        item_link=item_link,
-                    )
-                    _get_wa_sent_map.clear()
-                except Exception as log_exc:
-                    wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
-                send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
-                st.toast(f"Sent to {dest_name}!", icon="✅")
-            else:
-                send_status.update(label="Delivery not completed", state="error", expanded=False)
-        st.rerun()
 
     wa_status = st.session_state["wa_item_status"].get(cache_id)
     if wa_status:
