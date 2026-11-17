@@ -655,7 +655,7 @@ def render_feed_item_with_actions(
     item: Dict[str, Any],
     renderer: Callable[[Dict[str, Any]], str],
     state_key: str,
-    idx: int,
+    item_uid: str,
 ) -> None:
     """Renders a single consolidated card containing post content, brief/full-text panels, and one single-row action bar."""
     st.session_state.setdefault("ondemand_generated", {})
@@ -665,7 +665,6 @@ def render_feed_item_with_actions(
     st.session_state.setdefault("wa_item_status", {})
 
     is_indian, is_x = _resolve_item_flags(item, renderer)
-    item_uid = f"{_compute_item_uid(item, state_key)}_{idx}"
     cache_id = _compute_item_uid(item, "global")
     generated = st.session_state["ondemand_generated"].get(cache_id)
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
@@ -886,8 +885,13 @@ def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer:
     """Renders items PAGE_SIZE at a time with on-demand action controls and a single 'Show more' control."""
     st.session_state.setdefault(state_key, PAGE_SIZE)
     limit = st.session_state[state_key]
-    for idx, it in enumerate(items[:limit]):
-        render_feed_item_with_actions(it, renderer=renderer, state_key=state_key, idx=idx)
+    seen_uids: Dict[str, int] = {}
+    for it in items[:limit]:
+        base_uid = _compute_item_uid(it, state_key)
+        occ = seen_uids.get(base_uid, 0)
+        seen_uids[base_uid] = occ + 1
+        uid = base_uid if occ == 0 else f"{base_uid}_{occ}"
+        render_feed_item_with_actions(it, renderer=renderer, state_key=state_key, item_uid=uid)
 
     remaining = len(items) - limit
     if remaining > 0:
@@ -1205,16 +1209,15 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-# Auto-sync periodic execution (active by default every 60s)
+# Auto-sync cache refresh (passive, never interrupts active button clicks with st.rerun)
 if st.session_state.get("auto_sync_enabled", True):
     now_ts = time.time()
     last_sync_ts = st.session_state.get("last_auto_sync_ts", 0)
-    if now_ts - last_sync_ts >= 60:
+    if now_ts - last_sync_ts >= 180:
         st.session_state["last_auto_sync_ts"] = now_ts
         st.cache_data.clear()
         st.session_state.pop("x_posts", None)
         st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
-        st.rerun()
 
 # ==========================================
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
