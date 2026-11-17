@@ -767,7 +767,7 @@ total_combined_count = (
 # 7. SIDEBAR · Card 2 — Workspace, Card 3 — Contextual filters
 # ==========================================
 NAV_ITEMS = [
-    ("Unified Intelligence Feed", "🌐", total_combined_count),
+    ("Live Feed", "🌐", total_combined_count),
     ("Nepali Media", "📰", stream_counts.get("nepali_count", 0)),
     ("Indian Press", "🇮🇳", stream_counts.get("indian_count", 0)),
     ("X", "𝕏", stream_counts.get("x_count", 0)),
@@ -781,16 +781,16 @@ def nav_label(name: str) -> str:
 
 with st.sidebar:
     with st.container(border=True):
-        sidebar_section("Intelligence Workspace")
+        sidebar_section("Workspace")
         default_nav_idx = 0
         if "nav" in st.query_params:
             param_nav = st.query_params.get("nav", "").lower()
             for idx, (n, _, _) in enumerate(NAV_ITEMS):
-                if n.lower() == param_nav or (param_nav == "x" and n == "X") or (param_nav in ("unified", "combined") and "Unified" in n):
+                if n.lower() == param_nav or (param_nav == "x" and n == "X") or (param_nav in ("live", "feed", "unified", "combined") and "Live" in n):
                     default_nav_idx = idx
                     break
         selected_nav = st.selectbox(
-            "Intelligence Workspace",
+            "Workspace",
             options=[n for n, _, _ in NAV_ITEMS],
             index=default_nav_idx,
             format_func=nav_label,
@@ -799,46 +799,46 @@ with st.sidebar:
         )
 
     with st.container(border=True):
-        if selected_nav == "Unified Intelligence Feed":
-            sidebar_section("Feed Controls", "All Sources")
-            sel_comb_stream = st.selectbox("Information Stream", ["All Intelligence Streams", "Nepali Media Only", "Indian Press Only", "Verified X Voices Only"], key="comb_stream_filter")
-            sel_comb_cat = st.selectbox("Editorial Section", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
-            comb_sort_mode = st.selectbox("Chronological Order", ["Newest First", "Oldest First"], key="comb_sort_mode")
+        if selected_nav == "Live Feed":
+            sidebar_section("Feed Filters", "All Sources")
+            sel_comb_stream = st.selectbox("Feed Source", ["All Sources", "Nepali Media Only", "Indian Press Only", "Verified X Voices Only"], key="comb_stream_filter")
+            sel_comb_cat = st.selectbox("News Category", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
+            comb_sort_mode = st.selectbox("Sort Order", ["Newest First", "Oldest First"], key="comb_sort_mode")
 
         elif selected_nav == "Nepali Media":
-            sidebar_section("Media Portal Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} Outlets")
-            sel_np_portal = st.selectbox("Publication Outlet", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
-            sel_np_cat = st.selectbox("Editorial Section", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
-            sel_np_lang = st.selectbox("Article Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
+            sidebar_section("Media Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} Outlets")
+            sel_np_portal = st.selectbox("News Portal", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
+            sel_np_cat = st.selectbox("News Category", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
+            sel_np_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
 
         elif selected_nav == "Indian Press":
-            sidebar_section("Indian Desk Filters", f"{len(TOP_INDIAN_MEDIA_SOURCES)} Outlets")
-            selected_indian_outlet = st.selectbox("Media Network", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
-            sel_in_lang = st.selectbox("Edition Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
+            sidebar_section("Indian Desk", f"{len(TOP_INDIAN_MEDIA_SOURCES)} Outlets")
+            selected_indian_outlet = st.selectbox("News Outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
+            sel_in_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
 
         elif selected_nav == "X":
-            sidebar_section("Social Intelligence Filters", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} Voices")
-            x_cat_filter = st.selectbox("Geopolitical Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
+            sidebar_section("Social Feed", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} Voices")
+            x_cat_filter = st.selectbox("Post Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
             selected_acc_type = st.selectbox(
-                "Public Domain / Role",
+                "Account Type",
                 [ALL_ACC_TYPES] + CANONICAL_X_CATEGORIES,
                 key="x_acc_type_select",
             )
-            sort_mode = st.selectbox("Post Ranking", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
+            sort_mode = st.selectbox("Sort Order", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
 
         elif selected_nav == "Analytics & Export":
-            sidebar_section("Consolidated Export Parameters")
-            sel_stream = st.selectbox("Target Stream", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
-            sel_cat = st.selectbox("Topical Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
-            sel_lang = st.selectbox("Language Edition", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
-            kw_filter = st.text_input("Entity or Keyword Search", placeholder="e.g. Lipulekh, Budget, @PM_nepal", key="univ_kw_filter")
+            sidebar_section("Export Options")
+            sel_stream = st.selectbox("Feed Source", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
+            sel_cat = st.selectbox("News Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
+            sel_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
+            kw_filter = st.text_input("Search Keyword", placeholder="e.g. Lipulekh, Budget, @PM_nepal", key="univ_kw_filter")
 
         else:
-            sidebar_section("Diagnostics & Source Registry")
-            admin_search_src = st.text_input("Search Source", placeholder="e.g. Setopati, Kantipur", key="inp_admin_src_srch")
-            admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
+            sidebar_section("System Diagnostics")
+            admin_search_src = st.text_input("Source Name", placeholder="e.g. Setopati, Kantipur", key="inp_admin_src_srch")
+            admin_status_filter = st.selectbox("Status Filter", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
             admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
-            admin_tier_filter = st.selectbox("Polling Frequency Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
+            admin_tier_filter = st.selectbox("Check Interval", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
 
     st.markdown(
         f'<div class="sb-footer"><span class="live-pill" style="font-size:0.7rem; padding:3px 8px;"><span class="live-pill__dot"></span>Auto Sync Active</span><br/>Last synced {html.escape(st.session_state["last_sync_npt"])} NPT<br/>Nepal Social &amp; Media Monitor</div>',
@@ -857,9 +857,9 @@ if st.session_state.get("auto_sync_enabled", True):
         st.rerun()
 
 # ==========================================
-# SECTION 0: Unified Intelligence Feed (Nepali Media, Indian Press, X Posts)
+# SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
-if selected_nav == "Unified Intelligence Feed":
+if selected_nav == "Live Feed":
     nepal_arts = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     indian_arts = get_active_indian_articles(filter_start_dt, filter_end_dt)
     x_posts_all = get_active_x_posts()
@@ -902,7 +902,7 @@ if selected_nav == "Unified Intelligence Feed":
         comb_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
 
     render_page_header(
-        "Unified Intelligence Feed",
+        "Live Feed",
         f"{len(comb_items):,} dispatches and posts across Nepali Media (34 portals), Indian Press (18 outlets), and Verified X"
     )
 
