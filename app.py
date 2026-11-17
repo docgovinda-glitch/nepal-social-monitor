@@ -658,7 +658,7 @@ def render_feed_item_with_actions(
     state_key: str,
     idx: int,
 ) -> None:
-    """Renders a feed card with on-demand English Brief / Translate, unified copyable box, Copy, and WhatsApp Share."""
+    """Renders a single consolidated card containing post content, inset copyable brief/translation, and actions."""
     st.session_state.setdefault("ondemand_generated", {})
     st.session_state.setdefault("wa_sent_registry", set())
     st.session_state.setdefault("wa_item_status", {})
@@ -666,9 +666,6 @@ def render_feed_item_with_actions(
     is_indian, is_x = _resolve_item_flags(item, renderer)
     item_uid = f"{_compute_item_uid(item, state_key)}_{idx}"
     cache_id = _compute_item_uid(item, "global")
-
-    st.markdown(renderer(item), unsafe_allow_html=True)
-
     generated = st.session_state["ondemand_generated"].get(cache_id)
 
     if is_x:
@@ -676,101 +673,104 @@ def render_feed_item_with_actions(
         x_lang = detect_text_language(raw_x_txt)
         primary_label = "Full Post" if x_lang == "en" else "Translate"
         primary_icon = ":material/article:" if x_lang == "en" else ":material/translate:"
-        box_eyebrow = "Complete X Post (Ready to Copy & Share)" if x_lang == "en" else "English Translation"
+        box_eyebrow = "Complete X Post" if x_lang == "en" else "English Translation"
     else:
         primary_label = "English Brief"
         primary_icon = ":material/summarize:"
         box_eyebrow = "English Brief"
 
-    if generated and generated.get("ok"):
-        c1, c2, c3, _ = st.columns([1.6, 1.15, 1.85, 1.4], gap="small")
-        with c1:
-            if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
-                with st.spinner("Generating…"):
-                    res = _generate_unified_item_content(item, is_x=is_x)
-                    st.session_state["ondemand_generated"][cache_id] = res
-                    generated = res
-        with c2:
-            _render_copy_button(generated["formatted_text"], uid=item_uid)
-        with c3:
-            wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
-    else:
-        c1, c2, _ = st.columns([1.7, 1.9, 2.4], gap="small")
-        with c1:
-            if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
-                with st.spinner("Generating…"):
-                    res = _generate_unified_item_content(item, is_x=is_x)
-                    st.session_state["ondemand_generated"][cache_id] = res
+    with st.container(border=True):
+        st.markdown('<div class="feed-card-anchor"></div>', unsafe_allow_html=True)
+        st.markdown(renderer(item), unsafe_allow_html=True)
+
+        # Render Unified Copyable Box INSIDE the same card when generated
+        if generated:
+            if generated.get("ok"):
+                body_html = html.escape(generated["content"])
+                src_url = generated.get("source_url", "")
+                src_html = (
+                    f'<div class="unified-brief-box__source">Source: '
+                    f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
+                    if src_url
+                    else ""
+                )
+                st.markdown(
+                    f'<div class="unified-brief-box">'
+                    f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow)}</div>'
+                    f'<div class="unified-brief-box__body">{body_html}</div>'
+                    f'{src_html}'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.error(generated.get("error") or "Could not generate English output for this item.")
+
+        st.markdown('<div class="feed-action-divider"></div>', unsafe_allow_html=True)
+
+        wa_clicked = False
+        if generated and generated.get("ok"):
+            c1, c2, c3, _ = st.columns([1.15, 1.85, 0.95, 2.05], gap="small")
+            with c1:
+                _render_copy_button(generated["formatted_text"], uid=item_uid)
+            with c2:
+                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
+            with c3:
+                if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}", width="stretch"):
+                    st.session_state["ondemand_generated"].pop(cache_id, None)
                     st.rerun()
-        with c2:
-            wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
-
-    if wa_clicked:
-        if not generated or not generated.get("ok"):
-            with st.spinner("Preparing content…"):
-                generated = _generate_unified_item_content(item, is_x=is_x)
-                st.session_state["ondemand_generated"][cache_id] = generated
-
-        if generated.get("ok"):
-            dest = _get_cached_wa_dest()
-            selected_gid = dest.get("id", "") if dest.get("ok") else ""
-            selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
-            wa_res = send_wa_group_message(
-                chat_id=selected_gid,
-                message=generated["formatted_text"],
-                session_approved=True,
-                sent_registry=st.session_state["wa_sent_registry"],
-            )
-            wa_res["group_name"] = selected_gname
-            st.session_state["wa_item_status"][cache_id] = wa_res
         else:
-            st.session_state["wa_item_status"][cache_id] = {
-                "ok": False,
-                "status": "generation_failed",
-                "error": generated.get("error", "Failed to prepare content."),
-            }
-        st.rerun()
+            c1, c2, _ = st.columns([1.65, 1.85, 2.5], gap="small")
+            with c1:
+                if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
+                    with st.spinner("Generating…"):
+                        res = _generate_unified_item_content(item, is_x=is_x)
+                        st.session_state["ondemand_generated"][cache_id] = res
+                        st.rerun()
+            with c2:
+                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
 
-    # Render Unified Copyable Box when generated
-    if generated:
-        if generated.get("ok"):
-            body_html = html.escape(generated["content"])
-            src_url = generated.get("source_url", "")
-            src_html = (
-                f'<div class="unified-brief-box__source">Source: '
-                f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
-                if src_url
-                else ""
-            )
-            st.markdown(
-                f'<div class="unified-brief-box">'
-                f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow)}</div>'
-                f'<div class="unified-brief-box__body">{body_html}</div>'
-                f'{src_html}'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.error(generated.get("error") or "Could not generate English output for this item.")
+        if wa_clicked:
+            if not generated or not generated.get("ok"):
+                with st.spinner("Preparing content…"):
+                    generated = _generate_unified_item_content(item, is_x=is_x)
+                    st.session_state["ondemand_generated"][cache_id] = generated
 
-    wa_status = st.session_state["wa_item_status"].get(cache_id)
-    if wa_status:
-        st_code = wa_status.get("status")
-        if wa_status.get("ok") and wa_status.get("accepted"):
-            gname = html.escape(wa_status.get("group_name") or "Media Monitor")
-            msg_id = html.escape(str(wa_status.get("id_message") or ""))
-            st.markdown(
-                f'<div class="wa-sent-pill" title="Green API Message ID: {msg_id}">✓ Sent to {gname} · Accepted by Green API</div>',
-                unsafe_allow_html=True,
-            )
-        elif st_code == "inactive":
-            st.info(wa_status.get("error"))
-        elif st_code == "duplicate_prevented":
-            st.warning(wa_status.get("error"))
-        else:
-            st.error(wa_status.get("error") or "Failed to send WhatsApp message.")
+            if generated.get("ok"):
+                dest = _get_cached_wa_dest()
+                selected_gid = dest.get("id", "") if dest.get("ok") else ""
+                selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+                wa_res = send_wa_group_message(
+                    chat_id=selected_gid,
+                    message=generated["formatted_text"],
+                    session_approved=True,
+                    sent_registry=st.session_state["wa_sent_registry"],
+                )
+                wa_res["group_name"] = selected_gname
+                st.session_state["wa_item_status"][cache_id] = wa_res
+            else:
+                st.session_state["wa_item_status"][cache_id] = {
+                    "ok": False,
+                    "status": "generation_failed",
+                    "error": generated.get("error", "Failed to prepare content."),
+                }
+            st.rerun()
 
-    st.markdown('<div class="feed-item-spacer"></div>', unsafe_allow_html=True)
+        wa_status = st.session_state["wa_item_status"].get(cache_id)
+        if wa_status:
+            st_code = wa_status.get("status")
+            if wa_status.get("ok") and wa_status.get("accepted"):
+                gname = html.escape(wa_status.get("group_name") or "Media Monitor")
+                msg_id = html.escape(str(wa_status.get("id_message") or ""))
+                st.markdown(
+                    f'<div class="wa-sent-pill" title="Green API Message ID: {msg_id}">✓ Sent to {gname} · Accepted by Green API</div>',
+                    unsafe_allow_html=True,
+                )
+            elif st_code == "inactive":
+                st.info(wa_status.get("error"))
+            elif st_code == "duplicate_prevented":
+                st.warning(wa_status.get("error"))
+            else:
+                st.error(wa_status.get("error") or "Failed to send WhatsApp message.")
 
 
 def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer: Callable[[Dict[str, Any]], str], noun: str) -> None:

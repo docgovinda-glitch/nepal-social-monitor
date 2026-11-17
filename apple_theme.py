@@ -200,9 +200,10 @@ APPLE_DESIGN_SYSTEM_CSS = """
         border-color: var(--separator-strong);
     }
 
-    /* Article card */
-    .apple-news-card { position: relative; padding: 16px 20px 14px 22px; margin-bottom: 6px; overflow: hidden; }
-    .apple-news-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent, #C7C7CC); }
+    /* Article card (lives inside consolidated st.container(border=True) card) */
+    .apple-news-card { position: relative; padding: 2px 2px 8px 14px; margin: 0; background: transparent; border: none; box-shadow: none; overflow: hidden; }
+    .apple-news-card:hover { box-shadow: none; border: none; }
+    .apple-news-card::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--accent, #C7C7CC); }
     .accent--india { --accent: #F5A623; }
     .accent--china { --accent: #E5484D; }
     .accent--pakistan { --accent: #30A46C; }
@@ -233,8 +234,9 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     .apple-card-cta:hover, .x-cta-link:hover { text-decoration: underline !important; }
 
-    /* X post card */
-    .x-post-card { padding: 16px 20px; margin-bottom: 6px; }
+    /* X post card (lives inside consolidated st.container(border=True) card) */
+    .x-post-card { padding: 2px 2px 8px 2px; margin: 0; background: transparent; border: none; box-shadow: none; }
+    .x-post-card:hover { box-shadow: none; border: none; }
     .x-post-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .x-post-header__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .x-author-box { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -453,18 +455,35 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .counter-badge { display: inline-block; background: var(--surface); border: 1px solid var(--separator); border-radius: var(--r-sm); padding: 6px 12px; font-size: 0.78rem; color: var(--label-2); }
     .counter-badge b { color: var(--label); }
 
-    /* Unified Copyable Brief / Translation Box */
+    /* Consolidated Feed Card Container */
+    .feed-card-anchor { display: none; }
+    .main div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor),
+    .main div[data-testid="stLayoutWrapper"]:has(.feed-card-anchor) > div[data-testid="stVerticalBlock"] {
+        background: var(--surface) !important;
+        border: 1px solid var(--separator) !important;
+        border-radius: var(--r-md) !important;
+        padding: 16px 20px 14px 20px !important;
+        box-shadow: var(--shadow-1) !important;
+        margin-bottom: 14px !important;
+        transition: box-shadow 0.22s var(--ease), border-color 0.22s var(--ease) !important;
+    }
+    .main div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor):hover,
+    .main div[data-testid="stLayoutWrapper"]:has(.feed-card-anchor) > div[data-testid="stVerticalBlock"]:hover {
+        box-shadow: var(--shadow-2) !important;
+        border-color: var(--separator-strong) !important;
+    }
+
+    /* Unified Copyable Brief / Translation Inset Panel */
     .unified-brief-box {
-        background: #F9FAFB;
-        border: 1px solid var(--separator-strong);
+        background: #F4F6F9;
+        border: 1px solid rgba(82, 106, 133, 0.16);
         border-left: 3px solid var(--tint);
-        border-radius: var(--r-md);
-        padding: 13px 16px;
-        margin: 4px 0 8px 0;
-        box-shadow: var(--shadow-1);
+        border-radius: 10px;
+        padding: 12px 15px;
+        margin: 6px 0 8px 0;
     }
     .unified-brief-box__eyebrow {
-        font-size: 0.68rem;
+        font-size: 0.67rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.06em;
@@ -472,20 +491,20 @@ APPLE_DESIGN_SYSTEM_CSS = """
         margin-bottom: 6px;
     }
     .unified-brief-box__body {
-        font-size: 0.90rem;
-        line-height: 1.58;
+        font-size: 0.89rem;
+        line-height: 1.56;
         color: var(--label);
         white-space: pre-wrap;
         word-break: break-word;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         user-select: all;
     }
     .unified-brief-box__source {
-        font-size: 0.78rem;
+        font-size: 0.77rem;
         line-height: 1.4;
         color: var(--label-2);
-        padding-top: 8px;
-        border-top: 1px solid var(--separator);
+        padding-top: 7px;
+        border-top: 1px solid rgba(0, 0, 0, 0.07);
         word-break: break-all;
     }
     .unified-brief-box__source a {
@@ -496,17 +515,21 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .unified-brief-box__source a:hover {
         text-decoration: underline !important;
     }
-    .feed-item-spacer { height: 12px; }
+    .feed-action-divider {
+        height: 1px;
+        background: var(--separator);
+        margin: 2px 0 8px 0;
+    }
     .wa-sent-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 5px 11px;
-        margin: 2px 0 4px 0;
+        padding: 4px 10px;
+        margin: 4px 0 0 0;
         border-radius: var(--r-pill);
         background: var(--green-soft);
         color: var(--green);
-        font-size: 0.76rem;
+        font-size: 0.75rem;
         font-weight: 600;
         border: 1px solid rgba(30, 142, 62, 0.18);
     }
