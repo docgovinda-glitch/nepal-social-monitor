@@ -696,6 +696,32 @@ def _clear_active_modal() -> None:
     st.session_state["active_modal"] = None
 
 
+def _render_source_link_html(url: str, inline: bool = False) -> str:
+    """Renders a secondary clickable Source URL block shared by Read in App and Share modals."""
+    clean = (url or "").strip()
+    if not clean:
+        return ""
+    style = ' style="border-top:none;padding-top:2px;margin-bottom:6px;"' if inline else ""
+    esc = html.escape(clean, quote=True)
+    return (
+        f'<div class="unified-brief-box__source"{style}>Source: '
+        f'<a href="{esc}" target="_blank" rel="noopener noreferrer">{html.escape(clean)}</a></div>'
+    )
+
+
+def _commit_share_draft(draft: Dict[str, Any], new_text: str) -> None:
+    """Commits edited text to the versioned Share draft without altering original AI output or sending."""
+    clean = (new_text or "").strip()
+    if clean and clean != (draft.get("saved_content") or "").strip():
+        draft["saved_content"] = clean
+        draft["version"] = int(draft.get("version") or 1) + 1
+        draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+    draft["draft_content"] = draft.get("saved_content") or ""
+    draft["is_editing"] = False
+    draft["unsaved_send_warn"] = False
+    draft["close_guard"] = False
+
+
 @st.dialog("Read in App", width="large", icon=":material/menu_book:", on_dismiss=_clear_active_modal)
 def _show_read_in_app_dialog() -> None:
     ctx = st.session_state.get("active_modal") or {}
@@ -732,12 +758,7 @@ def _show_read_in_app_dialog() -> None:
         meta_parts = [p for p in (reader_src, reader_time) if p]
         reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
         ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
-        ft_src_html = (
-            f'<div class="unified-brief-box__source">Source: '
-            f'<a href="{html.escape(ft_src, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(ft_src)}</a></div>'
-            if ft_src
-            else ""
-        )
+        ft_src_html = _render_source_link_html(ft_src)
         st.markdown(
             f'<div class="fulltext-reader-box">'
             f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{ext_badge}</div>'
@@ -894,25 +915,12 @@ def _show_share_dialog() -> None:
         current_draft_text = draft["draft_content"].strip()
         has_unsaved = current_draft_text != saved_text
         if src_url:
-            st.markdown(
-                f'<div class="unified-brief-box__source" style="border-top:none;padding-top:2px;margin-bottom:6px;">'
-                f'Source: <a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(_render_source_link_html(src_url, inline=True), unsafe_allow_html=True)
         ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
         with ec1:
             if st.button("Save", icon=":material/save:", type="primary", key=f"dlg_save_edit_{item_uid}", help="Save draft without sending"):
                 if current_draft_text:
-                    if current_draft_text != saved_text:
-                        draft["saved_content"] = current_draft_text
-                        draft["version"] = ver + 1
-                        draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
-                    draft["draft_content"] = draft["saved_content"]
-                    draft["is_editing"] = False
-                    draft["unsaved_send_warn"] = False
-                    draft["close_guard"] = False
-                    generated["content"] = draft["saved_content"]
-                    generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
+                    _commit_share_draft(draft, current_draft_text)
                     st.rerun()
         with ec2:
             if st.button("", icon=":material/close:", key=f"dlg_cancel_edit_{item_uid}", help="Discard unsaved edits"):
@@ -922,12 +930,7 @@ def _show_share_dialog() -> None:
                 st.rerun()
         return
 
-    src_html = (
-        f'<div class="unified-brief-box__source">Source: '
-        f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
-        if src_url
-        else ""
-    )
+    src_html = _render_source_link_html(src_url)
     st.markdown(
         f'<div class="unified-brief-box">'
         f'<div class="unified-brief-box__body">{html.escape(active_text)}</div>'
@@ -941,13 +944,7 @@ def _show_share_dialog() -> None:
         g1, g2, g3 = st.columns(3, gap="small")
         with g1:
             if st.button("Save & Close", icon=":material/save:", type="primary", key=f"dlg_sc_{item_uid}"):
-                if current_draft_text:
-                    draft["saved_content"] = current_draft_text
-                    draft["version"] = ver + 1
-                    draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
-                    generated["content"] = draft["saved_content"]
-                    generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
-                draft["close_guard"] = False
+                _commit_share_draft(draft, current_draft_text)
                 st.session_state["active_modal"] = None
                 st.rerun()
         with g2:
@@ -968,13 +965,7 @@ def _show_share_dialog() -> None:
         u1, u2 = st.columns(2, gap="small")
         with u1:
             if st.button("Save Draft", icon=":material/save:", type="primary", key=f"dlg_sd_{item_uid}"):
-                if current_draft_text:
-                    draft["saved_content"] = current_draft_text
-                    draft["version"] = ver + 1
-                    draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
-                    generated["content"] = draft["saved_content"]
-                    generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
-                draft["unsaved_send_warn"] = False
+                _commit_share_draft(draft, current_draft_text)
                 st.rerun()
         with u2:
             if st.button("Discard Edits", icon=":material/undo:", key=f"dlg_dd_{item_uid}"):
@@ -1003,12 +994,7 @@ def _show_share_dialog() -> None:
             help="Save current draft without sending" if has_unsaved else "All changes saved",
         ):
             if current_draft_text:
-                draft["saved_content"] = current_draft_text
-                draft["version"] = ver + 1
-                draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
-                draft["unsaved_send_warn"] = False
-                generated["content"] = draft["saved_content"]
-                generated["formatted_text"] = f"{draft['saved_content']}\n\nSource: {src_url}" if src_url else draft["saved_content"]
+                _commit_share_draft(draft, current_draft_text)
                 st.rerun()
     with c_cls:
         if st.button("", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close"):
