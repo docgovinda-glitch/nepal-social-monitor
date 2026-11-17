@@ -1851,44 +1851,24 @@ elif selected_nav == "X":
 
     render_page_header(
         "X (Twitter) Nepal",
-        f"{len(filtered_x_posts):,} posts · {total_acc_count} verified authentic accounts across 8 canonical sectors"
+        f"{len(filtered_x_posts):,} posts across {active_acc_count} active accounts in 8 sectors"
     )
 
-    # Subview Segmented Selector
+    x_tab_options = ["Live Feed", f"Directory ({total_acc_count})", "Admin"]
+    if st.session_state.get("x_subview_active_tab") not in x_tab_options:
+        st.session_state["x_subview_active_tab"] = "Live Feed"
+
     x_subview = st.segmented_control(
         "X Monitoring Navigation",
-        options=["Live Posts Feed", f"Monitored Directory ({total_acc_count}+ Accounts)", "Account Discovery & Admin"],
-        default=st.session_state.get("x_subview_active_tab", "Live Posts Feed"),
+        options=x_tab_options,
         key="x_subview_active_tab",
         label_visibility="collapsed"
-    )
-    if not x_subview:
-        x_subview = "Live Posts Feed"
+    ) or "Live Feed"
 
     # -------------------------------------------------------------
-    # SUBVIEW 1: LIVE POSTS FEED
+    # SUBVIEW 1: LIVE FEED
     # -------------------------------------------------------------
-    if x_subview == "Live Posts Feed":
-        # Quick KPI Pill Row
-        st.markdown(f"""
-        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
-            <div class="apple-kpi-card" style="flex:1; min-width:140px;">
-                <div class="apple-kpi-card__label">Stream Status</div>
-                <div class="apple-kpi-card__value" style="color:var(--green); font-size:1.2rem;">● Active Ingestion</div>
-                <div class="apple-kpi-card__subtitle">{len(filtered_x_posts):,} fresh posts</div>
-            </div>
-            <div class="apple-kpi-card" style="flex:1; min-width:140px;">
-                <div class="apple-kpi-card__label">Active Accounts</div>
-                <div class="apple-kpi-card__value" style="font-size:1.2rem;">{active_acc_count}</div>
-                <div class="apple-kpi-card__subtitle">of {total_acc_count} monitored</div>
-            </div>
-            <div class="apple-kpi-card" style="flex:1; min-width:140px;">
-                <div class="apple-kpi-card__label">Sectors Covered</div>
-                <div class="apple-kpi-card__value" style="font-size:1.2rem;">8 Sectors</div>
-                <div class="apple-kpi-card__subtitle">Politicians, Media, Analysts…</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    if x_subview == "Live Feed":
 
         filtered_feed = filter_items_by_category(filtered_x_posts, x_cat_filter, is_social=True)
         if selected_acc_type != ALL_ACC_TYPES:
@@ -1933,7 +1913,7 @@ elif selected_nav == "X":
     # -------------------------------------------------------------
     # SUBVIEW 2: MONITORED DIRECTORY (200+ ACCOUNTS)
     # -------------------------------------------------------------
-    elif x_subview and x_subview.startswith("Monitored Directory"):
+    elif x_subview and x_subview.startswith("Directory"):
         # Top KPI Metrics Cards Row (Apple HIG cards)
         kc1, kc2, kc3, kc4, kc5 = st.columns(5)
         with kc1:
@@ -2118,7 +2098,7 @@ elif selected_nav == "X":
     # -------------------------------------------------------------
     # SUBVIEW 3: DISCOVERY & ACCOUNT ADMIN (CHIEF ADMIN)
     # -------------------------------------------------------------
-    elif x_subview == "Account Discovery & Admin":
+    elif x_subview == "Admin":
         st.markdown("""
         <div style="background:var(--surface); border:1px solid var(--separator); border-radius:var(--r-md); padding:16px 20px; margin-bottom:18px;">
             <h3 style="margin:0 0 6px 0; font-size:1.1rem; font-weight:700;">Account Discovery & Verification Console</h3>
