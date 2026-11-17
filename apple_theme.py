@@ -233,6 +233,49 @@ APPLE_DESIGN_SYSTEM_CSS = """
         text-decoration: none !important; padding: 4px 2px;
     }
     .apple-card-cta:hover, .x-cta-link:hover { text-decoration: underline !important; }
+    .card-header-read-link {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: var(--r-pill);
+        background: var(--tint-soft);
+        color: var(--link) !important;
+        font-size: 0.74rem;
+        font-weight: 600;
+        text-decoration: none !important;
+        white-space: nowrap;
+        transition: background 0.18s var(--ease);
+    }
+    .card-header-read-link:hover {
+        background: rgba(0, 102, 204, 0.14);
+        text-decoration: none !important;
+    }
+    .read-full-inline-anchor { display: none !important; }
+    .stElementContainer:has(.read-full-inline-anchor) + .stElementContainer {
+        margin-top: -10px !important;
+        margin-bottom: 2px !important;
+    }
+    .stElementContainer:has(.read-full-inline-anchor) + .stElementContainer .stButton {
+        width: auto !important;
+    }
+    .stElementContainer:has(.read-full-inline-anchor) + .stElementContainer .stButton > button {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: var(--link) !important;
+        padding: 0 6px 2px 14px !important;
+        min-height: 24px !important;
+        height: auto !important;
+        font-size: 0.84rem !important;
+        font-weight: 600 !important;
+        justify-content: flex-start !important;
+    }
+    .stElementContainer:has(.read-full-inline-anchor) + .stElementContainer .stButton > button:hover {
+        background: rgba(0, 102, 204, 0.08) !important;
+        border-radius: var(--r-sm) !important;
+    }
 
     /* X post card (lives inside consolidated st.container(border=True) card) */
     .x-post-card { padding: 2px 2px 8px 2px; margin: 0; background: transparent; border: none; box-shadow: none; }
