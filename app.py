@@ -171,7 +171,7 @@ default_start_date = past_12h_ref.date()
 default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
 st.session_state.setdefault("last_sync_npt", now_npt.strftime("%I:%M %p").lstrip("0"))
 st.session_state.setdefault("last_auto_sync_ts", time.time())
-st.session_state.setdefault("auto_sync_enabled", False)
+st.session_state.setdefault("auto_sync_enabled", True)
 st.session_state.setdefault("cp_timeframe_segment", "12h")
 
 # ==========================================
@@ -738,9 +738,9 @@ with st.sidebar:
             icon=":material/search:",
         )
 
-        sb_btn1, sb_btn2 = st.columns(2)
+        sb_btn1, sb_btn2 = st.columns([1.1, 0.9])
         with sb_btn1:
-            if st.button("Sync", icon=":material/sync:", key="btn_top_sync", width="stretch", help=f"Fetch the latest stories from all {len(TOP_NEPAL_NEWS_PORTALS) + len(TOP_INDIAN_MEDIA_SOURCES)} sources and verified X voices"):
+            if st.button("Sync Now", icon=":material/sync:", key="btn_top_sync", width="stretch", help=f"Fetch immediate live updates across all {len(TOP_NEPAL_NEWS_PORTALS) + len(TOP_INDIAN_MEDIA_SOURCES)} media outlets and verified X voices"):
                 with st.spinner("Syncing live feeds across all streams…"):
                     fetch_top_nepal_media(max_workers=25, force_refresh=True)
                     fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
@@ -804,20 +804,17 @@ with st.sidebar:
             sel_comb_stream = st.selectbox("Information Stream", ["All Intelligence Streams", "Nepali Media Only", "Indian Press Only", "Verified X Voices Only"], key="comb_stream_filter")
             sel_comb_cat = st.selectbox("Editorial Section", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
             comb_sort_mode = st.selectbox("Chronological Order", ["Newest First", "Oldest First"], key="comb_sort_mode")
-            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest intelligence dispatches every 60 seconds")
 
         elif selected_nav == "Nepali Media":
             sidebar_section("Media Portal Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} Outlets")
             sel_np_portal = st.selectbox("Publication Outlet", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
             sel_np_cat = st.selectbox("Editorial Section", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
             sel_np_lang = st.selectbox("Article Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
-            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         elif selected_nav == "Indian Press":
             sidebar_section("Indian Desk Filters", f"{len(TOP_INDIAN_MEDIA_SOURCES)} Outlets")
             selected_indian_outlet = st.selectbox("Media Network", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
             sel_in_lang = st.selectbox("Edition Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
-            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         elif selected_nav == "X":
             sidebar_section("Social Intelligence Filters", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} Voices")
@@ -828,11 +825,6 @@ with st.sidebar:
                 key="x_acc_type_select",
             )
             sort_mode = st.selectbox("Post Ranking", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
-            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
-            if st.button("Rescan X Network", icon=":material/refresh:", width="stretch", key="btn_rescan_x_sidebar"):
-                with st.spinner("Scanning verified Nepali accounts…"):
-                    st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True)
-                st.rerun()
 
         elif selected_nav == "Analytics & Export":
             sidebar_section("Consolidated Export Parameters")
@@ -840,7 +832,6 @@ with st.sidebar:
             sel_cat = st.selectbox("Topical Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
             sel_lang = st.selectbox("Language Edition", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
             kw_filter = st.text_input("Entity or Keyword Search", placeholder="e.g. Lipulekh, Budget, @PM_nepal", key="univ_kw_filter")
-            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         else:
             sidebar_section("Diagnostics & Source Registry")
@@ -848,20 +839,14 @@ with st.sidebar:
             admin_status_filter = st.selectbox("Health Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
             admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
             admin_tier_filter = st.selectbox("Polling Frequency Tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
-            st.toggle("Live Auto-Refresh", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
-    auto_sync_badge = (
-        ' <span style="display:inline-block; margin-left:4px; padding:1px 6px; font-size:0.68rem; font-weight:600; border-radius:10px; background:var(--green-soft); color:var(--green);">Auto Sync ON</span>'
-        if st.session_state.get("auto_sync_enabled", False)
-        else ""
-    )
     st.markdown(
-        f'<div class="sb-footer">Last synced {html.escape(st.session_state["last_sync_npt"])} NPT{auto_sync_badge}<br/>Nepal Social &amp; Media Monitor</div>',
+        f'<div class="sb-footer"><span class="live-pill" style="font-size:0.7rem; padding:3px 8px;"><span class="live-pill__dot"></span>Auto Sync Active</span><br/>Last synced {html.escape(st.session_state["last_sync_npt"])} NPT<br/>Nepal Social &amp; Media Monitor</div>',
         unsafe_allow_html=True,
     )
 
-# Auto-sync periodic execution when enabled
-if st.session_state.get("auto_sync_enabled", False):
+# Auto-sync periodic execution (active by default every 60s)
+if st.session_state.get("auto_sync_enabled", True):
     now_ts = time.time()
     last_sync_ts = st.session_state.get("last_auto_sync_ts", 0)
     if now_ts - last_sync_ts >= 60:
