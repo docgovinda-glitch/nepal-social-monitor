@@ -533,6 +533,19 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-weight: 600;
         border: 1px solid rgba(30, 142, 62, 0.18);
     }
+    .wa-already-sent-notice {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        margin: 6px 0 6px 0;
+        border-radius: var(--r-md, 10px);
+        background: rgba(30, 142, 62, 0.08);
+        color: #136b2c;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid rgba(30, 142, 62, 0.25);
+    }
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-wrap: wrap !important;

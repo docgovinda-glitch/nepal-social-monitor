@@ -70,6 +70,8 @@ try:
         normalize_x_handle,
         save_x_posts,
         get_stored_x_posts,
+        record_whatsapp_sent,
+        get_whatsapp_sent_map,
     )
 except ImportError:
     import importlib
@@ -94,6 +96,8 @@ except ImportError:
         normalize_x_handle,
         save_x_posts,
         get_stored_x_posts,
+        record_whatsapp_sent,
+        get_whatsapp_sent_map,
     )
 from nepal_news_scheduler import (
     run_single_source_discovery,
@@ -651,6 +655,27 @@ def _get_cached_wa_dest() -> Dict[str, Any]:
     return get_wa_destination_group()
 
 
+@st.cache_data(ttl=20, show_spinner=False)
+def _get_wa_sent_map() -> Dict[str, Dict[str, Any]]:
+    try:
+        return get_whatsapp_sent_map()
+    except Exception:
+        return {}
+
+
+def _format_wa_sent_time(sent_at_val: Any) -> str:
+    if not sent_at_val:
+        return ""
+    try:
+        from dateutil import parser as dt_parser
+        dt = sent_at_val if isinstance(sent_at_val, datetime.datetime) else dt_parser.parse(str(sent_at_val))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt.astimezone(NEPAL_TZ).strftime("%b %d, %I:%M %p NPT")
+    except Exception:
+        return ""
+
+
 def render_feed_item_with_actions(
     item: Dict[str, Any],
     renderer: Callable[[Dict[str, Any]], str],
@@ -695,6 +720,19 @@ def render_feed_item_with_actions(
     with st.container(border=True):
         st.markdown('<div class="feed-card-anchor"></div>', unsafe_allow_html=True)
         st.markdown(renderer(item), unsafe_allow_html=True)
+
+        persisted_sent = _get_wa_sent_map().get(cache_id)
+        if persisted_sent:
+            sent_gname = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+            sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
+            sent_id = html.escape(str(persisted_sent.get("id_message") or ""))
+            ts_part = f" · {html.escape(sent_ts)}" if sent_ts else ""
+            st.markdown(
+                f'<div class="wa-already-sent-notice" title="Green API Message ID: {sent_id}">'
+                f'✓ Notice: Already sent to <strong>{sent_gname}</strong>{ts_part}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
         # 1. Unified Copyable Brief / Translation Box (View or Manual Edit Mode)
         if generated:
@@ -896,18 +934,31 @@ def render_feed_item_with_actions(
             )
             wa_res["group_name"] = selected_gname
             st.session_state["wa_item_status"][cache_id] = wa_res
+            if wa_res.get("ok") and wa_res.get("accepted"):
+                try:
+                    record_whatsapp_sent(
+                        item_key=cache_id,
+                        group_id=selected_gid,
+                        group_name=selected_gname,
+                        id_message=str(wa_res.get("id_message") or ""),
+                        item_link=item_link,
+                    )
+                    _get_wa_sent_map.clear()
+                except Exception:
+                    pass
             st.rerun()
 
         wa_status = st.session_state["wa_item_status"].get(cache_id)
         if wa_status:
             st_code = wa_status.get("status")
             if wa_status.get("ok") and wa_status.get("accepted"):
-                gname = html.escape(wa_status.get("group_name") or "Media Monitor")
-                msg_id = html.escape(str(wa_status.get("id_message") or ""))
-                st.markdown(
-                    f'<div class="wa-sent-pill" title="Green API Message ID: {msg_id}">✓ Sent to {gname} · Accepted by Green API</div>',
-                    unsafe_allow_html=True,
-                )
+                if not persisted_sent:
+                    gname = html.escape(wa_status.get("group_name") or "Media Monitor")
+                    msg_id = html.escape(str(wa_status.get("id_message") or ""))
+                    st.markdown(
+                        f'<div class="wa-sent-pill" title="Green API Message ID: {msg_id}">✓ Sent to {gname} · Accepted by Green API</div>',
+                        unsafe_allow_html=True,
+                    )
             elif st_code == "inactive":
                 st.info(wa_status.get("error"))
             elif st_code == "duplicate_prevented":

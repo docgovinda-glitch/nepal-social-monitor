@@ -1112,5 +1112,76 @@ def get_stored_x_posts(category: Optional[str] = None, author_type: Optional[str
     return rows
 
 
+_WA_SENT_TABLE_ENSURED = False
+
+
+def ensure_whatsapp_sent_log_table() -> None:
+    """Creates the whatsapp_sent_log table in Supabase if it does not already exist."""
+    global _WA_SENT_TABLE_ENSURED
+    if _WA_SENT_TABLE_ENSURED:
+        return
+    sql = """
+    CREATE TABLE IF NOT EXISTS whatsapp_sent_log (
+        item_key TEXT PRIMARY KEY,
+        group_id TEXT DEFAULT '',
+        group_name TEXT DEFAULT 'Media Monitor',
+        id_message TEXT DEFAULT '',
+        item_link TEXT DEFAULT '',
+        sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    """
+    query_supabase(sql)
+    _WA_SENT_TABLE_ENSURED = True
+
+
+def record_whatsapp_sent(
+    item_key: str,
+    group_id: str,
+    group_name: str,
+    id_message: str,
+    item_link: str = "",
+) -> bool:
+    """Persists a successful WhatsApp share to Supabase so all users see the sent notice."""
+    if not item_key:
+        return False
+    ensure_whatsapp_sent_log_table()
+    sql = f"""
+    INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_at)
+    VALUES (
+        {esc_sql(item_key)},
+        {esc_sql(group_id or '')},
+        {esc_sql(group_name or 'Media Monitor')},
+        {esc_sql(id_message or '')},
+        {esc_sql(item_link or '')},
+        NOW()
+    )
+    ON CONFLICT (item_key) DO UPDATE SET
+        group_id = EXCLUDED.group_id,
+        group_name = EXCLUDED.group_name,
+        id_message = EXCLUDED.id_message,
+        item_link = EXCLUDED.item_link,
+        sent_at = NOW();
+    """
+    query_supabase(sql)
+    return True
+
+
+def get_whatsapp_sent_map(limit: int = 1000) -> Dict[str, Dict[str, Any]]:
+    """Returns a mapping of item_key -> sent metadata for feeds already shared to WhatsApp."""
+    ensure_whatsapp_sent_log_table()
+    sql = (
+        "SELECT item_key, group_id, group_name, id_message, item_link, sent_at "
+        f"FROM whatsapp_sent_log ORDER BY sent_at DESC LIMIT {int(limit)};"
+    )
+    rows = query_supabase(sql)
+    sent_map: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        key = str(row.get("item_key") or "").strip()
+        if key:
+            sent_map[key] = row
+    return sent_map
+
+
+
 
 
