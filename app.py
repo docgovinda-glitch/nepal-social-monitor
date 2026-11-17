@@ -742,29 +742,40 @@ def _show_read_in_app_dialog() -> None:
 
     if fulltext_data and fulltext_data.get("ok"):
         ft_lang = fulltext_data.get("lang", "en")
+        lang_names = {"ne": "Nepali", "hi": "Hindi", "en": "English"}
+        lang_lbl = lang_names.get(ft_lang, "Original")
         has_tr = bool(fulltext_data.get("translated_text"))
         view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
         shown_text = fulltext_data["translated_text"] if (view_mode == "en" and has_tr) else fulltext_data["original_text"]
-        ft_eyebrow = "Read in App · English Translation" if (view_mode == "en" and has_tr) else f"Read in App · Original ({ft_lang.upper()})"
+        ft_eyebrow = "English Translation" if (view_mode == "en" and has_tr) else lang_lbl
         is_complete = bool(fulltext_data.get("is_complete", True))
         ext_badge = (
             '<span class="extraction-badge extraction-badge--full">✓ Full Article</span>'
             if is_complete
-            else '<span class="extraction-badge extraction-badge--partial">⚠ Partial Extraction — publisher restricts full text</span>'
+            else '<span class="extraction-badge extraction-badge--partial">⚠ Partial Extraction</span>'
         )
-        reader_title = html.escape((item.get("title") or "").strip())
+        raw_title = (item.get("title") or "").strip()
+        reader_title = html.escape(raw_title)
         reader_src = html.escape((item.get("source") or "").strip())
         reader_time = html.escape((item.get("exact_time") or item.get("relative_time") or "").strip())
         meta_parts = [p for p in (reader_src, reader_time) if p]
         reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
+
+        # Strip redundant leading headline if scraped body starts with the exact title
+        body_paras = [p.strip() for p in re.split(r"\n\s*\n", (shown_text or "").strip()) if p.strip()]
+        if body_paras and raw_title and body_paras[0] == raw_title and len(body_paras) > 1:
+            body_paras = body_paras[1:]
+        body_html = "".join(f'<p class="reader-para">{html.escape(p)}</p>' for p in body_paras)
+
         ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
         ft_src_html = _render_source_link_html(ft_src)
+        st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
         st.markdown(
             f'<div class="fulltext-reader-box">'
             f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{ext_badge}</div>'
             f'<div class="fulltext-reader-box__title">{reader_title}</div>'
             f'{reader_meta_html}'
-            f'<div class="fulltext-reader-box__body" style="max-height:52vh;">{html.escape(shown_text)}</div>'
+            f'<div class="fulltext-reader-box__body">{body_html}</div>'
             f'{ft_src_html}'
             f'</div>',
             unsafe_allow_html=True,

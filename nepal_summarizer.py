@@ -202,7 +202,9 @@ def detect_text_language(text: str, declared_lang: str = "") -> str:
     raw = (text or "").strip()
     decl = (declared_lang or "").strip().lower()
     if _has_devanagari(raw):
-        if decl == "hindi":
+        if decl in ("nepali", "ne"):
+            return "ne"
+        if decl in ("hindi", "hi"):
             return "hi"
         if re.search(r"(?:^|\s)(?:है|हैं|था|थी|थे|में|से|की|के|को|पर|और|नहीं|कहा|किया)(?:\s|[।,.!?]|$)", raw):
             return "hi"

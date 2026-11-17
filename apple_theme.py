@@ -700,48 +700,55 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .share-draft-pill--saved { background: var(--surface-muted); color: var(--label-2); }
     .share-draft-pill--unsaved { background: var(--amber-soft); color: var(--amber); }
     .share-draft-pill--sent { background: var(--green-soft); color: var(--green); }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) div[data-testid="stHorizontalBlock"] {
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 8px !important;
+        gap: 10px !important;
         align-items: center !important;
         justify-content: flex-start !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
         flex: 0 0 auto !important;
         width: auto !important;
         min-width: max-content !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
         margin-left: auto !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) .stButton > button {
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button {
         height: 36px !important;
         min-height: 36px !important;
         border-radius: 10px !important;
-        padding: 0 12px !important;
+        padding: 0 14px !important;
         font-size: 0.83rem !important;
         font-weight: 600 !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) .stButton > button[kind="primary"] {
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button[kind="primary"] {
         background: #0066CC !important;
         color: #FFFFFF !important;
         border-color: #0066CC !important;
         padding: 0 16px !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor) .stButton > button[kind="primary"]:hover {
+    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button[kind="primary"]:hover {
         background: #0052A3 !important;
         border-color: #0052A3 !important;
     }
     .fulltext-reader-box__body {
-        font-size: 0.88rem;
-        line-height: 1.62;
+        font-size: 0.95rem;
+        line-height: 1.72;
         color: var(--label);
-        white-space: pre-wrap;
         word-break: break-word;
-        max-height: 380px;
+        max-height: 54vh;
         overflow-y: auto;
-        padding-right: 4px;
+        padding-right: 6px;
+        margin-bottom: 10px;
+    }
+    .reader-para {
+        margin: 0 0 12px 0;
+        max-width: 68ch;
+    }
+    .reader-para:last-child {
+        margin-bottom: 0;
     }
 
     /* ==========================================================
