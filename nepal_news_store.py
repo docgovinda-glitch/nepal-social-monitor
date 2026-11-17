@@ -757,7 +757,8 @@ def batch_upsert_x_accounts(accounts: List[Dict[str, Any]], batch_size: int = 50
             conn_status = acc.get("connection_status", "connected")
             last_ver = acc.get("last_verified_at") or datetime.datetime.now(NEPAL_TZ).isoformat()
 
-            val_str = f"({esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)}, {esc_sql(role)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)}, {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled}, {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW())"
+            brief = (acc.get("profile_brief") or role or "").strip()
+            val_str = f"({esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)}, {esc_sql(role)}, {esc_sql(brief)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)}, {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled}, {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW())"
             values_rows.append(val_str)
 
         if not values_rows:
@@ -765,7 +766,7 @@ def batch_upsert_x_accounts(accounts: List[Dict[str, Any]], batch_size: int = 50
 
         sql = f"""
         INSERT INTO x_accounts (
-            handle, name, profile_url, category, subcategory, role, relevance,
+            handle, name, profile_url, category, subcategory, role, profile_brief, relevance,
             verification_status, source_url, followers, avatar_bg, initials,
             enabled, connection_status, last_verified_at, created_at, updated_at
         ) VALUES
@@ -776,6 +777,7 @@ def batch_upsert_x_accounts(accounts: List[Dict[str, Any]], batch_size: int = 50
             category = EXCLUDED.category,
             subcategory = EXCLUDED.subcategory,
             role = EXCLUDED.role,
+            profile_brief = COALESCE(NULLIF(EXCLUDED.profile_brief, ''), x_accounts.profile_brief, EXCLUDED.role),
             relevance = EXCLUDED.relevance,
             verification_status = EXCLUDED.verification_status,
             source_url = EXCLUDED.source_url,
@@ -902,14 +904,15 @@ def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
     conn_status = acc.get("connection_status", "connected")
     last_ver = acc.get("last_verified_at") or datetime.datetime.now(NEPAL_TZ).isoformat()
 
+    brief = (acc.get("profile_brief") or role or "").strip()
     sql = f"""
     INSERT INTO x_accounts (
-        handle, name, profile_url, category, subcategory, role, relevance,
+        handle, name, profile_url, category, subcategory, role, profile_brief, relevance,
         verification_status, source_url, followers, avatar_bg, initials,
         enabled, connection_status, last_verified_at, created_at, updated_at
     ) VALUES (
         {esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)},
-        {esc_sql(role)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)},
+        {esc_sql(role)}, {esc_sql(brief)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)},
         {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled},
         {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW()
     )
@@ -919,6 +922,7 @@ def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
         category = EXCLUDED.category,
         subcategory = EXCLUDED.subcategory,
         role = EXCLUDED.role,
+        profile_brief = COALESCE(NULLIF(EXCLUDED.profile_brief, ''), x_accounts.profile_brief, EXCLUDED.role),
         relevance = EXCLUDED.relevance,
         verification_status = EXCLUDED.verification_status,
         source_url = EXCLUDED.source_url,
@@ -932,7 +936,34 @@ def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
     RETURNING handle;
     """
     res = query_supabase(sql)
+    _X_PROFILE_CACHE["ts"] = 0.0
     return bool(res)
+
+
+_X_PROFILE_CACHE: Dict[str, Any] = {"ts": 0.0, "data": {}}
+
+
+def get_x_profile_brief_map(ttl_seconds: int = 300) -> Dict[str, Dict[str, str]]:
+    """Returns a cached handle_lower -> {name, profile_brief} map from Supabase x_accounts."""
+    now = time.time()
+    if _X_PROFILE_CACHE["data"] and (now - float(_X_PROFILE_CACHE["ts"])) < ttl_seconds:
+        return _X_PROFILE_CACHE["data"]
+    rows = query_supabase(
+        "SELECT handle, name, COALESCE(NULLIF(TRIM(profile_brief), ''), role) AS profile_brief "
+        "FROM x_accounts;"
+    )
+    out: Dict[str, Dict[str, str]] = {}
+    for r in rows:
+        h = str(r.get("handle") or "").lstrip("@").strip().lower()
+        if h:
+            out[h] = {
+                "name": str(r.get("name") or "").strip(),
+                "profile_brief": str(r.get("profile_brief") or "").strip(),
+            }
+    if out:
+        _X_PROFILE_CACHE["data"] = out
+        _X_PROFILE_CACHE["ts"] = now
+    return out
 
 
 def delete_x_account(handle: str) -> bool:

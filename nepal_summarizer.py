@@ -1012,28 +1012,61 @@ def generate_on_demand_news_brief(
     }
 
 
-def _build_x_profile_line(post: Dict[str, Any]) -> str:
-    """Builds a concise one-line X account profile brief from post metadata or verified directory."""
-    raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").split(" ")[0].strip()
-    author_name = (post.get("author_name") or "").strip()
-    role = (post.get("role") or "").strip()
-    author_type = (post.get("author_type") or "").strip()
+_GENERIC_X_ROLES = {"public figure", "account", "nepal live voice", "public x voice", "verified account", "x account"}
+_WIRE_PROFILE_FALLBACKS = {
+    "ani": "Indian News Agency (Asian News International)",
+    "ani_digital": "Indian News Agency Digital Desk (ANI)",
+    "pti_news": "Press Trust of India News Agency",
+    "alarabiya_eng": "International News Network (Al Arabiya English)",
+    "wionews": "International News Network (WION)",
+    "reuters": "International News Agency (Reuters)",
+    "bbcworld": "International Broadcaster (BBC World News)",
+    "afp": "International News Agency (AFP)",
+}
 
-    if (not role or role in ("Public Figure", "Account")) and raw_h:
+
+def _build_x_profile_line(post: Dict[str, Any]) -> str:
+    """Builds a concise one-line X account profile brief from Supabase x_accounts, directory, or post metadata."""
+    raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").split(" ")[0].strip()
+    h_low = raw_h.lower()
+    author_name = (post.get("author_name") or "").strip()
+    role = (post.get("profile_brief") or post.get("role") or "").strip()
+    if role.lower() in _GENERIC_X_ROLES:
+        role = ""
+
+    if not role and h_low:
         try:
             from nepal_verified_x_directory import DIRECTORY_BY_HANDLE
-            acc = DIRECTORY_BY_HANDLE.get(raw_h.lower())
+            acc = DIRECTORY_BY_HANDLE.get(h_low)
             if acc:
-                role = (acc.get("role") or acc.get("category") or role).strip()
+                role = (acc.get("role") or acc.get("category") or "").strip()
                 if not author_name:
                     author_name = (acc.get("name") or "").strip()
         except Exception:
             pass
 
-    descriptor = role or author_type
+    if not role and h_low:
+        try:
+            from nepal_news_store import get_x_profile_brief_map
+            db_acc = get_x_profile_brief_map().get(h_low)
+            if db_acc:
+                role = (db_acc.get("profile_brief") or "").strip()
+                if not author_name:
+                    author_name = (db_acc.get("name") or "").strip()
+        except Exception:
+            pass
+
+    if not role and h_low in _WIRE_PROFILE_FALLBACKS:
+        role = _WIRE_PROFILE_FALLBACKS[h_low]
+
+    if not role:
+        at_val = (post.get("author_type") or "").strip()
+        if at_val.lower() not in _GENERIC_X_ROLES:
+            role = at_val
+
     who = f"{author_name} (@{raw_h})" if (author_name and raw_h) else (author_name or (f"@{raw_h}" if raw_h else ""))
-    if who and descriptor:
-        return f"Profile: {who} — {descriptor}"
+    if who and role:
+        return f"Profile: {who} — {role}"
     if who:
         return f"Profile: {who}"
     return ""
