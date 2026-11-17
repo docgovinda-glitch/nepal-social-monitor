@@ -1,6 +1,6 @@
 """
 nepal_verified_x_directory.py
-Authoritative, verified, and curated repository of 200+ authentic Nepal-related X accounts.
+Authoritative, verified, and curated repository of authentic Nepal-related X accounts.
 Covers all 8 canonical sectors: Politicians, Journalists, Political Analysts, Civil Society,
 Academics, Social Activists, Diplomats, and Public Intellectuals.
 """
@@ -15,7 +15,7 @@ CANONICAL_X_CATEGORIES = [
     "Academics and Researchers",
     "Social Activists",
     "Diplomats and Former Officials",
-    "Public Intellectuals and Cultural Voices"
+    "Public Intellectuals and Cultural Voices",
 ]
 
 VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
@@ -34,7 +34,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "KO",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Pushpa Kamal Dahal 'Prachanda'",
@@ -51,7 +51,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sher Bahadur Deuba",
@@ -68,7 +68,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Balen Shah",
@@ -85,12 +85,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Gagan Kumar Thapa",
-        "handle": "GaganThapa",
-        "profile_url": "https://x.com/GaganThapa",
+        "handle": "thapagk",
+        "profile_url": "https://x.com/thapagk",
         "category": "Politicians",
         "subcategory": "Parliamentary & Policy / Nepali Congress",
         "role": "General Secretary, Nepali Congress / Member of Parliament",
@@ -102,7 +102,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GT",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Baburam Bhattarai",
@@ -119,7 +119,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Swarnim Wagle",
@@ -136,7 +136,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SW",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rabi Lamichhane",
@@ -153,7 +153,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RL",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. CK Raut",
@@ -170,7 +170,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "CK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bishwa Prakash Sharma",
@@ -187,7 +187,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Yogesh Bhattarai",
@@ -204,7 +204,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "YB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Gokul Prasad Baskota",
@@ -221,7 +221,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Minendra Rijal",
@@ -238,7 +238,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MR",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Pradeep Gyawali",
@@ -255,7 +255,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Milan Pandey",
@@ -272,7 +272,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Harka Sampang Rai",
@@ -289,7 +289,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "HS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sunita Dangol",
@@ -306,7 +306,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Shankar Pokhrel",
@@ -323,7 +323,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bishnu Prasad Paudel",
@@ -340,7 +340,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bishnu Rimal",
@@ -357,7 +357,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BR",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Bhim Rawal",
@@ -374,12 +374,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BR",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Mahesh Basnet",
-        "handle": "MaheshBasnet_",
-        "profile_url": "https://x.com/MaheshBasnet_",
+        "handle": "MaMaheshBasnet",
+        "profile_url": "https://x.com/MaMaheshBasnet",
         "category": "Politicians",
         "subcategory": "CPN (UML) Youth Mobilization",
         "role": "Central Committee Member CPN (UML) / Former Industry Minister",
@@ -391,7 +391,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Ishwar Pokhrel",
@@ -408,12 +408,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "IP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Prithvi Subba Gurung",
-        "handle": "PrithviSubba_",
-        "profile_url": "https://x.com/PrithviSubba_",
+        "handle": "PrithviSubba",
+        "profile_url": "https://x.com/PrithviSubba",
         "category": "Politicians",
         "subcategory": "Government Spokesperson & Communications",
         "role": "Minister for Communication & IT / Government Spokesperson / UML Leader",
@@ -425,7 +425,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Surendra Pandey",
@@ -442,7 +442,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Manish Jha",
@@ -459,7 +459,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MJ",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Upendra Yadav",
@@ -476,7 +476,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "UY",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Arzu Rana Deuba",
@@ -493,7 +493,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Shekhar Koirala",
@@ -510,7 +510,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Nain Singh Mahar",
@@ -527,7 +527,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "NM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bimalendra Nidhi",
@@ -544,12 +544,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BN",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Guru Raj Ghimire",
-        "handle": "gurughimire",
-        "profile_url": "https://x.com/gurughimire",
+        "handle": "gururajghimire",
+        "profile_url": "https://x.com/gururajghimire",
         "category": "Politicians",
         "subcategory": "Youth & Political Writing / NC",
         "role": "Central Leader, Nepali Congress / Author & Political Essayist",
@@ -561,7 +561,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rabindra Mishra",
@@ -578,7 +578,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rajendra Lingden",
@@ -595,24 +595,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RL",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Sobita Gautam",
-        "handle": "sobita_gautam",
-        "profile_url": "https://x.com/sobita_gautam",
-        "category": "Politicians",
-        "subcategory": "Youth Parliamentarian / Legal Affairs",
-        "role": "Member of Parliament, RSP / Advocate & Youth Leader",
-        "relevance": "One of Nepal's youngest elected MPs actively contributing to parliamentary committee hearings, legislative drafting, and civic rights.",
-        "verification_status": "verified",
-        "source_url": "https://hr.parliament.gov.np",
-        "followers": "85K",
-        "avatar_bg": "#0284c7",
-        "initials": "SG",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sumana Shrestha",
@@ -629,7 +612,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dilbhusan Pathak",
@@ -646,7 +629,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Narayan Wagle",
@@ -663,7 +646,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "NW",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Kanak Mani Dixit",
@@ -680,7 +663,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "KD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Akhilesh Upadhyay",
@@ -697,12 +680,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AU",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sudheer Sharma",
-        "handle": "SudheerSRM",
-        "profile_url": "https://x.com/SudheerSRM",
+        "handle": "sudheerktm",
+        "profile_url": "https://x.com/sudheerktm",
         "category": "Journalists and Media Professionals",
         "subcategory": "Political Reporting & Authorship",
         "role": "Former Editor-in-Chief Kantipur Daily / Author of 'Prayogshala'",
@@ -714,7 +697,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Prateek Pradhan",
@@ -731,24 +714,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Subhash Ghimire",
-        "handle": "subhash580",
-        "profile_url": "https://x.com/subhash580",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Media Entrepreneurship & Policy",
-        "role": "Former Editor-in-Chief Republica / Harvard Kennedy School Alum",
-        "relevance": "Focuses on modern newsroom ethics, investigative journalism standards, and young editorial leadership.",
-        "verification_status": "verified",
-        "source_url": "https://myrepublica.nagariknetwork.com",
-        "followers": "130K",
-        "avatar_bg": "#0284c7",
-        "initials": "SG",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sanjib Bagale",
@@ -765,12 +731,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Amit Dhakal",
-        "handle": "amitdhakal",
-        "profile_url": "https://x.com/amitdhakal",
+        "handle": "ameetdhakal",
+        "profile_url": "https://x.com/ameetdhakal",
         "category": "Journalists and Media Professionals",
         "subcategory": "Digital Newsroom Leadership",
         "role": "Editor-in-Chief, Setopati / Digital Journalism Pioneer in Nepal",
@@ -782,7 +748,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Shiva Gaunle",
@@ -799,24 +765,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Bipul Pokharel",
-        "handle": "BipulPokhrel",
-        "profile_url": "https://x.com/BipulPokhrel",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Media Rights & Professional Guild",
-        "role": "President, Federation of Nepali Journalists (FNJ)",
-        "relevance": "Elected leader of Nepal's journalist fraternity defending journalist safety, working conditions, and anti-censorship standards.",
-        "verification_status": "verified",
-        "source_url": "https://fnjnepal.org",
-        "followers": "85K",
-        "avatar_bg": "#1e293b",
-        "initials": "BP",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Gunaraj Luitel",
@@ -833,29 +782,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GL",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dharmendra Jha",
-        "handle": "dharmendrajha",
-        "profile_url": "https://x.com/dharmendrajha",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Public Broadcasting & Freedom of Expression",
-        "role": "Executive Chairman National News Agency (RSS) / Former President FNJ",
-        "relevance": "Senior media freedom trainer and head of Nepal's official state wire service championing professional journalism standards.",
-        "verification_status": "verified",
-        "source_url": "https://rssnepal.org.np",
-        "followers": "75K",
-        "avatar_bg": "#0284c7",
-        "initials": "DJ",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Umesh Shrestha",
-        "handle": "umeshshrestha",
-        "profile_url": "https://x.com/umeshshrestha",
+        "handle": "Salokya",
+        "profile_url": "https://x.com/Salokya",
         "category": "Journalists and Media Professionals",
         "subcategory": "Fact-Checking & Digital Media",
         "role": "Digital Journalist / Co-founder Mysansar & Fact-Checking Pioneer Nepal",
@@ -867,7 +799,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "US",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rajan Pokhrel",
@@ -884,7 +816,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Kiran Nepal",
@@ -901,7 +833,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "KN",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bhadra Sharma",
@@ -918,7 +850,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Kamal Dev Bhattarai",
@@ -935,12 +867,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "KB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Anil Giri",
-        "handle": "AnilGiri_TKP",
-        "profile_url": "https://x.com/AnilGiri_TKP",
+        "handle": "anilkathmandu",
+        "profile_url": "https://x.com/anilkathmandu",
         "category": "Journalists and Media Professionals",
         "subcategory": "Diplomatic & Foreign Ministry Beat",
         "role": "Senior Diplomatic Correspondent, The Kathmandu Post",
@@ -952,12 +884,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Tika R. Pradhan",
-        "handle": "TikaRPradhan",
-        "profile_url": "https://x.com/TikaRPradhan",
+        "handle": "tikapradhan",
+        "profile_url": "https://x.com/tikapradhan",
         "category": "Journalists and Media Professionals",
         "subcategory": "Parliamentary & Political Bureau",
         "role": "Bureau Chief, The Kathmandu Post",
@@ -969,7 +901,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "TP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Binod Ghimire",
@@ -986,58 +918,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Santosh Sharma",
-        "handle": "santoshsharma_",
-        "profile_url": "https://x.com/santoshsharma_",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Broadcast News Direction",
-        "role": "Broadcast Journalist / Senior Editor Kantipur TV",
-        "relevance": "Oversees live broadcast bulletins and news coverage of national emergencies, elections, and breaking news.",
-        "verification_status": "verified",
-        "source_url": "https://kantipurtv.com",
-        "followers": "68K",
-        "avatar_bg": "#0369a1",
-        "initials": "SS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Prakash Rimal",
-        "handle": "prakashrimal",
-        "profile_url": "https://x.com/prakashrimal",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Print Editing & Column",
-        "role": "Senior Columnist / Former Editor The Himalayan Times",
-        "relevance": "Writes extensive analytical columns on political economy, institutional decay, and civic responsibilities.",
-        "verification_status": "verified",
-        "source_url": "https://thehimalayantimes.com",
-        "followers": "58K",
-        "avatar_bg": "#475569",
-        "initials": "PR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Ram Bahadur Rawal",
-        "handle": "RamBRawal",
-        "profile_url": "https://x.com/RamBRawal",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Legal & Judicial Beat",
-        "role": "Investigative Journalist / CIJ Nepal / Legal Beat Specialist",
-        "relevance": "Uncovers irregularities in judicial appointments, constitutional crises, and high-profile criminal investigations.",
-        "verification_status": "verified",
-        "source_url": "https://cijnepal.org.np",
-        "followers": "62K",
-        "avatar_bg": "#334155",
-        "initials": "RR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Deepa Dahal",
@@ -1054,7 +935,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sujit Mahat",
@@ -1071,7 +952,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Babita Basnet",
@@ -1088,7 +969,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Yubaraj Ghimire",
@@ -1105,75 +986,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "YG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Ameet Dhakal",
-        "handle": "ameetdhakal",
-        "profile_url": "https://x.com/ameetdhakal",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Digital Media Strategy",
-        "role": "Founding Editor & Publisher, Setopati",
-        "relevance": "Leads digital media innovation and independent long-form investigative journalism in Nepal.",
-        "verification_status": "verified",
-        "source_url": "https://setopati.com",
-        "followers": "190K",
-        "avatar_bg": "#0284c7",
-        "initials": "AD",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Krishna Jwala Devkota",
-        "handle": "KJwalaDevkota",
-        "profile_url": "https://x.com/KJwalaDevkota",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Print Investigative Journalism",
-        "role": "Editor-in-Chief, Naya Patrika Daily",
-        "relevance": "Pioneered daily front-page investigative exposés on land grabbing, public financial irregularities, and institutional scams.",
-        "verification_status": "verified",
-        "source_url": "https://nayapatrikadaily.com",
-        "followers": "120K",
-        "avatar_bg": "#dc2626",
-        "initials": "KD",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Prof. Krishna Khanal",
-        "handle": "ProfKKhanal",
-        "profile_url": "https://x.com/ProfKKhanal",
-        "category": "Political Analysts",
-        "subcategory": "Political Science & Democratic Institutions",
-        "role": "Senior Political Analyst / Professor Emeritus Tribhuvan University",
-        "relevance": "Eminent authority on constitutional evolution, political party behaviors, and federal design in Nepal.",
-        "verification_status": "verified",
-        "source_url": "https://tu.edu.np",
-        "followers": "160K",
-        "avatar_bg": "#1e293b",
-        "initials": "KK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "C.K. Lal",
-        "handle": "CKLal_Nepal",
-        "profile_url": "https://x.com/CKLal_Nepal",
-        "category": "Political Analysts",
-        "subcategory": "Socio-Political Column & Subaltern Studies",
-        "role": "Senior Political Columnist, Commentator & Playwright",
-        "relevance": "Influential social commentator writing thought-provoking essays on nationalism, Madhesh identity, and subaltern emancipation.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/C._K._Lal",
-        "followers": "210K",
-        "avatar_bg": "#7c2d12",
-        "initials": "CL",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Puranjan Acharya",
@@ -1190,7 +1003,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Surendra Labh",
@@ -1207,24 +1020,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SL",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Hari Sharma",
-        "handle": "HariSharma_",
-        "profile_url": "https://x.com/HariSharma_",
-        "category": "Political Analysts",
-        "subcategory": "Institutional Governance & Statecraft",
-        "role": "Senior Political Analyst / Former Advisor to President & Prime Minister",
-        "relevance": "High-level policy advisor offering deep historical analysis on constitutional conventions, civil-military dynamics, and statecraft.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Hari_Sharma",
-        "followers": "140K",
-        "avatar_bg": "#334155",
-        "initials": "HS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Vijay Kant Karna",
@@ -1241,24 +1037,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "VK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Bishnu Raj Upreti",
-        "handle": "BishnuRUpreti",
-        "profile_url": "https://x.com/BishnuRUpreti",
-        "category": "Political Analysts",
-        "subcategory": "Security & Conflict Transformation",
-        "role": "Executive Director Policy Research Institute (PRI) / Security Scholar",
-        "relevance": "Heads Nepal's premier government think tank analyzing national security, border governance, and public policy formulation.",
-        "verification_status": "verified",
-        "source_url": "https://pri.gov.np",
-        "followers": "75K",
-        "avatar_bg": "#0f766e",
-        "initials": "BU",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Mumaram Khanal",
@@ -1275,7 +1054,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Jhalak Subedi",
@@ -1292,7 +1071,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "JS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Shyam Shrestha",
@@ -1309,24 +1088,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Tula Narayan Shah",
-        "handle": "tulanarayan",
-        "profile_url": "https://x.com/tulanarayan",
-        "category": "Political Analysts",
-        "subcategory": "Federalism & Inclusion Beat",
-        "role": "Political Analyst / Madhesh & Federalism Specialist / Columnist",
-        "relevance": "Executive Director of Nepal Madhesh Foundation leading empirical research on federal devolution and marginal group representation.",
-        "verification_status": "verified",
-        "source_url": "https://nemaf.org.np",
-        "followers": "120K",
-        "avatar_bg": "#ea580c",
-        "initials": "TS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Rajesh Ahiraj",
@@ -1343,24 +1105,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Indra Adhikari",
-        "handle": "IndraAdhikari_",
-        "profile_url": "https://x.com/IndraAdhikari_",
-        "category": "Political Analysts",
-        "subcategory": "Civil-Military Relations & Security Policy",
-        "role": "Security & Defence Analyst / Author / Military Affairs Scholar",
-        "relevance": "Specializes in the evolution of the Nepali Army, civilian supremacy, defence budgets, and national security policy.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/IndraAdhikari_",
-        "followers": "70K",
-        "avatar_bg": "#475569",
-        "initials": "IA",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Uddhab Pyakurel",
@@ -1377,7 +1122,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "UP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Geja Sharma Wagle",
@@ -1394,7 +1139,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GW",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bishnu Sapkota",
@@ -1411,7 +1156,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Pramod Kafle",
@@ -1428,24 +1173,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Khadga K.C.",
-        "handle": "KhadgaKC_",
-        "profile_url": "https://x.com/KhadgaKC_",
-        "category": "Political Analysts",
-        "subcategory": "International Relations & Geopolitics",
-        "role": "Professor, Department of International Relations & Diplomacy TU",
-        "relevance": "Senior academician examining Nepal's non-aligned doctrine, BRI projects, MCC implementation, and foreign aid effectiveness.",
-        "verification_status": "verified",
-        "source_url": "https://tu.edu.np",
-        "followers": "58K",
-        "avatar_bg": "#0369a1",
-        "initials": "KK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Shambhu Kattel",
@@ -1462,7 +1190,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Lok Raj Baral",
@@ -1479,7 +1207,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "LB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Trailokya Raj Aryal",
@@ -1496,24 +1224,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "TA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Arun Kumar Subedi",
-        "handle": "ArunSubedi",
-        "profile_url": "https://x.com/ArunSubedi",
-        "category": "Political Analysts",
-        "subcategory": "Foreign Affairs & Diplomatic Strategy",
-        "role": "Foreign Affairs & Strategic Analyst / Former PM Foreign Policy Advisor",
-        "relevance": "Advises on diplomatic negotiations, energy trade with India and Bangladesh, and bilateral water treaties.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/ArunSubedi",
-        "followers": "72K",
-        "avatar_bg": "#0f766e",
-        "initials": "AS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bhaskar Gautam",
@@ -1530,29 +1241,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dhruba Hari Adhikary",
-        "handle": "DhrubaHAdhikary",
-        "profile_url": "https://x.com/DhrubaHAdhikary",
-        "category": "Political Analysts",
-        "subcategory": "Diplomacy & Historical Governance",
-        "role": "Foreign Affairs & Political Analyst / Veteran Columnist",
-        "relevance": "Contributes historical analyses on royal diplomacy, non-alignment treaties, and modern coalition politics.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/DhrubaHAdhikary",
-        "followers": "45K",
-        "avatar_bg": "#475569",
-        "initials": "DA",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Surya Raj Acharya",
-        "handle": "suryaraacharya",
-        "profile_url": "https://x.com/suryaraacharya",
+        "handle": "SuryaRAcharya",
+        "profile_url": "https://x.com/SuryaRAcharya",
         "category": "Political Analysts",
         "subcategory": "Infrastructure & Public Policy",
         "role": "Infrastructure Policy Analyst / Visiting Professor / Public Policy Thinker",
@@ -1564,41 +1258,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Sushila Karki",
-        "handle": "SushilaKarki_",
-        "profile_url": "https://x.com/SushilaKarki_",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Rule of Law & Anti-Corruption",
-        "role": "Former Chief Justice of Supreme Court of Nepal / Civic Conscience",
-        "relevance": "First female Chief Justice of Nepal celebrated for uncompromising anti-corruption rulings, judicial integrity, and civic advocacy.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Sushila_Karki",
-        "followers": "240K",
-        "avatar_bg": "#1e293b",
-        "initials": "SK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Kalyan Shrestha",
-        "handle": "KalyanShrestha_",
-        "profile_url": "https://x.com/KalyanShrestha_",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Constitutionalism & Human Rights Jurisprudence",
-        "role": "Former Chief Justice of Supreme Court of Nepal / Eminent Jurist",
-        "relevance": "Pioneering jurist who shaped Nepal's modern human rights jurisprudence, environmental protection mandates, and constitutional law.",
-        "verification_status": "verified",
-        "source_url": "https://supremecourt.gov.np",
-        "followers": "180K",
-        "avatar_bg": "#334155",
-        "initials": "KS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bipin Adhikari",
@@ -1615,24 +1275,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Khemraj Regmi",
-        "handle": "KhemrajRegmi",
-        "profile_url": "https://x.com/KhemrajRegmi",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Anti-Corruption & Transparency",
-        "role": "President, Transparency International Nepal / Former Home Secretary",
-        "relevance": "Leads national anti-corruption watchdog assessing public procurement integrity, illicit political financing, and whistleblowing.",
-        "verification_status": "verified",
-        "source_url": "https://tinepal.org",
-        "followers": "65K",
-        "avatar_bg": "#0f766e",
-        "initials": "KR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Gauri Pradhan",
@@ -1649,24 +1292,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Kapil Shrestha",
-        "handle": "KapilShrestha",
-        "profile_url": "https://x.com/KapilShrestha",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Human Rights & Democratic Institutions",
-        "role": "Senior Human Rights Defender / Former Member NHRC / Professor",
-        "relevance": "Lifelong campaigner for democratic freedoms, political prisoner protections, and human rights oversight.",
-        "verification_status": "verified",
-        "source_url": "https://nhrcnepal.org",
-        "followers": "68K",
-        "avatar_bg": "#1e293b",
-        "initials": "KS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Charan Prasai",
@@ -1683,7 +1309,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "CP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Govinda KC",
@@ -1700,24 +1326,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Bhagawan Koirala",
-        "handle": "DrBhagawanK",
-        "profile_url": "https://x.com/DrBhagawanK",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Pediatric Healthcare & Philanthropy",
-        "role": "Eminent Cardiac Surgeon / Chairman Nepal Medical Council / Founder Kathmandu Institute of Child Health",
-        "relevance": "National icon in cardiac medicine leading the establishment of specialized non-profit children's hospitals across all provinces.",
-        "verification_status": "verified",
-        "source_url": "https://kich.org.np",
-        "followers": "290K",
-        "avatar_bg": "#0284c7",
-        "initials": "BK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Santosh Shah",
@@ -1734,24 +1343,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Pradip Pokharel",
-        "handle": "PradipPokharel",
-        "profile_url": "https://x.com/PradipPokharel",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Peace & Human Rights Movement",
-        "role": "Peace Activist / President Human Rights Alliance Nepal",
-        "relevance": "Coordinates civil society networks monitoring human rights treaty compliance and transitional justice.",
-        "verification_status": "verified",
-        "source_url": "https://humanrightsalliance.org.np",
-        "followers": "52K",
-        "avatar_bg": "#475569",
-        "initials": "PP",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Indira Shrestha",
@@ -1768,7 +1360,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "IS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Subodh Raj Pyakurel",
@@ -1785,7 +1377,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Lily Thapa",
@@ -1802,24 +1394,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "LT",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Renu Rajbhandari",
-        "handle": "DrRenuR",
-        "profile_url": "https://x.com/DrRenuR",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Anti-Trafficking & Women Rehabilitation",
-        "role": "Medical Doctor / Founder WOREC Nepal / Human Rights Defender",
-        "relevance": "Leads community health clinics and survivor rehabilitation shelters for victims of trafficking and gender-based violence.",
-        "verification_status": "verified",
-        "source_url": "https://worecnepal.org",
-        "followers": "62K",
-        "avatar_bg": "#b45309",
-        "initials": "RR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dinesh Tripathi",
@@ -1836,24 +1411,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DT",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Tikaram Bhattarai",
-        "handle": "TikaramBhattarai",
-        "profile_url": "https://x.com/TikaramBhattarai",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Judicial Independence & Legal Policy",
-        "role": "Senior Advocate / Former Vice President Nepal Bar Association",
-        "relevance": "Influential voice on bar council independence, judicial appointments, and legal safeguards for civil liberties.",
-        "verification_status": "verified",
-        "source_url": "https://nepalbar.org.np",
-        "followers": "82K",
-        "avatar_bg": "#334155",
-        "initials": "TB",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Bhola Paswan",
@@ -1870,7 +1428,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Mohna Ansari",
@@ -1887,7 +1445,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rem BK",
@@ -1904,7 +1462,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Prakash Maharjan",
@@ -1921,7 +1479,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sushil Pyakurel",
@@ -1938,24 +1496,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Aruna Uprety",
-        "handle": "DrArunaUprety",
-        "profile_url": "https://x.com/DrArunaUprety",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Public Health & Traditional Nutrition",
-        "role": "Public Health Specialist / Author / Women & Nutrition Advocate",
-        "relevance": "Campaigns against ultra-processed foods, uterine prolapse in rural women, and malnutrition in remote mountain districts.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/DrArunaUprety",
-        "followers": "95K",
-        "avatar_bg": "#059669",
-        "initials": "AU",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Nirakar Shrestha",
@@ -1972,41 +1513,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "NS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Baburam Marasini",
-        "handle": "DrBMarasini",
-        "profile_url": "https://x.com/DrBMarasini",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Epidemiology & Health Security",
-        "role": "Public Health Expert / Former Director Epidemiology Division",
-        "relevance": "Authoritative medical commentator on epidemic response, dengue outbreaks, vaccination supply chains, and health budgets.",
-        "verification_status": "verified",
-        "source_url": "https://mohp.gov.np",
-        "followers": "58K",
-        "avatar_bg": "#0284c7",
-        "initials": "BM",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Khem Shrestha",
-        "handle": "KhemShrestha_",
-        "profile_url": "https://x.com/KhemShrestha_",
-        "category": "Civil Society and Public Voices",
-        "subcategory": "Consumer Rights & Market Surveillance",
-        "role": "Consumer Rights Advocate / Civic Forum Nepal",
-        "relevance": "Leads consumer protection campaigns against market cartels, food adulteration, and artificial inflation.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/KhemShrestha_",
-        "followers": "38K",
-        "avatar_bg": "#d97706",
-        "initials": "KS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Chaitanya Mishra",
@@ -2023,7 +1530,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "CM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Dilli Raj Khanal",
@@ -2040,7 +1547,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Govinda Raj Pokharel",
@@ -2057,24 +1564,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Posh Raj Pandey",
-        "handle": "PoshRajPandey",
-        "profile_url": "https://x.com/PoshRajPandey",
-        "category": "Academics and Researchers",
-        "subcategory": "International Trade & WTO Integration",
-        "role": "Trade Economist / Chairman SAWTEE / Former NPC Member",
-        "relevance": "Leading authority on WTO accession commitments, LDC graduation challenges, and South Asian bilateral transit treaties.",
-        "verification_status": "verified",
-        "source_url": "https://sawtee.org",
-        "followers": "72K",
-        "avatar_bg": "#0f766e",
-        "initials": "PP",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Bishwambher Pyakuryal",
@@ -2091,12 +1581,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Rameshore Khanal",
-        "handle": "RameshoreKhanal",
-        "profile_url": "https://x.com/RameshoreKhanal",
+        "handle": "rameshore",
+        "profile_url": "https://x.com/rameshore",
         "category": "Academics and Researchers",
         "subcategory": "Public Finance Management & Revenue Governance",
         "role": "Former Finance Secretary / Senior Economic Governance Scholar",
@@ -2108,41 +1598,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Min Bahadur Shrestha",
-        "handle": "MinBShrestha",
-        "profile_url": "https://x.com/MinBShrestha",
-        "category": "Academics and Researchers",
-        "subcategory": "Central Banking & Monetary Economics",
-        "role": "Former Vice-Chairman NPC / Former Executive Director Nepal Rastra Bank",
-        "relevance": "Expert on financial inclusion models, inflation targeting, cooperative banking regulation, and capital market supervision.",
-        "verification_status": "verified",
-        "source_url": "https://nrb.org.np",
-        "followers": "75K",
-        "avatar_bg": "#047857",
-        "initials": "MS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Biswo Poudel",
-        "handle": "BiswoPoudel",
-        "profile_url": "https://x.com/BiswoPoudel",
-        "category": "Academics and Researchers",
-        "subcategory": "Agricultural Economics & Infrastructure Finance",
-        "role": "Senior Economist / Former Vice Chairman National Planning Commission",
-        "relevance": "UC Berkeley PhD economist writing extensively on agricultural productivity, labor migration, and mega-infrastructure financing.",
-        "verification_status": "verified",
-        "source_url": "https://npc.gov.np",
-        "followers": "92K",
-        "avatar_bg": "#0284c7",
-        "initials": "BP",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Kalpana Khanal",
@@ -2159,24 +1615,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "KK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Achyut Wagle",
-        "handle": "AchyutWagle",
-        "profile_url": "https://x.com/AchyutWagle",
-        "category": "Academics and Researchers",
-        "subcategory": "Public Policy & Management Studies",
-        "role": "Professor & Associate Dean, Kathmandu University School of Management",
-        "relevance": "Prolific economic columnist dissecting trade deficits, fiscal federalism, monetary policy, and public sector governance.",
-        "verification_status": "verified",
-        "source_url": "https://som.ku.edu.np",
-        "followers": "145K",
-        "avatar_bg": "#1e293b",
-        "initials": "AW",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Paras Kharel",
@@ -2193,24 +1632,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Shiva Raj Adhikari",
-        "handle": "ShivaRAdhikari",
-        "profile_url": "https://x.com/ShivaRAdhikari",
-        "category": "Academics and Researchers",
-        "subcategory": "Health Economics & Plan Implementation",
-        "role": "Vice Chairman National Planning Commission / Professor of Economics TU",
-        "relevance": "Leads the formulation of Nepal's 16th Periodic Plan, focusing on health economic evaluations and productive employment.",
-        "verification_status": "verified",
-        "source_url": "https://npc.gov.np",
-        "followers": "62K",
-        "avatar_bg": "#0369a1",
-        "initials": "SA",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Pitamber Sharma",
@@ -2227,24 +1649,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Mahendra P. Lama",
-        "handle": "MahendraPLama",
-        "profile_url": "https://x.com/MahendraPLama",
-        "category": "Academics and Researchers",
-        "subcategory": "Himalayan Geopolitics & Trans-Border Economy",
-        "role": "Founding Vice Chancellor Sikkim University / Member EPG on Nepal-India Relations",
-        "relevance": "Pioneering scholar on mountain economies, cross-border energy grids, and bilateral border transit revitalization.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Mahendra_P._Lama",
-        "followers": "110K",
-        "avatar_bg": "#475569",
-        "initials": "ML",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Pramod Jaiswal",
@@ -2261,24 +1666,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PJ",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Dhruba Kumar",
-        "handle": "DhrubaKumar_",
-        "profile_url": "https://x.com/DhrubaKumar_",
-        "category": "Academics and Researchers",
-        "subcategory": "Strategic Studies & National Security Doctrine",
-        "role": "Eminent Strategic Studies Scholar / Former CNAS Tribhuvan University",
-        "relevance": "Authored landmark books on Nepal's security challenges, nuclear neighborhood diplomacy, and defence doctrine.",
-        "verification_status": "verified",
-        "source_url": "https://tu.edu.np",
-        "followers": "52K",
-        "avatar_bg": "#1e293b",
-        "initials": "DK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Binoj Basnyat",
@@ -2295,24 +1683,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Surendra KC",
-        "handle": "DrSurendraKC",
-        "profile_url": "https://x.com/DrSurendraKC",
-        "category": "Academics and Researchers",
-        "subcategory": "Modern History & Contemporary Politics",
-        "role": "Professor of History Tribhuvan University / Public Commentator",
-        "relevance": "Widely followed historical analyst explaining communist movement genealogy, palace history, and treaty contexts.",
-        "verification_status": "verified",
-        "source_url": "https://tu.edu.np",
-        "followers": "165K",
-        "avatar_bg": "#b91c1c",
-        "initials": "SK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Jagadish Chandra Pokharel",
@@ -2329,7 +1700,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "JP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Shankar Sharma",
@@ -2346,7 +1717,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Som Pudasaini",
@@ -2363,24 +1734,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Prakash Shrestha",
-        "handle": "PrakashShrestha",
-        "profile_url": "https://x.com/PrakashShrestha",
-        "category": "Academics and Researchers",
-        "subcategory": "Monetary Economics & Financial Sector Stability",
-        "role": "Executive Director, Nepal Rastra Bank / Economic Research Department",
-        "relevance": "Heads NRB's macroeconomic research evaluating foreign exchange reserves, import inflation, and liquidity buffers.",
-        "verification_status": "verified",
-        "source_url": "https://nrb.org.np",
-        "followers": "65K",
-        "avatar_bg": "#0369a1",
-        "initials": "PS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Gunakar Bhatta",
@@ -2397,7 +1751,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Tara Dahal",
@@ -2414,41 +1768,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "TD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Jeevan Baniya",
-        "handle": "JeevanBaniya",
-        "profile_url": "https://x.com/JeevanBaniya",
-        "category": "Academics and Researchers",
-        "subcategory": "Labor Migration & Global Diaspora",
-        "role": "Assistant Director Social Science Baha / Labour Migration Scholar",
-        "relevance": "Lead researcher on Nepali migrant worker safety in the Gulf/Malaysia, bilateral labour agreements, and remittance welfare.",
-        "verification_status": "verified",
-        "source_url": "https://saha.org.np",
-        "followers": "52K",
-        "avatar_bg": "#0f766e",
-        "initials": "JB",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Pushpa Basnet",
-        "handle": "PushpaBasnet",
-        "profile_url": "https://x.com/PushpaBasnet",
-        "category": "Social Activists",
-        "subcategory": "Child Welfare & Prison Reform",
-        "role": "CNN Hero of the Year / Founder Early Childhood Development Center (ECDC)",
-        "relevance": "Rescues and educates children of incarcerated parents, providing boarding, education, and vocational life skills.",
-        "verification_status": "verified",
-        "source_url": "https://ecdcnepal.org",
-        "followers": "110K",
-        "avatar_bg": "#059669",
-        "initials": "PB",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Anuradha Koirala",
@@ -2465,7 +1785,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Maggie Doyne",
@@ -2482,7 +1802,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sunita Danuwar",
@@ -2499,7 +1819,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Prakash Saput",
@@ -2516,24 +1836,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Bhumika Shrestha",
-        "handle": "BhumikaShrestha",
-        "profile_url": "https://x.com/BhumikaShrestha",
-        "category": "Social Activists",
-        "subcategory": "Transgender Rights & Legal Recognition",
-        "role": "Transgender Rights Activist / Blue Diamond Society / US State Dept Awardee",
-        "relevance": "Won landmark legal victories establishing 'Other' gender citizenship cards and passport recognition in Nepal.",
-        "verification_status": "verified",
-        "source_url": "https://bds.org.np",
-        "followers": "85K",
-        "avatar_bg": "#db2777",
-        "initials": "BS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Pinky Gurung",
@@ -2550,7 +1853,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rukshana Kapali",
@@ -2567,41 +1870,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Shailee Chaudhary",
-        "handle": "ShaileeChaudhary",
-        "profile_url": "https://x.com/ShaileeChaudhary",
-        "category": "Social Activists",
-        "subcategory": "Tharu Indigenous Rights & Land Justice",
-        "role": "Tharu Rights Activist & Indigenous Scholar",
-        "relevance": "Advocates for the Kamaiya (bonded labourer) rehabilitation, Tharu land ownership, and indigenous cultural representation.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/ShaileeChaudhary",
-        "followers": "42K",
-        "avatar_bg": "#d97706",
-        "initials": "SC",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Rita Sah",
-        "handle": "RitaSah_",
-        "profile_url": "https://x.com/RitaSah_",
-        "category": "Social Activists",
-        "subcategory": "Madhesi Women & Dalit Rights",
-        "role": "Dalit & Madhesi Women Rights Activist / Social Justice Researcher",
-        "relevance": "Documents violence against Madhesi Dalit women and campaigns against dowry-related violence and caste exclusion.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/RitaSah_",
-        "followers": "38K",
-        "avatar_bg": "#c2410c",
-        "initials": "RS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bindu Gautam",
@@ -2618,24 +1887,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Milan Bagale",
-        "handle": "MilanBagale",
-        "profile_url": "https://x.com/MilanBagale",
-        "category": "Social Activists",
-        "subcategory": "Environmental Justice & Climate Action",
-        "role": "Youth Environmental Activist / Climate Action Mobilizer",
-        "relevance": "Leads youth environmental strikes, river cleanups (Bagmati/Bishnumati), and climate adaptation campaigns.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/MilanBagale",
-        "followers": "35K",
-        "avatar_bg": "#16a34a",
-        "initials": "MB",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Shristi KC",
@@ -2652,24 +1904,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Brikshya Lal Shrestha",
-        "handle": "BrikshyaLal",
-        "profile_url": "https://x.com/BrikshyaLal",
-        "category": "Social Activists",
-        "subcategory": "Urban Forestation & Heritage Trees",
-        "role": "Heritage & Environmental Conservation Activist",
-        "relevance": "Campaigns for the preservation of century-old heritage trees, sacred groves, and urban riverbank ecosystems in Kathmandu.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/BrikshyaLal",
-        "followers": "28K",
-        "avatar_bg": "#15803d",
-        "initials": "BL",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Alina Shrestha",
@@ -2686,24 +1921,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Tanuja Shrestha",
-        "handle": "TanujaShrestha",
-        "profile_url": "https://x.com/TanujaShrestha",
-        "category": "Social Activists",
-        "subcategory": "Youth Anti-Corruption Advocacy",
-        "role": "Youth Anti-Corruption & Civic Integrity Campaigner",
-        "relevance": "Organizes youth right-to-information (RTI) clinics and monitors local ward budget expenditures.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/TanujaShrestha",
-        "followers": "34K",
-        "avatar_bg": "#0f766e",
-        "initials": "TS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sushil Adhikari",
@@ -2720,7 +1938,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sabitri Gautam",
@@ -2737,41 +1955,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Reena Rai",
-        "handle": "ReenaRai",
-        "profile_url": "https://x.com/ReenaRai",
-        "category": "Social Activists",
-        "subcategory": "Indigenous Peoples Rights",
-        "role": "Indigenous Kirat Community Rights Campaigner",
-        "relevance": "Promotes indigenous customary land rights, indigenous language preservation, and forest stewardship.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/ReenaRai",
-        "followers": "36K",
-        "avatar_bg": "#7c2d12",
-        "initials": "RR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Madan Rai",
-        "handle": "MadanRai_",
-        "profile_url": "https://x.com/MadanRai_",
-        "category": "Social Activists",
-        "subcategory": "Organic Farming & Ecological Self-Reliance",
-        "role": "Organic Agriculture Activist / Founder Subhelchha Farm Khotang",
-        "relevance": "Pioneers practical rural agriculture education, chemical pesticide bans, and youth entrepreneurship in mountain districts.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/MadanRai_",
-        "followers": "82K",
-        "avatar_bg": "#16a34a",
-        "initials": "MR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sanjog Thakuri",
@@ -2788,7 +1972,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "ST",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Taranath Dahal",
@@ -2805,41 +1989,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "TD",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dharmendra Nemwang",
-        "handle": "DNemwang",
-        "profile_url": "https://x.com/DNemwang",
-        "category": "Social Activists",
-        "subcategory": "Limbu Cultural Heritage & Federalism",
-        "role": "Indigenous Limbu Activist / Cultural Researcher",
-        "relevance": "Documents oral histories, Mundhum scriptures, and indigenous identity rights in eastern Nepal.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/DNemwang",
-        "followers": "35K",
-        "avatar_bg": "#7c2d12",
-        "initials": "DN",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Prashant Sharma",
-        "handle": "PSharma_Nepal",
-        "profile_url": "https://x.com/PSharma_Nepal",
-        "category": "Social Activists",
-        "subcategory": "Heritage Conservation & Public Spaces",
-        "role": "Heritage Conservation Activist / Save Kathmandu Heritage",
-        "relevance": "Advocates against the destruction of historic monuments, stone spouts (Hiti), and public community squares.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/PSharma_Nepal",
-        "followers": "31K",
-        "avatar_bg": "#b45309",
-        "initials": "PS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Madhu Raman Acharya",
@@ -2856,7 +2006,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Gyan Chandra Acharya",
@@ -2873,131 +2023,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "GA",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Arjun Kumar Karki",
-        "handle": "ArjunKarki_",
-        "profile_url": "https://x.com/ArjunKarki_",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "US-Nepal Relations & Development Aid",
-        "role": "Former Ambassador of Nepal to the United States",
-        "relevance": "Coordinated bilateral development partnerships, MCC compact initial negotiations, and consular support in North America.",
-        "verification_status": "verified",
-        "source_url": "https://us.nepalembassy.gov.np",
-        "followers": "75K",
-        "avatar_bg": "#0369a1",
-        "initials": "AK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Deep Kumar Upadhyay",
-        "handle": "DeepKUpadhyay",
-        "profile_url": "https://x.com/DeepKUpadhyay",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Nepal-India Bilateral Relations",
-        "role": "Former Ambassador of Nepal to India / Senior Diplomat",
-        "relevance": "Handled bilateral diplomacy in New Delhi during the 2015 border blockade, high-level prime ministerial visits, and trade talks.",
-        "verification_status": "verified",
-        "source_url": "https://nepalembassynewdelhi.gov.np",
-        "followers": "95K",
-        "avatar_bg": "#15803d",
-        "initials": "DU",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Leela Mani Paudyal",
-        "handle": "LeelaManiPaudyal",
-        "profile_url": "https://x.com/LeelaManiPaudyal",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Nepal-China Diplomacy & Civil Administration",
-        "role": "Former Chief Secretary of Nepal & Former Ambassador to China",
-        "relevance": "Architect of the Bagmati Mega Clean-up Campaign and key negotiator of the Nepal-China Transit Transport Agreement protocol.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Leela_Mani_Paudyal",
-        "followers": "140K",
-        "avatar_bg": "#0f766e",
-        "initials": "LP",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Bhekh Bahadur Thapa",
-        "handle": "BhekhBThapa",
-        "profile_url": "https://x.com/BhekhBThapa",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Neighborhood Diplomacy & Historical Treaties",
-        "role": "Former Foreign Minister, Finance Minister & Ambassador to US and India",
-        "relevance": "Coordinator of the Nepal-India Eminent Persons Group (EPG) and veteran architect of Nepal's modern diplomatic history.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Bhekh_Bahadur_Thapa",
-        "followers": "120K",
-        "avatar_bg": "#1e293b",
-        "initials": "BT",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Kedar Bhakta Mathema",
-        "handle": "KBMathema",
-        "profile_url": "https://x.com/KBMathema",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "East Asian Diplomacy & Educational Governance",
-        "role": "Former Ambassador of Nepal to Japan / Former Vice-Chancellor TU",
-        "relevance": "Deeply respected moral authority authoring landmark national reports on medical education standards and clean governance.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Kedar_Bhakta_Mathema",
-        "followers": "115K",
-        "avatar_bg": "#334155",
-        "initials": "KM",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Dinesh Bhattarai",
-        "handle": "DineshBhattarai_",
-        "profile_url": "https://x.com/DineshBhattarai_",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Foreign Policy Advisory & Multilateral Trade",
-        "role": "Former Foreign Affairs Advisor to Prime Minister / Former Ambassador to Geneva UN",
-        "relevance": "Advises on international trade diplomacy, bilateral summits, and foreign policy consensus building across party lines.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/DineshBhattarai_",
-        "followers": "68K",
-        "avatar_bg": "#047857",
-        "initials": "DB",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Ramesh Prasad Khanal",
-        "handle": "RPKhanal_",
-        "profile_url": "https://x.com/RPKhanal_",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "European Union & Climate Diplomacy",
-        "role": "Former Ambassador of Nepal to Germany & Central Europe",
-        "relevance": "Promotes Nepal-EU technical cooperation, green hydrogen development partnerships, and clean energy investments.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/RPKhanal_",
-        "followers": "48K",
-        "avatar_bg": "#0284c7",
-        "initials": "RK",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Shanker Das Bairagi",
-        "handle": "SDBairagi",
-        "profile_url": "https://x.com/SDBairagi",
+        "handle": "bairagi_shanker",
+        "profile_url": "https://x.com/bairagi_shanker",
         "category": "Diplomats and Former Officials",
         "subcategory": "National Security Architecture & Chief Secretariat",
         "role": "National Security Advisor / Former Chief Secretary & Foreign Secretary",
@@ -3009,12 +2040,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bharat Raj Paudyal",
-        "handle": "BharatRPaudyal",
-        "profile_url": "https://x.com/BharatRPaudyal",
+        "handle": "PaudyalBR",
+        "profile_url": "https://x.com/PaudyalBR",
         "category": "Diplomats and Former Officials",
         "subcategory": "North American Diplomacy & Foreign Administration",
         "role": "Nepal's Ambassador to Canada / Former Foreign Secretary",
@@ -3026,12 +2057,12 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sewa Lamsal",
-        "handle": "SewaLamsal",
-        "profile_url": "https://x.com/SewaLamsal",
+        "handle": "sewa_lamsal",
+        "profile_url": "https://x.com/sewa_lamsal",
         "category": "Diplomats and Former Officials",
         "subcategory": "Foreign Service Leadership & Diplomatic Missions",
         "role": "Foreign Secretary of Nepal / Career Diplomat",
@@ -3043,24 +2074,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SL",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Amrit Bahadur Rai",
-        "handle": "AmritBRai",
-        "profile_url": "https://x.com/AmritBRai",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "United Nations Affairs & South Asia Desk",
-        "role": "Joint Secretary MoFA / Former Permanent Representative to UN New York",
-        "relevance": "Coordinates Nepal's high-level delegations at the UN General Assembly and peacebuilding commissions.",
-        "verification_status": "verified",
-        "source_url": "https://mofa.gov.np",
-        "followers": "58K",
-        "avatar_bg": "#0369a1",
-        "initials": "AR",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Durga Prasad Bhattarai",
@@ -3077,58 +2091,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Surya Prasad Shrestha",
-        "handle": "SuryaPShrestha",
-        "profile_url": "https://x.com/SuryaPShrestha",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Electoral Governance & UK Diplomacy",
-        "role": "Former Chief Election Commissioner / Former Ambassador to the UK",
-        "relevance": "Pioneered independent election management frameworks and bilateral relations with Great Britain.",
-        "verification_status": "verified",
-        "source_url": "https://election.gov.np",
-        "followers": "45K",
-        "avatar_bg": "#1e293b",
-        "initials": "SS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Bhojraj Pokharel",
-        "handle": "BhojrajPokharel",
-        "profile_url": "https://x.com/BhojrajPokharel",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Electoral Mediation & Democratic Transition",
-        "role": "Former Chief Election Commissioner / UN International Electoral Consultant",
-        "relevance": "Conducted Nepal's historic 2008 Constituent Assembly election ending civil conflict; consults globally for the UN.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Bhojraj_Pokharel",
-        "followers": "130K",
-        "avatar_bg": "#0284c7",
-        "initials": "BP",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dr. Ram Sharan Mahat",
-        "handle": "DrRSMahat",
-        "profile_url": "https://x.com/DrRSMahat",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Economic Liberalization & Sovereign Finance",
-        "role": "Former Finance Minister (6 terms) / Architect of Post-1990 Economic Reforms",
-        "relevance": "Architect of Nepal's economic modernization, financial deregulation, and post-earthquake international donor coordination.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Ram_Sharan_Mahat",
-        "followers": "160K",
-        "avatar_bg": "#047857",
-        "initials": "RM",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dr. Roop Jyoti",
@@ -3145,24 +2108,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RJ",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Somlal Subedi",
-        "handle": "SomlalSubedi",
-        "profile_url": "https://x.com/SomlalSubedi",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Federal Restructuring & Civil Administration",
-        "role": "Former Chief Secretary of Nepal / Fiscal Federalism Expert",
-        "relevance": "Authored government frameworks for administrative decentralization, civil servant deployment to local bodies, and fiscal devolution.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/SomlalSubedi",
-        "followers": "82K",
-        "avatar_bg": "#15803d",
-        "initials": "SS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sushil Ghimire",
@@ -3179,41 +2125,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Balananda Sharma",
-        "handle": "BalanandaSharma",
-        "profile_url": "https://x.com/BalanandaSharma",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Peacekeeping Strategy & UN Command",
-        "role": "Lieutenant General (Retd.) / Former Force Commander UNDOF / Peace Coordinator",
-        "relevance": "Coordinated the historic army integration process of Maoist combatants into the Nepal Army under the peace accord.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Balananda_Sharma",
-        "followers": "78K",
-        "avatar_bg": "#475569",
-        "initials": "BS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Dipak Prakash Bhatt",
-        "handle": "DipakPBhatt",
-        "profile_url": "https://x.com/DipakPBhatt",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Defence & Border Security Policy",
-        "role": "Former Member of Parliament / Defence & National Security Scholar",
-        "relevance": "Specializes in parliamentary oversight of the defence sector, arms procurement transparency, and military diplomacy.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/DipakPBhatt",
-        "followers": "65K",
-        "avatar_bg": "#0284c7",
-        "initials": "DB",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Yubaraj Karki",
@@ -3230,24 +2142,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "YK",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Shambhu Ram Simkhada",
-        "handle": "SRSimkhada",
-        "profile_url": "https://x.com/SRSimkhada",
-        "category": "Diplomats and Former Officials",
-        "subcategory": "Geneva UN Missions & Human Rights Diplomacy",
-        "role": "Former Ambassador of Nepal to the UN in Geneva / Peace Studies Scholar",
-        "relevance": "Analyzes multilateral human rights councils, international humanitarian law, and peaceful conflict resolution.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/SRSimkhada",
-        "followers": "55K",
-        "avatar_bg": "#1e293b",
-        "initials": "SS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dipak Gyawali",
@@ -3264,24 +2159,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Kedar Bhakta Mathema",
-        "handle": "KedarMathema",
-        "profile_url": "https://x.com/KedarMathema",
-        "category": "Public Intellectuals and Cultural Voices",
-        "subcategory": "Moral Philosophy & Educational Thought",
-        "role": "Eminent Educationist, Moral Conscience & Public Intellectual",
-        "relevance": "Voice of moral authority consistently articulating democratic ethics, student rights, and institutional integrity in Nepal.",
-        "verification_status": "verified",
-        "source_url": "https://en.wikipedia.org/wiki/Kedar_Bhakta_Mathema",
-        "followers": "95K",
-        "avatar_bg": "#1e293b",
-        "initials": "KM",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Amar Neupane",
@@ -3298,7 +2176,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AN",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Buddhisagar",
@@ -3315,7 +2193,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Nayan Raj Pandey",
@@ -3332,7 +2210,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "NP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Archana Thapa",
@@ -3349,7 +2227,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AT",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sarita Tiwari",
@@ -3366,7 +2244,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "ST",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Yug Pathak",
@@ -3383,7 +2261,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "YP",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Sanjeev Uprety",
@@ -3400,7 +2278,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SU",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Khagendra Sangroula",
@@ -3417,7 +2295,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "KS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Manjushree Thapa",
@@ -3434,7 +2312,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MT",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rabi Thapa",
@@ -3451,7 +2329,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RT",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Amish Raj Mulmi",
@@ -3468,7 +2346,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Pranaya SJB Rana",
@@ -3485,7 +2363,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PR",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Prashant Jha",
@@ -3502,24 +2380,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "PJ",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
-    },
-    {
-        "name": "Shraddha Shrestha",
-        "handle": "ShraddhaShrestha",
-        "profile_url": "https://x.com/ShraddhaShrestha",
-        "category": "Public Intellectuals and Cultural Voices",
-        "subcategory": "Contemporary Visual Art & Street Murals",
-        "role": "Contemporary Visual Artist & Illustrator / Cultural Commentator",
-        "relevance": "Pioneers vibrant street murals and visual art exploring Newar mythologies, female autonomy, and urban spaces.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/ShraddhaShrestha",
-        "followers": "38K",
-        "avatar_bg": "#ec4899",
-        "initials": "SS",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Subin Bhattarai",
@@ -3536,7 +2397,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Ani Choying Drolma",
@@ -3553,7 +2414,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AC",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Dayahang Rai",
@@ -3570,7 +2431,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DR",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Rajesh Hamal",
@@ -3587,7 +2448,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "RH",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Deepak Raj Giri",
@@ -3604,7 +2465,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "DG",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Malvika Subba",
@@ -3621,7 +2482,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "MS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Nabin K Bhattarai",
@@ -3638,7 +2499,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "NB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Bipul Chettri",
@@ -3655,7 +2516,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "BC",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Ashesh Malla",
@@ -3672,7 +2533,7 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "AM",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
         "name": "Suvani Singh",
@@ -3689,7 +2550,2047 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "initials": "SS",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-13T14:00:01+0545"
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Police Official",
+        "handle": "NepalPoliceHQ",
+        "profile_url": "https://x.com/NepalPoliceHQ",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Nepal Police Headquarters, Naxal",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NepalPoliceHQ",
+        "followers": "450K",
+        "avatar_bg": "#1e3a8a",
+        "initials": "NP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ministry of Foreign Affairs, Nepal",
+        "handle": "MofaNepal",
+        "profile_url": "https://x.com/MofaNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Official Diplomatic Dispatch of Nepal Gov",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/MofaNepal",
+        "followers": "380K",
+        "avatar_bg": "#1e40af",
+        "initials": "MF",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Hello Sarkar (PMO)",
+        "handle": "hello_sarkar",
+        "profile_url": "https://x.com/hello_sarkar",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Office of the Prime Minister and Council of Ministers",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/hello_sarkar",
+        "followers": "520K",
+        "avatar_bg": "#0369a1",
+        "initials": "HS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Rastra Bank",
+        "handle": "NepalRastraBank",
+        "profile_url": "https://x.com/NepalRastraBank",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Central Bank of Nepal / Monetary Authority",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NepalRastraBank",
+        "followers": "180K",
+        "avatar_bg": "#0f766e",
+        "initials": "NR",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ministry of Finance, Nepal",
+        "handle": "mofnepal",
+        "profile_url": "https://x.com/mofnepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Fiscal Policy & Budget Administration",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/mofnepal",
+        "followers": "220K",
+        "avatar_bg": "#1e40af",
+        "initials": "MF",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Electricity Authority",
+        "handle": "Hello_NEA",
+        "profile_url": "https://x.com/Hello_NEA",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "National Power Utility / Regional Power Trade",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Hello_NEA",
+        "followers": "190K",
+        "avatar_bg": "#0284c7",
+        "initials": "NE",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Flood Early Warning (DHM)",
+        "handle": "DHM_FloodEWS",
+        "profile_url": "https://x.com/DHM_FloodEWS",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Dept of Hydrology & Meteorology Alerts",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/DHM_FloodEWS",
+        "followers": "280K",
+        "avatar_bg": "#0284c7",
+        "initials": "DH",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Valley Traffic Police",
+        "handle": "ValleyTraffic",
+        "profile_url": "https://x.com/ValleyTraffic",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Kathmandu Valley Traffic Police Updates",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ValleyTraffic",
+        "followers": "340K",
+        "avatar_bg": "#b45309",
+        "initials": "VT",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Election Commission Nepal",
+        "handle": "ElectionNepal",
+        "profile_url": "https://x.com/ElectionNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Constitutional Body for Electoral Affairs",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ElectionNepal",
+        "followers": "95K",
+        "avatar_bg": "#475569",
+        "initials": "EC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Embassy of India, Kathmandu",
+        "handle": "IndiaInNepal",
+        "profile_url": "https://x.com/IndiaInNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Indian Diplomatic Mission in Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/IndiaInNepal",
+        "followers": "430K",
+        "avatar_bg": "#ea580c",
+        "initials": "IN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ambassador Zhang Maoming / Chinese Embassy",
+        "handle": "PRCAmbNepal",
+        "profile_url": "https://x.com/PRCAmbNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Embassy of the People's Republic of China in Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/PRCAmbNepal",
+        "followers": "190K",
+        "avatar_bg": "#dc2626",
+        "initials": "CN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Embassy of Pakistan Nepal",
+        "handle": "PakinNepal",
+        "profile_url": "https://x.com/PakinNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Embassy of Pakistan, Kathmandu",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/PakinNepal",
+        "followers": "160K",
+        "avatar_bg": "#14532d",
+        "initials": "PN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ministry of Foreign Affairs, Bangladesh",
+        "handle": "BDMOFA",
+        "profile_url": "https://x.com/BDMOFA",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Bangladesh Foreign Ministry / Diplomatic Desk",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/BDMOFA",
+        "followers": "140K",
+        "avatar_bg": "#15803d",
+        "initials": "BD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "SAARC Secretariat",
+        "handle": "SAARCsec",
+        "profile_url": "https://x.com/SAARCsec",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "SAARC Headquarters Kathmandu, Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SAARCsec",
+        "followers": "110K",
+        "avatar_bg": "#0369a1",
+        "initials": "SS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "U.S. Embassy Kathmandu",
+        "handle": "USEmbassyNepal",
+        "profile_url": "https://x.com/USEmbassyNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "United States Diplomatic Mission in Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/USEmbassyNepal",
+        "followers": "670K",
+        "avatar_bg": "#1e3a8a",
+        "initials": "US",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "British Embassy Kathmandu",
+        "handle": "UKinNepal",
+        "profile_url": "https://x.com/UKinNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "UK Foreign, Commonwealth & Dev Office in Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/UKinNepal",
+        "followers": "180K",
+        "avatar_bg": "#1e40af",
+        "initials": "UK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "European Union in Nepal",
+        "handle": "EUinNepal",
+        "profile_url": "https://x.com/EUinNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Delegation of the European Union to Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/EUinNepal",
+        "followers": "120K",
+        "avatar_bg": "#1d4ed8",
+        "initials": "EU",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "UN Nepal",
+        "handle": "UN_Nepal",
+        "profile_url": "https://x.com/UN_Nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "United Nations in Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/UN_Nepal",
+        "followers": "210K",
+        "avatar_bg": "#0284c7",
+        "initials": "UN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Mission to the UN",
+        "handle": "NepalUNNY",
+        "profile_url": "https://x.com/NepalUNNY",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Permanent Mission of Nepal to the United Nations, New York",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NepalUNNY",
+        "followers": "25K",
+        "avatar_bg": "#0284c7",
+        "initials": "UN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Routine of Nepal Banda",
+        "handle": "RONBupdates",
+        "profile_url": "https://x.com/RONBupdates",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Most Followed Youth News Curator in Nepal",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/RONBupdates",
+        "followers": "1.2M",
+        "avatar_bg": "#0284c7",
+        "initials": "RO",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "The Kathmandu Post",
+        "handle": "kathmandupost",
+        "profile_url": "https://x.com/kathmandupost",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Nepal's Leading English Daily Broadside",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/kathmandupost",
+        "followers": "890K",
+        "avatar_bg": "#0f172a",
+        "initials": "KP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "OnlineKhabar",
+        "handle": "Online_khabar",
+        "profile_url": "https://x.com/Online_khabar",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Nepal's #1 Online News Portal",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Online_khabar",
+        "followers": "980K",
+        "avatar_bg": "#dc2626",
+        "initials": "OK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Setopati",
+        "handle": "Setopati",
+        "profile_url": "https://x.com/Setopati",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Nepal's Digital Newspaper",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Setopati",
+        "followers": "820K",
+        "avatar_bg": "#334155",
+        "initials": "SP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "eKantipur",
+        "handle": "ekantipur_com",
+        "profile_url": "https://x.com/ekantipur_com",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Kantipur Digital Portal",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ekantipur_com",
+        "followers": "750K",
+        "avatar_bg": "#0369a1",
+        "initials": "EK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "The Himalayan Times",
+        "handle": "TheHimalayan",
+        "profile_url": "https://x.com/TheHimalayan",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Leading English Broadside",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/TheHimalayan",
+        "followers": "540K",
+        "avatar_bg": "#1e293b",
+        "initials": "HT",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepali Times",
+        "handle": "nepalitimes",
+        "profile_url": "https://x.com/nepalitimes",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Weekly Independent English Journal",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/nepalitimes",
+        "followers": "350K",
+        "avatar_bg": "#991b1b",
+        "initials": "NT",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Cricket Association of Nepal (CAN)",
+        "handle": "CricketNep",
+        "profile_url": "https://x.com/CricketNep",
+        "category": "Public Intellectuals and Cultural Voices",
+        "subcategory": "Sports & Culture",
+        "role": "Official Governing Body of Nepal Cricket",
+        "relevance": "Monitored Nepal Sports & Culture voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/CricketNep",
+        "followers": "680K",
+        "avatar_bg": "#dc2626",
+        "initials": "CN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "FNCCI Nepal",
+        "handle": "FNCCI_Nepal",
+        "profile_url": "https://x.com/FNCCI_Nepal",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Federation of Nepalese Chambers of Commerce",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/FNCCI_Nepal",
+        "followers": "170K",
+        "avatar_bg": "#b45309",
+        "initials": "FN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Tourism Board",
+        "handle": "nepaltourismb",
+        "profile_url": "https://x.com/nepaltourismb",
+        "category": "Public Intellectuals and Cultural Voices",
+        "subcategory": "Sports & Culture",
+        "role": "Official Tourism Promotion Organization",
+        "relevance": "Monitored Nepal Sports & Culture voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/nepaltourismb",
+        "followers": "310K",
+        "avatar_bg": "#0284c7",
+        "initials": "NT",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Dr. Rajan Bhattarai",
+        "handle": "rajancbhl",
+        "profile_url": "https://x.com/rajancbhl",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Head, UML Foreign Affairs Dept / Former Foreign Advisor to PM / EPG Member",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/rajancbhl",
+        "followers": "140K",
+        "avatar_bg": "#dc2626",
+        "initials": "RB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Biswas Baral",
+        "handle": "biswasktm",
+        "profile_url": "https://x.com/biswasktm",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Editor, The Kathmandu Post / International Relations & Strategic Commentator",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/biswasktm",
+        "followers": "110K",
+        "avatar_bg": "#0f172a",
+        "initials": "BB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Suresh Raj Neupane",
+        "handle": "sureshrajn",
+        "profile_url": "https://x.com/sureshrajn",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Kantipur New Delhi Bureau Chief / Specialist on Nepal-India Relations",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/sureshrajn",
+        "followers": "95K",
+        "avatar_bg": "#ea580c",
+        "initials": "SN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Anup Kaphle",
+        "handle": "AnupKaphle",
+        "profile_url": "https://x.com/AnupKaphle",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Former Editor-in-Chief The Kathmandu Post / International Affairs Editor",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/AnupKaphle",
+        "followers": "150K",
+        "avatar_bg": "#334155",
+        "initials": "AK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "IIDS Nepal",
+        "handle": "IIDS1979",
+        "profile_url": "https://x.com/IIDS1979",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Institute for Integrated Development Studies / Leading Public Policy Think Tank",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/IIDS1979",
+        "followers": "85K",
+        "avatar_bg": "#0369a1",
+        "initials": "ID",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ronin 🇳🇵",
+        "handle": "Ronin_Nepal",
+        "profile_url": "https://x.com/Ronin_Nepal",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Grassroots Geopolitical & Nationalist Public Voice / Vocal Observer on Nepal-India Dynamics",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Ronin_Nepal",
+        "followers": "32K",
+        "avatar_bg": "#b91c1c",
+        "initials": "RN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Dilip Khadka 🇳🇵",
+        "handle": "dilipkhadk70790",
+        "profile_url": "https://x.com/dilipkhadk70790",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Grassroots Commentator on Border Sovereignty, Cultural Heritage & Nepal-India Issues",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/dilipkhadk70790",
+        "followers": "15K",
+        "avatar_bg": "#0284c7",
+        "initials": "DK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "InJustice 🇳🇵",
+        "handle": "TH3_KMIX",
+        "profile_url": "https://x.com/TH3_KMIX",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Independent Citizen Voice on Open Border, Immigration & Regional Affairs",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/TH3_KMIX",
+        "followers": "18K",
+        "avatar_bg": "#ea580c",
+        "initials": "IJ",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal's Rhinos Army 🇳🇵",
+        "handle": "therhinosarmy",
+        "profile_url": "https://x.com/therhinosarmy",
+        "category": "Public Intellectuals and Cultural Voices",
+        "subcategory": "Youth & Cultural Voices",
+        "role": "Youth Cricket, Cultural Pride & South Asian Sporting Brotherhood Community",
+        "relevance": "Monitored Nepal Youth & Cultural Voice voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/therhinosarmy",
+        "followers": "45K",
+        "avatar_bg": "#dc2626",
+        "initials": "RA",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Sudeep Shrestha",
+        "handle": "sudeepshree",
+        "profile_url": "https://x.com/sudeepshree",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Civic Reporter on Bilateral Diplomacy, Aid Cooperation & Regional Connectivity",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/sudeepshree",
+        "followers": "28K",
+        "avatar_bg": "#047857",
+        "initials": "SS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Arun Giri",
+        "handle": "arungiri",
+        "profile_url": "https://x.com/arungiri",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Geopolitical, Electoral & Strategic Regional Affairs Observer",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/arungiri",
+        "followers": "38K",
+        "avatar_bg": "#1e3a8a",
+        "initials": "AG",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Bimal Gautam",
+        "handle": "bimal_gautam",
+        "profile_url": "https://x.com/bimal_gautam",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Public Interest, Energy/Supply Chain & Cross-Border Affairs Observer",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/bimal_gautam",
+        "followers": "19K",
+        "avatar_bg": "#d97706",
+        "initials": "BG",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepali Voices",
+        "handle": "NepaliVoices",
+        "profile_url": "https://x.com/NepaliVoices",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Independent Nepali Citizen Forum Tracking Public Opinion & Neighborhood Relations",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NepaliVoices",
+        "followers": "55K",
+        "avatar_bg": "#0284c7",
+        "initials": "NV",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepali Citizen",
+        "handle": "nepali_citizen",
+        "profile_url": "https://x.com/nepali_citizen",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Grassroots Citizen Commentary on National Sovereignty & Bilateral Agreements",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/nepali_citizen",
+        "followers": "14K",
+        "avatar_bg": "#15803d",
+        "initials": "NC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "NIICE Nepal",
+        "handle": "contactniice",
+        "profile_url": "https://x.com/contactniice",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Nepal Institute for International Cooperation & Engagement / BRI & Trans-Himalayan Desk",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/contactniice",
+        "followers": "42K",
+        "avatar_bg": "#b91c1c",
+        "initials": "NN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "CESIF Nepal",
+        "handle": "CESIFNepal",
+        "profile_url": "https://x.com/CESIFNepal",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Centre for Social Innovation & Foreign Policy / Tracking Nepal-China Strategic Infrastructure & Economic Bilateral Ties",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/CESIFNepal",
+        "followers": "25K",
+        "avatar_bg": "#0369a1",
+        "initials": "CF",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ashok Dahal ☕️",
+        "handle": "ashokpillar",
+        "profile_url": "https://x.com/ashokpillar",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Senior Independent Journalist / Investigating Infrastructure Audits, Pokhara Airport & Northern Passes",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ashokpillar",
+        "followers": "28K",
+        "avatar_bg": "#047857",
+        "initials": "AD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "cricnepal.com 🇳🇵 🦏",
+        "handle": "cricnepal",
+        "profile_url": "https://x.com/cricnepal",
+        "category": "Public Intellectuals and Cultural Voices",
+        "subcategory": "Sports & Culture",
+        "role": "Leading Nepal Cricket Media / Tracking South Asian & Bilateral Pakistan-Nepal Cricket Ties",
+        "relevance": "Monitored Nepal Sports & Culture voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/cricnepal",
+        "followers": "185K",
+        "avatar_bg": "#0284c7",
+        "initials": "CN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Correspondence",
+        "handle": "NepCorres",
+        "profile_url": "https://x.com/NepCorres",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Independent Geopolitical & South Asian Affairs Observer / Pakistan-Nepal Relations",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NepCorres",
+        "followers": "31K",
+        "avatar_bg": "#0f172a",
+        "initials": "NC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "HamroKhelkud.com",
+        "handle": "HamroKhelkud",
+        "profile_url": "https://x.com/HamroKhelkud",
+        "category": "Public Intellectuals and Cultural Voices",
+        "subcategory": "Sports & Culture",
+        "role": "Premier Nepal Sports Platform / Tracking SAFF & Nepal-Bangladesh Clashes",
+        "relevance": "Monitored Nepal Sports & Culture voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/HamroKhelkud",
+        "followers": "75K",
+        "avatar_bg": "#0284c7",
+        "initials": "HK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Kamal Pariyar",
+        "handle": "kpariyar12",
+        "profile_url": "https://x.com/kpariyar12",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Investigative Storyteller & Civic Reporter / Youth Movements & Public Service Delivery",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/kpariyar12",
+        "followers": "22K",
+        "avatar_bg": "#0284c7",
+        "initials": "KP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepali Paisa",
+        "handle": "nepalipaisa",
+        "profile_url": "https://x.com/nepalipaisa",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Retail Share Market Portal & Financial Analytics / NEPSE Indices, Corporate Actions & Economy",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/nepalipaisa",
+        "followers": "14K",
+        "avatar_bg": "#059669",
+        "initials": "NP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Artha Sarokar",
+        "handle": "arthasarokar",
+        "profile_url": "https://x.com/arthasarokar",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Premier Financial & Banking Watchdog / Microfinance, Cooperative Liquidity & NRB Directives",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/arthasarokar",
+        "followers": "18K",
+        "avatar_bg": "#d97706",
+        "initials": "AS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Bizshala",
+        "handle": "bizshala",
+        "profile_url": "https://x.com/bizshala",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Business & Commodities Media / Bullion (Gold/Silver), Inflation, Fuel Prices & Energy Trade",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/bizshala",
+        "followers": "12K",
+        "avatar_bg": "#2563eb",
+        "initials": "BS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Bizpati",
+        "handle": "Bizpati",
+        "profile_url": "https://x.com/Bizpati",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Financial News Platform / Corporate Earnings, Commercial Banking Assets & Market Trends",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Bizpati",
+        "followers": "15K",
+        "avatar_bg": "#0891b2",
+        "initials": "BP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Gajendra Budhathoki",
+        "handle": "gbudhathoki",
+        "profile_url": "https://x.com/gbudhathoki",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Senior Economic Investigative Journalist / Corporate Governance, Trade, Transport & Public Debt",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/gbudhathoki",
+        "followers": "42K",
+        "avatar_bg": "#7c2d12",
+        "initials": "GB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Mahadev NEPSE Bull",
+        "handle": "bull_nepse",
+        "profile_url": "https://x.com/bull_nepse",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Retail Stock Investor & Chartist / Technical Analysis, SEBON Regulations & Market Momentum",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/bull_nepse",
+        "followers": "6K",
+        "avatar_bg": "#15803d",
+        "initials": "NB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Bizmandu",
+        "handle": "bizmandu",
+        "profile_url": "https://x.com/bizmandu",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Pioneer Business & Economy Digital Portal / Industrial Policy, Foreign Investment & Trade Flows",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/bizmandu",
+        "followers": "65K",
+        "avatar_bg": "#9333ea",
+        "initials": "BM",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "SEJON Nepal",
+        "handle": "SEJONNepal",
+        "profile_url": "https://x.com/SEJONNepal",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Society of Economic Journalists-Nepal / Macroeconomic Research, Fiscal Policy & Trade",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SEJONNepal",
+        "followers": "5K",
+        "avatar_bg": "#334155",
+        "initials": "SN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepali Congress",
+        "handle": "NepaliCongress",
+        "profile_url": "https://x.com/NepaliCongress",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Official Central Party Account / 15th General Convention, CWC Decisions & Sanepa Headquarters",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NepaliCongress",
+        "followers": "140K",
+        "avatar_bg": "#15803d",
+        "initials": "NC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Dr Shekhar Koirala",
+        "handle": "ShekharNC",
+        "profile_url": "https://x.com/ShekharNC",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Senior NC Leader & Dissident Faction Head / Alternative Coalition Strategies & Party Reform",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ShekharNC",
+        "followers": "65K",
+        "avatar_bg": "#1d4ed8",
+        "initials": "SK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Prakash Rasaili Snehi",
+        "handle": "PrakashSnehi",
+        "profile_url": "https://x.com/PrakashSnehi",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "NC Central Member & Grassroots Cadre Organizer / Active Membership Drives & Sudurpashchim Assemblies",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/PrakashSnehi",
+        "followers": "12K",
+        "avatar_bg": "#047857",
+        "initials": "PS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "CPN (UML) Official",
+        "handle": "umlcpn",
+        "profile_url": "https://x.com/umlcpn",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Central Secretariat, Communist Party of Nepal (UML) / Official Party Communications",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/umlcpn",
+        "followers": "160K",
+        "avatar_bg": "#dc2626",
+        "initials": "UM",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "CPN UML Updates",
+        "handle": "UML_Nepal",
+        "profile_url": "https://x.com/UML_Nepal",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Central Media & Communications Desk, CPN (UML)",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/UML_Nepal",
+        "followers": "45K",
+        "avatar_bg": "#b91c1c",
+        "initials": "UN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Surendra Pandey",
+        "handle": "Surendra_Pandey",
+        "profile_url": "https://x.com/Surendra_Pandey",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Vice Chairman, CPN (UML) / Former Finance Minister & Senior Economic Thinker",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Surendra_Pandey",
+        "followers": "110K",
+        "avatar_bg": "#2563eb",
+        "initials": "SP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Dipendra Jha",
+        "handle": "dipjha",
+        "profile_url": "https://x.com/dipjha",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Constitutional Lawyer & First Chief Attorney of Madhesh Province / Author of 'Federal Nepal'",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/dipjha",
+        "followers": "42K",
+        "avatar_bg": "#b45309",
+        "initials": "DJ",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "JSP Nepal Official",
+        "handle": "JspNepal",
+        "profile_url": "https://x.com/JspNepal",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Official Central Secretariat, Janata Samajbadi Party Nepal (जसपा नेपाल) / Terai-Madhesh Federalism",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/JspNepal",
+        "followers": "35K",
+        "avatar_bg": "#15803d",
+        "initials": "JS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Madhesi Youth",
+        "handle": "madhesiyouth",
+        "profile_url": "https://x.com/madhesiyouth",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Grassroots Youth Platform / Digital Advocacy, Education & Civic Awareness across Terai-Madhesh",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/madhesiyouth",
+        "followers": "22K",
+        "avatar_bg": "#ea580c",
+        "initials": "MY",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Terai Online",
+        "handle": "Teraionline",
+        "profile_url": "https://x.com/Teraionline",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Dedicated Terai-Madhesh Digital Media / Grassroots Coverage of Southern Plains & Regional Affairs",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Teraionline",
+        "followers": "19K",
+        "avatar_bg": "#e11d48",
+        "initials": "TO",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Madheshvani",
+        "handle": "madheshvani",
+        "profile_url": "https://x.com/madheshvani",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Community Radio & Regional Media Network / Grassroots Voice for Terai-Madhesh Rights & Governance",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/madheshvani",
+        "followers": "16K",
+        "avatar_bg": "#d97706",
+        "initials": "MV",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Jitendra Jha",
+        "handle": "jitendrajha",
+        "profile_url": "https://x.com/jitendrajha",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Terai-Madhesh Journalist & Public Commentator / Governance & Civic Watchdog",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/jitendrajha",
+        "followers": "15K",
+        "avatar_bg": "#2563eb",
+        "initials": "JJ",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Janakpur Sahitya Mahotsav",
+        "handle": "JanakpurLitFest",
+        "profile_url": "https://x.com/JanakpurLitFest",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "Janakpur Literature Festival / Cultural, Intellectual & Literary Forum of Mithila & Terai",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/JanakpurLitFest",
+        "followers": "12K",
+        "avatar_bg": "#db2777",
+        "initials": "JL",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Janardan Sharma 'Prabhakar'",
+        "handle": "JanardanSharma",
+        "profile_url": "https://x.com/JanardanSharma",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Deputy General Secretary, CPN (Maoist Centre) / Former Finance Minister",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/JanardanSharma",
+        "followers": "320K",
+        "avatar_bg": "#b91c1c",
+        "initials": "JS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Pampha Bhusal",
+        "handle": "PamphaBhusal",
+        "profile_url": "https://x.com/PamphaBhusal",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Vice Chairperson, CPN (Maoist Centre) / Former Energy Minister",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/PamphaBhusal",
+        "followers": "190K",
+        "avatar_bg": "#b91c1c",
+        "initials": "PB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Office of the President of Nepal",
+        "handle": "OOP_Nepal",
+        "profile_url": "https://x.com/OOP_Nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Official Communication Office of the President, Sheetal Niwas",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/OOP_Nepal",
+        "followers": "180K",
+        "avatar_bg": "#1e3a8a",
+        "initials": "OP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Nepal Army Official",
+        "handle": "Nepal_Army",
+        "profile_url": "https://x.com/Nepal_Army",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Directorate of Public Relations & Information, Nepal Army HQ",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Nepal_Army",
+        "followers": "410K",
+        "avatar_bg": "#14532d",
+        "initials": "NA",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Armed Police Force Nepal",
+        "handle": "APF_Nepal",
+        "profile_url": "https://x.com/APF_Nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Armed Police Force Headquarters, Halchowk, Kathmandu",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/APF_Nepal",
+        "followers": "260K",
+        "avatar_bg": "#1e40af",
+        "initials": "AP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "CIAA Nepal",
+        "handle": "CIAA_Nepal",
+        "profile_url": "https://x.com/CIAA_Nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Commission for the Investigation of Abuse of Authority (Anti-Graft)",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/CIAA_Nepal",
+        "followers": "190K",
+        "avatar_bg": "#b91c1c",
+        "initials": "CI",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Department of Immigration Nepal",
+        "handle": "DOINepal",
+        "profile_url": "https://x.com/DOINepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Immigration & Border Management Administration of Nepal",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/DOINepal",
+        "followers": "170K",
+        "avatar_bg": "#1e40af",
+        "initials": "DI",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Chandra Prasad Dhakal",
+        "handle": "ChandraPDhakal",
+        "profile_url": "https://x.com/ChandraPDhakal",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "President, FNCCI / Chairman, IME Group & Global IME Bank",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ChandraPDhakal",
+        "followers": "180K",
+        "avatar_bg": "#b45309",
+        "initials": "CD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Kulman Ghising",
+        "handle": "kulmanghising",
+        "profile_url": "https://x.com/kulmanghising",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Managing Director, Nepal Electricity Authority / Cross-Border Power Trade",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/kulmanghising",
+        "followers": "680K",
+        "avatar_bg": "#0284c7",
+        "initials": "KG",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Dean R. Thompson",
+        "handle": "USAmbNepal",
+        "profile_url": "https://x.com/USAmbNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "U.S. Ambassador to Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/USAmbNepal",
+        "followers": "95K",
+        "avatar_bg": "#1e3a8a",
+        "initials": "DT",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Veronique Lorenzo",
+        "handle": "EUAmbNepal",
+        "profile_url": "https://x.com/EUAmbNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "European Union Ambassador to Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/EUAmbNepal",
+        "followers": "42K",
+        "avatar_bg": "#1d4ed8",
+        "initials": "VL",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Prof. S.D. Muni",
+        "handle": "SDMUNI",
+        "profile_url": "https://x.com/SDMUNI",
+        "category": "Political Analysts",
+        "subcategory": "Foreign Affairs & Geopolitics",
+        "role": "Professor Emeritus JNU / Eminent Authority on Nepal-India Relations",
+        "relevance": "Monitored Nepal Foreign Affairs Specialist voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SDMUNI",
+        "followers": "115K",
+        "avatar_bg": "#7c2d12",
+        "initials": "SM",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Suhasini Haidar",
+        "handle": "suhasinih",
+        "profile_url": "https://x.com/suhasinih",
+        "category": "Political Analysts",
+        "subcategory": "Foreign Affairs & Geopolitics",
+        "role": "Diplomatic Editor, The Hindu / South Asian Geopolitics Analyst",
+        "relevance": "Monitored Nepal Foreign Affairs Specialist voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/suhasinih",
+        "followers": "710K",
+        "avatar_bg": "#b45309",
+        "initials": "SH",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Brahma Chellaney",
+        "handle": "Chellaney",
+        "profile_url": "https://x.com/Chellaney",
+        "category": "Political Analysts",
+        "subcategory": "Foreign Affairs & Geopolitics",
+        "role": "Geostrategist & Author / Water Security, Himalayan Borders & China Expert",
+        "relevance": "Monitored Nepal Foreign Affairs Specialist voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Chellaney",
+        "followers": "490K",
+        "avatar_bg": "#1e293b",
+        "initials": "BC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "South Asian Voices",
+        "handle": "SAVoices",
+        "profile_url": "https://x.com/SAVoices",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Stimson Center Platform for Strategic Analysis on South Asia",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SAVoices",
+        "followers": "35K",
+        "avatar_bg": "#0284c7",
+        "initials": "SV",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Shiva Gaunle",
+        "handle": "shivagaunle",
+        "profile_url": "https://x.com/shivagaunle",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Former President FNJ / Investigative Journalist at CIJ Nepal",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/shivagaunle",
+        "followers": "95K",
+        "avatar_bg": "#334155",
+        "initials": "SG",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Navin Singh Khadka",
+        "handle": "NavinSinghKhadk",
+        "profile_url": "https://x.com/NavinSinghKhadk",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "BBC World Service Environment & Himalayan Climate Correspondent",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NavinSinghKhadk",
+        "followers": "110K",
+        "avatar_bg": "#15803d",
+        "initials": "NK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Deepak Adhikari",
+        "handle": "DeepakAdk",
+        "profile_url": "https://x.com/DeepakAdk",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Freelance Investigative Journalist (AFP, Al Jazeera, Nikkei)",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/DeepakAdk",
+        "followers": "140K",
+        "avatar_bg": "#475569",
+        "initials": "DA",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Rishi Dhamala",
+        "handle": "RishiDhamala",
+        "profile_url": "https://x.com/RishiDhamala",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "President, Reporters Club Nepal / Prime Times Television Anchor",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/RishiDhamala",
+        "followers": "280K",
+        "avatar_bg": "#dc2626",
+        "initials": "RD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Center for Investigative Journalism Nepal",
+        "handle": "CIJNepal",
+        "profile_url": "https://x.com/CIJNepal",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "CIJ Nepal / Investigative Reporting on Governance & Accountability",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/CIJNepal",
+        "followers": "110K",
+        "avatar_bg": "#b91c1c",
+        "initials": "CJ",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Federation of Nepali Journalists",
+        "handle": "FNJNepal",
+        "profile_url": "https://x.com/FNJNepal",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Civic Voice & Public Commentators",
+        "role": "National Umbrella Organization of Nepali Media Professionals",
+        "relevance": "Monitored Nepal Civic Voice / Public Commentator voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/FNJNepal",
+        "followers": "85K",
+        "avatar_bg": "#1e40af",
+        "initials": "FN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "South Asia Check",
+        "handle": "SouthAsiaCheck",
+        "profile_url": "https://x.com/SouthAsiaCheck",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Independent Fact-Checking Initiative on Politics & Public Statements",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SouthAsiaCheck",
+        "followers": "48K",
+        "avatar_bg": "#0f766e",
+        "initials": "SA",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "ICIMOD",
+        "handle": "icimod",
+        "profile_url": "https://x.com/icimod",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "International Centre for Integrated Mountain Development (Kathmandu)",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/icimod",
+        "followers": "92K",
+        "avatar_bg": "#0284c7",
+        "initials": "IC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Asian Development Bank Nepal",
+        "handle": "ADB_HQ",
+        "profile_url": "https://x.com/ADB_HQ",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "ADB Regional Development, Infrastructure & Energy Desk",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ADB_HQ",
+        "followers": "190K",
+        "avatar_bg": "#0369a1",
+        "initials": "AD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Martin Chautari",
+        "handle": "MartinChautari",
+        "profile_url": "https://x.com/MartinChautari",
+        "category": "Academics and Researchers",
+        "subcategory": "Think Tanks & Policy Research",
+        "role": "Kathmandu-based Academic Research Institute & Public Policy Forum",
+        "relevance": "Monitored Nepal Think Tank & Policy voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/MartinChautari",
+        "followers": "32K",
+        "avatar_bg": "#7c2d12",
+        "initials": "MC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Madhav Kumar Nepal",
+        "handle": "ncp_madhavnepal",
+        "profile_url": "https://x.com/ncp_madhavnepal",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Chairman, CPN (Unified Socialist) / Former Prime Minister",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ncp_madhavnepal",
+        "followers": "280K",
+        "avatar_bg": "#b91c1c",
+        "initials": "MN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Chitra Bahadur KC",
+        "handle": "ChitraBahadurKC",
+        "profile_url": "https://x.com/ChitraBahadurKC",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Chairman, Rashtriya Janamorcha / Veteran Anti-Federalism Parliamentarian",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/ChitraBahadurKC",
+        "followers": "95K",
+        "avatar_bg": "#7c2d12",
+        "initials": "CK",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "CP Gajurel",
+        "handle": "cpgajurel",
+        "profile_url": "https://x.com/cpgajurel",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Leader, Revolutionary Communist Party Nepal",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/cpgajurel",
+        "followers": "45K",
+        "avatar_bg": "#b91c1c",
+        "initials": "CG",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Surendra Raj Pandey",
+        "handle": "SurendraRajP",
+        "profile_url": "https://x.com/SurendraRajP",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Chief Minister, Gandaki Province / Senior NC Leader",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SurendraRajP",
+        "followers": "95K",
+        "avatar_bg": "#0284c7",
+        "initials": "SP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Kamal Bahadur Shah",
+        "handle": "KamalBShah",
+        "profile_url": "https://x.com/KamalBShah",
+        "category": "Politicians",
+        "subcategory": "Political Leadership",
+        "role": "Chief Minister, Sudurpashchim Province / Nepali Congress",
+        "relevance": "Monitored Nepal Political Leader voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/KamalBShah",
+        "followers": "76K",
+        "avatar_bg": "#16a34a",
+        "initials": "KS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ministry of Health and Population",
+        "handle": "mohpnep",
+        "profile_url": "https://x.com/mohpnep",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Public Health Alerts, Epidemic Control & Medical Policy",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/mohpnep",
+        "followers": "320K",
+        "avatar_bg": "#0284c7",
+        "initials": "HP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ministry of Physical Infrastructure & Transport",
+        "handle": "mopit_nepal",
+        "profile_url": "https://x.com/mopit_nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Highways, Bridges, Fast Track & Transport Regulatory Affairs",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/mopit_nepal",
+        "followers": "145K",
+        "avatar_bg": "#1e40af",
+        "initials": "PI",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Ministry of Agriculture and Livestock Development",
+        "handle": "moald_nepal",
+        "profile_url": "https://x.com/moald_nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Agricultural Policy, Fertilizer Supply & Food Security",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/moald_nepal",
+        "followers": "98K",
+        "avatar_bg": "#15803d",
+        "initials": "AL",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "National Planning Commission Nepal",
+        "handle": "NPC_Nepal",
+        "profile_url": "https://x.com/NPC_Nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Apex Policy Planning Body / Five-Year Development Frameworks",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NPC_Nepal",
+        "followers": "85K",
+        "avatar_bg": "#0f766e",
+        "initials": "NP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "National Statistics Office Nepal",
+        "handle": "NSO_Nepal",
+        "profile_url": "https://x.com/NSO_Nepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Government & Security Institutions",
+        "role": "Official Census, National Demographics & Economic Surveys",
+        "relevance": "Monitored Nepal Government & Security voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NSO_Nepal",
+        "followers": "65K",
+        "avatar_bg": "#475569",
+        "initials": "NS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Embassy of France in Nepal",
+        "handle": "FranceinNepal",
+        "profile_url": "https://x.com/FranceinNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "French Diplomatic Mission & Cultural Cooperation in Nepal",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/FranceinNepal",
+        "followers": "45K",
+        "avatar_bg": "#1d4ed8",
+        "initials": "FN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Embassy of Israel in Nepal",
+        "handle": "IsraelinNepal",
+        "profile_url": "https://x.com/IsraelinNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Israeli Diplomatic Mission / Agriculture & Learn-and-Earn Program",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/IsraelinNepal",
+        "followers": "62K",
+        "avatar_bg": "#0284c7",
+        "initials": "IL",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Royal Norwegian Embassy Kathmandu",
+        "handle": "NorwayinNepal",
+        "profile_url": "https://x.com/NorwayinNepal",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Norwegian Embassy / Clean Energy & Climate Cooperation",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/NorwayinNepal",
+        "followers": "42K",
+        "avatar_bg": "#dc2626",
+        "initials": "NN",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "BIMSTEC Secretariat",
+        "handle": "BimstecInDhaka",
+        "profile_url": "https://x.com/BimstecInDhaka",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Diplomatic Missions",
+        "role": "Bay of Bengal Initiative for Multi-Sectoral Tech & Economic Coop",
+        "relevance": "Monitored Nepal Diplomatic Missions voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/BimstecInDhaka",
+        "followers": "45K",
+        "avatar_bg": "#0284c7",
+        "initials": "BM",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Binod Chaudhary",
+        "handle": "BinodKChaudhary",
+        "profile_url": "https://x.com/BinodKChaudhary",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Member of Parliament / Chairman, CG Corp Global (Wai Wai)",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/BinodKChaudhary",
+        "followers": "490K",
+        "avatar_bg": "#b45309",
+        "initials": "BC",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Biswas Dhakal",
+        "handle": "biswasdhakal",
+        "profile_url": "https://x.com/biswasdhakal",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "President & Executive Chairman, F1Soft Group (eSewa / Fonepay)",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/biswasdhakal",
+        "followers": "95K",
+        "avatar_bg": "#0284c7",
+        "initials": "BD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Subhash Sharma",
+        "handle": "subhashsharma",
+        "profile_url": "https://x.com/subhashsharma",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "CEO, F1Soft International / Digital Banking & Payment Networks",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/subhashsharma",
+        "followers": "48K",
+        "avatar_bg": "#0369a1",
+        "initials": "SS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Khalti Official",
+        "handle": "KhaltiOfficial",
+        "profile_url": "https://x.com/KhaltiOfficial",
+        "category": "Civil Society and Public Voices",
+        "subcategory": "Economy & Business",
+        "role": "Leading Digital Wallet & Payment Gateway Platform of Nepal",
+        "relevance": "Monitored Nepal Economy & Business voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/KhaltiOfficial",
+        "followers": "145K",
+        "avatar_bg": "#7c3aed",
+        "initials": "KH",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Basanta Basnet",
+        "handle": "BasantaBasnet",
+        "profile_url": "https://x.com/BasantaBasnet",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Editor-in-Chief Shilapatra / Author of 'Mahabhara'",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/BasantaBasnet",
+        "followers": "165K",
+        "avatar_bg": "#0284c7",
+        "initials": "BB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "KP Dhungana",
+        "handle": "KPDhungana",
+        "profile_url": "https://x.com/KPDhungana",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Senior Crime & Investigative Reporter / Editor Deshsanchar",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/KPDhungana",
+        "followers": "125K",
+        "avatar_bg": "#1e293b",
+        "initials": "KD",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Anil Giri",
+        "handle": "al_giri",
+        "profile_url": "https://x.com/al_giri",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Senior Diplomatic & Strategic Correspondent, The Kathmandu Post",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/al_giri",
+        "followers": "98K",
+        "avatar_bg": "#0369a1",
+        "initials": "AG",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Sanjeev Satgainya",
+        "handle": "SanjeevSatgainy",
+        "profile_url": "https://x.com/SanjeevSatgainy",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Senior Editor & Columnist / Former Editor The Kathmandu Post",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/SanjeevSatgainy",
+        "followers": "88K",
+        "avatar_bg": "#475569",
+        "initials": "SS",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Rajneesh Bhandari",
+        "handle": "RajneeshB",
+        "profile_url": "https://x.com/RajneeshB",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Journalists & Commentators",
+        "role": "Investigative Multimedia Journalist / Coordinator NIMJN",
+        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/RajneeshB",
+        "followers": "62K",
+        "avatar_bg": "#334155",
+        "initials": "RB",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
+    },
+    {
+        "name": "Office of the Prime Minister (Nepal)",
+        "handle": "PM_nepal_",
+        "profile_url": "https://x.com/PM_nepal_",
+        "category": "Diplomats and Former Officials",
+        "subcategory": "Executive Office / OPMCM",
+        "role": "Prime Minister of Nepal Official Handle",
+        "relevance": "Official executive X account issuing Prime Minister statements, cabinet decisions, and state dispatches.",
+        "verification_status": "verified",
+        "source_url": "https://opmcm.gov.np",
+        "followers": "730K",
+        "avatar_bg": "#b91c1c",
+        "initials": "PM",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-17T12:10:00+0545"
     }
 ]
 

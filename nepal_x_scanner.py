@@ -18,6 +18,7 @@ Each post is dynamically analyzed and organized into one of the 8 Structured Cat
 
 import json
 import os
+import time
 import datetime
 import zoneinfo
 import re
@@ -299,7 +300,11 @@ def _enrich_tweet_by_id(
     clean_text = re.sub(r"\s*-\s*(?:X|Twitter|on X: .*)$", "", raw_text).strip()
     clean_text = re.sub(r"^[^:]+ on X:\s*\"?", "", clean_text).rstrip("\"").strip()
 
-    acc = known_account or ACCOUNT_BY_HANDLE.get(clean_handle.lower())
+    acc = (
+        known_account
+        if known_account and clean_handle.lower() == known_account.get("handle", "").lower().lstrip("@")
+        else ACCOUNT_BY_HANDLE.get(clean_handle.lower())
+    )
     if acc:
         author_name = acc["name"]
         author_type = acc.get("type", "Verified Voice")
@@ -404,33 +409,64 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
     verified Nepali accounts in the monitored list. Each post is dynamically
     classified and organized into the 8 sections based on content.
     """
-    def _fetch_profile_ids(acc: Dict[str, Any]):
-        h = acc["handle"]
-        try:
-            r = requests.get(f"https://x.com/{h}", headers=DEFAULT_HEADERS, timeout=5)
-            raw_ids = re.findall(rf"/{h}/status/(\d+)", r.text, re.IGNORECASE)
-            if not raw_ids:
-                raw_ids = re.findall(r"/status/(\d+)", r.text)
-            # Sort Snowflake IDs descending so newest tweets on every profile are harvested first
-            ids = sorted({sid for sid in raw_ids if sid.isdigit()}, key=lambda x: int(x), reverse=True)
-            return [(sid, acc) for sid in ids[:8]]
-        except Exception:
-            return []
-
     active_accounts = get_monitored_x_accounts(enabled_only=True)
     if not active_accounts:
         active_accounts = TOP_NEPAL_X_ACCOUNTS
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+    active_by_handle = {
+        a["handle"].lower().lstrip("@"): a
+        for a in active_accounts
+        if a.get("handle")
+    }
+
+    def _fetch_profile_ids(acc: Dict[str, Any]):
+        h = acc["handle"].lstrip("@")
+        h_low = h.lower()
+        for attempt in range(2):
+            try:
+                r = requests.get(f"https://x.com/{h}", headers=DEFAULT_HEADERS, timeout=6)
+                own_ids = re.findall(rf"/{re.escape(h)}/status/(\d{{18,20}})", r.text, re.IGNORECASE)
+                pairs = re.findall(r"([A-Za-z0-9_]+)/status/(\d{18,20})", r.text)
+
+                by_sid: Dict[str, Dict[str, Any]] = {}
+                for sid in own_ids:
+                    by_sid[sid] = acc
+                for author_h, sid in pairs:
+                    alow = author_h.lower()
+                    if alow == h_low:
+                        by_sid[sid] = acc
+                    elif alow in active_by_handle or alow in ACCOUNT_BY_HANDLE:
+                        by_sid.setdefault(sid, active_by_handle.get(alow) or ACCOUNT_BY_HANDLE[alow])
+
+                if not by_sid and len(r.text) < 100000 and attempt == 0:
+                    time.sleep(0.25)
+                    continue
+
+                sorted_items = sorted(by_sid.items(), key=lambda kv: int(kv[0]), reverse=True)
+                return sorted_items[:12]
+            except Exception:
+                if attempt == 0:
+                    time.sleep(0.25)
+                    continue
+                return []
+        return []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
         batches = list(ex.map(_fetch_profile_ids, active_accounts))
 
-    raw_items = [it for b in batches for it in b]
+    dedup_items: Dict[str, Dict[str, Any]] = {}
+    for batch in batches:
+        for sid, target_acc in batch:
+            if sid not in dedup_items:
+                dedup_items[sid] = target_acc
+
+    raw_items = list(dedup_items.items())
 
     def _worker(item):
         sid, acc = item
         return _enrich_tweet_by_id(sid, known_handle=acc["handle"], known_account=acc)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=25) as ex:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
         enriched = [p for p in ex.map(_worker, raw_items) if p]
 
     return enriched
@@ -448,7 +484,7 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, An
     if not force_refresh:
         try:
             from nepal_news_store import get_stored_x_posts
-            db_posts = get_stored_x_posts(limit=500)
+            db_posts = get_stored_x_posts(limit=1500)
             if db_posts and len(db_posts) >= 40:
                 return db_posts
         except Exception:

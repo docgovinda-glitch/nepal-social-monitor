@@ -336,7 +336,7 @@ def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.dat
 def get_active_x_posts() -> List[Dict[str, Any]]:
     """Loads monitored X posts from Supabase store or local cache."""
     try:
-        posts = get_stored_x_posts(limit=500)
+        posts = get_stored_x_posts(limit=1500)
     except Exception:
         posts = []
     if not posts:

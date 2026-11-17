@@ -1011,7 +1011,7 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 50) -> int:
     return inserted
 
 
-def get_stored_x_posts(category: Optional[str] = None, author_type: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
+def get_stored_x_posts(category: Optional[str] = None, author_type: Optional[str] = None, limit: int = 1500) -> List[Dict[str, Any]]:
     """Retrieves X posts from Supabase PostgreSQL ordered by published_dt DESC."""
     clauses = ["1=1"]
     if category and category.lower() != "all":
