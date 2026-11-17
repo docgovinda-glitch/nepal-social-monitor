@@ -1024,3 +1024,67 @@ def generate_on_demand_x_content(post: Dict[str, Any]) -> Dict[str, Any]:
         "formatted_text": formatted,
         "lang": lang_code,
     }
+
+
+def extract_on_demand_full_article(
+    item: Dict[str, Any],
+    translate_to_english: bool = False,
+) -> Dict[str, Any]:
+    """
+    On-demand full article text extractor with optional complete English translation.
+    Hydrates from Supabase first, scrapes the source URL if missing/truncated, and
+    preserves clean paragraph structure without altering the original feed record.
+    """
+    work = dict(item)
+    source_url = (work.get("link") or "").strip()
+    raw_title = (work.get("title") or "").strip()
+
+    try:
+        from nepal_news_store import hydrate_article_full_content
+        hydrate_article_full_content(work)
+    except Exception:
+        pass
+
+    if _needs_body_scrape(work) and source_url.startswith("http"):
+        try:
+            from nepal_fetcher import extract_article_full_text
+            fetched = extract_article_full_text(source_url, timeout=7)
+            if fetched and len(fetched) > len((work.get("full_content") or "").strip()):
+                work["full_content"] = fetched
+        except Exception:
+            pass
+
+    raw_body = (work.get("full_content") or work.get("summary") or raw_title or "").strip()
+    # Clean paragraph breaks and strip trailing RSS boilerplate without collapsing paragraphs
+    paras = []
+    for p in re.split(r"\n\s*\n", raw_body.replace("\xa0", " ")):
+        cp = re.sub(r"[ \t]+", " ", p).strip()
+        cp = _BOILERPLATE_TAIL_RE.sub("", cp).strip()
+        if cp and not _STANDALONE_META_PARA_RE.match(cp):
+            paras.append(cp)
+    original_text = "\n\n".join(paras).strip() or raw_body
+    lang_code = detect_text_language(original_text, declared_lang=work.get("language", ""))
+
+    translated_text = ""
+    tr_error = ""
+    if translate_to_english:
+        if lang_code == "en" and not _has_devanagari(original_text):
+            translated_text = original_text
+        else:
+            tr_paras: List[str] = []
+            for p in original_text.split("\n\n"):
+                tr_p = _translate_ne_to_en(p, timeout=10, source_lang=lang_code, force_translate=True)
+                tr_paras.append(tr_p)
+            translated_text = "\n\n".join(tr_paras).strip()
+            if not translated_text or (_has_devanagari(original_text) and _has_devanagari(translated_text)):
+                translated_text = ""
+                tr_error = "Translation service temporarily unavailable. Please try again."
+
+    return {
+        "ok": bool(original_text),
+        "original_text": original_text,
+        "translated_text": translated_text,
+        "lang": lang_code,
+        "source_url": source_url,
+        "error": tr_error,
+    }

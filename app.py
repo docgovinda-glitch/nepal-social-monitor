@@ -44,6 +44,7 @@ from nepal_summarizer import (
     detect_text_language,
     generate_on_demand_news_brief,
     generate_on_demand_x_content,
+    extract_on_demand_full_article,
 )
 from whatsapp_greenapi import (
     get_destination_group as get_wa_destination_group,
@@ -454,7 +455,6 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
         summary_html = ""
 
     link = html.escape(item.get("link", "#"), quote=True)
-    cta = "Read in Indian press ↗" if is_indian else "Read story ↗"
 
     return (
         f'<article class="apple-news-card accent--{accent}">'
@@ -463,7 +463,6 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
         f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(display_title)}</a></h3>'
         f'{native_title_html}'
         f'{summary_html}{sec_tags_html}'
-        f'<footer class="apple-card-footer"><a href="{link}" target="_blank" rel="noopener noreferrer" class="apple-card-cta">{cta}</a></footer>'
         f'</article>'
     )
 
@@ -514,7 +513,6 @@ def render_apple_x_post_card(p: Dict[str, Any]) -> str:
         f'<div class="x-post-text">{text}</div>'
         f'<footer class="x-engagement-bar">'
         f'<div class="x-metrics-group">{metrics}<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span></div>'
-        f'<a href="{link}" target="_blank" rel="noopener noreferrer" class="x-cta-link">{cta_label}</a>'
         f'</footer>'
         f'</article>'
     )
@@ -659,8 +657,10 @@ def render_feed_item_with_actions(
     state_key: str,
     idx: int,
 ) -> None:
-    """Renders a single consolidated card containing post content, inset copyable brief/translation, and actions."""
+    """Renders a single consolidated card containing post content, brief/full-text panels, and one single-row action bar."""
     st.session_state.setdefault("ondemand_generated", {})
+    st.session_state.setdefault("ondemand_fulltext", {})
+    st.session_state.setdefault("ondemand_fulltext_view", {})
     st.session_state.setdefault("wa_sent_registry", set())
     st.session_state.setdefault("wa_item_status", {})
 
@@ -668,23 +668,32 @@ def render_feed_item_with_actions(
     item_uid = f"{_compute_item_uid(item, state_key)}_{idx}"
     cache_id = _compute_item_uid(item, "global")
     generated = st.session_state["ondemand_generated"].get(cache_id)
+    fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
 
+    item_link = (item.get("link") or "").strip()
     if is_x:
         raw_x_txt = (item.get("text") or item.get("title") or "").strip()
         x_lang = detect_text_language(raw_x_txt)
         primary_label = "Full Post" if x_lang == "en" else "Translate"
         primary_icon = ":material/article:" if x_lang == "en" else ":material/translate:"
         box_eyebrow = "Complete X Post" if x_lang == "en" else "English Translation"
+        if not item_link:
+            rh = (item.get("raw_handle") or item.get("handle") or "").lstrip("@").strip()
+            sid = str(item.get("id") or "").strip()
+            if rh and sid:
+                item_link = f"https://x.com/{rh}/status/{sid}"
+        read_label = "View post ↗"
     else:
         primary_label = "English Brief"
         primary_icon = ":material/summarize:"
         box_eyebrow = "English Brief"
+        read_label = "Read story ↗"
 
     with st.container(border=True):
         st.markdown('<div class="feed-card-anchor"></div>', unsafe_allow_html=True)
         st.markdown(renderer(item), unsafe_allow_html=True)
 
-        # Render Unified Copyable Box INSIDE the same card when generated
+        # 1. Unified Copyable Brief / Translation Box (when generated)
         if generated:
             if generated.get("ok"):
                 body_html = html.escape(generated["content"])
@@ -706,29 +715,128 @@ def render_feed_item_with_actions(
             else:
                 st.error(generated.get("error") or "Could not generate English output for this item.")
 
+        # 2. Full Article Text Panel with Optional English Translation (for news items)
+        if fulltext_data and not is_x:
+            if fulltext_data.get("ok"):
+                ft_lang = fulltext_data.get("lang", "en")
+                has_tr = bool(fulltext_data.get("translated_text"))
+                view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
+                shown_text = fulltext_data["translated_text"] if (view_mode == "en" and has_tr) else fulltext_data["original_text"]
+                ft_eyebrow = "Full Article Text · English Translation" if (view_mode == "en" and has_tr) else f"Full Article Text · {ft_lang.upper()}"
+                st.markdown(
+                    f'<div class="fulltext-reader-box">'
+                    f'<div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>'
+                    f'<div class="fulltext-reader-box__body">{html.escape(shown_text)}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                if fulltext_data.get("error"):
+                    st.warning(fulltext_data["error"])
+
+                ft_cols = st.columns(3 if (ft_lang != "en" or has_tr) else 2, gap="small")
+                col_i = 0
+                if ft_lang != "en" and not has_tr:
+                    with ft_cols[col_i]:
+                        if st.button("Translate to English", icon=":material/translate:", key=f"btn_ft_tr_{item_uid}"):
+                            with st.spinner("Translating full text…"):
+                                ft_tr = extract_on_demand_full_article(item, translate_to_english=True)
+                                st.session_state["ondemand_fulltext"][cache_id] = ft_tr
+                                if ft_tr.get("translated_text"):
+                                    st.session_state["ondemand_fulltext_view"][cache_id] = "en"
+                                st.rerun()
+                    col_i += 1
+                elif has_tr and ft_lang != "en":
+                    with ft_cols[col_i]:
+                        toggle_lbl = "Show Original" if view_mode == "en" else "Show English"
+                        if st.button(toggle_lbl, icon=":material/swap_horiz:", key=f"btn_ft_tog_{item_uid}"):
+                            st.session_state["ondemand_fulltext_view"][cache_id] = "orig" if view_mode == "en" else "en"
+                            st.rerun()
+                    col_i += 1
+                with ft_cols[col_i]:
+                    ft_src = fulltext_data.get("source_url") or item_link
+                    ft_copy_payload = f"{shown_text}\n\nSource: {ft_src}" if ft_src else shown_text
+                    _render_copy_button(ft_copy_payload, uid=f"ft_{item_uid}")
+                with ft_cols[col_i + 1]:
+                    if st.button("Close Full Text", icon=":material/close:", key=f"btn_ft_cls_{item_uid}"):
+                        st.session_state["ondemand_fulltext"].pop(cache_id, None)
+                        st.rerun()
+            else:
+                st.warning("Full article text could not be extracted from the source page.")
+
         st.markdown('<div class="feed-action-divider"></div>', unsafe_allow_html=True)
 
+        # 3. Single Unified Bottom Action Row (English Brief / Copy, Full Text, WhatsApp Share, Read Story)
         wa_clicked = False
-        if generated and generated.get("ok"):
-            c1, c2, c3 = st.columns(3, gap="small")
-            with c1:
-                _render_copy_button(generated["formatted_text"], uid=item_uid)
-            with c2:
-                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
-            with c3:
-                if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
-                    st.session_state["ondemand_generated"].pop(cache_id, None)
+        has_brief = bool(generated and generated.get("ok"))
+        has_link = bool(item_link and item_link.startswith("http"))
+
+        if not is_x:
+            n_cols = (4 if has_brief else 3) + (1 if has_link else 0)
+            cols = st.columns(n_cols, gap="small")
+            ci = 0
+            if has_brief:
+                with cols[ci]:
+                    _render_copy_button(generated["formatted_text"], uid=item_uid)
+                ci += 1
+            else:
+                with cols[ci]:
+                    if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
+                        with st.spinner("Generating…"):
+                            res = _generate_unified_item_content(item, is_x=False)
+                            st.session_state["ondemand_generated"][cache_id] = res
+                            st.rerun()
+                ci += 1
+            with cols[ci]:
+                if st.button("Full Text", icon=":material/article:", key=f"btn_ft_{item_uid}"):
+                    if cache_id in st.session_state["ondemand_fulltext"]:
+                        st.session_state["ondemand_fulltext"].pop(cache_id, None)
+                    else:
+                        with st.spinner("Extracting full text…"):
+                            ft_res = extract_on_demand_full_article(item, translate_to_english=False)
+                            st.session_state["ondemand_fulltext"][cache_id] = ft_res
+                            st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
                     st.rerun()
-        else:
-            c1, c2 = st.columns(2, gap="small")
-            with c1:
-                if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
-                    with st.spinner("Generating…"):
-                        res = _generate_unified_item_content(item, is_x=is_x)
-                        st.session_state["ondemand_generated"][cache_id] = res
-                        st.rerun()
-            with c2:
+            ci += 1
+            with cols[ci]:
                 wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
+            ci += 1
+            if has_brief:
+                with cols[ci]:
+                    if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
+                        st.session_state["ondemand_generated"].pop(cache_id, None)
+                        st.rerun()
+                ci += 1
+            if has_link:
+                with cols[ci]:
+                    st.link_button(read_label, item_link)
+        else:
+            n_cols = (3 if has_brief else 2) + (1 if has_link else 0)
+            cols = st.columns(n_cols, gap="small")
+            ci = 0
+            if has_brief:
+                with cols[ci]:
+                    _render_copy_button(generated["formatted_text"], uid=item_uid)
+                ci += 1
+            else:
+                with cols[ci]:
+                    if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}"):
+                        with st.spinner("Generating…"):
+                            res = _generate_unified_item_content(item, is_x=True)
+                            st.session_state["ondemand_generated"][cache_id] = res
+                            st.rerun()
+                ci += 1
+            with cols[ci]:
+                wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}")
+            ci += 1
+            if has_brief:
+                with cols[ci]:
+                    if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
+                        st.session_state["ondemand_generated"].pop(cache_id, None)
+                        st.rerun()
+                ci += 1
+            if has_link:
+                with cols[ci]:
+                    st.link_button(read_label, item_link)
 
         if wa_clicked:
             if not generated or not generated.get("ok"):

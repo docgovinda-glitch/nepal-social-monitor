@@ -546,16 +546,42 @@ APPLE_DESIGN_SYSTEM_CSS = """
         min-width: fit-content !important;
     }
     .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button * {
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button *,
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a,
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a * {
         white-space: nowrap !important;
         overflow: visible !important;
         text-overflow: unset !important;
         width: auto !important;
     }
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button {
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
         padding: 0 14px !important;
         height: 36px !important;
         min-height: 36px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
+        color: var(--link) !important;
+        text-decoration: none !important;
+    }
+    .fulltext-reader-box {
+        background: #FAFAFC;
+        border: 1px solid var(--separator-strong);
+        border-radius: 10px;
+        padding: 13px 16px;
+        margin: 6px 0 8px 0;
+    }
+    .fulltext-reader-box__body {
+        font-size: 0.88rem;
+        line-height: 1.62;
+        color: var(--label);
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 380px;
+        overflow-y: auto;
+        padding-right: 4px;
     }
 
     /* ==========================================================
