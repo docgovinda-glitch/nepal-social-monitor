@@ -36,7 +36,7 @@ from nepal_fetcher import (
 )
 from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS, get_monitored_x_accounts
 from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
-from nepal_summarizer import _has_devanagari, enrich_articles_with_english_summaries
+from nepal_summarizer import _has_devanagari, enrich_articles_with_english_summaries, _summary_needs_enrichment
 try:
     from nepal_news_store import (
         get_all_source_health,
@@ -428,14 +428,16 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False) -> 
     headline_en = (item.get("headline_english") or "").strip()
     summary = (item.get("summary") or "").strip()
 
-    # Safety-net on-the-fly LexRank + translation enrichment if an older DB record isn't summarized in English yet
-    if (
-        not summary
-        or summary == raw_title
-        or _has_devanagari(summary)
-        or (raw_title and _has_devanagari(raw_title) and (not headline_en or _has_devanagari(headline_en)))
-    ):
+    # Safety-net on-the-fly LexRank + translation enrichment if a record lacks a clean English brief
+    if _summary_needs_enrichment(item):
         enrich_articles_with_english_summaries([item], max_workers=1)
+        try:
+            from nepal_news_store import persist_enriched_full_content
+            if is_indian:
+                item["stream"] = "Indian Press"
+            persist_enriched_full_content([item])
+        except Exception:
+            pass
         headline_en = (item.get("headline_english") or "").strip()
         summary = (item.get("summary") or "").strip()
 

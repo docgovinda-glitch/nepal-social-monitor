@@ -44,19 +44,40 @@ _INSTITUTIONAL_TERMS = {
 
 _DATELINE_RE = re.compile(
     r"^\s*(?:"
+    r"(?:By\s+[A-Z][a-zA-Z\.\-\s\(\)]{2,60}\s+)?"
+    r"(?:Published|Updated|Last\s+Updated)\s*:\s*(?:\d{1,2}:\d{2}\s*(?:am|pm)?\s*)?(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s*,?\s*\d{1,2}:\d{1,2}(?::\d{1,2})?\s*(?:am|pm|IST|NPT)?)?\s*"
+    r"|"
+    r"By\s+[A-Z][a-zA-Z\.\-\s\(\)]{2,60}(?=\s+(?:Published|The|A|In|Nepal|India|[A-Z][a-z]+))"
+    r"|"
+    r"[^\n]{0,60}©\s*\d{4}[^\n]{0,120}?(?=(?:Kathmandu|Pokhara|New\s+Delhi|[A-Z][a-z]+\s+[A-Z][a-z]+))"
+    r"|"
     r"(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{1,2}(?::\d{1,2})?)?\s*"
     r"|"
     r"(?:by\s+)?[a-z\s]+\s*\|\s*(?:bureau|desk|correspondent|team)\s*"
     r"|"
-    r"(?:kathmandu|new delhi|pokhara|biratnagar|birgunj|janakpur|lalitpur|bhaktapur|bardia|bardiya|"
-    r"london|washington|beijing|dhaka|islamabad|jamshedpur\s+news|pti|ani|rss|ians|reuters|ap|afp)"
-    r"(?:\s*,\s*[a-zA-Z0-9\s\.]+)?\s*[:\-–—|।]\s*"
+    r"[A-Z][A-Z\s\.\-]{1,22}\s*:\s*"
     r"|"
-    r"(?:काठमाडौँ|काठमाडौं|पोखरा|विराटनगर|वीरगन्ज|जनकपुर|ललितपुर|लण्डन|नयाँदिल्ली)"
+    r"(?:kathmandu|new\s+york|washington(?:\s+d\.?c\.?)?|mumbai|new\s+delhi|beijing|london|tokyo|geneva|antalya|"
+    r"pokhara|chitwan|morang|biratnagar|birgunj|janakpur|lalitpur|bhaktapur|bardia|bardiya|tansen|sindhuli|"
+    r"dhangadhi|butwal|hetauda|nepalgunj|surkhet|dhaka|islamabad|jamshedpur\s+news|pti|ani|rss|ians|reuters|ap|afp)"
+    r"(?:\s*,\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?|\s*,\s*[a-zA-Z0-9\s\.]+)?\s*[\.:\-–—|।]\s*"
+    r"|"
+    r"(?:काठमाडौँ|काठमाडौं|पोखरा|विराटनगर|वीरगन्ज|जनकपुर|ललितपुर|लण्डन|नयाँदिल्ली|तानसेन|सिन्धुली)"
     r"\s*[:\-–—|।]\s*"
     r"|"
     r"\d{1,2}\s+[\u0900-\u097F]+\s*,\s*[\u0900-\u097F]+\s*[।:]\s*"
     r")+",
+    re.IGNORECASE,
+)
+
+_STANDALONE_META_PARA_RE = re.compile(
+    r"^\s*(?:"
+    r"by\s+[a-z\.\-\s\(\)]{2,60}"
+    r"|(?:published|updated|last\s+updated)\s*:\s*.*"
+    r"|[^\n]{0,60}©\s*\d{4}[^\n]{0,100}"
+    r"|[a-z\s]+,\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?"
+    r"|[a-z0-9\s/]+/photo[a-z0-9\s]*"
+    r")\s*$",
     re.IGNORECASE,
 )
 
@@ -330,12 +351,23 @@ def _jaccard_overlap(tokens_a: set, tokens_b: set) -> float:
 
 
 def _scope_top_paragraphs(text: str, max_paras: int = 6) -> str:
-    """Restricts body text to the opening paragraphs so sidebar/related widgets cannot leak in."""
+    """Restricts body text to clean opening paragraphs, dropping bylines, photo credits, and timestamps."""
     if not text:
         return ""
-    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if len(p.strip()) > 25]
+    paras = []
+    for raw_p in re.split(r"\n\s*\n", text):
+        p = raw_p.strip()
+        if len(p) <= 25:
+            continue
+        if _STANDALONE_META_PARA_RE.match(p):
+            continue
+        if "photo:" in p.lower() and len(p) < 120:
+            continue
+        paras.append(p)
+        if len(paras) >= max_paras:
+            break
     if paras:
-        return "\n\n".join(paras[:max_paras])
+        return "\n\n".join(paras)
     return text
 
 
@@ -506,6 +538,19 @@ def enrich_single_article_english_summary(art: Dict[str, Any]) -> Dict[str, Any]
     full_body = (art.get("full_content") or "").strip()
     raw_summary = (art.get("summary") or "").strip()
     source_text = full_body if len(full_body) >= len(raw_summary) else raw_summary
+
+    # If RSS teaser is truncated or too short, fetch full article body first
+    link = (art.get("link") or "").strip()
+    if link.startswith("http") and (not source_text or len(source_text) < 300 or source_text.endswith("...") or source_text == raw_title):
+        try:
+            from nepal_fetcher import extract_article_full_text
+            fetched_body = extract_article_full_text(link, timeout=5)
+            if fetched_body and len(fetched_body) > len(source_text):
+                art["full_content"] = fetched_body
+                source_text = fetched_body
+        except Exception:
+            pass
+
     if not source_text:
         source_text = raw_title
 
@@ -532,6 +577,26 @@ def enrich_single_article_english_summary(art: Dict[str, Any]) -> Dict[str, Any]
     return art
 
 
+def _summary_needs_enrichment(art: Dict[str, Any]) -> bool:
+    cur_sum = (art.get("summary") or "").strip()
+    cur_title = (art.get("title") or "").strip()
+    cur_en_head = (art.get("headline_english") or "").strip()
+    if (
+        not cur_sum
+        or cur_sum == cur_title
+        or _has_devanagari(cur_sum)
+        or cur_sum.endswith("...")
+        or "..." in cur_sum
+        or (cur_title and _has_devanagari(cur_title) and (not cur_en_head or _has_devanagari(cur_en_head)))
+    ):
+        return True
+    if _DATELINE_RE.match(cur_sum) or cur_sum.startswith(("By ", "Published:", "Updated:")):
+        return True
+    if re.match(r"^[A-Z]{4,}:\s", cur_sum):
+        return True
+    return False
+
+
 def enrich_articles_with_english_summaries(
     articles: List[Dict[str, Any]],
     max_workers: int = 20,
@@ -540,21 +605,7 @@ def enrich_articles_with_english_summaries(
     if not articles:
         return articles
 
-    to_process = []
-    for art in articles:
-        cur_sum = (art.get("summary") or "").strip()
-        cur_title = (art.get("title") or "").strip()
-        cur_en_head = (art.get("headline_english") or "").strip()
-        needs_summary = (
-            not cur_sum
-            or cur_sum == cur_title
-            or _has_devanagari(cur_sum)
-            or cur_sum.endswith("...")
-            or (cur_title and _has_devanagari(cur_title) and (not cur_en_head or _has_devanagari(cur_en_head)))
-        )
-        if needs_summary:
-            to_process.append(art)
-
+    to_process = [art for art in articles if _summary_needs_enrichment(art)]
     if not to_process:
         return articles
 

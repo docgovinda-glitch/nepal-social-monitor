@@ -1174,12 +1174,12 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
                     if len(items) >= max_entries:
                         break
 
-        # Enrich top newly discovered items with full body + LexRank English summary before persistence
+        # Enrich all newly discovered items with full body + LexRank English summary before persistence
         if items:
             try:
-                batch_fetch_full_content(items[:15], max_workers=10, summarize_english=True)
-                if len(items) > 15:
-                    enrich_articles_with_english_summaries(items[15:], max_workers=10)
+                batch_fetch_full_content(items[:20], max_workers=10, summarize_english=True)
+                if len(items) > 20:
+                    enrich_articles_with_english_summaries(items[20:], max_workers=10)
             except Exception:
                 pass
 
