@@ -310,7 +310,7 @@ def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.date
 
 @st.cache_data(ttl=180, show_spinner=False)
 def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.datetime) -> List[Dict[str, Any]]:
-    """Loads Indian press articles covering Nepal directly from Supabase with feed projection."""
+    """Loads Indian press articles covering Nepal from Supabase strictly within the active timeframe window."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
     try:
         stored = get_stored_indian_articles(status_filter="substantive", limit=500, include_full_content=False)
@@ -327,6 +327,7 @@ def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.dat
             pdt = sa.get("published_dt")
             if isinstance(pdt, datetime.datetime):
                 _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+        stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
     stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
     return stored
 
@@ -998,6 +999,21 @@ elif selected_nav == "Nepali Media":
 # ==========================================
 elif selected_nav == "Indian Press":
     all_indian = get_active_indian_articles(filter_start_dt, filter_end_dt)
+    if not all_indian:
+        try:
+            recent_indian = get_stored_indian_articles(status_filter="substantive", limit=30, include_full_content=False)
+            now_curr = datetime.datetime.now(NEPAL_TZ)
+            for sa in recent_indian:
+                pdt = sa.get("published_dt")
+                if isinstance(pdt, datetime.datetime):
+                    _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+            if recent_indian:
+                last_dt = recent_indian[0].get("published_dt")
+                last_str = last_dt.strftime("%d %b %Y, %I:%M %p NPT").lstrip("0") if last_dt else "recently"
+                st.info(f"No new Nepal-related dispatches in Indian press for the active window (latest: {last_str}). Showing the {len(recent_indian)} most recent dispatches.")
+                all_indian = recent_indian
+        except Exception:
+            pass
     filtered_indian = [a for a in all_indian if smart_search_match(a, search_query)] if search_query else all_indian
 
     render_page_header("Indian Press", f"{len(filtered_indian):,} Nepal-focused dispatches across 18 Indian outlets")

@@ -377,9 +377,16 @@ def get_stored_articles(
                 dt = datetime.datetime.fromisoformat(d["published_dt"])
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=NEPAL_TZ)
+                else:
+                    dt = dt.astimezone(NEPAL_TZ)
                 d["published_dt"] = dt
             except Exception:
                 pass
+        elif isinstance(d.get("published_dt"), datetime.datetime):
+            if d["published_dt"].tzinfo is None:
+                d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
+            else:
+                d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
         try:
             d["sections"] = json.loads(d.get("sections") or "[]")
         except Exception:
@@ -593,9 +600,16 @@ def get_stored_indian_articles(
                 dt = datetime.datetime.fromisoformat(d["published_dt"])
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=NEPAL_TZ)
+                else:
+                    dt = dt.astimezone(NEPAL_TZ)
                 d["published_dt"] = dt
             except Exception:
                 pass
+        elif isinstance(d.get("published_dt"), datetime.datetime):
+            if d["published_dt"].tzinfo is None:
+                d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
+            else:
+                d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
         if not d.get("structured_category"):
             d["structured_category"] = "India Section"
         if not d.get("stream"):
