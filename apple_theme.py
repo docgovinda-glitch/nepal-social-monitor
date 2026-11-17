@@ -496,7 +496,25 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .unified-brief-box__source a:hover {
         text-decoration: underline !important;
     }
-    .feed-item-spacer { height: 10px; }
+    .feed-item-spacer { height: 12px; }
+    .wa-sent-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 11px;
+        margin: 2px 0 4px 0;
+        border-radius: var(--r-pill);
+        background: var(--green-soft);
+        color: var(--green);
+        font-size: 0.76rem;
+        font-weight: 600;
+        border: 1px solid rgba(30, 142, 62, 0.18);
+    }
+    .main .stButton > button p {
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
 
     /* ==========================================================
        7. NATIVE STREAMLIT WIDGETS (global)

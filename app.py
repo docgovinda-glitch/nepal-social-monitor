@@ -46,9 +46,7 @@ from nepal_summarizer import (
     generate_on_demand_x_content,
 )
 from whatsapp_greenapi import (
-    get_instance_status as get_wa_instance_status,
     get_destination_group as get_wa_destination_group,
-    is_sending_active as is_wa_sending_active,
     send_group_message as send_wa_group_message,
 )
 try:
@@ -649,6 +647,11 @@ def _generate_unified_item_content(item: Dict[str, Any], is_x: bool) -> Dict[str
     return generate_on_demand_news_brief(item)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _get_cached_wa_dest() -> Dict[str, Any]:
+    return get_wa_destination_group()
+
+
 def render_feed_item_with_actions(
     item: Dict[str, Any],
     renderer: Callable[[Dict[str, Any]], str],
@@ -680,7 +683,7 @@ def render_feed_item_with_actions(
         box_eyebrow = "English Brief"
 
     if generated and generated.get("ok"):
-        c1, c2, c3, _ = st.columns([1.15, 0.9, 1.25, 2.7])
+        c1, c2, c3, _ = st.columns([1.6, 1.15, 1.85, 1.4], gap="small")
         with c1:
             if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
                 with st.spinner("Generating…"):
@@ -692,7 +695,7 @@ def render_feed_item_with_actions(
         with c3:
             wa_clicked = st.button("WhatsApp Share", icon=":material/share:", key=f"btn_wa_{item_uid}", width="stretch")
     else:
-        c1, c2, _ = st.columns([1.2, 1.3, 3.5])
+        c1, c2, _ = st.columns([1.7, 1.9, 2.4], gap="small")
         with c1:
             if st.button(primary_label, icon=primary_icon, key=f"btn_gen_{item_uid}", width="stretch"):
                 with st.spinner("Generating…"):
@@ -709,12 +712,13 @@ def render_feed_item_with_actions(
                 st.session_state["ondemand_generated"][cache_id] = generated
 
         if generated.get("ok"):
-            selected_gid = st.session_state.get("wa_selected_group_id", "")
-            selected_gname = st.session_state.get("wa_selected_group_name", "")
+            dest = _get_cached_wa_dest()
+            selected_gid = dest.get("id", "") if dest.get("ok") else ""
+            selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
             wa_res = send_wa_group_message(
                 chat_id=selected_gid,
                 message=generated["formatted_text"],
-                session_approved=st.session_state.get("wa_sending_approved", True),
+                session_approved=True,
                 sent_registry=st.session_state["wa_sent_registry"],
             )
             wa_res["group_name"] = selected_gname
@@ -753,8 +757,12 @@ def render_feed_item_with_actions(
     if wa_status:
         st_code = wa_status.get("status")
         if wa_status.get("ok") and wa_status.get("accepted"):
-            gname = wa_status.get("group_name") or "selected group"
-            st.success(f"Accepted by Green API for **{gname}** (ID: `{wa_status.get('id_message')}`). Queued for WhatsApp delivery.")
+            gname = html.escape(wa_status.get("group_name") or "Media Monitor")
+            msg_id = html.escape(str(wa_status.get("id_message") or ""))
+            st.markdown(
+                f'<div class="wa-sent-pill" title="Green API Message ID: {msg_id}">✓ Sent to {gname} · Accepted by Green API</div>',
+                unsafe_allow_html=True,
+            )
         elif st_code == "inactive":
             st.info(wa_status.get("error"))
         elif st_code == "duplicate_prevented":
@@ -1082,38 +1090,6 @@ with st.sidebar:
             admin_status_filter = st.selectbox("Status Filter", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
             admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
             admin_tier_filter = st.selectbox("Check Interval", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
-
-    with st.container(border=True):
-        wa_state = get_wa_instance_status()
-        st.session_state.setdefault("wa_sending_approved", True)
-        wa_sending_on = is_wa_sending_active(st.session_state.get("wa_sending_approved", True))
-        wa_badge = "Active" if (wa_sending_on and wa_state.get("authorized")) else ("Authorized" if wa_state.get("authorized") else "Setup Needed")
-        sidebar_section("WhatsApp Share", wa_badge)
-
-        if wa_state.get("authorized"):
-            @st.cache_data(ttl=300, show_spinner=False)
-            def _cached_wa_dest():
-                return get_wa_destination_group()
-
-            dest = _cached_wa_dest()
-            if dest.get("ok") and dest.get("id"):
-                st.session_state["wa_selected_group_id"] = dest["id"]
-                st.session_state["wa_selected_group_name"] = dest["name"]
-                st.selectbox(
-                    "Destination Group",
-                    options=[dest["name"]],
-                    index=0,
-                    disabled=True,
-                    key="wa_dest_display",
-                )
-                st.toggle("Enable WhatsApp Sending", key="wa_sending_approved")
-                st.caption(f"Ready to share to **{dest['name']}**" if st.session_state.get("wa_sending_approved") else "WhatsApp sending paused for this session.")
-            else:
-                st.session_state["wa_selected_group_id"] = ""
-                st.session_state["wa_selected_group_name"] = ""
-                st.caption(dest.get("error") or "Destination group not configured.")
-        else:
-            st.caption(wa_state.get("error") or "Green API setup required.")
 
     st.markdown(
         f'<div class="sb-footer"><span class="live-pill" style="font-size:0.7rem; padding:3px 8px;"><span class="live-pill__dot"></span>Auto Sync Active</span><br/>Last synced {html.escape(st.session_state["last_sync_npt"])} NPT<br/>Nepal Social &amp; Media Monitor</div>',
