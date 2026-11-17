@@ -680,40 +680,296 @@ def _format_wa_sent_time(sent_at_val: Any) -> str:
         return ""
 
 
+def _clear_active_modal() -> None:
+    st.session_state["active_modal"] = None
+
+
+@st.dialog("Read in App", width="large", icon=":material/menu_book:", on_dismiss=_clear_active_modal)
+def _show_read_in_app_dialog() -> None:
+    ctx = st.session_state.get("active_modal") or {}
+    item = ctx.get("item") or {}
+    cache_id = ctx.get("cache_id") or ""
+    item_uid = ctx.get("item_uid") or cache_id
+    item_link = (ctx.get("item_link") or item.get("link") or "").strip()
+
+    st.session_state.setdefault("ondemand_fulltext", {})
+    st.session_state.setdefault("ondemand_fulltext_view", {})
+
+    fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
+    if not fulltext_data:
+        with st.spinner("Fetching complete article…"):
+            fulltext_data = extract_on_demand_full_article(item, translate_to_english=False)
+            st.session_state["ondemand_fulltext"][cache_id] = fulltext_data
+            st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
+
+    if fulltext_data and fulltext_data.get("ok"):
+        ft_lang = fulltext_data.get("lang", "en")
+        has_tr = bool(fulltext_data.get("translated_text"))
+        view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
+        shown_text = fulltext_data["translated_text"] if (view_mode == "en" and has_tr) else fulltext_data["original_text"]
+        ft_eyebrow = "Read in App · English Translation" if (view_mode == "en" and has_tr) else f"Read in App · Original ({ft_lang.upper()})"
+        is_complete = bool(fulltext_data.get("is_complete", True))
+        ext_badge = (
+            '<span class="extraction-badge extraction-badge--full">✓ Full Article</span>'
+            if is_complete
+            else '<span class="extraction-badge extraction-badge--partial">⚠ Partial Extraction — publisher restricts full text</span>'
+        )
+        reader_title = html.escape((item.get("title") or "").strip())
+        reader_src = html.escape((item.get("source") or "").strip())
+        reader_time = html.escape((item.get("exact_time") or item.get("relative_time") or "").strip())
+        meta_parts = [p for p in (reader_src, reader_time) if p]
+        reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
+        ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
+        ft_src_html = (
+            f'<div class="unified-brief-box__source">Source: '
+            f'<a href="{html.escape(ft_src, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(ft_src)}</a></div>'
+            if ft_src
+            else ""
+        )
+        st.markdown(
+            f'<div class="fulltext-reader-box">'
+            f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{ext_badge}</div>'
+            f'<div class="fulltext-reader-box__title">{reader_title}</div>'
+            f'{reader_meta_html}'
+            f'<div class="fulltext-reader-box__body" style="max-height:52vh;">{html.escape(shown_text)}</div>'
+            f'{ft_src_html}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        if fulltext_data.get("error"):
+            st.warning(fulltext_data["error"])
+
+        has_tr_btn = (ft_lang != "en" and not has_tr) or (has_tr and ft_lang != "en")
+        ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
+        col_i = 0
+        if ft_lang != "en" and not has_tr:
+            with ft_cols[col_i]:
+                if st.button("Translate to English", icon=":material/translate:", type="primary", key=f"dlg_ft_tr_{item_uid}"):
+                    with st.spinner("Translating full article…"):
+                        ft_tr = extract_on_demand_full_article(item, translate_to_english=True)
+                        st.session_state["ondemand_fulltext"][cache_id] = ft_tr
+                        if ft_tr.get("translated_text"):
+                            st.session_state["ondemand_fulltext_view"][cache_id] = "en"
+                        st.rerun()
+            col_i += 1
+        elif has_tr and ft_lang != "en":
+            with ft_cols[col_i]:
+                toggle_lbl = "Original" if view_mode == "en" else "English Translation"
+                if st.button(toggle_lbl, icon=":material/swap_horiz:", type="primary", key=f"dlg_ft_tog_{item_uid}"):
+                    st.session_state["ondemand_fulltext_view"][cache_id] = "orig" if view_mode == "en" else "en"
+                    st.rerun()
+            col_i += 1
+        with ft_cols[col_i]:
+            ft_copy_payload = f"{shown_text}\n\nSource: {ft_src}" if ft_src else shown_text
+            _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
+        with ft_cols[col_i + 1]:
+            if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}"):
+                st.session_state["active_modal"] = None
+                st.rerun()
+    else:
+        st.warning("Full article could not be extracted (the publisher may block scraping or require a subscription). Use View Original to read on the publisher's site.")
+        c1, c2 = st.columns(2, gap="small")
+        if item_link.startswith("http"):
+            with c1:
+                st.link_button("View Original", item_link, icon=":material/open_in_new:")
+        with c2:
+            if st.button("Close", icon=":material/close:", key=f"dlg_ft_err_cls_{item_uid}"):
+                st.session_state["active_modal"] = None
+                st.rerun()
+
+
+@st.dialog("Share", width="large", icon=":material/share:", on_dismiss=_clear_active_modal)
+def _show_share_dialog() -> None:
+    ctx = st.session_state.get("active_modal") or {}
+    item = ctx.get("item") or {}
+    is_x = bool(ctx.get("is_x", False))
+    cache_id = ctx.get("cache_id") or ""
+    item_uid = ctx.get("item_uid") or cache_id
+    item_link = (ctx.get("item_link") or item.get("link") or "").strip()
+
+    st.session_state.setdefault("ondemand_generated", {})
+    st.session_state.setdefault("ondemand_edit_mode", {})
+    st.session_state.setdefault("ondemand_confirmed", {})
+    st.session_state.setdefault("wa_sent_registry", set())
+    st.session_state.setdefault("wa_item_status", {})
+
+    if is_x:
+        raw_x_txt = (item.get("text") or item.get("title") or "").strip()
+        x_lang = detect_text_language(raw_x_txt)
+        box_eyebrow = "Complete X Post" if x_lang == "en" else "English Translation"
+    else:
+        box_eyebrow = "English Brief"
+
+    generated = st.session_state["ondemand_generated"].get(cache_id)
+    if not generated:
+        with st.spinner("Generating English content…"):
+            generated = _generate_unified_item_content(item, is_x=is_x)
+            st.session_state["ondemand_generated"][cache_id] = generated
+            st.session_state["ondemand_confirmed"][cache_id] = False
+            st.session_state["ondemand_edit_mode"][cache_id] = False
+
+    is_editing = bool(st.session_state["ondemand_edit_mode"].get(cache_id, False))
+    is_confirmed = bool(st.session_state["ondemand_confirmed"].get(cache_id, False))
+    persisted_sent = _get_wa_sent_map().get(cache_id)
+
+    if persisted_sent:
+        sent_gname = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+        sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
+        sent_id = html.escape(str(persisted_sent.get("id_message") or ""))
+        ts_part = f" · {html.escape(sent_ts)}" if sent_ts else ""
+        st.markdown(
+            f'<div class="wa-already-sent-notice" title="Green API Message ID: {sent_id}">'
+            f'✓ Notice: Already sent to <strong>{sent_gname}</strong>{ts_part} (avoid duplicate distribution)'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    if not generated or not generated.get("ok"):
+        st.error((generated or {}).get("error") or "Could not generate English output for this item.")
+        if st.button("Close", icon=":material/close:", key=f"dlg_sh_err_cls_{item_uid}"):
+            st.session_state["active_modal"] = None
+            st.rerun()
+        return
+
+    src_url = generated.get("source_url", "")
+    if is_editing:
+        st.caption(f"Editing {box_eyebrow} (original feed item is untouched; Source URL is preserved):")
+        edited_val = st.text_area(
+            f"Edit {box_eyebrow}",
+            value=generated["content"],
+            height=160,
+            key=f"dlg_ta_edit_{item_uid}",
+            label_visibility="collapsed",
+        )
+        if src_url:
+            st.caption(f"Source: {src_url}")
+        ec1, ec2 = st.columns(2, gap="small")
+        with ec1:
+            if st.button("Save & Confirm", icon=":material/check:", type="primary", key=f"dlg_save_edit_{item_uid}"):
+                clean_edit = (edited_val or "").strip()
+                if clean_edit:
+                    generated["content"] = clean_edit
+                    generated["formatted_text"] = f"{clean_edit}\n\nSource: {src_url}" if src_url else clean_edit
+                    st.session_state["ondemand_generated"][cache_id] = generated
+                    st.session_state["ondemand_confirmed"][cache_id] = True
+                    st.session_state["ondemand_edit_mode"][cache_id] = False
+                    st.rerun()
+        with ec2:
+            if st.button("Cancel", icon=":material/close:", key=f"dlg_cancel_edit_{item_uid}"):
+                st.session_state["ondemand_edit_mode"][cache_id] = False
+                st.rerun()
+        return
+
+    body_html = html.escape(generated["content"])
+    src_html = (
+        f'<div class="unified-brief-box__source">Source: '
+        f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
+        if src_url
+        else ""
+    )
+    conf_badge = " · ✓ Confirmed" if is_confirmed else " · Pending Confirmation"
+    st.markdown(
+        f'<div class="unified-brief-box">'
+        f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow + conf_badge)}</div>'
+        f'<div class="unified-brief-box__body">{body_html}</div>'
+        f'{src_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    wa_clicked = False
+    c1, c2, c3, c4 = st.columns(4, gap="small")
+    with c1:
+        if not is_confirmed:
+            if st.button(
+                "Confirm Share",
+                icon=":material/check_circle:",
+                type="primary",
+                key=f"dlg_conf_{item_uid}",
+                help="Confirm text before sending to Media Monitor",
+            ):
+                st.session_state["ondemand_confirmed"][cache_id] = True
+                st.rerun()
+        else:
+            wa_clicked = st.button(
+                "WhatsApp",
+                icon=":material/send:",
+                type="primary",
+                key=f"dlg_wa_{item_uid}",
+                help="Send confirmed content to Media Monitor",
+            )
+    with c2:
+        _render_copy_button(generated["formatted_text"], uid=f"dlg_{item_uid}")
+    with c3:
+        if st.button("Edit", icon=":material/edit:", key=f"dlg_edit_{item_uid}"):
+            st.session_state["ondemand_edit_mode"][cache_id] = True
+            st.rerun()
+    with c4:
+        if st.button("Close", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}"):
+            st.session_state["active_modal"] = None
+            st.rerun()
+
+    if wa_clicked and is_confirmed:
+        dest = _get_cached_wa_dest()
+        selected_gid = dest.get("id", "") if dest.get("ok") else ""
+        selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+        wa_res = send_wa_group_message(
+            chat_id=selected_gid,
+            message=generated["formatted_text"],
+            session_approved=True,
+            sent_registry=st.session_state["wa_sent_registry"],
+        )
+        wa_res["group_name"] = selected_gname
+        st.session_state["wa_item_status"][cache_id] = wa_res
+        if wa_res.get("ok") and wa_res.get("accepted"):
+            try:
+                record_whatsapp_sent(
+                    item_key=cache_id,
+                    group_id=selected_gid,
+                    group_name=selected_gname,
+                    id_message=str(wa_res.get("id_message") or ""),
+                    item_link=item_link,
+                )
+                _get_wa_sent_map.clear()
+            except Exception:
+                pass
+        st.rerun()
+
+    wa_status = st.session_state["wa_item_status"].get(cache_id)
+    if wa_status:
+        st_code = wa_status.get("status")
+        if wa_status.get("ok") and wa_status.get("accepted"):
+            gname = html.escape(wa_status.get("group_name") or "Media Monitor")
+            msg_id = html.escape(str(wa_status.get("id_message") or ""))
+            st.success(f"✓ Accepted by Green API for {gname} · Message ID: {msg_id}")
+        elif st_code == "inactive":
+            st.info(wa_status.get("error"))
+        elif st_code == "duplicate_prevented":
+            st.warning(wa_status.get("error"))
+        else:
+            st.error(wa_status.get("error") or "Failed to send WhatsApp message.")
+
+
 def render_feed_item_with_actions(
     item: Dict[str, Any],
     renderer: Callable[[Dict[str, Any]], str],
     state_key: str,
     item_uid: str,
 ) -> None:
-    """Renders a single consolidated card containing post content, brief/full-text panels, and one single-row action bar."""
+    """Renders a compact, uniform feed card with three primary actions (Read in App, View Original, Share)."""
+    st.session_state.setdefault("active_modal", None)
     st.session_state.setdefault("ondemand_generated", {})
-    st.session_state.setdefault("ondemand_edit_mode", {})
-    st.session_state.setdefault("ondemand_confirmed", {})
     st.session_state.setdefault("ondemand_fulltext", {})
-    st.session_state.setdefault("ondemand_fulltext_view", {})
-    st.session_state.setdefault("wa_sent_registry", set())
-    st.session_state.setdefault("wa_item_status", {})
 
     is_indian, is_x = _resolve_item_flags(item, renderer)
     cache_id = _compute_item_uid(item, "global")
-    generated = st.session_state["ondemand_generated"].get(cache_id)
-    fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
-    is_editing = bool(st.session_state["ondemand_edit_mode"].get(cache_id, False))
-    is_confirmed = bool(st.session_state["ondemand_confirmed"].get(cache_id, False))
 
     item_link = (item.get("link") or "").strip()
-    if is_x:
-        raw_x_txt = (item.get("text") or item.get("title") or "").strip()
-        x_lang = detect_text_language(raw_x_txt)
-        box_eyebrow = "Complete X Post" if x_lang == "en" else "English Translation"
-        if not item_link:
-            rh = (item.get("raw_handle") or item.get("handle") or "").lstrip("@").strip()
-            sid = str(item.get("id") or "").strip()
-            if rh and sid:
-                item_link = f"https://x.com/{rh}/status/{sid}"
-    else:
-        box_eyebrow = "English Brief"
+    if is_x and not item_link:
+        rh = (item.get("raw_handle") or item.get("handle") or "").lstrip("@").strip()
+        sid = str(item.get("id") or "").strip()
+        if rh and sid:
+            item_link = f"https://x.com/{rh}/status/{sid}"
 
     with st.container(border=True):
         st.markdown('<div class="feed-card-anchor"></div>', unsafe_allow_html=True)
@@ -735,270 +991,53 @@ def render_feed_item_with_actions(
                 unsafe_allow_html=True,
             )
 
-        # 1. Unified Copyable Brief / Translation Box (View or Manual Edit Mode)
-        if generated:
-            if generated.get("ok"):
-                src_url = generated.get("source_url", "")
-                if is_editing:
-                    st.caption(f"Editing {box_eyebrow} (Source URL is preserved automatically):")
-                    edited_val = st.text_area(
-                        f"Edit {box_eyebrow}",
-                        value=generated["content"],
-                        height=140,
-                        key=f"ta_edit_{item_uid}",
-                        label_visibility="collapsed",
-                    )
-                    if src_url:
-                        st.caption(f"Source: {src_url}")
-                    ec1, ec2 = st.columns(2, gap="small")
-                    with ec1:
-                        if st.button("Save & Confirm", icon=":material/check:", type="primary", key=f"btn_save_edit_{item_uid}"):
-                            clean_edit = (edited_val or "").strip()
-                            if clean_edit:
-                                generated["content"] = clean_edit
-                                generated["formatted_text"] = f"{clean_edit}\n\nSource: {src_url}" if src_url else clean_edit
-                                st.session_state["ondemand_generated"][cache_id] = generated
-                                st.session_state["ondemand_confirmed"][cache_id] = True
-                                st.session_state["ondemand_edit_mode"][cache_id] = False
-                                st.rerun()
-                    with ec2:
-                        if st.button("Cancel", icon=":material/close:", key=f"btn_cancel_edit_{item_uid}"):
-                            st.session_state["ondemand_edit_mode"][cache_id] = False
-                            st.rerun()
-                else:
-                    body_html = html.escape(generated["content"])
-                    src_html = (
-                        f'<div class="unified-brief-box__source">Source: '
-                        f'<a href="{html.escape(src_url, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(src_url)}</a></div>'
-                        if src_url
-                        else ""
-                    )
-                    conf_badge = " · ✓ Confirmed" if is_confirmed else " · Pending Confirmation"
-                    st.markdown(
-                        f'<div class="unified-brief-box">'
-                        f'<div class="unified-brief-box__eyebrow">{html.escape(box_eyebrow + conf_badge)}</div>'
-                        f'<div class="unified-brief-box__body">{body_html}</div>'
-                        f'{src_html}'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.error(generated.get("error") or "Could not generate English output for this item.")
-
-        # 2. Read in App – Full Article Reader with Optional English Translation (for news items)
-        if fulltext_data and not is_x:
-            if fulltext_data.get("ok"):
-                ft_lang = fulltext_data.get("lang", "en")
-                has_tr = bool(fulltext_data.get("translated_text"))
-                view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
-                shown_text = fulltext_data["translated_text"] if (view_mode == "en" and has_tr) else fulltext_data["original_text"]
-                ft_eyebrow = "Read in App · English Translation" if (view_mode == "en" and has_tr) else f"Read in App · Original ({ft_lang.upper()})"
-                is_complete = bool(fulltext_data.get("is_complete", True))
-                ext_badge = (
-                    '<span class="extraction-badge extraction-badge--full">✓ Full Article</span>'
-                    if is_complete
-                    else '<span class="extraction-badge extraction-badge--partial">⚠ Partial Excerpt — full text restricted by publisher</span>'
-                )
-                reader_title = html.escape((item.get("title") or "").strip())
-                reader_src = html.escape((item.get("source") or "").strip())
-                reader_time = html.escape((item.get("exact_time") or item.get("relative_time") or "").strip())
-                meta_parts = [p for p in (reader_src, reader_time) if p]
-                reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
-                ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
-                ft_src_html = (
-                    f'<div class="unified-brief-box__source">Source: '
-                    f'<a href="{html.escape(ft_src, quote=True)}" target="_blank" rel="noopener noreferrer">{html.escape(ft_src)}</a></div>'
-                    if ft_src
-                    else ""
-                )
-                st.markdown(
-                    f'<div class="fulltext-reader-box">'
-                    f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{ext_badge}</div>'
-                    f'<div class="fulltext-reader-box__title">{reader_title}</div>'
-                    f'{reader_meta_html}'
-                    f'<div class="fulltext-reader-box__body">{html.escape(shown_text)}</div>'
-                    f'{ft_src_html}'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-                if fulltext_data.get("error"):
-                    st.warning(fulltext_data["error"])
-
-                ft_cols = st.columns(3 if (ft_lang != "en" or has_tr) else 2, gap="small")
-                col_i = 0
-                if ft_lang != "en" and not has_tr:
-                    with ft_cols[col_i]:
-                        if st.button("Translate to English", icon=":material/translate:", key=f"btn_ft_tr_{item_uid}"):
-                            with st.spinner("Translating full article…"):
-                                ft_tr = extract_on_demand_full_article(item, translate_to_english=True)
-                                st.session_state["ondemand_fulltext"][cache_id] = ft_tr
-                                if ft_tr.get("translated_text"):
-                                    st.session_state["ondemand_fulltext_view"][cache_id] = "en"
-                                st.rerun()
-                    col_i += 1
-                elif has_tr and ft_lang != "en":
-                    with ft_cols[col_i]:
-                        toggle_lbl = "Original" if view_mode == "en" else "English Translation"
-                        if st.button(toggle_lbl, icon=":material/swap_horiz:", key=f"btn_ft_tog_{item_uid}"):
-                            st.session_state["ondemand_fulltext_view"][cache_id] = "orig" if view_mode == "en" else "en"
-                            st.rerun()
-                    col_i += 1
-                with ft_cols[col_i]:
-                    ft_src = fulltext_data.get("source_url") or item_link
-                    ft_copy_payload = f"{shown_text}\n\nSource: {ft_src}" if ft_src else shown_text
-                    _render_copy_button(ft_copy_payload, uid=f"ft_{item_uid}")
-                with ft_cols[col_i + 1]:
-                    if st.button("Close Reader", icon=":material/close:", key=f"btn_ft_cls_{item_uid}"):
-                        st.session_state["ondemand_fulltext"].pop(cache_id, None)
-                        st.rerun()
-            else:
-                st.warning("Full article could not be extracted (the publisher may block scraping or require a subscription). Use View Original to open it directly.")
-
         st.markdown('<div class="feed-action-divider"></div>', unsafe_allow_html=True)
 
-        # 3. Three Primary Actions: Read in App | View Original | Share (-> Copy / Edit / Confirm / WhatsApp)
-        wa_clicked = False
-        has_brief = bool(generated and generated.get("ok"))
         has_link = bool(item_link and item_link.startswith("http"))
-
-        if not has_brief:
-            n_cols = (1 if not is_x else 0) + (1 if has_link else 0) + 1
-            cols = st.columns(n_cols, gap="small")
-            ci = 0
-            if not is_x:
-                with cols[ci]:
-                    if st.button(
-                        "Read in App",
-                        icon=":material/menu_book:",
-                        key=f"btn_ft_{item_uid}",
-                        help="Read complete article inside the app with optional English translation",
-                    ):
-                        if cache_id in st.session_state["ondemand_fulltext"]:
-                            st.session_state["ondemand_fulltext"].pop(cache_id, None)
-                        else:
-                            with st.spinner("Loading article…"):
-                                ft_res = extract_on_demand_full_article(item, translate_to_english=False)
-                                st.session_state["ondemand_fulltext"][cache_id] = ft_res
-                                st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
-                        st.rerun()
-                ci += 1
-            if has_link:
-                with cols[ci]:
-                    st.link_button("View Original", item_link, icon=":material/open_in_new:")
-                ci += 1
+        n_cols = (1 if not is_x else 0) + (1 if has_link else 0) + 1
+        cols = st.columns(n_cols, gap="small")
+        ci = 0
+        if not is_x:
             with cols[ci]:
                 if st.button(
-                    "Share",
-                    icon=":material/share:",
-                    type="primary",
-                    key=f"btn_gen_{item_uid}",
-                    help="Generate English Brief / Translation to review, copy, or share to Media Monitor",
+                    "Read in App",
+                    icon=":material/menu_book:",
+                    key=f"btn_ft_{item_uid}",
+                    help="Read complete article in a focused modal with optional English translation",
                 ):
-                    with st.spinner("Generating…"):
-                        res = _generate_unified_item_content(item, is_x=is_x)
-                        st.session_state["ondemand_generated"][cache_id] = res
-                        st.session_state["ondemand_confirmed"][cache_id] = False
-                        st.session_state["ondemand_edit_mode"][cache_id] = False
-                        st.rerun()
-        else:
-            n_cols = 4 + (1 if not is_x else 0) + (1 if has_link else 0)
-            cols = st.columns(n_cols, gap="small")
-            ci = 0
-            with cols[ci]:
-                if not is_confirmed:
-                    if st.button(
-                        "Confirm Share",
-                        icon=":material/check_circle:",
-                        type="primary",
-                        key=f"btn_conf_{item_uid}",
-                        help="Confirm text before sending to Media Monitor",
-                    ):
-                        st.session_state["ondemand_confirmed"][cache_id] = True
-                        st.session_state["ondemand_edit_mode"][cache_id] = False
-                        st.rerun()
-                else:
-                    wa_clicked = st.button(
-                        "WhatsApp",
-                        icon=":material/send:",
-                        type="primary",
-                        key=f"btn_wa_{item_uid}",
-                        help="Send confirmed content to Media Monitor",
-                    )
-            ci += 1
-            with cols[ci]:
-                _render_copy_button(generated["formatted_text"], uid=item_uid)
-            ci += 1
-            with cols[ci]:
-                if st.button("Edit", icon=":material/edit:", key=f"btn_edit_{item_uid}"):
-                    st.session_state["ondemand_edit_mode"][cache_id] = not is_editing
+                    st.session_state["active_modal"] = {
+                        "mode": "read",
+                        "item": item,
+                        "is_x": False,
+                        "is_indian": is_indian,
+                        "cache_id": cache_id,
+                        "item_uid": item_uid,
+                        "item_link": item_link,
+                    }
                     st.rerun()
             ci += 1
-            if not is_x:
-                with cols[ci]:
-                    if st.button("Read in App", icon=":material/menu_book:", key=f"btn_ft_{item_uid}"):
-                        if cache_id in st.session_state["ondemand_fulltext"]:
-                            st.session_state["ondemand_fulltext"].pop(cache_id, None)
-                        else:
-                            with st.spinner("Loading article…"):
-                                ft_res = extract_on_demand_full_article(item, translate_to_english=False)
-                                st.session_state["ondemand_fulltext"][cache_id] = ft_res
-                                st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
-                        st.rerun()
-                ci += 1
-            if has_link:
-                with cols[ci]:
-                    st.link_button("View Original", item_link, icon=":material/open_in_new:")
-                ci += 1
+        if has_link:
             with cols[ci]:
-                if st.button("Hide", icon=":material/close:", key=f"btn_hide_{item_uid}"):
-                    st.session_state["ondemand_generated"].pop(cache_id, None)
-                    st.session_state["ondemand_edit_mode"].pop(cache_id, None)
-                    st.session_state["ondemand_confirmed"].pop(cache_id, None)
-                    st.rerun()
-
-        if wa_clicked and has_brief and is_confirmed:
-            dest = _get_cached_wa_dest()
-            selected_gid = dest.get("id", "") if dest.get("ok") else ""
-            selected_gname = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
-            wa_res = send_wa_group_message(
-                chat_id=selected_gid,
-                message=generated["formatted_text"],
-                session_approved=True,
-                sent_registry=st.session_state["wa_sent_registry"],
-            )
-            wa_res["group_name"] = selected_gname
-            st.session_state["wa_item_status"][cache_id] = wa_res
-            if wa_res.get("ok") and wa_res.get("accepted"):
-                try:
-                    record_whatsapp_sent(
-                        item_key=cache_id,
-                        group_id=selected_gid,
-                        group_name=selected_gname,
-                        id_message=str(wa_res.get("id_message") or ""),
-                        item_link=item_link,
-                    )
-                    _get_wa_sent_map.clear()
-                except Exception:
-                    pass
-            st.rerun()
-
-        wa_status = st.session_state["wa_item_status"].get(cache_id)
-        if wa_status:
-            st_code = wa_status.get("status")
-            if wa_status.get("ok") and wa_status.get("accepted"):
-                if not persisted_sent:
-                    gname = html.escape(wa_status.get("group_name") or "Media Monitor")
-                    msg_id = html.escape(str(wa_status.get("id_message") or ""))
-                    st.markdown(
-                        f'<div class="wa-sent-pill" title="Green API Message ID: {msg_id}">✓ Sent to {gname} · Accepted by Green API</div>',
-                        unsafe_allow_html=True,
-                    )
-            elif st_code == "inactive":
-                st.info(wa_status.get("error"))
-            elif st_code == "duplicate_prevented":
-                st.warning(wa_status.get("error"))
-            else:
-                st.error(wa_status.get("error") or "Failed to send WhatsApp message.")
+                st.link_button("View Original", item_link, icon=":material/open_in_new:")
+            ci += 1
+        with cols[ci]:
+            if st.button(
+                "Share",
+                icon=":material/share:",
+                type="primary",
+                key=f"btn_gen_{item_uid}",
+                help="Generate English Brief / Translation to review, copy, or share to Media Monitor",
+            ):
+                st.session_state["active_modal"] = {
+                    "mode": "share",
+                    "item": item,
+                    "is_x": is_x,
+                    "is_indian": is_indian,
+                    "cache_id": cache_id,
+                    "item_uid": item_uid,
+                    "item_link": item_link,
+                }
+                st.rerun()
 
 
 def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer: Callable[[Dict[str, Any]], str], noun: str) -> None:
@@ -2377,3 +2416,11 @@ elif selected_nav == "System Health":
 
         if quiet_sources:
             st.info(f"ℹ️ **Quiet / Periodic Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")
+
+_active_modal = st.session_state.get("active_modal")
+if _active_modal:
+    if _active_modal.get("mode") == "read":
+        _show_read_in_app_dialog()
+    elif _active_modal.get("mode") == "share":
+        _show_share_dialog()
+
