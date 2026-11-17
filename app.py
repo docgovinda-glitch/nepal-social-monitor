@@ -976,7 +976,7 @@ def _show_share_dialog() -> None:
     dest = _get_cached_wa_dest()
     dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
 
-    c_copy, c_edit, c_save, c_cls, c_send = st.columns([1, 1, 1, 1, 3], gap="small")
+    c_copy, c_edit, c_save, c_cls, c_send = st.columns(5, gap="small")
     with c_copy:
         _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=True)
     with c_edit:
@@ -1006,11 +1006,11 @@ def _show_share_dialog() -> None:
                 st.rerun()
     with c_send:
         send_clicked = st.button(
-            "Confirm to Send",
+            "",
             icon=":material/send:",
             type="primary",
             key=f"dlg_conf_{item_uid}",
-            help=f"Send latest saved draft (v{ver}) to {dest_name}",
+            help=f"Confirm to Send: send latest saved draft (v{ver}) to {dest_name}",
         )
 
     if send_clicked:
