@@ -577,20 +577,27 @@ def get_stored_counts_by_stream(
     """Lightweight aggregated counts for sidebar badges without pulling thousands of rows."""
     where_articles = ["1=1"]
     where_indian = ["relevance_status IN ('substantive', 'relevant')"]
+    where_x = ["1=1"]
     if start_dt:
-        dt_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-        where_articles.append(f"published_dt >= '{dt_str}'")
-        where_indian.append(f"published_dt >= '{dt_str}'")
+        dt_utc = start_dt.astimezone(datetime.timezone.utc) if start_dt.tzinfo else start_dt
+        dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')
+        dt_local_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        where_articles.append(f"published_dt >= '{dt_local_str}'")
+        where_indian.append(f"published_dt >= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S')}'")
+        where_x.append(f"published_dt >= '{dt_str}'")
     if end_dt:
-        dt_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
-        where_articles.append(f"published_dt <= '{dt_str}'")
-        where_indian.append(f"published_dt <= '{dt_str}'")
+        dt_utc = end_dt.astimezone(datetime.timezone.utc) if end_dt.tzinfo else end_dt
+        dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')
+        dt_local_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+        where_articles.append(f"published_dt <= '{dt_local_str}'")
+        where_indian.append(f"published_dt <= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S')}'")
+        where_x.append(f"published_dt <= '{dt_str}'")
 
     sql = f"""
     SELECT 
         (SELECT COUNT(*) FROM articles WHERE {' AND '.join(where_articles)}) as np_count,
         (SELECT COUNT(*) FROM indian_media_articles WHERE {' AND '.join(where_indian)}) as in_count,
-        (SELECT COUNT(*) FROM x_posts) as x_count;
+        (SELECT COUNT(*) FROM x_posts WHERE {' AND '.join(where_x)}) as x_count;
     """
     rows = query_supabase(sql)
     if rows:

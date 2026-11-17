@@ -181,15 +181,31 @@ def run_historical_backfill(
 # Background Monitoring Worker Thread
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
+_LAST_X_SCAN_TIME = 0.0
+X_SCAN_INTERVAL_SECS = 15 * 60  # Automatically scan X every 15 minutes
 
 def _monitoring_daemon_loop():
-    """Background continuous loop that checks and ingests portals according to their tiers."""
+    """Background continuous loop that checks and ingests portals and X posts according to their tiers."""
+    global _LAST_X_SCAN_TIME
     logger.info("Continuous News Monitoring Daemon started in background.")
     while not _STOP_EVENT.is_set():
         try:
             run_all_sources_discovery(parallel_workers=12, force_all=False)
         except Exception as e:
             logger.error(f"Error in monitoring loop cycle: {e}")
+
+        # Automated continuous X scanning
+        now_sec = time.time()
+        if now_sec - _LAST_X_SCAN_TIME >= X_SCAN_INTERVAL_SECS:
+            try:
+                from nepal_x_scanner import scan_popular_nepal_x_posts
+                logger.info("Triggering periodic background X scan across verified Nepali accounts...")
+                scan_popular_nepal_x_posts(force_refresh=True)
+                _LAST_X_SCAN_TIME = now_sec
+                logger.info("Periodic background X scan completed successfully.")
+            except Exception as e:
+                logger.error(f"Error in background X scan cycle: {e}")
+
         # Sleep for 60 seconds between cycle evaluations
         _STOP_EVENT.wait(60.0)
 

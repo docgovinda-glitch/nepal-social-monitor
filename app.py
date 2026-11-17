@@ -170,6 +170,8 @@ past_12h_ref = now_npt - datetime.timedelta(hours=12)
 default_start_date = past_12h_ref.date()
 default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
 st.session_state.setdefault("last_sync_npt", now_npt.strftime("%I:%M %p").lstrip("0"))
+st.session_state.setdefault("last_auto_sync_ts", time.time())
+st.session_state.setdefault("auto_sync_enabled", False)
 st.session_state.setdefault("cp_timeframe_segment", "12h")
 
 # ==========================================
@@ -254,6 +256,8 @@ def reset_all_filters():
         "in_lang_filter": ALL_LANG_DEFAULT,
         "x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED,
         "x_acc_type_select": ALL_ACC_TYPES,
+        "comb_stream_filter": "All Streams",
+        "comb_cat_filter": CAT_FILTER_ALL_UNFILTERED,
         "cp_timeframe_segment": "12h",
         "filter_start_date": start.date(),
         "filter_start_time": start.time().replace(second=0, microsecond=0),
@@ -261,6 +265,7 @@ def reset_all_filters():
         "media_visible_count": PAGE_SIZE,
         "indian_visible_count": PAGE_SIZE,
         "x_visible_count": PAGE_SIZE,
+        "combined_visible_count": PAGE_SIZE,
     })
 
 # 6. High-Performance Cached Data Pipeline (Lazy-loaded, feed-projected)
@@ -484,6 +489,16 @@ def render_apple_x_post_card(p: Dict[str, Any]) -> str:
         f'</footer>'
         f'</article>'
     )
+
+def render_apple_combined_item_card(item: Dict[str, Any]) -> str:
+    """Dispatches item rendering based on source type (Nepali Media, Indian Press, or X Post)."""
+    item_type = item.get("_feed_type") or item.get("stream")
+    if item_type == "x" or "raw_handle" in item or "handle" in item:
+        return render_apple_x_post_card(item)
+    elif item_type == "indian" or item.get("stream") == "Indian Press" or "nepal_relevance_score" in item:
+        return render_apple_article_card(item, is_indian=True)
+    else:
+        return render_apple_article_card(item, is_indian=False)
 
 # ==========================================
 # SHARED UI COMPONENTS
@@ -725,10 +740,14 @@ with st.sidebar:
 
         sb_btn1, sb_btn2 = st.columns(2)
         with sb_btn1:
-            if st.button("Sync", icon=":material/sync:", key="btn_top_sync", width="stretch", help=f"Fetch the latest stories from all {len(TOP_NEPAL_NEWS_PORTALS) + len(TOP_INDIAN_MEDIA_SOURCES)} sources"):
-                with st.spinner("Syncing live feeds…"):
+            if st.button("Sync", icon=":material/sync:", key="btn_top_sync", width="stretch", help=f"Fetch the latest stories from all {len(TOP_NEPAL_NEWS_PORTALS) + len(TOP_INDIAN_MEDIA_SOURCES)} sources and verified X voices"):
+                with st.spinner("Syncing live feeds across all streams…"):
                     fetch_top_nepal_media(max_workers=25, force_refresh=True)
                     fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
+                    try:
+                        scan_popular_nepal_x_posts(force_refresh=True)
+                    except Exception:
+                        pass
                     st.cache_data.clear()
                     st.session_state.pop("x_posts", None)
                     st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
@@ -738,11 +757,17 @@ with st.sidebar:
 
 # Fast stream counts for workspace navigation badges
 stream_counts = get_cached_stream_counts(filter_start_dt, filter_end_dt)
+total_combined_count = (
+    stream_counts.get("nepali_count", 0) +
+    stream_counts.get("indian_count", 0) +
+    stream_counts.get("x_count", 0)
+)
 
 # ==========================================
 # 7. SIDEBAR · Card 2 — Workspace, Card 3 — Contextual filters
 # ==========================================
 NAV_ITEMS = [
+    ("Combined Feed", "🌐", total_combined_count),
     ("Nepali Media", "📰", stream_counts.get("nepali_count", 0)),
     ("Indian Press", "🇮🇳", stream_counts.get("indian_count", 0)),
     ("X", "𝕏", stream_counts.get("x_count", 0)),
@@ -774,16 +799,25 @@ with st.sidebar:
         )
 
     with st.container(border=True):
-        if selected_nav == "Nepali Media":
+        if selected_nav == "Combined Feed":
+            sidebar_section("Filters", "All streams")
+            sel_comb_stream = st.selectbox("Stream source", ["All Streams", "Nepali Media Only", "Indian Press Only", "X (Twitter) Only"], key="comb_stream_filter")
+            sel_comb_cat = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
+            comb_sort_mode = st.selectbox("Sort by", ["Newest First", "Oldest First"], key="comb_sort_mode")
+            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
+
+        elif selected_nav == "Nepali Media":
             sidebar_section("Filters", f"{len(TOP_NEPAL_NEWS_PORTALS)} outlets")
             sel_np_portal = st.selectbox("News portal", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
             sel_np_cat = st.selectbox("Category", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
             sel_np_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
+            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         elif selected_nav == "Indian Press":
             sidebar_section("Filters", f"{len(TOP_INDIAN_MEDIA_SOURCES)} outlets")
             selected_indian_outlet = st.selectbox("News outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
             sel_in_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
+            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         elif selected_nav == "X":
             sidebar_section("Filters", f"{len(VERIFIED_NEPAL_X_DIRECTORY)} accounts")
@@ -794,6 +828,7 @@ with st.sidebar:
                 key="x_acc_type_select",
             )
             sort_mode = st.selectbox("Sort by", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
+            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
             if st.button("Rescan X", icon=":material/refresh:", width="stretch", key="btn_rescan_x_sidebar"):
                 with st.spinner("Scanning verified Nepali accounts…"):
                     st.session_state["x_posts"] = scan_popular_nepal_x_posts(force_refresh=True)
@@ -805,6 +840,7 @@ with st.sidebar:
             sel_cat = st.selectbox("Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
             sel_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
             kw_filter = st.text_input("Keyword", placeholder="Keyword or author", key="univ_kw_filter")
+            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
         else:
             sidebar_section("Source filters")
@@ -812,16 +848,113 @@ with st.sidebar:
             admin_status_filter = st.selectbox("Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status")
             admin_lang_filter = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang")
             admin_tier_filter = st.selectbox("Polling tier", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier")
+            st.toggle("Auto Sync", value=st.session_state.get("auto_sync_enabled", False), key="auto_sync_enabled", help="Automatically fetch latest updates every 60 seconds")
 
+    auto_sync_badge = (
+        ' <span style="display:inline-block; margin-left:4px; padding:1px 6px; font-size:0.68rem; font-weight:600; border-radius:10px; background:var(--green-soft); color:var(--green);">Auto Sync ON</span>'
+        if st.session_state.get("auto_sync_enabled", False)
+        else ""
+    )
     st.markdown(
-        f'<div class="sb-footer">Last synced {html.escape(st.session_state["last_sync_npt"])} NPT<br/>Nepal Social &amp; Media Monitor</div>',
+        f'<div class="sb-footer">Last synced {html.escape(st.session_state["last_sync_npt"])} NPT{auto_sync_badge}<br/>Nepal Social &amp; Media Monitor</div>',
         unsafe_allow_html=True,
     )
+
+# Auto-sync periodic execution when enabled
+if st.session_state.get("auto_sync_enabled", False):
+    now_ts = time.time()
+    last_sync_ts = st.session_state.get("last_auto_sync_ts", 0)
+    if now_ts - last_sync_ts >= 60:
+        st.session_state["last_auto_sync_ts"] = now_ts
+        st.cache_data.clear()
+        st.session_state.pop("x_posts", None)
+        st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
+        st.rerun()
+
+# ==========================================
+# SECTION 0: Combined Feed (Nepali Media, Indian Press, X Posts)
+# ==========================================
+if selected_nav == "Combined Feed":
+    nepal_arts = get_active_nepal_articles(filter_start_dt, filter_end_dt)
+    indian_arts = get_active_indian_articles(filter_start_dt, filter_end_dt)
+    x_posts_all = get_active_x_posts()
+    x_posts_in_win = [p for p in x_posts_all if in_window(p)]
+
+    comb_items = []
+    for a in nepal_arts:
+        a_copy = dict(a)
+        a_copy["_feed_type"] = "nepali"
+        comb_items.append(a_copy)
+    for a in indian_arts:
+        a_copy = dict(a)
+        a_copy["_feed_type"] = "indian"
+        comb_items.append(a_copy)
+    for p in x_posts_in_win:
+        p_copy = dict(p)
+        p_copy["_feed_type"] = "x"
+        comb_items.append(p_copy)
+
+    # Filter by stream if selected
+    if sel_comb_stream == "Nepali Media Only":
+        comb_items = [it for it in comb_items if it.get("_feed_type") == "nepali"]
+    elif sel_comb_stream == "Indian Press Only":
+        comb_items = [it for it in comb_items if it.get("_feed_type") == "indian"]
+    elif sel_comb_stream == "X (Twitter) Only":
+        comb_items = [it for it in comb_items if it.get("_feed_type") == "x"]
+
+    # Filter by category
+    if sel_comb_cat != CAT_FILTER_ALL_UNFILTERED:
+        comb_items = filter_items_by_category(comb_items, sel_comb_cat, is_social=False)
+
+    # Filter by search query
+    if search_query and search_query.strip():
+        comb_items = [it for it in comb_items if smart_search_match(it, search_query)]
+
+    # Sort
+    if comb_sort_mode == "Oldest First":
+        comb_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE)
+    else:
+        comb_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+
+    render_page_header(
+        "Combined Feed",
+        f"{len(comb_items):,} dispatches and posts across Nepali Media (34 portals), Indian Press (18 outlets), and Verified X"
+    )
+
+    # Stream overview pill KPI row
+    np_cnt = sum(1 for it in comb_items if it.get("_feed_type") == "nepali")
+    in_cnt = sum(1 for it in comb_items if it.get("_feed_type") == "indian")
+    x_cnt = sum(1 for it in comb_items if it.get("_feed_type") == "x")
+    st.markdown(f"""
+    <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+        <div class="apple-kpi-card" style="flex:1; min-width:140px;">
+            <div class="apple-kpi-card__label">📰 Nepali Media</div>
+            <div class="apple-kpi-card__value" style="font-size:1.2rem;">{np_cnt:,}</div>
+            <div class="apple-kpi-card__subtitle">34 Portals</div>
+        </div>
+        <div class="apple-kpi-card" style="flex:1; min-width:140px;">
+            <div class="apple-kpi-card__label">🇮🇳 Indian Press</div>
+            <div class="apple-kpi-card__value" style="font-size:1.2rem;">{in_cnt:,}</div>
+            <div class="apple-kpi-card__subtitle">18 Desks</div>
+        </div>
+        <div class="apple-kpi-card" style="flex:1; min-width:140px;">
+            <div class="apple-kpi-card__label">𝕏 X Posts</div>
+            <div class="apple-kpi-card__value" style="font-size:1.2rem;">{x_cnt:,}</div>
+            <div class="apple-kpi-card__subtitle">216 Verified Voices</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not comb_items:
+        render_empty_state("🌐", "No combined stories found", "Try widening the timeframe preset or choosing 'All Streams' / 'All News'.")
+    else:
+        render_paginated_feed(comb_items, "combined_visible_count", render_apple_combined_item_card, "items")
+
 
 # ==========================================
 # SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
-if selected_nav == "Nepali Media":
+elif selected_nav == "Nepali Media":
     all_articles = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     filtered_articles = [a for a in all_articles if smart_search_match(a, search_query)] if search_query else all_articles
 
