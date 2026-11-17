@@ -419,7 +419,7 @@ def _render_article_tags_html(item: Dict[str, Any], is_indian: bool = False) -> 
     if not sec_tags:
         return ""
     chips = "".join(f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:5])
-    return f'<div class="chip-row" style="padding-left:14px;">{chips}</div>'
+    return f'<div class="chip-row">{chips}</div>'
 
 
 def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, show_tags: bool = True) -> str:
@@ -443,7 +443,7 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
     sec_tags_html = _render_article_tags_html(item, is_indian=is_indian) if show_tags else ""
 
     lang = item.get("language", "")
-    lang_badge = f'<span class="pill">{html.escape(lang)}</span>' if lang else ""
+    lang_badge = f'<span class="lang-label">{html.escape(lang)}</span>' if lang else ""
 
     raw_title = (item.get("title") or "").strip()
     headline_en = (item.get("headline_english") or "").strip()

@@ -154,22 +154,46 @@ APPLE_DESIGN_SYSTEM_CSS = """
     /* ==========================================================
        5. PILLS / CHIPS / BADGES (shared base + colour variants)
        ========================================================== */
-    .pill, .portal-tag, .indian-portal-tag, .time-badge, .cat-badge, .conf-review-badge,
+    .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge,
     .x-sentiment-badge, .x-metric-item, .status-pill {
         display: inline-flex; align-items: center; gap: 4px;
-        padding: 3px 9px; border-radius: var(--r-pill);
+        padding: 3px 10px; border-radius: var(--r-pill);
         font-size: 0.72rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
         background: var(--surface-muted); color: var(--label-2);
         border: 1px solid transparent;
     }
     .portal-tag { background: var(--label); color: #FFFFFF; }
     .indian-portal-tag { background: #FFF4EA; color: #B4530D; }
-    .time-badge { font-weight: 500; }
+    .lang-label {
+        font-size: 0.73rem;
+        font-weight: 500;
+        color: var(--label-2);
+        white-space: nowrap;
+        padding: 0 2px;
+    }
+    .time-badge {
+        margin-left: auto;
+        font-size: 0.73rem;
+        font-weight: 500;
+        color: var(--label-2);
+        white-space: nowrap;
+        line-height: 1.35;
+    }
     .pill--success { background: var(--green-soft); color: var(--green); }
     .pill--warn, .conf-review-badge { background: var(--amber-soft); color: var(--amber); }
     .pill--tint { background: var(--tint-soft); color: var(--tint); }
-    .sec-tag-chip { font-size: 0.7rem; font-weight: 500; color: var(--label-3); }
-    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .sec-tag-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: var(--r-pill);
+        background: var(--surface-muted);
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: var(--label-2);
+        line-height: 1.35;
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
     .cat-badge--india { background: #FFF6E0; color: #8A5300; }
     .cat-badge--china { background: #FDECEC; color: #A61B1B; }
@@ -201,9 +225,9 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* Article card (lives inside consolidated st.container(border=True) card) */
-    .apple-news-card { position: relative; padding: 2px 2px 8px 14px; margin: 0; background: transparent; border: none; box-shadow: none; overflow: hidden; }
+    .apple-news-card { position: relative; padding: 0 0 4px 0; margin: 0; background: transparent; border: none; box-shadow: none; overflow: hidden; }
     .apple-news-card:hover { box-shadow: none; border: none; }
-    .apple-news-card::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--accent, #C7C7CC); }
+    .apple-news-card::before { display: none; }
     .accent--india { --accent: #F5A623; }
     .accent--china { --accent: #E5484D; }
     .accent--pakistan { --accent: #30A46C; }
@@ -215,16 +239,16 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .accent--others { --accent: #C7C7CC; }
     .accent--indian-press { --accent: #F76B15; }
 
-    .apple-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-    .apple-card-title { margin: 0 0 6px 0 !important; padding: 0 !important; font-size: 1.04rem !important; font-weight: 650 !important; line-height: 1.4 !important; letter-spacing: -0.014em !important; }
+    .apple-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; width: 100%; }
+    .apple-card-title { margin: 0 0 6px 0 !important; padding: 0 !important; font-size: 1.06rem !important; font-weight: 700 !important; line-height: 1.38 !important; letter-spacing: -0.015em !important; }
     .apple-card-title a { color: var(--label) !important; text-decoration: none !important; }
     .apple-card-title a:hover { color: var(--link) !important; }
     .apple-card-native-title { font-size: 0.78rem; color: var(--label-3); margin: -2px 0 6px 0; line-height: 1.35; }
     .apple-card-summary {
-        color: var(--label-2);
-        font-size: 0.88rem;
-        line-height: 1.5;
-        margin: 0 0 6px 0;
+        color: #48484A;
+        font-size: 0.885rem;
+        line-height: 1.54;
+        margin: 0 0 2px 0;
         display: -webkit-box;
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
@@ -509,18 +533,18 @@ APPLE_DESIGN_SYSTEM_CSS = """
 
     /* Consolidated Feed Card Container */
     .feed-card-anchor { display: none; }
-    .main div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor),
-    .main div[data-testid="stLayoutWrapper"]:has(.feed-card-anchor) > div[data-testid="stVerticalBlock"] {
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor),
+    :is(.main, [data-testid="stMain"]) div[data-testid="stLayoutWrapper"]:has(.feed-card-anchor) > div[data-testid="stVerticalBlock"] {
         background: var(--surface) !important;
-        border: 1px solid var(--separator) !important;
-        border-radius: var(--r-md) !important;
-        padding: 16px 20px 14px 20px !important;
-        box-shadow: var(--shadow-1) !important;
-        margin-bottom: 14px !important;
+        border: 1px solid rgba(0, 0, 0, 0.08) !important;
+        border-radius: 14px !important;
+        padding: 16px 18px 14px 18px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        margin-bottom: 12px !important;
         transition: box-shadow 0.22s var(--ease), border-color 0.22s var(--ease) !important;
     }
-    .main div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor):hover,
-    .main div[data-testid="stLayoutWrapper"]:has(.feed-card-anchor) > div[data-testid="stVerticalBlock"]:hover {
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor):hover,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stLayoutWrapper"]:has(.feed-card-anchor) > div[data-testid="stVerticalBlock"]:hover {
         box-shadow: var(--shadow-2) !important;
         border-color: var(--separator-strong) !important;
     }
@@ -598,42 +622,71 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-weight: 600;
         border: 1px solid rgba(30, 142, 62, 0.25);
     }
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] {
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-wrap: wrap !important;
-        gap: 8px !important;
+        gap: 10px !important;
         align-items: center !important;
         justify-content: flex-start !important;
     }
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
         flex: 0 0 auto !important;
-        width: max-content !important;
+        width: auto !important;
         min-width: max-content !important;
         max-width: none !important;
     }
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton,
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button *,
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"],
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a,
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a * {
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button *,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"],
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a * {
         white-space: nowrap !important;
         overflow: visible !important;
         text-overflow: unset !important;
         width: auto !important;
         max-width: none !important;
     }
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
-        padding: 0 14px !important;
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
+        padding: 0 16px !important;
         height: 36px !important;
         min-height: 36px !important;
+        border-radius: 10px !important;
+        font-size: 0.84rem !important;
+        font-weight: 600 !important;
         display: inline-flex !important;
         align-items: center !important;
+        gap: 6px !important;
     }
-    .main div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
-        color: var(--link) !important;
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button[kind="secondary"],
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a {
+        background: var(--surface) !important;
+        color: var(--label) !important;
+        border: 1px solid rgba(0, 0, 0, 0.12) !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
         text-decoration: none !important;
+    }
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button[kind="secondary"]:hover,
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stLinkButton"] > a:hover {
+        background: var(--surface-muted) !important;
+        border-color: rgba(0, 0, 0, 0.2) !important;
+    }
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button[kind="primary"] {
+        background: #0066CC !important;
+        color: #FFFFFF !important;
+        border: 1px solid #0066CC !important;
+        box-shadow: 0 1px 2px rgba(0, 102, 204, 0.18) !important;
+    }
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) .stButton > button[kind="primary"]:hover {
+        background: #0052A3 !important;
+        border-color: #0052A3 !important;
+    }
+    @media (max-width: 640px) {
+        .apple-card-meta .time-badge { margin-left: 0; }
+        :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] {
+            gap: 8px !important;
+        }
     }
     .fulltext-reader-box {
         background: #FAFAFC;
