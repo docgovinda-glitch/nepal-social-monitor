@@ -708,7 +708,7 @@ def _render_source_link_html(url: str, inline: bool = False) -> str:
     style = ' style="border-top:none;padding-top:2px;margin-bottom:6px;"' if inline else ""
     esc = html.escape(clean, quote=True)
     return (
-        f'<div class="unified-brief-box__source"{style}>Source: '
+        f'<div class="unified-brief-box__source"{style}>Read Original Source: '
         f'<a href="{esc}" target="_blank" rel="noopener noreferrer">{html.escape(clean)}</a></div>'
     )
 
@@ -840,7 +840,7 @@ def _show_read_in_app_dialog() -> None:
                 )
             col_i += 1
         with ft_cols[col_i]:
-            ft_copy_payload = f"{shown_text}\n\nSource: {ft_src}" if ft_src else shown_text
+            ft_copy_payload = f"{shown_text}\n\nRead Original Source: {ft_src}" if ft_src else shown_text
             _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
         with ft_cols[col_i + 1]:
             if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}"):
@@ -961,8 +961,8 @@ def _show_share_dialog() -> None:
     current_draft_text = (draft.get("draft_content") or "").strip()
     has_unsaved = current_draft_text != saved_text
     active_text = current_draft_text if has_unsaved else saved_text
-    saved_formatted = f"{saved_text}\n\nSource: {src_url}" if src_url else saved_text
-    current_formatted = f"{active_text}\n\nSource: {src_url}" if src_url else active_text
+    saved_formatted = f"{saved_text}\n\nRead Original Source: {src_url}" if src_url else saved_text
+    current_formatted = f"{active_text}\n\nRead Original Source: {src_url}" if src_url else active_text
 
     dest = _get_cached_wa_dest()
     dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"

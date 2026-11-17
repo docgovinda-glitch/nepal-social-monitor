@@ -398,8 +398,16 @@ def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", fo
     return result
 
 
+_READ_TIME_RE = re.compile(r"\b\d+\s*min(?:utes?)?\s+read\b[:|\s-]*", re.IGNORECASE)
+_LAST_UPDATED_RE = re.compile(
+    r"\b(?:Last\s+Updated|Updated\s+on|Updated|Published\s+on|Published)\s*:\s*"
+    r"[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}(?:\s*\|\s*\d{1,2}:\d{2}\s*(?:AM|PM)?\s*(?:IST|NPT|UTC|GMT)?)?\s*",
+    re.IGNORECASE,
+)
+
+
 def clean_journalistic_text(text: str, title: str = "") -> str:
-    """Strips HTML, wire datelines, and editorial boilerplate while preserving sentence structure."""
+    """Strips HTML, wire datelines, read-time/updated prefixes, and editorial boilerplate while preserving sentence structure."""
     if not text:
         return ""
     s = html.unescape(str(text))
@@ -407,7 +415,13 @@ def clean_journalistic_text(text: str, title: str = "") -> str:
     s = s.replace("\xa0", " ")
     s = re.sub(r"[\r\n\t]+", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
-    s = _DATELINE_RE.sub("", s).strip()
+    for _ in range(3):
+        prev = s
+        s = _READ_TIME_RE.sub("", s).strip()
+        s = _LAST_UPDATED_RE.sub("", s).strip()
+        s = _DATELINE_RE.sub("", s).strip()
+        if s == prev:
+            break
     s = _BOILERPLATE_TAIL_RE.sub("", s).strip()
     if title:
         clean_title = re.sub(r"\s+", " ", title).strip()
@@ -986,7 +1000,7 @@ def generate_on_demand_news_brief(
         brief = headline_en or raw_title
 
     _emit_progress(on_progress, "Ready", 1.0)
-    formatted = f"{brief}\n\nSource: {source_url}" if source_url else brief
+    formatted = f"{brief}\n\nRead Original Source: {source_url}" if source_url else brief
     return {
         "ok": True,
         "error": "",
@@ -1045,7 +1059,7 @@ def generate_on_demand_x_content(
             }
 
     _emit_progress(on_progress, "Ready", 1.0)
-    formatted = f"{content}\n\nSource: {source_url}" if source_url else content
+    formatted = f"{content}\n\nRead Original Source: {source_url}" if source_url else content
     return {
         "ok": True,
         "error": "",
