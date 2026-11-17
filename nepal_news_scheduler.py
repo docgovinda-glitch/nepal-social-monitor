@@ -230,17 +230,31 @@ def run_summary_enrichment_backfill(batch_size: int = 60) -> int:
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
+_LAST_INDIAN_SCAN_TIME = 0.0
 X_SCAN_INTERVAL_SECS = 15 * 60  # Automatically scan X every 15 minutes
+INDIAN_SCAN_INTERVAL_SECS = 15 * 60  # Automatically poll 18 Indian outlets every 15 minutes
 
 def _monitoring_daemon_loop():
-    """Background continuous loop that checks and ingests portals and X posts according to their tiers."""
-    global _LAST_X_SCAN_TIME
+    """Background continuous loop that checks and ingests Nepali portals, Indian press, and X posts."""
+    global _LAST_X_SCAN_TIME, _LAST_INDIAN_SCAN_TIME
     logger.info("Continuous News Monitoring Daemon started in background.")
     while not _STOP_EVENT.is_set():
         try:
             run_all_sources_discovery(parallel_workers=12, force_all=False)
         except Exception as e:
             logger.error(f"Error in monitoring loop cycle: {e}")
+
+        # Automated continuous Indian Press polling (18 outlets)
+        now_sec = time.time()
+        if now_sec - _LAST_INDIAN_SCAN_TIME >= INDIAN_SCAN_INTERVAL_SECS:
+            try:
+                from nepal_fetcher import fetch_nepal_in_indian_media
+                logger.info("Triggering periodic background Indian Press scan across 18 outlets...")
+                fetch_nepal_in_indian_media(max_workers=15, force_refresh=True)
+                _LAST_INDIAN_SCAN_TIME = time.time()
+                logger.info("Periodic background Indian Press scan completed successfully.")
+            except Exception as e:
+                logger.error(f"Error in background Indian Press scan cycle: {e}")
 
         # Background English summary enrichment for any unsummarized articles
         try:
