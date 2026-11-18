@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style id="base-feed-styles">
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+    color: #1D1D1F;
+    overflow: hidden;
+  }
+  #feed-root {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 2px 2px 6px 2px;
+  }
+  .feed-batch {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 2400px;
+  }
+  .feed-card-wrap {
+    background: #FFFFFF;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    padding: 16px 18px 14px 18px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: box-shadow 0.16s ease, border-color 0.16s ease;
+  }
+  .feed-card-wrap:hover {
+    border-color: rgba(0, 0, 0, 0.14);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  }
+  .feed-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .feed-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    box-sizing: border-box;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: #FFFFFF;
+    color: #1D1D1F;
+    transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.08s ease;
+  }
+  .feed-btn:hover {
+    background: #F5F5F7;
+    border-color: rgba(0, 0, 0, 0.2);
+  }
+  .feed-btn:active {
+    transform: scale(0.985);
+  }
+  .feed-btn--primary {
+    background: #0071E3;
+    border-color: #0071E3;
+    color: #FFFFFF;
+  }
+  .feed-btn--primary:hover {
+    background: #0077ED;
+    border-color: #0077ED;
+    color: #FFFFFF;
+  }
+  .feed-btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+  #scroll-sentinel {
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 6px 0;
+  }
+  .feed-loading-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.04);
+    color: #6E6E73;
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .feed-spinner {
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(0, 0, 0, 0.15);
+    border-top-color: #0071E3;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .feed-end-caption {
+    text-align: center;
+    color: #6E6E73;
+    font-size: 12.5px;
+    padding: 8px 0 4px 0;
+  }
+  .feed-error-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: #FFF5F5;
+    border: 1px solid rgba(217, 48, 37, 0.25);
+    color: #B3261E;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <div id="theme-style-mount"></div>
+  <div id="feed-root"></div>
+  <div id="scroll-sentinel"></div>
+
+  <script>
+    (function () {
+      const feedRoot = document.getElementById("feed-root");
+      const sentinel = document.getElementById("scroll-sentinel");
+      const themeMount = document.getElementById("theme-style-mount");
+
+      let currentSessionKey = null;
+      let renderedSeqs = new Set();
+      let hasMore = false;
+      let inFlight = false;
+      let lastRequestedSeq = -1;
+      let nextExpectedSeq = 0;
+      let themeInjected = false;
+      let rafPending = false;
+      let currentError = "";
+
+      function sendMessage(type, payload) {
+        window.parent.postMessage(
+          Object.assign({ isStreamlitMessage: true, type: type }, payload || {}),
+          "*"
+        );
+      }
+
+      function setFrameHeight() {
+        const h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, 60);
+        sendMessage("streamlit:setFrameHeight", { height: h });
+      }
+
+      function emitValue(val) {
+        sendMessage("streamlit:setComponentValue", { value: val });
+      }
+
+      // Sanitize HTML defensively against script/iframe/inline handlers/unsafe hrefs
+      function sanitizeBatchHtml(rawHtml) {
+        const tpl = document.createElement("template");
+        tpl.innerHTML = rawHtml || "";
+        const blocked = tpl.content.querySelectorAll("script, iframe, object, embed, form, meta, base");
+        blocked.forEach((el) => el.remove());
+
+        const all = tpl.content.querySelectorAll("*");
+        all.forEach((el) => {
+          for (const attr of Array.from(el.attributes)) {
+            const name = attr.name.toLowerCase();
+            if (name.startsWith("on")) {
+              el.removeAttribute(attr.name);
+            } else if (name === "href" || name === "src") {
+              const v = (attr.value || "").trim().toLowerCase();
+              if (v && !(v.startsWith("http://") || v.startsWith("https://") || v === "#")) {
+                el.setAttribute(attr.name, "#");
+              }
+            }
+          }
+        });
+        return tpl.content;
+      }
+
+      function renderFooter(totalCount, loadedCount, noun, errorMsg) {
+        sentinel.innerHTML = "";
+        if (errorMsg) {
+          const box = document.createElement("div");
+          box.className = "feed-error-box";
+          const msg = document.createElement("span");
+          msg.textContent = errorMsg;
+          const retryBtn = document.createElement("button");
+          retryBtn.type = "button";
+          retryBtn.className = "feed-btn";
+          retryBtn.textContent = "Retry";
+          retryBtn.onclick = function () {
+            inFlight = true;
+            lastRequestedSeq = nextExpectedSeq;
+            renderFooter(totalCount, loadedCount, noun, "");
+            emitValue({ event: "retry", next_seq: nextExpectedSeq, ts: Date.now() });
+          };
+          box.appendChild(msg);
+          box.appendChild(retryBtn);
+          sentinel.appendChild(box);
+          return;
+        }
+        if (hasMore) {
+          const pill = document.createElement("div");
+          pill.className = "feed-loading-pill";
+          const spinner = document.createElement("span");
+          spinner.className = "feed-spinner";
+          const label = document.createElement("span");
+          label.textContent = inFlight
+            ? `Loading next 20 ${noun}… (${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()} loaded)`
+            : `Scroll for more · ${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()} ${noun} loaded`;
+          pill.appendChild(spinner);
+          pill.appendChild(label);
+          sentinel.appendChild(pill);
+        } else if (loadedCount > 0) {
+          const cap = document.createElement("div");
+          cap.className = "feed-end-caption";
+          cap.textContent = `You're all caught up · ${loadedCount.toLocaleString()} ${noun}`;
+          sentinel.appendChild(cap);
+        }
+      }
+
+      function checkSentinelInParentViewport() {
+        rafPending = false;
+        if (!hasMore || inFlight || currentError) return;
+        if (lastRequestedSeq === nextExpectedSeq) return;
+
+        let isNearBottom = false;
+        try {
+          const frame = window.frameElement;
+          const parentWin = window.parent;
+          if (frame && parentWin) {
+            const frameRect = frame.getBoundingClientRect();
+            const sentRect = sentinel.getBoundingClientRect();
+            const sentTopInParent = frameRect.top + sentRect.top;
+            isNearBottom = sentTopInParent <= (parentWin.innerHeight + 300);
+          }
+        } catch (e) {
+          // Cross-origin fallback
+          const rect = sentinel.getBoundingClientRect();
+          isNearBottom = rect.top <= (window.innerHeight + 300);
+        }
+
+        if (isNearBottom) {
+          inFlight = true;
+          lastRequestedSeq = nextExpectedSeq;
+          emitValue({ event: "load_more", next_seq: nextExpectedSeq, ts: Date.now() });
+        }
+      }
+
+      function scheduleScrollCheck() {
+        if (rafPending || !hasMore || inFlight || currentError) return;
+        rafPending = true;
+        window.requestAnimationFrame(checkSentinelInParentViewport);
+      }
+
+      // Attach passive scroll listeners to parent scroll containers
+      function bindParentScroll() {
+        try {
+          const pWin = window.parent;
+          pWin.addEventListener("scroll", scheduleScrollCheck, { passive: true });
+          pWin.addEventListener("resize", scheduleScrollCheck, { passive: true });
+          const mainScroller = pWin.document.querySelector('[data-testid="stAppViewContainer"], section.main, [data-testid="stMain"]');
+          if (mainScroller) {
+            mainScroller.addEventListener("scroll", scheduleScrollCheck, { passive: true });
+          }
+        } catch (e) {
+          window.addEventListener("scroll", scheduleScrollCheck, { passive: true });
+        }
+      }
+
+      // Delegated click handler for Read in App / Share buttons
+      feedRoot.addEventListener("click", function (ev) {
+        const btn = ev.target.closest("button[data-action]");
+        if (!btn) return;
+        const action = btn.getAttribute("data-action");
+        const uid = btn.getAttribute("data-uid");
+        if (action && uid) {
+          emitValue({ event: "action", action: action, item_uid: uid, ts: Date.now() });
+        }
+      });
+
+      const ro = new ResizeObserver(function () {
+        setFrameHeight();
+      });
+      ro.observe(document.body);
+
+      window.addEventListener("message", function (event) {
+        const data = event.data;
+        if (!data || data.type !== "streamlit:render") return;
+        const args = data.args || {};
+
+        if (!themeInjected && args.theme_css) {
+          themeMount.innerHTML = args.theme_css;
+          themeInjected = true;
+        }
+
+        if (args.session_key !== currentSessionKey) {
+          currentSessionKey = args.session_key;
+          feedRoot.innerHTML = "";
+          renderedSeqs = new Set();
+          lastRequestedSeq = -1;
+        }
+
+        const batches = Array.isArray(args.batches) ? args.batches : [];
+        let maxSeq = -1;
+        for (const b of batches) {
+          if (b && typeof b.seq === "number") {
+            if (b.seq > maxSeq) maxSeq = b.seq;
+            if (!renderedSeqs.has(b.seq)) {
+              const batchDiv = document.createElement("div");
+              batchDiv.className = "feed-batch";
+              batchDiv.setAttribute("data-seq", String(b.seq));
+              batchDiv.appendChild(sanitizeBatchHtml(b.html));
+              feedRoot.appendChild(batchDiv);
+              renderedSeqs.add(b.seq);
+            }
+          }
+        }
+
+        nextExpectedSeq = maxSeq + 1;
+        hasMore = Boolean(args.has_more);
+        currentError = args.error_msg || "";
+        inFlight = false;
+
+        renderFooter(
+          Number(args.total_count || 0),
+          Number(args.loaded_count || 0),
+          args.noun || "items",
+          currentError
+        );
+        setFrameHeight();
+        setTimeout(scheduleScrollCheck, 80);
+      });
+
+      bindParentScroll();
+      sendMessage("streamlit:componentReady", { apiVersion: 1 });
+      setFrameHeight();
+    })();
+  </script>
+</body>
+</html>

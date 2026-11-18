@@ -53,6 +53,181 @@ INDIAN_FEED_COLUMNS = (
     "relevance_status, relevance_reason, nepal_dimensions, ingested_at"
 )
 
+X_FEED_COLUMNS = (
+    "id, author_name, handle, raw_handle, author_type, verified, avatar_bg, initials, "
+    "text, link, published_dt, relative_time, exact_time, likes, retweets, replies, "
+    "impressions, engagement_score, sentiment, structured_category, is_real_api, ingested_at"
+)
+
+SEARCH_EXPANSIONS: Dict[str, List[str]] = {
+    "balen": ["balen", "बालेन", "बालेन्द्र"],
+    "oli": ["oli", "ओली", "केपी"],
+    "prachanda": ["prachanda", "प्रचण्ड", "दाहाल", "पुष्पकमल"],
+    "deuba": ["deuba", "देउवा", "शेरबहादुर"],
+    "gagan": ["gagan", "गगन", "थापा"],
+    "rabi": ["rabi", "रवि", "लामिछाने"],
+    "swarnim": ["swarnim", "स्वर्णिम", "वाग्ले"],
+    "kulman": ["kulman", "कुलमान", "घिसिङ"],
+    "harka": ["harka", "हर्क", "साम्पाङ"],
+    "bhim": ["bhim", "भीम", "रावल"],
+    "madhav": ["madhav", "माधव", "नेपाल"],
+    "upendra": ["upendra", "उपेन्द्र", "यादव"],
+    "baburam": ["baburam", "बाबुराम", "भट्टराई"],
+    "sunita": ["sunita", "सुनिता", "डंगोल"],
+    "shekhar": ["shekhar", "शेखर", "कोइराला"],
+    "ishwar": ["ishwar", "ईश्वर", "पोखरेल"],
+    "india": ["india", "भारत", "भारतीय", "मोदी", "delhi"],
+    "china": ["china", "चीन", "चिनियाँ", "बेइजिङ", "beijing", "शी"],
+    "pakistan": ["pakistan", "पाकिस्तान", "पाकिस्तानी", "इस्लामाबाद"],
+    "bangladesh": ["bangladesh", "बंगलादेश", "ढाका", "हसिना", "युनुस"],
+    "us": ["usa", "america", "अमेरिकी", "अमेरिका", "ट्रम्प", "वाशिङ्टन", "वाशिंगटन", "दूतावास"],
+    "uk": ["britain", "british", "बेलायत", "बेलायती"],
+    "border": ["border", "सीमा", "सिमाना", "नाका", "लिपुलेक", "कालापानी", "सुस्ता"],
+    "treaty": ["treaty", "सन्धि", "सम्झौता", "सहमति"],
+    "economy": ["economy", "अर्थतन्त्र", "बजेट", "आर्थिक", "बैंकिङ", "मुद्रा", "राजस्व"],
+    "budget": ["budget", "बजेट", "विनियोजन", "खर्च"],
+    "inflation": ["inflation", "महँगी", "मूल्यवृद्धि"],
+    "remittance": ["remittance", "रेमिट्यान्स", "विप्रेषण"],
+    "trade": ["trade", "व्यापार", "निर्यात", "आयात", "भन्सार"],
+    "bank": ["bank", "बैंक", "राष्ट्र बैंक", "मौद्रिक", "कर्जा"],
+    "nea": ["nea", "विद्युत", "विद्युत्", "प्राधिकरण", "लोडसेडिङ", "डेडिकेटेड"],
+    "police": ["police", "प्रहरी", "नेपाल प्रहरी", "सीआईबी", "ब्युरो"],
+    "cricket": ["cricket", "क्रिकेट", "npl", "क्यान", "पारस"],
+    "football": ["football", "फुटबल", "साफ", "एन्फा"],
+    "tihar": ["tihar", "तिहार", "दिपावली", "भाइटीका", "लक्ष्मीपूजा"],
+    "dashain": ["dashain", "दसैँ", "दशैं", "विजया"],
+    "chhath": ["chhath", "छठ", "सूर्य"],
+    "court": ["court", "अदालत", "सर्वोच्च", "न्यायाधीश"],
+    "corruption": ["corruption", "भ्रष्टाचार", "सहकारी", "ठगी", "अख्तियार"],
+    "election": ["election", "निर्वाचन", "उपनिर्वाचन", "मतदान"],
+}
+
+CATEGORY_ALIASES: Dict[str, str] = {
+    "India in Nepal": "India Section",
+    "China in Nepal": "China Section",
+    "Pakistan in Nepal": "Pakistan Section",
+    "Bangladesh in Nepal": "Bangladesh Section",
+    "Nepal – Internal Politics": "Nepal – Internal",
+    "Nepal – External Relations (Others)": "Nepal – External",
+    "Economy": "Nepal – Economy",
+    "Others": "Nepal – Others",
+}
+
+PREDEFINED_9_CATEGORIES = {
+    "India Section",
+    "China Section",
+    "Pakistan Section",
+    "Bangladesh Section",
+    "Nepal – Internal",
+    "Nepal – External",
+    "Nepal – Economy",
+    "Nepal – Others",
+    "International News",
+}
+CORE_8_CATEGORIES = PREDEFINED_9_CATEGORIES - {"Nepal – Others"}
+UNASSIGNED_CATEGORY_VALUES = ("", "uncategorized", "none", "null", "unassigned")
+
+
+def expand_search_tokens(query: str) -> List[List[str]]:
+    """Expands a bilingual search query into AND-joined token synonym groups."""
+    tokens = [t.strip().lower() for t in (query or "").strip().split() if t.strip()]
+    groups: List[List[str]] = []
+    for token in tokens:
+        synonyms = [token]
+        if token in SEARCH_EXPANSIONS:
+            synonyms.extend(SEARCH_EXPANSIONS[token])
+        else:
+            for syn_list in SEARCH_EXPANSIONS.values():
+                if token in syn_list:
+                    synonyms.extend(syn_list)
+                    break
+        # Deduplicate while preserving order
+        seen = set()
+        uniq = []
+        for s in synonyms:
+            if s not in seen:
+                seen.add(s)
+                uniq.append(s)
+        groups.append(uniq)
+    return groups
+
+
+def _esc_like(val: str) -> str:
+    """Escapes LIKE wildcards and SQL single quotes for safe ILIKE predicates."""
+    escaped = val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return esc_sql(f"%{escaped}%")
+
+
+def _build_search_sql(search_query: Optional[str], corpus_cols: List[str]) -> Optional[str]:
+    """Builds a PostgreSQL WHERE predicate matching smart_search_match semantics."""
+    groups = expand_search_tokens(search_query or "")
+    if not groups:
+        return None
+    corpus_expr = f"CONCAT_WS(' ', {', '.join(corpus_cols)})"
+    and_parts = []
+    for syns in groups:
+        or_parts = [f"{corpus_expr} ILIKE {_esc_like(s)} ESCAPE '\\'" for s in syns]
+        and_parts.append("(" + " OR ".join(or_parts) + ")")
+    return "(" + " AND ".join(and_parts) + ")"
+
+
+def _build_category_sql(
+    category_option: Optional[str],
+    primary_col: str = "primary_section",
+    sections_col: Optional[str] = "sections",
+    is_social: bool = False,
+) -> Optional[str]:
+    """Builds a PostgreSQL WHERE predicate matching filter_items_by_category semantics."""
+    if not category_option or category_option.startswith("🌐 All"):
+        return None
+    allowed = CORE_8_CATEGORIES if is_social else PREDEFINED_9_CATEGORIES
+    alias_rev: Dict[str, List[str]] = {}
+    for old_k, new_v in CATEGORY_ALIASES.items():
+        alias_rev.setdefault(new_v, [new_v]).append(old_k)
+
+    def _expand_cats(cats) -> List[str]:
+        out: List[str] = []
+        for c in cats:
+            out.extend(alias_rev.get(c, [c]))
+        return out
+
+    allowed_sql = ", ".join(esc_sql(c) for c in _expand_cats(sorted(allowed)))
+    if category_option.startswith("📂 Classified"):
+        cond = f"({primary_col} IN ({allowed_sql})"
+        if not is_social and sections_col:
+            sec_ors = " OR ".join(f"{sections_col} ILIKE {_esc_like(c)} ESCAPE '\\'" for c in _expand_cats(sorted(PREDEFINED_9_CATEGORIES)))
+            cond += f" OR ({sec_ors})"
+        return cond + ")"
+
+    if category_option.startswith("⚪ Unclassified"):
+        unass_sql = ", ".join(esc_sql(u) for u in UNASSIGNED_CATEGORY_VALUES)
+        if is_social:
+            return f"({primary_col} IS NULL OR LOWER(TRIM({primary_col})) IN ({unass_sql}) OR {primary_col} = 'Nepal – Others')"
+        pred_sql = ", ".join(esc_sql(c) for c in _expand_cats(sorted(PREDEFINED_9_CATEGORIES)))
+        cond = f"(({primary_col} IS NULL OR LOWER(TRIM({primary_col})) IN ({unass_sql}) OR {primary_col} NOT IN ({pred_sql}))"
+        if sections_col:
+            sec_ors = " OR ".join(f"{sections_col} ILIKE {_esc_like(c)} ESCAPE '\\'" for c in _expand_cats(sorted(PREDEFINED_9_CATEGORIES)))
+            cond += f" AND NOT ({sec_ors})"
+        return cond + ")"
+
+    raw_target = category_option.split(" ", 1)[1] if " " in category_option else category_option
+    target = CATEGORY_ALIASES.get(raw_target, raw_target)
+    targets = _expand_cats([target])
+    t_sql = ", ".join(esc_sql(t) for t in targets)
+    cond = f"({primary_col} IN ({t_sql})"
+    if sections_col:
+        sec_ors = " OR ".join(f"{sections_col} ILIKE {_esc_like(t)} ESCAPE '\\'" for t in targets)
+        cond += f" OR ({sec_ors})"
+    return cond + ")"
+
+
+def _fmt_sql_ts(dt: datetime.datetime, as_utc: bool = False) -> str:
+    """Formats a datetime consistently for NPT wall-clock or timestamptz SQL predicates."""
+    aware = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+    if as_utc:
+        return aware.astimezone(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f%z")
+    return aware.strftime("%Y-%m-%d %H:%M:%S.%f")
+
 logger = logging.getLogger("nepal_news_store")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -382,41 +557,17 @@ def get_all_source_health() -> List[Dict[str, Any]]:
     """
     return query_supabase(sql)
 
-def get_stored_articles(
-    start_dt: Optional[datetime.datetime] = None,
-    end_dt: Optional[datetime.datetime] = None,
-    source: Optional[str] = None,
-    primary_section: Optional[str] = None,
-    limit: int = 500,
-    include_full_content: bool = False,
-) -> List[Dict[str, Any]]:
-    """Retrieves articles directly from Supabase PostgreSQL cloud table."""
-    where_clauses = ["1=1"]
-    if start_dt:
-        s_npt = start_dt.astimezone(NEPAL_TZ) if start_dt.tzinfo else start_dt
-        where_clauses.append(f"published_dt >= '{s_npt.strftime('%Y-%m-%d %H:%M:%S')}'")
-    if end_dt:
-        e_npt = end_dt.astimezone(NEPAL_TZ) if end_dt.tzinfo else end_dt
-        where_clauses.append(f"published_dt <= '{e_npt.strftime('%Y-%m-%d %H:%M:%S')}'")
-    if source and source != "All Portals" and not source.startswith("All Portals"):
-        where_clauses.append(f"source = {esc_sql(source)}")
-    if primary_section and not primary_section.startswith("🌐 All"):
-        where_clauses.append(f"(primary_section = {esc_sql(primary_section)} OR sections ILIKE '%{primary_section}%')")
-
-    cols = "*" if include_full_content else ARTICLE_FEED_COLUMNS
-    sql = f"""
-    SELECT {cols} FROM articles 
-    WHERE {' AND '.join(where_clauses)}
-    ORDER BY published_dt DESC 
-    LIMIT {limit};
-    """
-    rows = query_supabase(sql)
+def _hydrate_article_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalizes published_dt, JSON tags, and boolean flags for article rows."""
     articles = []
     for d in rows:
         if isinstance(d.get("published_dt"), str):
             try:
-                # published_dt is persisted in NPT wall-clock time; interpret first 19 chars directly as NPT
-                d["published_dt"] = datetime.datetime.fromisoformat(d["published_dt"][:19]).replace(tzinfo=NEPAL_TZ)
+                d["published_dt"] = datetime.datetime.fromisoformat(d["published_dt"][:26].replace("Z", "+00:00"))
+                if d["published_dt"].tzinfo is None:
+                    d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
+                else:
+                    d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
             except Exception:
                 d["published_dt"] = None
         elif isinstance(d.get("published_dt"), datetime.datetime):
@@ -437,6 +588,202 @@ def get_stored_articles(
         d["structured_category"] = d.get("primary_section")
         articles.append(d)
     return articles
+
+
+def _hydrate_indian_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalizes published_dt and stream metadata for Indian press rows."""
+    for d in rows:
+        if isinstance(d.get("published_dt"), str):
+            try:
+                d["published_dt"] = datetime.datetime.fromisoformat(d["published_dt"][:26].replace("Z", "+00:00"))
+                if d["published_dt"].tzinfo is None:
+                    d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
+                else:
+                    d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
+            except Exception:
+                d["published_dt"] = None
+        elif isinstance(d.get("published_dt"), datetime.datetime):
+            dt = d["published_dt"]
+            d["published_dt"] = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+        else:
+            d["published_dt"] = None
+        try:
+            if isinstance(d.get("sections"), str):
+                d["sections"] = json.loads(d["sections"] or "[]")
+        except Exception:
+            d["sections"] = [d.get("primary_section")]
+        if not d.get("structured_category"):
+            d["structured_category"] = d.get("primary_section") or "India Section"
+        if not d.get("stream"):
+            d["stream"] = "Indian Press"
+    return rows
+
+
+def _hydrate_x_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalizes published_dt and relative timestamps for X post rows."""
+    now_npt = datetime.datetime.now(NEPAL_TZ)
+    for p in rows:
+        if isinstance(p.get("published_dt"), str):
+            try:
+                from dateutil import parser as dt_parser
+                dt = dt_parser.parse(p["published_dt"])
+                p["published_dt"] = dt.replace(tzinfo=NEPAL_TZ) if dt.tzinfo is None else dt.astimezone(NEPAL_TZ)
+            except Exception:
+                p["published_dt"] = None
+        elif isinstance(p.get("published_dt"), datetime.datetime):
+            dt = p["published_dt"]
+            p["published_dt"] = dt.replace(tzinfo=NEPAL_TZ) if dt.tzinfo is None else dt.astimezone(NEPAL_TZ)
+        else:
+            p["published_dt"] = None
+        p["is_real_api"] = bool(p.get("is_real_api", True))
+        p["verified"] = bool(p.get("verified", True))
+        if not p.get("relative_time") and p.get("published_dt"):
+            secs = (now_npt - p["published_dt"]).total_seconds()
+            if secs < 60:
+                p["relative_time"] = "Just now"
+            elif secs < 3600:
+                p["relative_time"] = f"{max(1, int(secs // 60))}m ago"
+            elif secs < 86400:
+                p["relative_time"] = f"{int(secs // 3600)}h ago"
+            else:
+                p["relative_time"] = p["published_dt"].strftime("%b %d")
+        if not p.get("exact_time") and p.get("published_dt"):
+            p["exact_time"] = p["published_dt"].strftime("%b %d, %I:%M %p NPT")
+    return rows
+
+
+def _build_articles_where(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    source: Optional[str] = None,
+    primary_section: Optional[str] = None,
+    language: Optional[str] = None,
+    search_query: Optional[str] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+) -> List[str]:
+    where_clauses = ["1=1"]
+    if start_dt:
+        where_clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=True)}'")
+    if end_dt:
+        where_clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=True)}'")
+    if snapshot_ingested_at:
+        where_clauses.append(f"ingested_at <= '{_fmt_sql_ts(snapshot_ingested_at, as_utc=True)}'")
+    if source and source != "All Portals" and not source.startswith("All Portals"):
+        where_clauses.append(f"source = {esc_sql(source)}")
+    if language and language not in ("All Languages", "All"):
+        lang_val = "Nepali" if "Nepali" in language else ("English" if "English" in language else language)
+        where_clauses.append(f"language = {esc_sql(lang_val)}")
+    cat_sql = _build_category_sql(primary_section, primary_col="primary_section", sections_col="sections", is_social=False)
+    if cat_sql:
+        where_clauses.append(cat_sql)
+    srch_sql = _build_search_sql(search_query, ["title", "headline_english", "summary", "source", "primary_section", "language"])
+    if srch_sql:
+        where_clauses.append(srch_sql)
+    return where_clauses
+
+
+def _build_indian_where(
+    eff_status: Optional[str] = "substantive",
+    min_score: float = 0.0,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    category_filter: Optional[str] = None,
+    search_query: Optional[str] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+) -> List[str]:
+    clauses = ["1=1"]
+    if start_dt:
+        clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=True)}'")
+    if end_dt:
+        clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=True)}'")
+    if snapshot_ingested_at:
+        clauses.append(f"ingested_at <= '{_fmt_sql_ts(snapshot_ingested_at, as_utc=True)}'")
+    if eff_status:
+        if eff_status in ("substantive", "relevant"):
+            clauses.append("relevance_status IN ('substantive', 'relevant')")
+        else:
+            clauses.append(f"relevance_status = {esc_sql(eff_status)}")
+    if min_score and min_score > 0:
+        clauses.append(f"nepal_relevance_score >= {float(min_score)}")
+    if source and not source.startswith("All "):
+        clauses.append(f"source = {esc_sql(source)}")
+    if language and language not in ("All Languages", "All"):
+        clauses.append(f"language = {esc_sql(language)}")
+    cat_sql = _build_category_sql(category_filter, primary_col="primary_section", sections_col="sections", is_social=False)
+    if cat_sql:
+        clauses.append(cat_sql)
+    srch_sql = _build_search_sql(search_query, ["title", "headline_english", "summary", "source", "primary_section", "language"])
+    if srch_sql:
+        clauses.append(srch_sql)
+    return clauses
+
+
+def _build_x_where(
+    category: Optional[str] = None,
+    author_type: Optional[str] = None,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    search_query: Optional[str] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+) -> List[str]:
+    clauses = ["1=1"]
+    if start_dt:
+        clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=True)}'")
+    if end_dt:
+        clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=True)}'")
+    if snapshot_ingested_at:
+        clauses.append(f"ingested_at <= '{_fmt_sql_ts(snapshot_ingested_at, as_utc=True)}'")
+    if category and category.lower() != "all" and not category.startswith("🌐 All"):
+        cat_sql = _build_category_sql(category, primary_col="structured_category", sections_col=None, is_social=True)
+        if cat_sql:
+            clauses.append(cat_sql)
+    if author_type and author_type.lower() != "all" and author_type != "All Account Types":
+        clauses.append(f"author_type = {esc_sql(author_type)}")
+    srch_sql = _build_search_sql(search_query, ["text", "author_name", "handle", "author_type", "structured_category"])
+    if srch_sql:
+        clauses.append(srch_sql)
+    return clauses
+
+
+def get_stored_articles(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    source: Optional[str] = None,
+    primary_section: Optional[str] = None,
+    limit: int = 500,
+    include_full_content: bool = False,
+    language: Optional[str] = None,
+    search_query: Optional[str] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_id: Optional[str] = None,
+    sort_asc: bool = False,
+) -> List[Dict[str, Any]]:
+    """Retrieves articles directly from Supabase PostgreSQL cloud table with optional keyset cursor."""
+    where_clauses = _build_articles_where(
+        start_dt=start_dt,
+        end_dt=end_dt,
+        source=source,
+        primary_section=primary_section,
+        language=language,
+        search_query=search_query,
+        snapshot_ingested_at=snapshot_ingested_at,
+    )
+    if cursor_dt is not None and cursor_id is not None:
+        op = ">" if sort_asc else "<"
+        where_clauses.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=True)}', {esc_sql(cursor_id)})")
+
+    order_dir = "ASC" if sort_asc else "DESC"
+    cols = "*" if include_full_content else ARTICLE_FEED_COLUMNS
+    sql = f"""
+    SELECT {cols} FROM articles
+    WHERE {' AND '.join(where_clauses)}
+    ORDER BY published_dt {order_dir}, canonical_id {order_dir}
+    LIMIT {int(limit)};
+    """
+    return _hydrate_article_rows(query_supabase(sql))
 
 def set_source_enabled(source_name: str, enabled: bool):
     """Enables or disables monitoring for a portal in Supabase."""
@@ -660,44 +1007,37 @@ def get_stored_indian_articles(
     include_full_content: bool = False,
     start_dt: Optional[datetime.datetime] = None,
     end_dt: Optional[datetime.datetime] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    category_filter: Optional[str] = None,
+    search_query: Optional[str] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_id: Optional[str] = None,
+    sort_asc: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Retrieves Indian media articles from Supabase."""
+    """Retrieves Indian media articles from Supabase with optional keyset cursor."""
     eff_status = relevance_status if relevance_status is not None else status_filter
-    clauses = ["1=1"]
-    if start_dt:
-        s_npt = start_dt.astimezone(NEPAL_TZ) if start_dt.tzinfo else start_dt
-        clauses.append(f"published_dt >= '{s_npt.strftime('%Y-%m-%d %H:%M:%S')}'")
-    if end_dt:
-        e_npt = end_dt.astimezone(NEPAL_TZ) if end_dt.tzinfo else end_dt
-        clauses.append(f"published_dt <= '{e_npt.strftime('%Y-%m-%d %H:%M:%S')}'")
-    if eff_status:
-        if eff_status in ("substantive", "relevant"):
-            clauses.append("relevance_status IN ('substantive', 'relevant')")
-        else:
-            clauses.append(f"relevance_status = {esc_sql(eff_status)}")
-    if min_score and min_score > 0:
-        clauses.append(f"nepal_relevance_score >= {float(min_score)}")
+    clauses = _build_indian_where(
+        eff_status=eff_status,
+        min_score=min_score,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        source=source,
+        language=language,
+        category_filter=category_filter,
+        search_query=search_query,
+        snapshot_ingested_at=snapshot_ingested_at,
+    )
+    if cursor_dt is not None and cursor_id is not None:
+        op = ">" if sort_asc else "<"
+        clauses.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=True)}', {esc_sql(cursor_id)})")
+
+    order_dir = "ASC" if sort_asc else "DESC"
     where = "WHERE " + " AND ".join(clauses)
     cols = "*" if include_full_content else INDIAN_FEED_COLUMNS
-    sql = f"SELECT {cols} FROM indian_media_articles {where} ORDER BY published_dt DESC LIMIT {limit};"
-    rows = query_supabase(sql)
-    for d in rows:
-        if isinstance(d.get("published_dt"), str):
-            try:
-                # published_dt is persisted in NPT wall-clock time; interpret first 19 chars directly as NPT
-                d["published_dt"] = datetime.datetime.fromisoformat(d["published_dt"][:19]).replace(tzinfo=NEPAL_TZ)
-            except Exception:
-                d["published_dt"] = None
-        elif isinstance(d.get("published_dt"), datetime.datetime):
-            dt = d["published_dt"]
-            d["published_dt"] = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
-        else:
-            d["published_dt"] = None
-        if not d.get("structured_category"):
-            d["structured_category"] = "India Section"
-        if not d.get("stream"):
-            d["stream"] = "Indian Press"
-    return rows
+    sql = f"SELECT {cols} FROM indian_media_articles {where} ORDER BY published_dt {order_dir}, canonical_id {order_dir} LIMIT {int(limit)};"
+    return _hydrate_indian_rows(query_supabase(sql))
 
 
 def get_stored_counts_by_stream(
@@ -1134,62 +1474,222 @@ def get_stored_x_posts(
     limit: int = 500,
     start_dt: Optional[datetime.datetime] = None,
     end_dt: Optional[datetime.datetime] = None,
+    search_query: Optional[str] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_id: Optional[str] = None,
+    cursor_metric: Optional[int] = None,
+    sort_mode: str = "Newest",
 ) -> List[Dict[str, Any]]:
-    """Retrieves X posts from Supabase PostgreSQL ordered by published_dt DESC."""
-    clauses = ["1=1"]
-    if start_dt:
-        dt_utc = start_dt.astimezone(datetime.timezone.utc) if start_dt.tzinfo else start_dt
-        clauses.append(f"published_dt >= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')}'")
-    if end_dt:
-        dt_utc = end_dt.astimezone(datetime.timezone.utc) if end_dt.tzinfo else end_dt
-        clauses.append(f"published_dt <= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')}'")
-    if category and category.lower() != "all":
-        clauses.append(f"structured_category = {esc_sql(category)}")
-    if author_type and author_type.lower() != "all":
-        clauses.append(f"author_type = {esc_sql(author_type)}")
-
-    where = "WHERE " + " AND ".join(clauses)
-    sql = f"SELECT * FROM x_posts {where} ORDER BY published_dt DESC LIMIT {limit};"
-    rows = query_supabase(sql)
-
-    now_npt = datetime.datetime.now(NEPAL_TZ)
-    for p in rows:
-        if isinstance(p.get("published_dt"), str):
-            try:
-                from dateutil import parser as dt_parser
-                dt = dt_parser.parse(p["published_dt"])
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=NEPAL_TZ)
-                else:
-                    dt = dt.astimezone(NEPAL_TZ)
-                p["published_dt"] = dt
-            except Exception:
-                p["published_dt"] = None
-        elif isinstance(p.get("published_dt"), datetime.datetime):
-            if p["published_dt"].tzinfo is None:
-                p["published_dt"] = p["published_dt"].replace(tzinfo=NEPAL_TZ)
-            else:
-                p["published_dt"] = p["published_dt"].astimezone(NEPAL_TZ)
+    """Retrieves X posts from Supabase PostgreSQL with optional keyset cursor."""
+    clauses = _build_x_where(
+        category=category,
+        author_type=author_type,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        search_query=search_query,
+        snapshot_ingested_at=snapshot_ingested_at,
+    )
+    metric_col_map = {
+        "Most engagement": "COALESCE(engagement_score, 0)",
+        "Most liked": "COALESCE(likes, 0)",
+        "Most reposted": "COALESCE(retweets, 0)",
+    }
+    metric_col = metric_col_map.get(sort_mode)
+    if cursor_dt is not None and cursor_id is not None:
+        c_dt_str = _fmt_sql_ts(cursor_dt, as_utc=True)
+        if metric_col and cursor_metric is not None:
+            clauses.append(f"({metric_col}, published_dt, id) < ({int(cursor_metric)}, '{c_dt_str}', {esc_sql(cursor_id)})")
         else:
-            p["published_dt"] = None
+            clauses.append(f"(published_dt, id) < ('{c_dt_str}', {esc_sql(cursor_id)})")
 
-        p["is_real_api"] = bool(p.get("is_real_api", True))
-        p["verified"] = bool(p.get("verified", True))
-        if not p.get("relative_time") and p.get("published_dt"):
-            diff = now_npt - p["published_dt"]
-            secs = diff.total_seconds()
-            if secs < 60:
-                p["relative_time"] = "Just now"
-            elif secs < 3600:
-                p["relative_time"] = f"{max(1, int(secs//60))}m ago"
-            elif secs < 86400:
-                p["relative_time"] = f"{int(secs//3600)}h ago"
-            else:
-                p["relative_time"] = p["published_dt"].strftime("%b %d")
-        if not p.get("exact_time") and p.get("published_dt"):
-            p["exact_time"] = p["published_dt"].strftime("%b %d, %I:%M %p NPT")
+    order_sql = f"{metric_col} DESC, published_dt DESC, id DESC" if metric_col else "published_dt DESC, id DESC"
+    where = "WHERE " + " AND ".join(clauses)
+    sql = f"SELECT {X_FEED_COLUMNS} FROM x_posts {where} ORDER BY {order_sql} LIMIT {int(limit)};"
+    return _hydrate_x_rows(query_supabase(sql))
 
-    return rows
+
+def get_stored_live_feed_page(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    search_query: Optional[str] = None,
+    sort_asc: bool = False,
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_rank: Optional[int] = None,
+    cursor_id: Optional[str] = None,
+    limit: int = 20,
+) -> List[Dict[str, Any]]:
+    """
+    Fetches a single unified 20-item page across Nepali Media, Indian Press, and X
+    in 1 SQL round-trip using a deterministic (published_dt, stream_rank, record_id) keyset cursor.
+    """
+    if stream_filter == "Nepali Media Only":
+        rows = get_stored_articles(
+            start_dt=start_dt, end_dt=end_dt, primary_section=category_filter,
+            search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+            cursor_dt=cursor_dt, cursor_id=cursor_id, sort_asc=sort_asc, limit=limit,
+        )
+        for r in rows:
+            r["_feed_type"] = "nepali"
+            r["_stream_rank"] = 3
+            r["_cursor_id"] = r.get("canonical_id", "")
+        return rows
+    if stream_filter == "Indian Press Only":
+        rows = get_stored_indian_articles(
+            status_filter="substantive", start_dt=start_dt, end_dt=end_dt,
+            category_filter=category_filter, search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+            cursor_dt=cursor_dt, cursor_id=cursor_id, sort_asc=sort_asc, limit=limit,
+        )
+        for r in rows:
+            r["_feed_type"] = "indian"
+            r["_stream_rank"] = 2
+            r["_cursor_id"] = r.get("canonical_id", "")
+        return rows
+    if stream_filter in ("X (Twitter) Only", "Verified X Voices Only") and not sort_asc:
+        rows = get_stored_x_posts(
+            category=category_filter, start_dt=start_dt, end_dt=end_dt,
+            search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+            cursor_dt=cursor_dt, cursor_id=cursor_id,
+            sort_mode="Newest", limit=limit,
+        )
+        for r in rows:
+            r["_feed_type"] = "x"
+            r["_stream_rank"] = 1
+            r["_cursor_id"] = str(r.get("id", ""))
+        return rows
+
+    np_where = _build_articles_where(
+        start_dt=start_dt, end_dt=end_dt, primary_section=category_filter,
+        search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+    )
+    in_where = _build_indian_where(
+        eff_status="substantive", start_dt=start_dt, end_dt=end_dt,
+        category_filter=category_filter, search_query=search_query,
+        snapshot_ingested_at=snapshot_ingested_at,
+    )
+    x_where = _build_x_where(
+        category=category_filter, start_dt=start_dt, end_dt=end_dt,
+        search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+    )
+
+    unions = []
+    if stream_filter in ("All Sources", "Nepali Media Only"):
+        unions.append(
+            f"SELECT 'nepali'::text AS _ft, 3::int AS _sr, canonical_id AS _cid, published_dt, "
+            f"to_jsonb(t) AS _payload FROM (SELECT {ARTICLE_FEED_COLUMNS} FROM articles WHERE {' AND '.join(np_where)}) t"
+        )
+    if stream_filter in ("All Sources", "Indian Press Only"):
+        unions.append(
+            f"SELECT 'indian'::text AS _ft, 2::int AS _sr, canonical_id AS _cid, published_dt, "
+            f"to_jsonb(t) AS _payload FROM (SELECT {INDIAN_FEED_COLUMNS} FROM indian_media_articles WHERE {' AND '.join(in_where)}) t"
+        )
+    if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
+        unions.append(
+            f"SELECT 'x'::text AS _ft, 1::int AS _sr, id::text AS _cid, published_dt, "
+            f"to_jsonb(t) AS _payload FROM (SELECT {X_FEED_COLUMNS} FROM x_posts WHERE {' AND '.join(x_where)}) t"
+        )
+
+    cursor_clause = ""
+    op = ">" if sort_asc else "<"
+    if cursor_dt is not None and cursor_rank is not None and cursor_id is not None:
+        cursor_clause = (
+            f"WHERE (published_dt, _sr, _cid) {op} "
+            f"('{_fmt_sql_ts(cursor_dt, as_utc=True)}', {int(cursor_rank)}, {esc_sql(cursor_id)})"
+        )
+
+    order_dir = "ASC" if sort_asc else "DESC"
+    sql = f"""
+    WITH combined AS (
+        {' UNION ALL '.join(unions)}
+    )
+    SELECT _ft, _sr, _cid, _payload
+    FROM combined
+    {cursor_clause}
+    ORDER BY published_dt {order_dir}, _sr {order_dir}, _cid {order_dir}
+    LIMIT {int(limit)};
+    """
+    raw = query_supabase(sql)
+    out: List[Dict[str, Any]] = []
+    for r in raw:
+        ft = r.get("_ft")
+        payload = r.get("_payload")
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        if not isinstance(payload, dict):
+            continue
+        if ft == "nepali":
+            item = _hydrate_article_rows([payload])[0]
+        elif ft == "indian":
+            item = _hydrate_indian_rows([payload])[0]
+        else:
+            item = _hydrate_x_rows([payload])[0]
+        item["_feed_type"] = ft
+        item["_stream_rank"] = int(r.get("_sr") or 1)
+        item["_cursor_id"] = str(r.get("_cid") or "")
+        out.append(item)
+    return out
+
+
+def get_filtered_feed_count(
+    workspace: str,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    author_type: Optional[str] = None,
+    search_query: Optional[str] = None,
+) -> Dict[str, int]:
+    """Returns {'total_count': int, 'new_since_snapshot': int} in 1 lightweight SQL query."""
+    def _pair_sql(table: str, where_list: List[str]) -> Tuple[str, str]:
+        base = " AND ".join(where_list)
+        if snapshot_ingested_at:
+            snap_ts = _fmt_sql_ts(snapshot_ingested_at, as_utc=True)
+            tot = f"(SELECT COUNT(*) FROM {table} WHERE {base} AND ingested_at <= '{snap_ts}')"
+            new = f"(SELECT COUNT(*) FROM {table} WHERE {base} AND ingested_at > '{snap_ts}')"
+        else:
+            tot = f"(SELECT COUNT(*) FROM {table} WHERE {base})"
+            new = "0"
+        return tot, new
+
+    if workspace == "nepali":
+        w = _build_articles_where(start_dt=start_dt, end_dt=end_dt, source=source, primary_section=category_filter, language=language, search_query=search_query)
+        tot_s, new_s = _pair_sql("articles", w)
+        sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
+    elif workspace == "indian":
+        w = _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, source=source, language=language, category_filter=category_filter, search_query=search_query)
+        tot_s, new_s = _pair_sql("indian_media_articles", w)
+        sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
+    elif workspace == "x":
+        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query)
+        tot_s, new_s = _pair_sql("x_posts", w)
+        sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
+    else:
+        tots, news = [], []
+        if stream_filter in ("All Sources", "Nepali Media Only"):
+            t, n = _pair_sql("articles", _build_articles_where(start_dt=start_dt, end_dt=end_dt, primary_section=category_filter, search_query=search_query))
+            tots.append(t); news.append(n)
+        if stream_filter in ("All Sources", "Indian Press Only"):
+            t, n = _pair_sql("indian_media_articles", _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, category_filter=category_filter, search_query=search_query))
+            tots.append(t); news.append(n)
+        if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
+            t, n = _pair_sql("x_posts", _build_x_where(category=category_filter, start_dt=start_dt, end_dt=end_dt, search_query=search_query))
+            tots.append(t); news.append(n)
+        sql = f"SELECT ({' + '.join(tots or ['0'])}) AS total_count, ({' + '.join(news or ['0'])}) AS new_since_snapshot;"
+
+    rows = query_supabase(sql)
+    if rows:
+        return {
+            "total_count": int(rows[0].get("total_count") or 0),
+            "new_since_snapshot": int(rows[0].get("new_since_snapshot") or 0),
+        }
+    return {"total_count": 0, "new_since_snapshot": 0}
 
 
 _WA_SENT_TABLE_ENSURED = False

@@ -70,6 +70,13 @@ try:
         normalize_x_handle,
         save_x_posts,
         get_stored_x_posts,
+        get_stored_live_feed_page,
+        get_filtered_feed_count,
+        SEARCH_EXPANSIONS,
+        expand_search_tokens,
+        CATEGORY_ALIASES,
+        PREDEFINED_9_CATEGORIES,
+        CORE_8_CATEGORIES,
         record_whatsapp_sent,
         get_whatsapp_sent_map,
     )
@@ -96,9 +103,17 @@ except ImportError:
         normalize_x_handle,
         save_x_posts,
         get_stored_x_posts,
+        get_stored_live_feed_page,
+        get_filtered_feed_count,
+        SEARCH_EXPANSIONS,
+        expand_search_tokens,
+        CATEGORY_ALIASES,
+        PREDEFINED_9_CATEGORIES,
+        CORE_8_CATEGORIES,
         record_whatsapp_sent,
         get_whatsapp_sent_map,
     )
+from components.infinite_feed import render_infinite_feed_component
 from nepal_news_scheduler import (
     run_single_source_discovery,
     run_all_sources_discovery,
@@ -292,6 +307,7 @@ def reset_all_filters():
         "in_fetch_limit": 500,
         "x_fetch_limit": 500,
     })
+    st.session_state.pop("feed_sessions", None)
 
 # 6. High-Performance Cached Data Pipeline (Lazy-loaded, feed-projected)
 MIN_DATE = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
@@ -368,18 +384,8 @@ def get_active_x_posts(start_dt: datetime.datetime = None, end_dt: datetime.date
     return posts
 
 # ==========================================
-# CATEGORY TAXONOMY (one alias map + one slug map for badges & accents)
+# CATEGORY TAXONOMY (imported from nepal_news_store + slug map for badges & accents)
 # ==========================================
-CATEGORY_ALIASES = {
-    "India in Nepal": "India Section",
-    "China in Nepal": "China Section",
-    "Pakistan in Nepal": "Pakistan Section",
-    "Bangladesh in Nepal": "Bangladesh Section",
-    "Nepal – Internal Politics": "Nepal – Internal",
-    "Nepal – External Relations (Others)": "Nepal – External",
-    "Economy": "Nepal – Economy",
-    "Others": "Nepal – Others",
-}
 CATEGORY_SLUGS = {
     "India Section": "india",
     "China Section": "china",
@@ -1353,69 +1359,438 @@ def render_paginated_feed(
     elif items:
         st.caption(f"You're all caught up · {len(items):,} {noun}")
 
-# ==========================================
-# BILINGUAL & CROSS-LINGUAL SEARCH ENGINE
-# ==========================================
-SEARCH_EXPANSIONS = {
-    # Key Political Figures & Leaders
-    'balen': ['balen', 'बालेन', 'बालेन्द्र'],
-    'oli': ['oli', 'ओली', 'केपी'],
-    'prachanda': ['prachanda', 'प्रचण्ड', 'दाहाल', 'पुष्पकमल'],
-    'deuba': ['deuba', 'देउवा', 'शेरबहादुर'],
-    'gagan': ['gagan', 'गगन', 'थापा'],
-    'rabi': ['rabi', 'रवि', 'लामिछाने'],
-    'swarnim': ['swarnim', 'स्वर्णिम', 'वाग्ले'],
-    'kulman': ['kulman', 'कुलमान', 'घिसिङ'],
-    'harka': ['harka', 'हर्क', 'साम्पाङ'],
-    'bhim': ['bhim', 'भीम', 'रावल'],
-    'madhav': ['madhav', 'माधव', 'नेपाल'],
-    'upendra': ['upendra', 'उपेन्द्र', 'यादव'],
-    'baburam': ['baburam', 'बाबुराम', 'भट्टराई'],
-    'sunita': ['sunita', 'सुनिता', 'डंगोल'],
-    'shekhar': ['shekhar', 'शेखर', 'कोइराला'],
-    'ishwar': ['ishwar', 'ईश्वर', 'पोखरेल'],
-    
-    # Geopolitics & Foreign Relations
-    'india': ['india', 'भारत', 'भारतीय', 'मोदी', 'delhi'],
-    'china': ['china', 'चीन', 'चिनियाँ', 'बेइजिङ', 'beijing', 'शी'],
-    'pakistan': ['pakistan', 'पाकिस्तान', 'पाकिस्तानी', 'इस्लामाबाद'],
-    'bangladesh': ['bangladesh', 'बंगलादेश', 'ढाका', 'हसिना', 'युनुस'],
-    'us': ['usa', 'america', 'अमेरिकी', 'अमेरिका', 'ट्रम्प', 'वाशिङ्टन', 'वाशिंगटन', 'दूतावास'],
-    'uk': ['britain', 'british', 'बेलायत', 'बेलायती'],
-    'border': ['border', 'सीमा', 'सिमाना', 'नाका', 'लिपुलेक', 'कालापानी', 'सुस्ता'],
-    'treaty': ['treaty', 'सन्धि', 'सम्झौता', 'सहमति'],
-    
-    # Economy, Finance & Infrastructure
-    'economy': ['economy', 'अर्थतन्त्र', 'बजेट', 'आर्थिक', 'बैंकिङ', 'मुद्रा', 'राजस्व'],
-    'budget': ['budget', 'बजेट', 'विनियोजन', 'खर्च'],
-    'inflation': ['inflation', 'महँगी', 'मूल्यवृद्धि'],
-    'remittance': ['remittance', 'रेमिट्यान्स', 'विप्रेषण'],
-    'trade': ['trade', 'व्यापार', 'निर्यात', 'आयात', 'भन्सार'],
-    'bank': ['bank', 'बैंक', 'राष्ट्र बैंक', 'मौद्रिक', 'कर्जा'],
-    'nea': ['nea', 'विद्युत', 'विद्युत्', 'प्राधिकरण', 'लोडसेडिङ', 'डेडिकेटेड'],
-    'police': ['police', 'प्रहरी', 'नेपाल प्रहरी', 'सीआईबी', 'ब्युरो'],
-    
-    # Civic, Society, Sports & Festivals
-    'cricket': ['cricket', 'क्रिकेट', 'npl', 'क्यान', 'पारस'],
-    'football': ['football', 'फुटबल', 'साफ', 'एन्फा'],
-    'tihar': ['tihar', 'तिहार', 'दिपावली', 'भाइटीका', 'लक्ष्मीपूजा'],
-    'dashain': ['dashain', 'दसैँ', 'दशैं', 'विजया'],
-    'chhath': ['chhath', 'छठ', 'सूर्य'],
-    'court': ['court', 'अदालत', 'सर्वोच्च', 'न्यायाधीश'],
-    'corruption': ['corruption', 'भ्रष्टाचार', 'सहकारी', 'ठगी', 'अख्तियार'],
-    'election': ['election', 'निर्वाचन', 'उपनिर्वाचन', 'मतदान'],
-}
 
+def _safe_http_url(raw_url: str) -> str:
+    """Validates URL scheme to prevent unsafe javascript:/data: links."""
+    u = (raw_url or "").strip()
+    if not u:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(u)
+        if parsed.scheme.lower() in ("http", "https") and parsed.netloc:
+            return u
+    except Exception:
+        pass
+    return ""
+
+
+def _build_card_wrapper_html(
+    item: Dict[str, Any],
+    renderer: Callable[[Dict[str, Any]], str],
+    item_uid: str,
+    wa_sent_map: Dict[str, Dict[str, Any]],
+) -> str:
+    """Builds a single sanitized card HTML block reusing existing card renderers."""
+    is_indian, is_x = _resolve_item_flags(item, renderer)
+    cache_id = _compute_item_uid(item, "global")
+    if is_x:
+        card_html = renderer(item)
+    else:
+        card_html = render_apple_article_card(item, is_indian=is_indian, show_tags=True)
+
+    wa_html = ""
+    persisted_sent = wa_sent_map.get(cache_id)
+    if persisted_sent:
+        sent_gname = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+        sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
+        sent_id = html.escape(str(persisted_sent.get("id_message") or ""))
+        ts_part = f" · {html.escape(sent_ts)}" if sent_ts else ""
+        wa_html = (
+            f'<div class="wa-already-sent-notice" title="Green API Message ID: {sent_id}">'
+            f'✓ Notice: Already sent to <strong>{sent_gname}</strong>{ts_part}'
+            f'</div>'
+        )
+
+    item_link = _safe_http_url(item.get("link") or "")
+    if is_x and not item_link:
+        rh = (item.get("raw_handle") or item.get("handle") or "").lstrip("@").strip()
+        sid = str(item.get("id") or "").strip()
+        if rh and sid:
+            item_link = _safe_http_url(f"https://x.com/{rh}/status/{sid}")
+
+    btns: List[str] = []
+    if not is_x:
+        btns.append(
+            f'<button type="button" class="feed-btn" data-action="read" data-uid="{html.escape(item_uid, quote=True)}" '
+            f'title="Read complete article in a focused modal with optional English translation">'
+            f'📖 Read in App</button>'
+        )
+    if item_link:
+        btns.append(
+            f'<a class="feed-btn" href="{html.escape(item_link, quote=True)}" target="_blank" rel="noopener noreferrer">'
+            f'↗ View Original</a>'
+        )
+    btns.append(
+        f'<button type="button" class="feed-btn feed-btn--primary" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
+        f'title="Generate English Brief / Translation to review, copy, or share to Media Monitor">'
+        f'↗ Share</button>'
+    )
+    return (
+        f'<div class="feed-card-wrap" data-uid="{html.escape(item_uid, quote=True)}">'
+        f'{card_html}{wa_html}'
+        f'<div class="feed-action-divider"></div>'
+        f'<div class="feed-card-actions">{"".join(btns)}</div>'
+        f'</div>'
+    )
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _get_cached_filtered_count(
+    workspace: str,
+    start_iso: str,
+    end_iso: str,
+    snap_iso: str,
+    stream_filter: str,
+    category_filter: str,
+    source: str,
+    language: str,
+    author_type: str,
+    search_query: str,
+) -> Dict[str, int]:
+    """Cached 60s filtered total + new-since-snapshot delta count."""
+    s_dt = datetime.datetime.fromisoformat(start_iso) if start_iso else None
+    e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else None
+    sn_dt = datetime.datetime.fromisoformat(snap_iso) if snap_iso else None
+    return get_filtered_feed_count(
+        workspace=workspace,
+        start_dt=s_dt,
+        end_dt=e_dt,
+        snapshot_ingested_at=sn_dt,
+        stream_filter=stream_filter,
+        category_filter=category_filter,
+        source=source,
+        language=language,
+        author_type=author_type,
+        search_query=search_query,
+    )
+
+
+def _fetch_workspace_keyset_page(
+    workspace: str,
+    start_dt: datetime.datetime,
+    end_dt: datetime.datetime,
+    snapshot_ingested_at: datetime.datetime,
+    cursor: Any,
+    stream_filter: str = "All Sources",
+    category_filter: str = CAT_FILTER_ALL_UNFILTERED,
+    source: str = "",
+    language: str = "",
+    author_type: str = "",
+    search_query: str = "",
+    sort_mode: str = "Newest First",
+    limit: int = PAGE_SIZE,
+) -> List[Dict[str, Any]]:
+    """Fetches a single 20-item keyset page from Supabase for the given workspace."""
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    if workspace == "live":
+        c_dt, c_rank, c_id = cursor if cursor else (None, None, None)
+        rows = get_stored_live_feed_page(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            snapshot_ingested_at=snapshot_ingested_at,
+            stream_filter=stream_filter,
+            category_filter=category_filter,
+            search_query=search_query,
+            sort_asc=(sort_mode == "Oldest First"),
+            cursor_dt=c_dt,
+            cursor_rank=c_rank,
+            cursor_id=c_id,
+            limit=limit,
+        )
+    elif workspace == "nepali":
+        c_dt, c_id = cursor if cursor else (None, None)
+        rows = get_stored_articles(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            source=(None if not source or source == ALL_PORTALS_DEFAULT else source),
+            primary_section=category_filter,
+            language=(None if not language or language == ALL_LANG_DEFAULT else language),
+            search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+            cursor_dt=c_dt,
+            cursor_id=c_id,
+            limit=limit,
+        )
+    elif workspace == "indian":
+        c_dt, c_id = cursor if cursor else (None, None)
+        rows = get_stored_indian_articles(
+            status_filter="substantive",
+            start_dt=start_dt,
+            end_dt=end_dt,
+            source=(None if not source or source == ALL_INDIAN_DEFAULT else source),
+            language=(None if not language or language == ALL_LANG_DEFAULT else language),
+            category_filter=category_filter,
+            search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+            cursor_dt=c_dt,
+            cursor_id=c_id,
+            limit=limit,
+        )
+    else:
+        c_metric, c_dt, c_id = cursor if cursor else (None, None, None)
+        rows = get_stored_x_posts(
+            category=category_filter,
+            author_type=author_type,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+            cursor_dt=c_dt,
+            cursor_id=c_id,
+            cursor_metric=c_metric,
+            sort_mode=sort_mode,
+            limit=limit,
+        )
+
+    for r in rows:
+        pdt = r.get("published_dt")
+        if isinstance(pdt, datetime.datetime):
+            _, r["relative_time"], r["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+    return [r for r in rows if in_window(r, start_dt, end_dt)]
+
+
+def _extract_next_cursor(workspace: str, rows: List[Dict[str, Any]], sort_mode: str) -> Any:
+    if not rows:
+        return None
+    last = rows[-1]
+    pdt = last.get("published_dt")
+    if workspace == "live":
+        return (pdt, last.get("_stream_rank", 1), str(last.get("_cursor_id") or last.get("canonical_id") or last.get("id") or ""))
+    if workspace == "x":
+        m_key = {"Most engagement": "engagement_score", "Most liked": "likes", "Most reposted": "retweets"}.get(sort_mode)
+        m_val = int(last.get(m_key, 0) or 0) if m_key else None
+        return (m_val, pdt, str(last.get("id") or ""))
+    return (pdt, str(last.get("canonical_id") or ""))
+
+
+def render_infinite_workspace_feed(
+    workspace: str,
+    renderer: Callable[[Dict[str, Any]], str],
+    noun: str,
+    filter_sig: str,
+    stream_filter: str = "All Sources",
+    category_filter: str = CAT_FILTER_ALL_UNFILTERED,
+    source: str = "",
+    language: str = "",
+    author_type: str = "",
+    search_query: str = "",
+    sort_mode: str = "Newest First",
+    empty_icon: str = "📰",
+    empty_title: str = "No items found",
+    empty_body: str = "Try widening the timeframe or adjusting filters.",
+    on_fetch_now: Optional[Callable[[], None]] = None,
+) -> Dict[str, int]:
+    """
+    Shared incremental infinite-scroll feed engine across Live Feed, Nepali Media, Indian Press, and X.
+    Returns {'total_count': int, 'loaded_count': int, 'new_since_snapshot': int}.
+    """
+    sessions = st.session_state.setdefault("feed_sessions", {})
+    sess = sessions.get(workspace)
+
+    if not sess or sess.get("filter_sig") != filter_sig:
+        snap_end = datetime.datetime.now(NEPAL_TZ) if is_to_current else filter_end_dt
+        snap_ing = datetime.datetime.now(NEPAL_TZ)
+        sess = {
+            "filter_sig": filter_sig,
+            "session_key": f"{workspace}_{filter_sig}_{int(snap_ing.timestamp() * 1000)}",
+            "snapshot_end_dt": snap_end,
+            "snapshot_ingested_at": snap_ing,
+            "cursor": None,
+            "batches": [],
+            "items_by_uid": {},
+            "seen_keys": set(),
+            "total_count": 0,
+            "has_more": False,
+            "error_msg": "",
+            "last_event_ts": 0,
+        }
+        sessions[workspace] = sess
+
+    wa_sent_map = _get_wa_sent_map()
+
+    def _append_batch(rows: List[Dict[str, Any]], seq_idx: int) -> None:
+        html_parts: List[str] = []
+        for r in rows:
+            dedup_key = (
+                r.get("_feed_type", workspace),
+                str(r.get("canonical_id") or r.get("id") or r.get("link") or ""),
+            )
+            if dedup_key in sess["seen_keys"]:
+                continue
+            sess["seen_keys"].add(dedup_key)
+            uid = f"{workspace}_{seq_idx}_{len(sess['items_by_uid'])}"
+            sess["items_by_uid"][uid] = r
+            html_parts.append(_build_card_wrapper_html(r, renderer=renderer, item_uid=uid, wa_sent_map=wa_sent_map))
+        sess["batches"].append({"seq": seq_idx, "html": "".join(html_parts)})
+
+    # Initial 20-item fetch
+    if not sess["batches"] and not sess["error_msg"]:
+        try:
+            first_rows = _fetch_workspace_keyset_page(
+                workspace=workspace,
+                start_dt=filter_start_dt,
+                end_dt=sess["snapshot_end_dt"],
+                snapshot_ingested_at=sess["snapshot_ingested_at"],
+                cursor=None,
+                stream_filter=stream_filter,
+                category_filter=category_filter,
+                source=source,
+                language=language,
+                author_type=author_type,
+                search_query=search_query,
+                sort_mode=sort_mode,
+                limit=PAGE_SIZE,
+            )
+            cnt_info = _get_cached_filtered_count(
+                workspace=workspace,
+                start_iso=filter_start_dt.isoformat(),
+                end_iso=sess["snapshot_end_dt"].isoformat(),
+                snap_iso=sess["snapshot_ingested_at"].isoformat(),
+                stream_filter=stream_filter,
+                category_filter=category_filter,
+                source=source,
+                language=language,
+                author_type=author_type,
+                search_query=search_query or "",
+            )
+            sess["total_count"] = cnt_info.get("total_count", len(first_rows))
+            if first_rows:
+                _append_batch(first_rows, 0)
+                sess["cursor"] = _extract_next_cursor(workspace, first_rows, sort_mode)
+                sess["has_more"] = len(first_rows) == PAGE_SIZE and len(sess["items_by_uid"]) < max(sess["total_count"], len(first_rows))
+            else:
+                sess["has_more"] = False
+        except Exception as exc:
+            sess["error_msg"] = f"Failed to load {noun}: {type(exc).__name__}"
+
+    # Check for newly ingested stories since snapshot without disturbing active scroll
+    new_since_snap = 0
+    if is_to_current and sess["batches"]:
+        try:
+            delta_info = _get_cached_filtered_count(
+                workspace=workspace,
+                start_iso=filter_start_dt.isoformat(),
+                end_iso=actual_now_npt.isoformat(),
+                snap_iso=sess["snapshot_ingested_at"].isoformat(),
+                stream_filter=stream_filter,
+                category_filter=category_filter,
+                source=source,
+                language=language,
+                author_type=author_type,
+                search_query=search_query or "",
+            )
+            new_since_snap = int(delta_info.get("new_since_snapshot", 0) or 0)
+        except Exception:
+            new_since_snap = 0
+
+    if new_since_snap > 0:
+        b_col1, b_col2 = st.columns([4, 1.2])
+        with b_col1:
+            st.info(f"✨ **{new_since_snap:,}** new {noun} available since you opened this feed.")
+        with b_col2:
+            if st.button("Refresh feed", icon=":material/refresh:", key=f"btn_new_stories_{workspace}", width="stretch"):
+                sessions.pop(workspace, None)
+                _get_cached_filtered_count.clear()
+                st.rerun(scope="fragment")
+
+    if not sess["batches"] and not sess["error_msg"]:
+        render_empty_state(empty_icon, empty_title, empty_body)
+        if on_fetch_now is not None:
+            _, mid_col, _ = st.columns([1.5, 2, 1.5])
+            with mid_col:
+                if st.button("Fetch Now", icon=":material/sync:", key=f"btn_fetch_now_{workspace}", width="stretch"):
+                    on_fetch_now()
+                    sessions.pop(workspace, None)
+                    _get_cached_filtered_count.clear()
+                    get_cached_stream_counts.clear()
+                    st.rerun()
+        return {"total_count": 0, "loaded_count": 0, "new_since_snapshot": 0}
+
+    loaded_count = len(sess["items_by_uid"])
+    ev = render_infinite_feed_component(
+        session_key=sess["session_key"],
+        batches=sess["batches"],
+        has_more=sess["has_more"],
+        total_count=max(sess["total_count"], loaded_count),
+        loaded_count=loaded_count,
+        noun=noun,
+        theme_css=APPLE_DESIGN_SYSTEM_CSS,
+        error_msg=sess["error_msg"],
+        key=f"inf_feed_{workspace}",
+    )
+
+    if isinstance(ev, dict) and int(ev.get("ts") or 0) > int(sess.get("last_event_ts") or 0):
+        sess["last_event_ts"] = int(ev.get("ts") or 0)
+        ev_type = ev.get("event")
+        if ev_type in ("load_more", "retry") and sess["has_more"]:
+            next_seq = len(sess["batches"])
+            if int(ev.get("next_seq", -1)) == next_seq:
+                try:
+                    more_rows = _fetch_workspace_keyset_page(
+                        workspace=workspace,
+                        start_dt=filter_start_dt,
+                        end_dt=sess["snapshot_end_dt"],
+                        snapshot_ingested_at=sess["snapshot_ingested_at"],
+                        cursor=sess["cursor"],
+                        stream_filter=stream_filter,
+                        category_filter=category_filter,
+                        source=source,
+                        language=language,
+                        author_type=author_type,
+                        search_query=search_query,
+                        sort_mode=sort_mode,
+                        limit=PAGE_SIZE,
+                    )
+                    sess["error_msg"] = ""
+                    if more_rows:
+                        _append_batch(more_rows, next_seq)
+                        sess["cursor"] = _extract_next_cursor(workspace, more_rows, sort_mode)
+                        sess["has_more"] = len(more_rows) == PAGE_SIZE and len(sess["items_by_uid"]) < max(sess["total_count"], len(sess["items_by_uid"]))
+                    else:
+                        sess["has_more"] = False
+                except Exception as exc:
+                    sess["error_msg"] = f"Could not load next {noun} ({type(exc).__name__})."
+                st.rerun(scope="fragment")
+        elif ev_type == "action":
+            uid = str(ev.get("item_uid") or "")
+            target_item = sess["items_by_uid"].get(uid)
+            if target_item:
+                is_indian, is_x = _resolve_item_flags(target_item, renderer)
+                cache_id = _compute_item_uid(target_item, "global")
+                item_link = _safe_http_url(target_item.get("link") or "")
+                st.session_state["active_modal"] = {
+                    "mode": ev.get("action"),
+                    "item": target_item,
+                    "is_x": is_x,
+                    "is_indian": is_indian,
+                    "cache_id": cache_id,
+                    "item_uid": uid,
+                    "item_link": item_link,
+                }
+                if ev.get("action") == "read" and not is_x:
+                    _show_read_in_app_dialog()
+                elif ev.get("action") == "share":
+                    _show_share_dialog()
+
+    return {
+        "total_count": max(sess["total_count"], loaded_count),
+        "loaded_count": loaded_count,
+        "new_since_snapshot": new_since_snap,
+    }
+
+# ==========================================
+# BILINGUAL & CROSS-LINGUAL SEARCH ENGINE (uses shared SEARCH_EXPANSIONS from nepal_news_store)
+# ==========================================
 def smart_search_match(item: Dict[str, Any], query: str) -> bool:
     """
     High-performance bilingual, multi-token matching function.
     Searches across title, summary, translated headlines, source outlet,
     author name, handle, role, category, and sentiment.
     """
-    if not query or not query.strip():
+    groups = expand_search_tokens(query or "")
+    if not groups:
         return True
 
-    # Search indexed metadata (excluding full_content body for speed)
     parts = [
         item.get("title", ""),
         item.get("headline_english", ""),
@@ -1429,35 +1804,11 @@ def smart_search_match(item: Dict[str, Any], query: str) -> bool:
         item.get("language", ""),
     ]
     text_corpus = " ".join(str(p) for p in parts if p).lower()
-
-    tokens = [t.strip().lower() for t in query.strip().split() if t.strip()]
-    if not tokens:
-        return True
-
-    for token in tokens:
-        synonyms = [token]
-        if token in SEARCH_EXPANSIONS:
-            synonyms.extend(SEARCH_EXPANSIONS[token])
-        else:
-            for key, syn_list in SEARCH_EXPANSIONS.items():
-                if token in syn_list:
-                    synonyms.extend(syn_list)
-                    break
-        if not any(syn in text_corpus for syn in synonyms):
-            return False
-
-    return True
+    return all(any(syn in text_corpus for syn in synonyms) for synonyms in groups)
 
 # ==========================================
 # UNIFIED GLOBAL FILTER PIPELINE
-# Seamlessly integrates across:
-# 1. Nepali Media (34 Portals)
-# 2. Nepal in Indian Media (18 Outlets)
-# 3. Verified Live X (Twitter) Posts
 # ==========================================
-
-PREDEFINED_9_CATEGORIES = set(STRUCTURED_CATEGORIES)
-CORE_8_CATEGORIES = PREDEFINED_9_CATEGORIES - {"Nepal – Others"}
 UNASSIGNED_VALUES = {"", "uncategorized", "none", "null", "unassigned"}
 
 def filter_items_by_category(items: list, selected_option: str, is_social: bool = False) -> list:
@@ -1569,6 +1920,8 @@ with st.sidebar:
                     get_active_nepal_articles.clear()
                     get_active_indian_articles.clear()
                     get_active_x_posts.clear()
+                    _get_cached_filtered_count.clear()
+                    st.session_state.pop("feed_sessions", None)
                     st.session_state.pop("x_posts", None)
                     st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
                     sync_prog.empty()
@@ -1691,58 +2044,39 @@ with st.sidebar:
 # ==========================================
 @st.fragment
 def render_live_feed_section() -> None:
-    np_lim = st.session_state.setdefault("np_fetch_limit", 500)
-    in_lim = st.session_state.setdefault("in_fetch_limit", 500)
-    x_lim = st.session_state.setdefault("x_fetch_limit", 500)
-    nepal_arts = get_active_nepal_articles(cache_start_dt, cache_end_dt, limit=np_lim)
-    indian_arts = get_active_indian_articles(cache_start_dt, cache_end_dt, limit=in_lim)
-    x_posts_in_win = get_active_x_posts(cache_start_dt, cache_end_dt, limit=x_lim)
+    _sig = f"live|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{sel_comb_stream}|{sel_comb_cat}|{comb_sort_mode}|{search_query or ''}"
 
-    comb_items = []
-    for a in nepal_arts:
-        a_copy = dict(a)
-        a_copy["_feed_type"] = "nepali"
-        comb_items.append(a_copy)
-    for a in indian_arts:
-        a_copy = dict(a)
-        a_copy["_feed_type"] = "indian"
-        comb_items.append(a_copy)
-    for p in x_posts_in_win:
-        p_copy = dict(p)
-        p_copy["_feed_type"] = "x"
-        comb_items.append(p_copy)
+    def _fetch_all_now():
+        with st.spinner("Fetching latest stories across all streams…"):
+            fetch_top_nepal_media(max_workers=12, force_refresh=True)
+            fetch_nepal_in_indian_media(max_workers=10, force_refresh=True)
+            try:
+                scan_popular_nepal_x_posts(force_refresh=True)
+            except Exception:
+                pass
 
-    # Filter by stream if selected
-    if sel_comb_stream == "Nepali Media Only":
-        comb_items = [it for it in comb_items if it.get("_feed_type") == "nepali"]
-    elif sel_comb_stream == "Indian Press Only":
-        comb_items = [it for it in comb_items if it.get("_feed_type") == "indian"]
-    elif sel_comb_stream in ("X (Twitter) Only", "Verified X Voices Only"):
-        comb_items = [it for it in comb_items if it.get("_feed_type") == "x"]
-
-    # Filter by category
-    if sel_comb_cat != CAT_FILTER_ALL_UNFILTERED:
-        comb_items = filter_items_by_category(comb_items, sel_comb_cat, is_social=False)
-
-    # Filter by search query
-    if search_query and search_query.strip():
-        comb_items = [it for it in comb_items if smart_search_match(it, search_query)]
-
-    # Sort
-    if comb_sort_mode == "Oldest First":
-        comb_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE)
-    else:
-        comb_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
-
+    _live_counts_hdr = _get_cached_filtered_count(
+        workspace="live",
+        start_iso=filter_start_dt.isoformat(),
+        end_iso=(actual_now_npt if is_to_current else filter_end_dt).isoformat(),
+        snap_iso="",
+        stream_filter=sel_comb_stream,
+        category_filter=sel_comb_cat,
+        source="",
+        language="",
+        author_type="",
+        search_query=search_query or "",
+    )
+    _tot_live = _live_counts_hdr.get("total_count", 0)
     render_page_header(
         "Live Feed",
-        f"{len(comb_items):,} dispatches and posts across Nepali Media (34 portals), Indian Press (18 outlets), and Verified X"
+        f"{_tot_live:,} dispatches and posts across Nepali Media (34 portals), Indian Press (18 outlets), and Verified X"
     )
 
     # Stream overview pill KPI row
-    np_cnt = sum(1 for it in comb_items if it.get("_feed_type") == "nepali")
-    in_cnt = sum(1 for it in comb_items if it.get("_feed_type") == "indian")
-    x_cnt = sum(1 for it in comb_items if it.get("_feed_type") == "x")
+    np_cnt = stream_counts.get("nepali_count", 0)
+    in_cnt = stream_counts.get("indian_count", 0)
+    x_cnt = stream_counts.get("x_count", 0)
     st.markdown(f"""
     <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
         <div class="apple-kpi-card" style="flex:1; min-width:140px;">
@@ -1763,39 +2097,20 @@ def render_live_feed_section() -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    if not comb_items:
-        render_empty_state("🌐", "No combined stories found", "Try widening the timeframe preset or choosing 'All Streams' / 'All News'.")
-        _, mid_col, _ = st.columns([1.5, 2, 1.5])
-        with mid_col:
-            if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_live", width="stretch"):
-                with st.spinner("Fetching latest stories across all streams…"):
-                    fetch_top_nepal_media(max_workers=12, force_refresh=True)
-                    fetch_nepal_in_indian_media(max_workers=10, force_refresh=True)
-                    try:
-                        scan_popular_nepal_x_posts(force_refresh=True)
-                    except Exception:
-                        pass
-                    get_cached_stream_counts.clear()
-                    get_active_nepal_articles.clear()
-                    get_active_indian_articles.clear()
-                    get_active_x_posts.clear()
-                st.rerun()
-    else:
-        _live_total_db = total_combined_count if (
-            sel_comb_stream == "All Sources"
-            and sel_comb_cat == CAT_FILTER_ALL_UNFILTERED
-            and not (search_query and search_query.strip())
-        ) else None
-        _live_loaded = len(nepal_arts) + len(indian_arts) + len(x_posts_in_win)
-        render_paginated_feed(
-            comb_items,
-            "combined_visible_count",
-            render_apple_combined_item_card,
-            "items",
-            total_db_count=_live_total_db,
-            loaded_count=_live_loaded,
-            fetch_limit_key="np_fetch_limit",
-        )
+    render_infinite_workspace_feed(
+        workspace="live",
+        renderer=render_apple_combined_item_card,
+        noun="items",
+        filter_sig=_sig,
+        stream_filter=sel_comb_stream,
+        category_filter=sel_comb_cat,
+        search_query=search_query or "",
+        sort_mode=comb_sort_mode,
+        empty_icon="🌐",
+        empty_title="No combined stories found",
+        empty_body="Try widening the timeframe preset or choosing 'All Streams' / 'All News'.",
+        on_fetch_now=_fetch_all_now,
+    )
 
 
 if selected_nav == "Live Feed":
@@ -1805,119 +2120,85 @@ if selected_nav == "Live Feed":
 # ==========================================
 # SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
-if selected_nav == "Nepali Media":
-    np_lim = st.session_state.setdefault("np_fetch_limit", 500)
-    all_articles = get_active_nepal_articles(cache_start_dt, cache_end_dt, limit=np_lim)
-    filtered_articles = [a for a in all_articles if smart_search_match(a, search_query)] if search_query else all_articles
-
-    np_db_total = stream_counts.get("nepali_count", len(all_articles))
-    np_hdr_sub = (
-        f"{len(filtered_articles):,} loaded of {np_db_total:,} stories in window across 34 portals"
-        if np_db_total > len(all_articles) and not (search_query and search_query.strip())
-        else f"{len(filtered_articles):,} stories discovered across 34 portals"
+@st.fragment
+def render_nepali_media_section() -> None:
+    _sig = f"nepali|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{sel_np_portal}|{sel_np_cat}|{sel_np_lang}|{search_query or ''}"
+    _cnt_info = _get_cached_filtered_count(
+        workspace="nepali",
+        start_iso=filter_start_dt.isoformat(),
+        end_iso=(actual_now_npt if is_to_current else filter_end_dt).isoformat(),
+        snap_iso="",
+        stream_filter="Nepali Media Only",
+        category_filter=sel_np_cat,
+        source=(None if sel_np_portal == ALL_PORTALS_DEFAULT else sel_np_portal) or "",
+        language=(None if sel_np_lang == ALL_LANG_DEFAULT else sel_np_lang) or "",
+        author_type="",
+        search_query=search_query or "",
     )
-    render_page_header("Nepali Media", np_hdr_sub)
+    render_page_header("Nepali Media", f"{_cnt_info.get('total_count', 0):,} stories discovered across 34 portals")
 
-    tab_articles = filter_items_by_category(filtered_articles, sel_np_cat, is_social=False)
-    if sel_np_lang == "Nepali Only":
-        tab_articles = [a for a in tab_articles if a.get("language") == "Nepali"]
-    elif sel_np_lang == "English Only":
-        tab_articles = [a for a in tab_articles if a.get("language") == "English"]
+    def _fetch_np_now():
+        with st.spinner("Fetching latest Nepali news portals…"):
+            fetch_top_nepal_media(max_workers=15, force_refresh=True)
 
-    if sel_np_portal != ALL_PORTALS_DEFAULT:
-        tab_articles = [a for a in tab_articles if a.get("source") == sel_np_portal]
-        if not tab_articles:
-            portal_recent = [a for a in all_articles if a.get("source") == sel_np_portal]
-            if portal_recent:
-                tab_articles = filter_items_by_category(portal_recent, sel_np_cat, is_social=False)
-                last_dt = portal_recent[0].get("published_dt")
-                last_str = last_dt.strftime("%d %b %Y, %I:%M %p NPT").lstrip("0") if last_dt else "recently"
-                st.info(f"**{sel_np_portal}** has no dispatches in the active window (last story: {last_str}). Showing its {len(tab_articles)} most recent dispatches.")
+    render_infinite_workspace_feed(
+        workspace="nepali",
+        renderer=render_apple_article_card,
+        noun="stories",
+        filter_sig=_sig,
+        category_filter=sel_np_cat,
+        source=sel_np_portal,
+        language=sel_np_lang,
+        search_query=search_query or "",
+        empty_icon="📰",
+        empty_title="No articles found",
+        empty_body="Try widening the timeframe or choosing 'All Portals' / 'All News'.",
+        on_fetch_now=_fetch_np_now,
+    )
 
-    if not tab_articles:
-        render_empty_state("📰", "No articles found", "Try widening the timeframe or choosing 'All Portals' / 'All News'.")
-        _, mid_col, _ = st.columns([1.5, 2, 1.5])
-        with mid_col:
-            if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_np", width="stretch"):
-                with st.spinner("Fetching latest Nepali news portals…"):
-                    fetch_top_nepal_media(max_workers=15, force_refresh=True)
-                    get_cached_stream_counts.clear()
-                    get_active_nepal_articles.clear()
-                st.rerun()
-    else:
-        _np_is_unfiltered = (
-            sel_np_cat == CAT_FILTER_ALL_UNFILTERED
-            and sel_np_lang == ALL_LANG_DEFAULT
-            and sel_np_portal == ALL_PORTALS_DEFAULT
-            and not (search_query and search_query.strip())
-        )
-        render_paginated_feed(
-            tab_articles,
-            "media_visible_count",
-            render_apple_article_card,
-            "stories",
-            total_db_count=(stream_counts.get("nepali_count") if _np_is_unfiltered else None),
-            loaded_count=len(all_articles),
-            fetch_limit_key="np_fetch_limit",
-        )
+
+if selected_nav == "Nepali Media":
+    render_nepali_media_section()
 
 
 # ==========================================
 # SECTION 2: Nepal in Indian Media
 # ==========================================
-elif selected_nav == "Indian Press":
-    in_lim = st.session_state.setdefault("in_fetch_limit", 500)
-    all_indian = get_active_indian_articles(cache_start_dt, cache_end_dt, limit=in_lim)
-    if not all_indian:
-        try:
-            recent_indian = get_stored_indian_articles(status_filter="substantive", limit=30, include_full_content=False)
-            now_curr = datetime.datetime.now(NEPAL_TZ)
-            for sa in recent_indian:
-                pdt = sa.get("published_dt")
-                if isinstance(pdt, datetime.datetime):
-                    _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
-            if recent_indian:
-                last_dt = recent_indian[0].get("published_dt")
-                last_str = last_dt.strftime("%d %b %Y, %I:%M %p NPT").lstrip("0") if last_dt else "recently"
-                st.info(f"No new Nepal-related dispatches in Indian press for the active window (latest: {last_str}). Showing the {len(recent_indian)} most recent dispatches.")
-                all_indian = recent_indian
-        except Exception:
-            pass
-    filtered_indian = [a for a in all_indian if smart_search_match(a, search_query)] if search_query else all_indian
+@st.fragment
+def render_indian_press_section() -> None:
+    _sig = f"indian|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{selected_indian_outlet}|{sel_in_lang}|{search_query or ''}"
+    _cnt_info = _get_cached_filtered_count(
+        workspace="indian",
+        start_iso=filter_start_dt.isoformat(),
+        end_iso=(actual_now_npt if is_to_current else filter_end_dt).isoformat(),
+        snap_iso="",
+        stream_filter="Indian Press Only",
+        category_filter=CAT_FILTER_ALL_UNFILTERED,
+        source=(None if selected_indian_outlet == ALL_INDIAN_DEFAULT else selected_indian_outlet) or "",
+        language=(None if sel_in_lang == ALL_LANG_DEFAULT else sel_in_lang) or "",
+        author_type="",
+        search_query=search_query or "",
+    )
+    _in_tot = _cnt_info.get("total_count", 0)
+    render_page_header("Indian Press", f"{_in_tot:,} Nepal-focused dispatches across 18 Indian outlets")
 
-    render_page_header("Indian Press", f"{len(filtered_indian):,} Nepal-focused dispatches across 18 Indian outlets")
+    def _fetch_in_now():
+        with st.spinner("Fetching latest Indian press coverage…"):
+            fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
 
-    tab_filtered_indian = filtered_indian
-    if selected_indian_outlet != ALL_INDIAN_DEFAULT:
-        tab_filtered_indian = [a for a in tab_filtered_indian if a.get("source") == selected_indian_outlet]
-    if sel_in_lang != ALL_LANG_DEFAULT:
-        tab_filtered_indian = [a for a in tab_filtered_indian if a.get("language") == sel_in_lang]
-
-    if not tab_filtered_indian:
-        render_empty_state("🇮🇳", "No Indian media coverage found", "Try selecting 'All 18 Indian Outlets' or adjusting the timeframe.")
-        _, mid_col, _ = st.columns([1.5, 2, 1.5])
-        with mid_col:
-            if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_in", width="stretch"):
-                with st.spinner("Fetching latest Indian press coverage…"):
-                    fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
-                    get_cached_stream_counts.clear()
-                    get_active_indian_articles.clear()
-                st.rerun()
-    else:
-        _in_is_unfiltered = (
-            selected_indian_outlet == ALL_INDIAN_DEFAULT
-            and sel_in_lang == ALL_LANG_DEFAULT
-            and not (search_query and search_query.strip())
-        )
-        render_paginated_feed(
-            tab_filtered_indian,
-            "indian_visible_count",
-            lambda a: render_apple_article_card(a, is_indian=True),
-            "stories",
-            total_db_count=(stream_counts.get("indian_count") if _in_is_unfiltered else None),
-            loaded_count=len(all_indian),
-            fetch_limit_key="in_fetch_limit",
-        )
+    feed_stats = render_infinite_workspace_feed(
+        workspace="indian",
+        renderer=lambda a: render_apple_article_card(a, is_indian=True),
+        noun="stories",
+        filter_sig=_sig,
+        source=selected_indian_outlet,
+        language=sel_in_lang,
+        search_query=search_query or "",
+        empty_icon="🇮🇳",
+        empty_title="No Indian media coverage found",
+        empty_body="Try selecting 'All 18 Indian Outlets' or adjusting the timeframe.",
+        on_fetch_now=_fetch_in_now,
+    )
 
     # Flagged Borderline Articles for Editorial Review & Central DB Retention Audit
     try:
@@ -1948,7 +2229,7 @@ elif selected_nav == "Indian Press":
             "Borderline articles (scoring between 40% and the active relevance threshold) and excluded domestic Indian articles are retained in the central database (`indian_media_articles`) without cluttering the main feed."
         )
         m_c1, m_c2, m_c3, m_c4 = st.columns(4)
-        m_c1.metric("Substantive", f"{len(tab_filtered_indian):,}")
+        m_c1.metric("Substantive", f"{feed_stats.get('total_count', 0):,}")
         m_c2.metric("Borderline Review", f"{len(borderline_items):,}")
         m_c3.metric("Excluded Domestic", f"{ind_audit.get('excluded', 0):,}")
         m_c4.metric("Total Stored", f"{ind_audit.get('total', 0):,}")
@@ -1972,14 +2253,28 @@ elif selected_nav == "Indian Press":
         q8.link_button("Live Hindustan ↗", "https://www.livehindustan.com/tags/nepal/", width="stretch")
 
 
+if selected_nav == "Indian Press":
+    render_indian_press_section()
+
+
 # ==========================================
 # SECTION 3: X (Twitter) Nepal
 # ==========================================
 @st.fragment
 def render_x_section() -> None:
-    x_lim = st.session_state.setdefault("x_fetch_limit", 500)
-    in_win_x = get_active_x_posts(cache_start_dt, cache_end_dt, limit=x_lim)
-    filtered_x_posts = [p for p in in_win_x if smart_search_match(p, search_query)] if search_query else in_win_x
+    _cnt_info = _get_cached_filtered_count(
+        workspace="x",
+        start_iso=filter_start_dt.isoformat(),
+        end_iso=(actual_now_npt if is_to_current else filter_end_dt).isoformat(),
+        snap_iso="",
+        stream_filter="Verified X Voices Only",
+        category_filter=x_cat_filter,
+        source="",
+        language="",
+        author_type=selected_acc_type,
+        search_query=search_query or "",
+    )
+    _x_tot = _cnt_info.get("total_count", 0)
 
     # 1. Fetch DB KPIs and Monitored Accounts
     x_kpis = get_x_account_kpis()
@@ -1990,7 +2285,7 @@ def render_x_section() -> None:
 
     render_page_header(
         "X (Twitter) Nepal",
-        f"{len(filtered_x_posts):,} posts across {active_acc_count} active accounts in 8 sectors"
+        f"{_x_tot:,} posts across {active_acc_count} active accounts in 8 sectors"
     )
 
     x_tab_options = ["Live Feed", f"Directory ({total_acc_count})", "Admin"]
@@ -2008,49 +2303,29 @@ def render_x_section() -> None:
     # SUBVIEW 1: LIVE FEED
     # -------------------------------------------------------------
     if x_subview == "Live Feed":
+        _sig = f"x|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
 
-        filtered_feed = filter_items_by_category(filtered_x_posts, x_cat_filter, is_social=True)
-        if selected_acc_type != ALL_ACC_TYPES:
-            filtered_feed = [p for p in filtered_feed if p.get("author_type") == selected_acc_type]
+        def _fetch_x_now():
+            with st.spinner("Scanning verified X accounts…"):
+                try:
+                    scan_popular_nepal_x_posts(force_refresh=True)
+                except Exception:
+                    pass
 
-        # Apply sorting
-        if sort_mode == "Newest":
-            filtered_feed.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
-        elif sort_mode == "Most engagement":
-            filtered_feed.sort(key=lambda x: x.get("engagement_score", 0), reverse=True)
-        elif sort_mode == "Most liked":
-            filtered_feed.sort(key=lambda x: x.get("likes", 0), reverse=True)
-        elif sort_mode == "Most reposted":
-            filtered_feed.sort(key=lambda x: x.get("retweets", 0), reverse=True)
-
-        if not filtered_feed:
-            render_empty_state("𝕏", "No X posts found", "Try selecting 'All Account Types' or choosing 'All News'.")
-            _, mid_col, _ = st.columns([1.5, 2, 1.5])
-            with mid_col:
-                if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_x", width="stretch"):
-                    with st.spinner("Scanning verified X accounts…"):
-                        try:
-                            scan_popular_nepal_x_posts(force_refresh=True)
-                        except Exception:
-                            pass
-                        get_cached_stream_counts.clear()
-                        get_active_x_posts.clear()
-                    st.rerun()
-        else:
-            _x_is_unfiltered = (
-                x_cat_filter == CAT_FILTER_ALL_UNFILTERED
-                and selected_acc_type == ALL_ACC_TYPES
-                and not (search_query and search_query.strip())
-            )
-            render_paginated_feed(
-                filtered_feed,
-                "x_visible_count",
-                render_apple_x_post_card,
-                "posts",
-                total_db_count=(stream_counts.get("x_count") if _x_is_unfiltered else None),
-                loaded_count=len(in_win_x),
-                fetch_limit_key="x_fetch_limit",
-            )
+        render_infinite_workspace_feed(
+            workspace="x",
+            renderer=render_apple_x_post_card,
+            noun="posts",
+            filter_sig=_sig,
+            category_filter=x_cat_filter,
+            author_type=selected_acc_type,
+            search_query=search_query or "",
+            sort_mode=sort_mode,
+            empty_icon="𝕏",
+            empty_title="No X posts found",
+            empty_body="Try selecting 'All Account Types' or choosing 'All News'.",
+            on_fetch_now=_fetch_x_now,
+        )
 
         with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
             clean_q = search_query.strip() if search_query else ""
