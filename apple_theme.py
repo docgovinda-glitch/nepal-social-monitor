@@ -20,30 +20,30 @@ APPLE_DESIGN_SYSTEM_CSS = """
         --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
 
         /* Neutrals */
-        --bg: #F5F5F7;
+        --bg: #F6F8FA;
         --surface: #FFFFFF;
-        --surface-muted: #F5F5F7;
-        --label: #1D1D1F;
-        --label-2: #6E6E73;
-        --label-3: #86868B;
-        --separator: rgba(0, 0, 0, 0.08);
-        --separator-strong: rgba(0, 0, 0, 0.14);
+        --surface-muted: #F1F5F9;
+        --label: #0F172A;
+        --label-2: #475569;
+        --label-3: #64748B;
+        --separator: rgba(15, 23, 42, 0.08);
+        --separator-strong: rgba(15, 23, 42, 0.14);
 
-        /* Single tint (matches .streamlit/config.toml primaryColor) */
-        --tint: #526A85;
-        --tint-hover: #405872;
-        --tint-soft: rgba(82, 106, 133, 0.10);
+        /* Unified Editorial Cobalt Tint (matches .streamlit/config.toml primaryColor) */
+        --tint: #0066CC;
+        --tint-hover: #0052A3;
+        --tint-soft: rgba(0, 102, 204, 0.09);
         --link: #0066CC;
 
-        /* Semantic */
-        --green: #1E8E3E;  --green-soft: #E8F5EC;
-        --amber: #B25E09;  --amber-soft: #FFF4E5;
-        --red: #C9302C;    --red-soft: #FDECEC;
+        /* Harmonized Semantic Palette */
+        --green: #15803D;  --green-soft: #DCFCE7;
+        --amber: #B45309;  --amber-soft: #FEF3C7;
+        --red: #B91C1C;    --red-soft: #FEE2E2;
 
         /* Scales */
         --r-sm: 8px;  --r-md: 12px;  --r-lg: 16px;  --r-pill: 999px;
-        --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.02);
-        --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+        --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.02);
+        --shadow-2: 0 6px 20px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.03);
         --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -188,8 +188,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
         background: var(--surface-muted); color: var(--label-2);
         border: 1px solid rgba(0, 0, 0, 0.06);
     }
-    .portal-tag { background: #F2F4F7; color: var(--label); border-color: rgba(0, 0, 0, 0.09); font-weight: 650; }
-    .indian-portal-tag { background: #FFF4EA; color: #B4530D; border-color: rgba(180, 83, 13, 0.15); }
+    .portal-tag { background: #F1F5F9; color: #0F172A; border-color: rgba(15, 23, 42, 0.10); font-weight: 650; }
+    .indian-portal-tag { background: #FFF7ED; color: #C2410C; border-color: rgba(194, 65, 12, 0.18); font-weight: 650; }
     .lang-label {
         font-size: 0.73rem;
         font-weight: 500;
@@ -213,8 +213,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
         align-items: center;
         padding: 2px 8px;
         border-radius: 6px;
-        background: #F5F6F8;
-        border: 1px solid rgba(0, 0, 0, 0.06);
+        background: #F8FAFC;
+        border: 1px solid rgba(15, 23, 42, 0.08);
         font-size: 0.72rem;
         font-weight: 500;
         color: var(--label-2);
@@ -222,15 +222,15 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
-    .cat-badge--india { background: #FFF6E0; color: #8A5300; }
-    .cat-badge--china { background: #FDECEC; color: #A61B1B; }
-    .cat-badge--pakistan { background: #E8F5EC; color: #1B6B35; }
-    .cat-badge--bangladesh { background: #E3F6F8; color: #106270; }
-    .cat-badge--internal { background: #EEF0FF; color: #3A3FB0; }
-    .cat-badge--external { background: #F4ECFF; color: #6B2BB0; }
-    .cat-badge--economy { background: #E6F6EF; color: #0B6B47; }
-    .cat-badge--international { background: #EFEAFD; color: #5427B5; }
-    .cat-badge--others { background: var(--surface-muted); color: var(--label-2); }
+    .cat-badge--india { background: #FFFBEB; color: #B45309; border-color: rgba(180, 83, 9, 0.16); }
+    .cat-badge--china { background: #FEF2F2; color: #B91C1C; border-color: rgba(185, 28, 28, 0.16); }
+    .cat-badge--pakistan { background: #F0FDF4; color: #15803D; border-color: rgba(21, 128, 61, 0.16); }
+    .cat-badge--bangladesh { background: #ECFEFF; color: #0E7490; border-color: rgba(14, 116, 144, 0.16); }
+    .cat-badge--internal { background: #EEF2FF; color: #4338CA; border-color: rgba(67, 56, 202, 0.16); }
+    .cat-badge--external { background: #FAF5FF; color: #7E22CE; border-color: rgba(126, 34, 206, 0.16); }
+    .cat-badge--economy { background: #ECFDF5; color: #047857; border-color: rgba(4, 120, 87, 0.16); }
+    .cat-badge--international { background: #F5F3FF; color: #6D28D9; border-color: rgba(109, 40, 217, 0.16); }
+    .cat-badge--others { background: #F1F5F9; color: #475569; border-color: rgba(71, 85, 105, 0.14); }
 
     .status-pill--ok { background: var(--green-soft); color: var(--green); }
     .status-pill--warn { background: var(--amber-soft); color: var(--amber); }
@@ -272,7 +272,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .apple-card-title a:hover { color: var(--link) !important; }
     .apple-card-native-title { font-size: 0.78rem; color: var(--label-3); margin: -2px 0 6px 0; line-height: 1.35; }
     .apple-card-summary {
-        color: #48484A;
+        color: #334155;
         font-size: 0.885rem;
         line-height: 1.54;
         margin: 0 0 2px 0;
@@ -752,11 +752,11 @@ APPLE_DESIGN_SYSTEM_CSS = """
         margin-left: auto !important;
     }
     div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button {
-        height: 36px !important;
-        min-height: 36px !important;
-        border-radius: 10px !important;
+        height: 34px !important;
+        min-height: 34px !important;
+        border-radius: 999px !important;
         padding: 0 14px !important;
-        font-size: 0.83rem !important;
+        font-size: 0.82rem !important;
         font-weight: 600 !important;
     }
     div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button[kind="primary"] {
@@ -806,6 +806,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
 
     /* Streamlit 1.67 React Aria Selectbox & BaseWeb inputs — Unified 34px Pill Chips */
     div[data-testid="stSelectbox"] div:has(> input),
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) div[data-baseweb="input"],
     div[data-baseweb="input"] > div:first-child,
     div[data-baseweb="select"] > div:first-child {
         border-radius: 999px !important;
@@ -818,7 +819,22 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-size: 0.8rem !important;
         transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), background-color 0.16s var(--ease) !important;
     }
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) div[data-baseweb="base-input"],
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) div[data-baseweb="base-input"]:focus-within {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        padding: 0 10px !important;
+    }
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) input {
+        font-size: 0.8rem !important;
+        color: var(--label) !important;
+        padding: 0 4px !important;
+    }
     div[data-testid="stSelectbox"] div:has(> input):hover,
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) div[data-baseweb="input"]:hover,
     div[data-baseweb="select"] > div:first-child:hover {
         border-color: rgba(15, 23, 42, 0.24) !important;
         background-color: #FAFBFD !important;
@@ -854,6 +870,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     div[data-testid="stSelectbox"] div:has(> input)[data-focus-within],
     div[data-testid="stSelectbox"] div:has(> input):focus-within,
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) div[data-baseweb="input"]:focus-within,
     div[data-baseweb="input"] > div:first-child:focus-within,
     div[data-baseweb="select"] > div:first-child:focus-within {
         border-color: #0066CC !important;
@@ -957,7 +974,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
     div[data-testid="stButtonGroup"] {
         width: 100% !important;
         display: flex !important;
-        justify-content: flex-end !important;
+        justify-content: flex-start !important;
         align-items: center !important;
         margin: 0 !important;
     }
@@ -968,7 +985,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
         flex-wrap: nowrap !important;
         width: 100% !important;
         max-width: 100% !important;
-        justify-content: flex-end !important;
+        justify-content: flex-start !important;
         overflow-x: visible !important;
         mask-image: none !important;
         -webkit-mask-image: none !important;
@@ -979,6 +996,10 @@ APPLE_DESIGN_SYSTEM_CSS = """
         margin: 0 !important;
         column-gap: 2px !important;
         box-shadow: none !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"],
+    div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] > div {
+        justify-content: flex-end !important;
     }
     div[data-testid="stButtonGroup"] > div::-webkit-scrollbar {
         display: none !important;
@@ -1188,8 +1209,52 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .sb-footer { margin-top: 16px; text-align: center; font-size: 0.7rem; line-height: 1.5; color: var(--label-3); }
 
     /* ==========================================================
-       9. RESPONSIVE (MOBILE-FIRST NEWSROOM UPGRADE) + ACCESSIBILITY
+       9. RESPONSIVE (DESKTOP / TABLET / MOBILE) + ACCESSIBILITY
        ========================================================== */
+    @media (max-width: 1024px) {
+        .block-container { padding: 0.9rem 0.9rem 2rem 0.9rem !important; }
+        .page-header__title { font-size: 1.5rem !important; }
+
+        /* Fit editorial navbar tabs comfortably on tablet widths (769px-1024px) */
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button,
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
+            padding: 0 7px 4px 7px !important;
+            font-size: 0.76rem !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button *,
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] * {
+            font-size: 0.76rem !important;
+        }
+
+        /* Tablet 3-column grid for 5/6-column KPI & Metric rows */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]),
+        div[data-testid="stHorizontalBlock"]:has(.apple-kpi-card) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) > div[data-testid="stColumn"],
+        div[data-testid="stHorizontalBlock"]:has(.apple-kpi-card) > div[data-testid="stColumn"] {
+            flex: 1 1 calc(33.33% - 10px) !important;
+            min-width: 170px !important;
+            width: auto !important;
+        }
+
+        /* Tablet 2-column grid for 3-column Account Directory cards */
+        div[data-testid="stHorizontalBlock"]:has(.acct-card-rich) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.acct-card-rich) > div[data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 10px) !important;
+            min-width: 240px !important;
+            width: auto !important;
+        }
+    }
+
     @media (max-width: 900px) {
         .block-container { padding: 0.75rem 0.75rem 2rem 0.75rem !important; }
         .page-header__title { font-size: 1.35rem !important; }
@@ -1220,6 +1285,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
             justify-content: space-between !important;
             width: 100% !important;
         }
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"],
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] > div,
         div[data-testid="stButtonGroup"],
         div[data-testid="stButtonGroup"] > div,
         div[data-baseweb="button-group"] {
@@ -1229,6 +1296,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
             scrollbar-width: none !important;
             column-gap: 2px !important;
         }
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button,
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button[data-variant="segmented_control"],
         div[data-testid="stButtonGroup"] button,
         div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
             height: 32px !important;
@@ -1237,6 +1306,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
             font-size: 0.76rem !important;
             flex: 0 0 auto !important;
         }
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button *,
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] *,
         div[data-testid="stButtonGroup"] button *,
         div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] * {
             font-size: 0.76rem !important;
@@ -1302,14 +1373,31 @@ APPLE_DESIGN_SYSTEM_CSS = """
             padding: 0 !important;
         }
 
+        /* Secondary multi-column filter bars (Analytics & Export, System Health, X Directory) in a compact 2-col grid */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stSelectbox"]):not(:has([data-testid="stPopover"])):not(div[data-testid="stForm"] *) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stSelectbox"]):not(:has([data-testid="stPopover"])):not(div[data-testid="stForm"] *) > div[data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 6px) !important;
+            min-width: 135px !important;
+            width: auto !important;
+        }
+
         /* 2x2 grid for KPI Metric rows on mobile */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]),
+        div[data-testid="stHorizontalBlock"]:has(.apple-kpi-card) {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: wrap !important;
             gap: 8px !important;
         }
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) > div[data-testid="stColumn"] {
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) > div[data-testid="stColumn"],
+        div[data-testid="stHorizontalBlock"]:has(.apple-kpi-card) > div[data-testid="stColumn"] {
             flex: 1 1 calc(50% - 8px) !important;
             min-width: 135px !important;
             width: auto !important;
@@ -1319,6 +1407,12 @@ APPLE_DESIGN_SYSTEM_CSS = """
         }
         div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * {
             font-size: 1.15rem !important;
+        }
+        .apple-kpi-card {
+            padding: 10px 12px !important;
+        }
+        .apple-kpi-card__value {
+            font-size: 1.25rem !important;
         }
 
         /* Mobile typography & card spacing */

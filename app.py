@@ -526,8 +526,23 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
         f'</article>'
     )
 
+def _render_x_metrics_html(p: Dict[str, Any]) -> str:
+    sentiment = p.get("sentiment", "Neutral")
+    if "Alert" in sentiment or "Critical" in sentiment:
+        senti_class = "x-sentiment-alert"
+    elif "Positive" in sentiment:
+        senti_class = "x-sentiment-positive"
+    else:
+        senti_class = ""
+    metrics = "".join(
+        f'<span class="x-metric-item" title="{label}">{icon} {compact_number(int(p.get(key, 0) or 0))}</span>'
+        for key, icon, label in (("likes", "♥", "Likes"), ("retweets", "↻", "Reposts"), ("replies", "💬", "Replies"), ("impressions", "◉", "Views"))
+    )
+    return f'<div class="x-metrics-group">{metrics}<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span></div>'
+
+
 # X (Twitter) Post Card Renderer
-def render_apple_x_post_card(p: Dict[str, Any]) -> str:
+def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True) -> str:
     avatar_bg = html.escape(p.get("avatar_bg", "#1D9BF0"))
     initials = html.escape(p.get("initials", "X"))
     author_name = html.escape(p.get("author_name", "Author"))
@@ -538,28 +553,7 @@ def render_apple_x_post_card(p: Dict[str, Any]) -> str:
     text = html.escape(p.get("text", ""), quote=False)
     text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b>\1</b>', text).replace("\n", "<br>")
 
-    sentiment = p.get("sentiment", "Neutral")
-    if "Alert" in sentiment or "Critical" in sentiment:
-        senti_class = "x-sentiment-alert"
-    elif "Positive" in sentiment:
-        senti_class = "x-sentiment-positive"
-    else:
-        senti_class = ""
-
-    raw_handle = p.get("raw_handle") or p.get("handle", "").lstrip("@").split(" ")[0].strip()
-    orig_link = p.get("link", "#")
-    if p.get("is_real_api") and orig_link and "/status/" in orig_link:
-        link, cta_label = orig_link, "View post on X ↗"
-    elif raw_handle and raw_handle not in ("LiveSearch", "Author"):
-        link, cta_label = f"https://x.com/{raw_handle}", f"View @{raw_handle} on X ↗"
-    else:
-        link, cta_label = (orig_link if orig_link != "#" else "https://x.com"), "View on X ↗"
-    link = html.escape(link, quote=True)
-
-    metrics = "".join(
-        f'<span class="x-metric-item" title="{label}">{icon} {compact_number(int(p.get(key, 0) or 0))}</span>'
-        for key, icon, label in (("likes", "♥", "Likes"), ("retweets", "↻", "Reposts"), ("replies", "💬", "Replies"), ("impressions", "◉", "Views"))
-    )
+    footer_html = f'<footer class="x-engagement-bar">{_render_x_metrics_html(p)}</footer>' if show_footer else ""
 
     return (
         f'<article class="x-post-card">'
@@ -571,9 +565,7 @@ def render_apple_x_post_card(p: Dict[str, Any]) -> str:
         f'{time_badge_html(p.get("relative_time", "Recent"), p.get("exact_time", ""))}</div>'
         f'</header>'
         f'<div class="x-post-text">{text}</div>'
-        f'<footer class="x-engagement-bar">'
-        f'<div class="x-metrics-group">{metrics}<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span></div>'
-        f'</footer>'
+        f'{footer_html}'
         f'</article>'
     )
 
@@ -633,27 +625,27 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
             html, body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif; }}
             .cp-btn {{
                 width: 100%;
-                height: 36px;
-                border-radius: 10px;
-                border: 1px solid rgba(0, 0, 0, 0.14);
+                height: 34px;
+                border-radius: 999px;
+                border: 1px solid rgba(15, 23, 42, 0.13);
                 background: #FFFFFF;
-                color: #1D1D1F;
-                font-size: 13px;
+                color: #0F172A;
+                font-size: 12.5px;
                 font-weight: 600;
                 cursor: pointer;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 gap: 6px;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
                 transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
                 box-sizing: border-box;
             }}
-            .cp-btn:hover {{ background: #F5F5F7; }}
+            .cp-btn:hover {{ background: #F8FAFC; border-color: rgba(15, 23, 42, 0.24); }}
             .cp-btn.copied {{
-                background: #E8F5EC;
-                color: #1E8E3E;
-                border-color: rgba(30, 142, 62, 0.35);
+                background: #DCFCE7;
+                color: #15803D;
+                border-color: rgba(21, 128, 61, 0.32);
             }}
         </style>
         </head>
@@ -1426,8 +1418,8 @@ def _build_card_wrapper_html(
     is_indian, is_x = _resolve_item_flags(item, renderer)
     cache_id = _compute_item_uid(item, "global")
     if is_x:
-        card_html = renderer(item)
-        tags_html = ""
+        card_html = render_apple_x_post_card(item, show_footer=False)
+        tags_html = _render_x_metrics_html(item)
     else:
         card_html = render_apple_article_card(item, is_indian=is_indian, show_tags=False)
         tags_html = _render_article_tags_html(item, is_indian=is_indian)
