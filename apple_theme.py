@@ -1243,37 +1243,46 @@ APPLE_DESIGN_SYSTEM_CSS = """
             line-height: 28px !important;
         }
 
-        /* Row 2: Keep Filter Pills & Utility Controls in a compact multi-column toolbar instead of 6 stacked rows */
+        /* Row 2: Keep Filter Pills & Utility Controls in strictly 2 rows on mobile */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: wrap !important;
-            gap: 6px !important;
+            gap: 5px !important;
             align-items: center !important;
         }
         /* Hide empty desktop spacer columns on mobile (must exclude stPopover and stLayoutWrapper) */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:not(:has([data-testid="stElementContainer"], [data-testid="stPopover"], [data-testid="stLayoutWrapper"], button, input)) {
             display: none !important;
         }
-        /* Filter selectboxes sit side-by-side (2 per row on phone) */
+        /* First 2 filter selectboxes sit side-by-side on Line 1 (50% / 50%) */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stSelectbox"]) {
-            flex: 1 1 calc(50% - 6px) !important;
-            min-width: 135px !important;
+            flex: 1 1 calc(50% - 5px) !important;
+            min-width: 130px !important;
             width: auto !important;
         }
-        /* Timeframe popover pill expands cleanly alongside icon buttons */
+        /* 3rd filter selectbox (in Nepali Media & X) sits on Line 2 alongside [🕒 12h ▾ | 🔍 | 🔄] */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stSelectbox"]):nth-of-type(3) {
+            flex: 1 1 100px !important;
+            min-width: 96px !important;
+            width: auto !important;
+        }
+        /* Timeframe popover pill fits on Line 2 next to the 3rd selectbox and icon buttons */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stPopover"]) {
             display: flex !important;
-            flex: 1 1 auto !important;
-            min-width: 105px !important;
+            flex: 0 1 auto !important;
+            min-width: 78px !important;
             width: auto !important;
         }
-        /* Search & Sync icon buttons stay compact 40px pills (exclude popover column) */
+        /* Search & Sync icon buttons stay compact 36px pills on Line 2 */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) {
-            flex: 0 0 40px !important;
-            min-width: 40px !important;
-            max-width: 44px !important;
-            width: 40px !important;
+            flex: 0 0 36px !important;
+            min-width: 36px !important;
+            max-width: 38px !important;
+            width: 36px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) button {
+            padding: 0 !important;
         }
 
         /* 2x2 grid for KPI Metric rows on mobile */
