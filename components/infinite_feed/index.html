@@ -26,58 +26,80 @@
     contain-intrinsic-size: auto 2400px;
   }
   .feed-card-wrap {
+    position: relative;
     background: #FFFFFF;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 16px;
-    padding: 16px 18px 14px 18px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-    transition: box-shadow 0.16s ease, border-color 0.16s ease;
+    border: 1px solid rgba(15, 23, 42, 0.09);
+    border-radius: 14px;
+    padding: 18px 20px 14px 20px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 1px 2px rgba(15, 23, 42, 0.02);
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
   }
-  .feed-card-wrap:hover {
-    border-color: rgba(0, 0, 0, 0.14);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  @media (hover: hover) {
+    .feed-card-wrap:hover {
+      border-color: rgba(15, 23, 42, 0.18);
+      box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+    }
   }
-  .feed-card-actions {
+  .feed-card-footer {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    margin-top: 10px;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+  }
+  .feed-card-footer .chip-row {
+    margin-top: 0 !important;
+  }
+  .feed-card-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
   }
   .feed-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    height: 36px;
-    padding: 0 14px;
-    border-radius: 10px;
-    font-size: 13px;
+    gap: 5px;
+    min-block-size: 30px;
+    height: 30px;
+    padding: 0 13px;
+    border-radius: 999px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     text-decoration: none;
     box-sizing: border-box;
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(15, 23, 42, 0.13);
     background: #FFFFFF;
-    color: #1D1D1F;
+    color: #0F172A;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
     transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.08s ease;
   }
-  .feed-btn:hover {
-    background: #F5F5F7;
-    border-color: rgba(0, 0, 0, 0.2);
+  @media (hover: hover) {
+    .feed-btn:hover {
+      background: #F8FAFC;
+      border-color: rgba(15, 23, 42, 0.24);
+    }
   }
   .feed-btn:active {
     transform: scale(0.985);
   }
   .feed-btn--primary {
-    background: #0071E3;
-    border-color: #0071E3;
+    background: #0066CC;
+    border-color: #0066CC;
     color: #FFFFFF;
   }
-  .feed-btn--primary:hover {
-    background: #0077ED;
-    border-color: #0077ED;
-    color: #FFFFFF;
+  @media (hover: hover) {
+    .feed-btn--primary:hover {
+      background: #0052A3;
+      border-color: #0052A3;
+      color: #FFFFFF;
+    }
   }
   .feed-btn svg {
     width: 15px;
@@ -153,6 +175,9 @@
       let themeInjected = false;
       let rafPending = false;
       let currentError = "";
+      let lastTotalCount = 0;
+      let lastLoadedCount = 0;
+      let lastNoun = "items";
 
       function sendMessage(type, payload) {
         window.parent.postMessage(
@@ -260,6 +285,7 @@
         if (isNearBottom) {
           inFlight = true;
           lastRequestedSeq = nextExpectedSeq;
+          renderFooter(lastTotalCount, lastLoadedCount, lastNoun, "");
           emitValue({ event: "load_more", next_seq: nextExpectedSeq, ts: Date.now() });
         }
       }
@@ -270,16 +296,13 @@
         window.requestAnimationFrame(checkSentinelInParentViewport);
       }
 
-      // Attach passive scroll listeners to parent scroll containers
+      // Attach capturing scroll listener on parent document so any Streamlit scroll container triggers it
       function bindParentScroll() {
         try {
           const pWin = window.parent;
           pWin.addEventListener("scroll", scheduleScrollCheck, { passive: true });
           pWin.addEventListener("resize", scheduleScrollCheck, { passive: true });
-          const mainScroller = pWin.document.querySelector('[data-testid="stAppViewContainer"], section.main, [data-testid="stMain"]');
-          if (mainScroller) {
-            mainScroller.addEventListener("scroll", scheduleScrollCheck, { passive: true });
-          }
+          pWin.document.addEventListener("scroll", scheduleScrollCheck, { capture: true, passive: true });
         } catch (e) {
           window.addEventListener("scroll", scheduleScrollCheck, { passive: true });
         }
@@ -306,7 +329,7 @@
         if (!data || data.type !== "streamlit:render") return;
         const args = data.args || {};
 
-        if (!themeInjected && args.theme_css) {
+        if (args.theme_css && themeMount.innerHTML !== args.theme_css) {
           themeMount.innerHTML = args.theme_css;
           themeInjected = true;
         }
@@ -338,11 +361,14 @@
         hasMore = Boolean(args.has_more);
         currentError = args.error_msg || "";
         inFlight = false;
+        lastTotalCount = Number(args.total_count || 0);
+        lastLoadedCount = Number(args.loaded_count || 0);
+        lastNoun = args.noun || "items";
 
         renderFooter(
-          Number(args.total_count || 0),
-          Number(args.loaded_count || 0),
-          args.noun || "items",
+          lastTotalCount,
+          lastLoadedCount,
+          lastNoun,
           currentError
         );
         setFrameHeight();

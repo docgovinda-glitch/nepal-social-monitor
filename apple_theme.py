@@ -136,7 +136,12 @@ APPLE_DESIGN_SYSTEM_CSS = """
         padding: 5px 12px; border-radius: var(--r-pill);
         font-size: 0.74rem; font-weight: 600; letter-spacing: 0.01em;
     }
-    .live-pill__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: livePulse 2s infinite; }
+    .live-status-inline {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+        color: var(--green); text-transform: uppercase;
+    }
+    .live-pill__dot { display: inline-block; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: livePulse 2s infinite; }
     @keyframes livePulse {
         0% { box-shadow: 0 0 0 0 rgba(30, 142, 62, 0.45); }
         70% { box-shadow: 0 0 0 6px rgba(30, 142, 62, 0); }
@@ -146,10 +151,31 @@ APPLE_DESIGN_SYSTEM_CSS = """
     /* ==========================================================
        4. PAGE HEADER (large title per workspace)
        ========================================================== */
-    .page-header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 4px 0 16px 0; }
-    .page-header__title { font-size: 1.65rem !important; font-weight: 700 !important; letter-spacing: -0.028em !important; margin: 0 !important; padding: 0 !important; color: var(--label) !important; line-height: 1.1 !important; }
-    .page-header__subtitle { font-size: 0.86rem; color: var(--label-2); margin: 4px 0 0 0; }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 2px 0 10px 0; }
+    .page-header__title { font-size: 1.9rem !important; font-weight: 700 !important; letter-spacing: -0.03em !important; margin: 0 !important; padding: 0 !important; color: var(--label) !important; line-height: 1.12 !important; }
+    .page-header [data-testid="stHeaderActionElements"], .page-header__title a { display: none !important; }
+    .page-header__subtitle { font-size: 0.88rem; color: var(--label-2); margin: 4px 0 0 0; }
     .page-header__meta { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .newsroom-stat-line {
+        display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+        margin: 2px 0 10px 0;
+    }
+    .newsroom-stat-total {
+        font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; color: var(--label);
+    }
+    .newsroom-stat-label {
+        font-size: 0.9rem; font-weight: 500; color: var(--label-2);
+    }
+    .news-stream-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 2px 6px 2px; margin-top: 4px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+        color: var(--label-3); text-transform: uppercase;
+    }
+    .news-stream-bar__right {
+        font-weight: 500; letter-spacing: 0.01em; text-transform: none; font-size: 0.78rem;
+    }
 
     /* ==========================================================
        5. PILLS / CHIPS / BADGES (shared base + colour variants)
@@ -157,13 +183,13 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge,
     .x-sentiment-badge, .x-metric-item, .status-pill {
         display: inline-flex; align-items: center; gap: 4px;
-        padding: 3px 10px; border-radius: var(--r-pill);
-        font-size: 0.72rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
+        padding: 3px 9px; border-radius: 7px;
+        font-size: 0.73rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
         background: var(--surface-muted); color: var(--label-2);
-        border: 1px solid transparent;
+        border: 1px solid rgba(0, 0, 0, 0.06);
     }
-    .portal-tag { background: var(--label); color: #FFFFFF; }
-    .indian-portal-tag { background: #FFF4EA; color: #B4530D; }
+    .portal-tag { background: #F2F4F7; color: var(--label); border-color: rgba(0, 0, 0, 0.09); font-weight: 650; }
+    .indian-portal-tag { background: #FFF4EA; color: #B4530D; border-color: rgba(180, 83, 13, 0.15); }
     .lang-label {
         font-size: 0.73rem;
         font-weight: 500;
@@ -173,9 +199,9 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
     .time-badge {
         margin-left: auto;
-        font-size: 0.73rem;
+        font-size: 0.75rem;
         font-weight: 500;
-        color: var(--label-2);
+        color: var(--label-3);
         white-space: nowrap;
         line-height: 1.35;
     }
@@ -185,15 +211,16 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .sec-tag-chip {
         display: inline-flex;
         align-items: center;
-        padding: 3px 10px;
-        border-radius: var(--r-pill);
-        background: var(--surface-muted);
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: #F5F6F8;
+        border: 1px solid rgba(0, 0, 0, 0.06);
         font-size: 0.72rem;
         font-weight: 500;
         color: var(--label-2);
         line-height: 1.35;
     }
-    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
     .cat-badge--india { background: #FFF6E0; color: #8A5300; }
     .cat-badge--china { background: #FDECEC; color: #A61B1B; }
@@ -775,122 +802,258 @@ APPLE_DESIGN_SYSTEM_CSS = """
         font-size: 1.4rem !important; font-weight: 700 !important; letter-spacing: -0.02em !important; color: var(--label) !important;
     }
 
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-        border-radius: 10px !important; border-color: var(--separator-strong) !important; background-color: var(--surface) !important;
-        transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease) !important;
+    [data-testid="stAppDeployButton"], .stAppDeployButton, #MainMenu { display: none !important; }
+
+    /* Streamlit 1.67 React Aria Selectbox & BaseWeb inputs — Unified 34px Pill Chips */
+    div[data-testid="stSelectbox"] div:has(> input),
+    div[data-baseweb="input"] > div:first-child,
+    div[data-baseweb="select"] > div:first-child {
+        border-radius: 999px !important;
+        border: 1px solid rgba(15, 23, 42, 0.13) !important;
+        background-color: #FFFFFF !important;
+        min-height: 34px !important;
+        height: 34px !important;
+        max-height: 34px !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+        font-size: 0.8rem !important;
+        transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), background-color 0.16s var(--ease) !important;
     }
-    div[data-baseweb="input"] > div:focus-within, div[data-baseweb="select"] > div:focus-within {
-        border-color: var(--tint) !important; box-shadow: 0 0 0 3px var(--tint-soft) !important;
+    div[data-testid="stSelectbox"] div:has(> input):hover,
+    div[data-baseweb="select"] > div:first-child:hover {
+        border-color: rgba(15, 23, 42, 0.24) !important;
+        background-color: #FAFBFD !important;
+    }
+    div[data-testid="stSelectbox"] input {
+        padding: 0 2px 0 12px !important;
+        font-size: 0.8rem !important;
+        font-weight: 550 !important;
+        color: var(--label) !important;
+        caret-color: transparent !important;
+        cursor: pointer !important;
+        line-height: 32px !important;
+    }
+    div[data-testid="stSelectbox"] button[aria-label="Open"] {
+        padding-right: 10px !important;
+        padding-left: 2px !important;
+        color: var(--label-2) !important;
+    }
+    div[data-baseweb="select"] > div:first-child {
+        padding-left: 6px !important;
+        cursor: pointer !important;
+    }
+    div[data-baseweb="select"] > div > div {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    div[data-baseweb="select"] input {
+        caret-color: transparent !important;
+        cursor: pointer !important;
+    }
+    div[data-testid="stSelectbox"] div:has(> input)[data-focus-within],
+    div[data-testid="stSelectbox"] div:has(> input):focus-within,
+    div[data-baseweb="input"] > div:first-child:focus-within,
+    div[data-baseweb="select"] > div:first-child:focus-within {
+        border-color: #0066CC !important;
+        box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.12) !important;
     }
 
-    .stButton > button, div[data-testid="stDownloadButton"] > button, div[data-testid="stLinkButton"] > a {
-        border-radius: 10px !important; font-weight: 600 !important; font-size: 0.84rem !important;
-        border: 1px solid var(--separator-strong) !important; background: var(--surface) !important; color: var(--label) !important;
-        box-shadow: var(--shadow-1) !important; transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease) !important;
+    /* Editorial Top Navbar (Row 1) & Filter Bar (Row 2) */
+    div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) {
+        align-items: center !important;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.09) !important;
+        padding: 0 !important;
+        margin-bottom: -4px !important;
+        min-height: 38px !important;
     }
-    .stButton > button:hover, div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stLinkButton"] > a:hover {
-        background: var(--surface-muted) !important; border-color: var(--separator-strong) !important; color: var(--label) !important;
+    div[data-testid="stElementContainer"]:has(.editorial-brand-anchor),
+    div[data-testid="stMarkdownContainer"]:has(.editorial-brand-anchor) {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Unified 34px Pill Buttons & Popovers (matches Selectbox pills) */
+    [data-testid="stPopover"] > button,
+    [data-testid="stPopover"] > div > button,
+    .stButton > button,
+    div[data-testid="stDownloadButton"] > button,
+    div[data-testid="stLinkButton"] > a {
+        min-height: 34px !important;
+        height: 34px !important;
+        padding: 0 11px !important;
+        border-radius: 999px !important;
+        font-weight: 600 !important;
+        font-size: 0.79rem !important;
+        border: 1px solid rgba(15, 23, 42, 0.13) !important;
+        background: #FFFFFF !important;
+        color: var(--label) !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+        white-space: nowrap !important;
+        transition: background-color 0.16s var(--ease), border-color 0.16s var(--ease), box-shadow 0.16s var(--ease) !important;
+    }
+    [data-testid="stPopover"] button div,
+    [data-testid="stPopover"] button p,
+    [data-testid="stPopover"] button span {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
+    }
+    [data-testid="stPopover"] > button:hover,
+    [data-testid="stPopover"] > div > button:hover,
+    .stButton > button:hover,
+    div[data-testid="stDownloadButton"] > button:hover,
+    div[data-testid="stLinkButton"] > a:hover {
+        background: #FAFBFD !important;
+        border-color: rgba(15, 23, 42, 0.24) !important;
+        color: var(--label) !important;
     }
     .stButton > button[kind="primary"], div[data-testid="stDownloadButton"] > button[kind="primary"],
     button[data-testid="stBaseButton-primary"], button[data-testid="stBaseButton-primaryFormSubmit"] {
-        background: var(--tint) !important; color: #FFFFFF !important; border: none !important;
+        background: #0066CC !important; color: #FFFFFF !important; border: none !important;
     }
     .stButton > button[kind="primary"] *, div[data-testid="stDownloadButton"] > button[kind="primary"] *,
     button[data-testid="stBaseButton-primary"] *, button[data-testid="stBaseButton-primaryFormSubmit"] * { color: #FFFFFF !important; }
     .stButton > button[kind="primary"]:hover, div[data-testid="stDownloadButton"] > button[kind="primary"]:hover,
     button[data-testid="stBaseButton-primary"]:hover, button[data-testid="stBaseButton-primaryFormSubmit"]:hover {
-        background: var(--tint-hover) !important;
+        background: #0052A3 !important;
+    }
+
+    /* macOS / Linear-style borderless left-aligned popover menu items (must override .stButton) */
+    div[data-baseweb="popover"] .stButton > button,
+    [data-testid="stPopoverBody"] .stButton > button {
+        justify-content: flex-start !important;
+        text-align: left !important;
+        border: 1px solid transparent !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-weight: 500 !important;
+        padding: 6px 10px !important;
+        min-height: 34px !important;
+        border-radius: 8px !important;
+        color: var(--label) !important;
+    }
+    div[data-baseweb="popover"] .stButton > button:hover,
+    [data-testid="stPopoverBody"] .stButton > button:hover {
+        background: rgba(0, 0, 0, 0.045) !important;
+        border-color: transparent !important;
+    }
+    div[data-baseweb="popover"] .stButton > button[kind="primary"],
+    [data-testid="stPopoverBody"] .stButton > button[kind="primary"] {
+        background: var(--tint-soft) !important;
+        color: #0066CC !important;
+        font-weight: 600 !important;
+        border-color: transparent !important;
+    }
+    div[data-baseweb="popover"] .stButton > button[kind="primary"] *,
+    [data-testid="stPopoverBody"] .stButton > button[kind="primary"] * {
+        color: #0066CC !important;
     }
 
     /* ==========================================================
-       7. SEGMENTED CONTROLS (macOS / Apple HIG)
+       7. EDITORIAL UNDERLINE TABS (Concept C — Feedly / FT style)
        ========================================================== */
-    /* Main Content Area Segmented Controls */
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"],
-    .main div[data-testid="stButtonGroup"] {
+    div[data-testid="stButtonGroup"] {
         width: 100% !important;
         display: flex !important;
-        justify-content: flex-start !important;
+        justify-content: flex-end !important;
         align-items: center !important;
-        margin: 4px 0 16px 0 !important;
+        margin: 0 !important;
     }
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] > div,
-    .main div[data-testid="stButtonGroup"] > div {
-        display: inline-flex !important;
+    div[data-testid="stButtonGroup"] > div,
+    div[data-baseweb="button-group"] {
+        display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        width: auto !important;
+        width: 100% !important;
         max-width: 100% !important;
-        overflow-x: auto !important;
-        scrollbar-width: none !important;
-        -webkit-overflow-scrolling: touch !important;
-        background: rgba(118, 118, 128, 0.12) !important;
-        padding: 3px !important;
-        border-radius: 10px !important;
+        justify-content: flex-end !important;
+        overflow-x: visible !important;
+        mask-image: none !important;
+        -webkit-mask-image: none !important;
+        background: transparent !important;
         border: none !important;
-        gap: 3px !important;
-        box-sizing: border-box !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        column-gap: 2px !important;
+        box-shadow: none !important;
     }
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] > div::-webkit-scrollbar,
-    .main div[data-testid="stButtonGroup"] > div::-webkit-scrollbar {
+    div[data-testid="stButtonGroup"] > div::-webkit-scrollbar {
         display: none !important;
     }
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button,
-    .main div[data-testid="stButtonGroup"] button {
-        flex: 0 0 auto !important;
+    div[data-testid="stButtonGroup"] button,
+    div[data-testid="stButtonGroup"] button[data-variant="segmented_control"],
+    div[data-baseweb="button-group"] button {
+        flex: 0 1 auto !important;
         width: auto !important;
         min-width: max-content !important;
-        height: 34px !important;
-        min-height: 34px !important;
-        padding: 0 18px !important;
-        border-radius: 8px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        margin: 0 !important;
+        padding: 0 9px 4px 9px !important;
         border: none !important;
+        border-bottom: 2px solid transparent !important;
+        border-radius: 0 !important;
         background: transparent !important;
-        color: var(--label-2) !important;
         box-shadow: none !important;
-        font-size: 0.82rem !important;
+        outline: none !important;
+        color: #64748B !important;
+        font-size: 0.79rem !important;
         font-weight: 500 !important;
         letter-spacing: -0.01em !important;
         text-align: center !important;
         justify-content: center !important;
         align-items: center !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
         cursor: pointer !important;
-        transition: background-color 0.2s var(--ease), box-shadow 0.2s var(--ease), color 0.2s var(--ease) !important;
+        transition: color 0.15s var(--ease), border-color 0.15s var(--ease), background-color 0.15s var(--ease) !important;
     }
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button *,
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button p,
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button div,
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button span,
-    .main div[data-testid="stButtonGroup"] button *,
-    .main div[data-testid="stButtonGroup"] button p,
-    .main div[data-testid="stButtonGroup"] button div,
-    .main div[data-testid="stButtonGroup"] button span {
-        font-size: 0.82rem !important;
+    div[data-testid="stButtonGroup"] button *,
+    div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] * {
+        font-size: 0.79rem !important;
         font-weight: inherit !important;
+        color: inherit !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
         margin: 0 !important;
         padding: 0 !important;
-        line-height: 34px !important;
-        text-align: center !important;
+        line-height: 32px !important;
     }
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button:hover:not([aria-checked="true"]),
-    .main div[data-testid="stButtonGroup"] button:hover:not([aria-checked="true"]) {
-        background: rgba(255, 255, 255, 0.45) !important;
-        color: var(--label) !important;
+    div[data-testid="stButtonGroup"] button:hover:not([data-selected]),
+    div[data-testid="stButtonGroup"] button[data-variant="segmented_control"]:hover:not([data-selected]),
+    div[data-baseweb="button-group"] button:hover {
+        background: rgba(15, 23, 42, 0.035) !important;
+        color: #0F172A !important;
+        border: none !important;
+        border-bottom: 2px solid rgba(15, 23, 42, 0.2) !important;
+        border-top-left-radius: 6px !important;
+        border-top-right-radius: 6px !important;
+        box-shadow: none !important;
     }
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button[data-selected],
-    [data-testid="stAppViewContainer"] .main div[data-testid="stButtonGroup"] button[aria-checked="true"],
-    .main div[data-testid="stButtonGroup"] button[data-selected],
-    .main div[data-testid="stButtonGroup"] button[aria-checked="true"] {
-        background: var(--surface) !important;
-        font-weight: 600 !important;
-        color: var(--label) !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    div[data-testid="stButtonGroup"] button[data-focus-visible],
+    div[data-testid="stButtonGroup"] button:focus,
+    div[data-testid="stButtonGroup"] button:focus-visible {
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    div[data-testid="stButtonGroup"] button[data-selected],
+    div[data-testid="stButtonGroup"] button[data-variant="segmented_control"][data-selected],
+    div[data-testid="stButtonGroup"] button[aria-checked="true"],
+    div[data-testid="stButtonGroup"] button[data-testid*="Active"],
+    div[data-testid="stButtonGroup"] button[kind*="Active"],
+    div[data-baseweb="button-group"] button[aria-checked="true"],
+    div[data-baseweb="button-group"] button[data-testid*="Active"] {
+        background: transparent !important;
+        font-weight: 650 !important;
+        color: #0066CC !important;
+        border: none !important;
+        border-bottom: 2px solid #0066CC !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        outline: none !important;
     }
 
     /* Sidebar Segmented Controls (compact 1-row layout for timeframe presets) */
