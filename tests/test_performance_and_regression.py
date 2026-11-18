@@ -151,6 +151,77 @@ class StoreAndPaginationUnitTests(unittest.TestCase):
         self.assertNotIn("indian", after_retry["errors"])
         self.assertEqual(after_retry["pipelines"]["indian"]["status"], "done")
 
+    def test_empty_exception_formatting_and_portal_fallback_and_timeouts(self):
+        import io
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_news_scheduler as sched
+
+        self.assertEqual(cfg.format_exc(TimeoutError()), "TimeoutError")
+        self.assertEqual(cfg.format_exc(RuntimeError("boom")), "RuntimeError: boom")
+
+        portal = {"name": "TestPortal", "type": "html", "url": "https://example.com/", "alt_urls": ["https://example.com/rss"], "lang": "English", "category": "Digital Daily"}
+        # 1) Empty TimeoutError from fetch_single_portal must record ERROR with non-blank error text
+        with mock.patch("nepal_fetcher.fetch_single_portal", side_effect=TimeoutError()) as m_fetch, \
+             mock.patch("nepal_news_scheduler.record_source_error") as m_rec_err, \
+             mock.patch("nepal_news_scheduler.batch_upsert_articles") as m_upsert:
+            out = sched.run_single_source_discovery(portal)
+            self.assertEqual(out["status"], "ERROR")
+            self.assertEqual(out["error"], "TimeoutError")
+            m_rec_err.assert_called_once()
+            self.assertEqual(m_rec_err.call_args[0][1], "TimeoutError")
+            m_upsert.assert_not_called()
+            self.assertIs(m_fetch.call_args.kwargs.get("persist"), False)
+            self.assertIs(m_fetch.call_args.kwargs.get("raise_on_error"), True)
+
+        # 2) HTML portal yielding empty/blocked homepage falls back cleanly to RSS alt_urls
+        rss_bytes = (
+            b'<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
+            b'<item><title>Kathmandu diplomatic meeting held</title>'
+            b'<link>https://example.com/news/1</link><pubDate>Wed, 18 Nov 2026 09:00:00 +0000</pubDate></item>'
+            b'</channel></rss>'
+        )
+
+        class _FakeResp:
+            def __init__(self, data: bytes):
+                self._data = data
+            def read(self):
+                return self._data
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        def _fake_urlopen(req, context=None, timeout=None):
+            u = req.full_url if hasattr(req, "full_url") else str(req)
+            if u.endswith("/rss"):
+                return _FakeResp(rss_bytes)
+            return _FakeResp(b"<html><body><div>blocked</div></body></html>")
+
+        with mock.patch("urllib.request.urlopen", side_effect=_fake_urlopen), \
+             mock.patch("nepal_fetcher.batch_fetch_full_content"), \
+             mock.patch("nepal_fetcher.batch_upsert_articles") as m_up:
+            parsed = fetcher.fetch_single_portal(
+                portal, datetime.datetime.now(cfg.NEPAL_TZ), persist=False, raise_on_error=True
+            )
+            self.assertEqual(len(parsed), 1)
+            self.assertEqual(parsed[0]["title"], "Kathmandu diplomatic meeting held")
+            m_up.assert_not_called()
+
+        # 3) Bounded cycle_timeout_secs exits quickly without waiting for hung portal futures
+        gate = sched.threading.Event()
+        slow_portals = [{"name": "SlowPortal", "type": "rss", "url": "https://example.com/slow", "lang": "Nepali"}]
+        health_rows = [{"name": "SlowPortal", "enabled": 1, "check_interval_mins": 10}]
+        with mock.patch("nepal_fetcher.TOP_NEPAL_NEWS_PORTALS", slow_portals), \
+             mock.patch("nepal_news_scheduler.get_all_source_health", return_value=health_rows), \
+             mock.patch("nepal_news_scheduler.run_single_source_discovery", side_effect=lambda p: (gate.wait(2.0), {"ingested": 0})[1]):
+            t0 = time.perf_counter()
+            res = sched.run_all_sources_discovery(parallel_workers=1, force_all=True, cycle_timeout_secs=0.1)
+            elapsed = time.perf_counter() - t0
+            gate.set()
+        self.assertLess(elapsed, 0.8)
+        self.assertEqual(res["results"]["SlowPortal"]["status"], "TIMEOUT")
+
 
 class SupabaseLiveIntegrationTests(unittest.TestCase):
     def test_live_feed_keyset_pagination_and_single_cte_bootstraps(self):

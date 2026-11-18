@@ -18,6 +18,7 @@ import threading
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional, Tuple
+from nepal_config import format_exc
 
 try:
     import tomllib
@@ -509,7 +510,7 @@ def query_supabase(sql: str, params: Optional[Tuple[Any, ...]] = None) -> List[D
             res = resp.json()
             return res if isinstance(res, list) else []
         except Exception as ex:
-            logger.error(f"Supabase request error (attempt {attempt}): {ex}")
+            logger.error(f"Supabase request error (attempt {attempt}): {format_exc(ex)}")
             if attempt == 4:
                 return []
             time.sleep(0.8 * attempt)
@@ -737,10 +738,11 @@ def batch_upsert_articles(
 
 def record_source_error(source_name: str, error_msg: str, latency_secs: float = 0.0):
     """Records an error for a portal in Supabase source health."""
+    safe_err = (error_msg or "").strip() or "Unspecified source error"
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sql = f"""
     INSERT INTO source_health (source_name, last_discovery_time, status, consecutive_failures, failed_retrievals, last_error_message)
-    VALUES ({esc_sql(source_name)}, {esc_sql(now_str)}, 'degraded', 1, 1, {esc_sql(error_msg)})
+    VALUES ({esc_sql(source_name)}, {esc_sql(now_str)}, 'degraded', 1, 1, {esc_sql(safe_err)})
     ON CONFLICT (source_name) DO UPDATE SET
         last_discovery_time = EXCLUDED.last_discovery_time,
         consecutive_failures = source_health.consecutive_failures + 1,

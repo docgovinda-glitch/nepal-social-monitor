@@ -42,6 +42,7 @@ from nepal_config import (
     TOP_NEPAL_NEWS_PORTALS,
     TOP_INDIAN_MEDIA_SOURCES,
     parse_to_nepal_time,
+    format_exc,
 )
 
 SSL_CTX = ssl._create_unverified_context()
@@ -853,7 +854,13 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
 
 # parse_to_nepal_time is imported from nepal_config above for single source of truth.
 
-def fetch_single_portal(portal, now_npt, max_entries: int = 50):
+def fetch_single_portal(
+    portal,
+    now_npt,
+    max_entries: int = 50,
+    persist: bool = True,
+    raise_on_error: bool = False,
+):
     """
     Fetches articles from a single online news portal (RSS, category feeds, or direct HTML).
     Guarantees deep article discovery without arbitrary limits, normalizes canonical URLs,
@@ -938,106 +945,133 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
             })
         return parsed_items
 
+    def _process_html_content(html_raw: str, base_url: str, p_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+        parsed_html: List[Dict[str, Any]] = []
+        soup = BeautifulSoup(html_raw, "html.parser")
+        seen_titles = set()
+        for a in soup.find_all("a", href=True):
+            txt = " ".join(a.get_text(" ", strip=True).split())
+            href = a["href"].strip()
+            if len(txt) >= 20 and txt not in seen_titles:
+                anc_tags = {p.name for p in a.parents if hasattr(p, "name")}
+                if "nav" in anc_tags or "header" in anc_tags or "footer" in anc_tags:
+                    continue
+                anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
+                if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll", "navbar", "nav-menu", "main-menu", "header-menu", "footer"]):
+                    continue
+                if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/", "/morearticles/", "/page/", "/hong-kong-home", "/entertainment"]):
+                    continue
+                if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login", "more articles", "see more"]):
+                    continue
+                if href.startswith("/"):
+                    href = base_url.rstrip("/") + href
+                elif not href.startswith("http"):
+                    continue
+
+                norm_link = normalize_canonical_url(href)
+                if norm_link in seen_links:
+                    continue
+
+                seen_titles.add(txt)
+                seen_links.add(norm_link)
+
+                art_summary = txt
+                curr = a.parent
+                for _ in range(3):
+                    if not curr:
+                        break
+                    for p in curr.find_all("p", recursive=False):
+                        p_text = p.get_text(strip=True)
+                        if len(p_text) > 15 and p_text != txt:
+                            art_summary = p_text
+                            break
+                    if art_summary != txt:
+                        break
+                    curr = curr.parent
+
+                parsed_dt = extract_date_from_card_or_url(a, href, now_npt)
+                art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
+                cls_res = classify_article_editorial(txt, art_summary, p_info["name"], art_summary)
+                classified_cat = cls_res["primary_section"]
+                headline_en = txt if p_info.get("lang") == "English" else ""
+                canonical_id = generate_canonical_id(p_info["name"], norm_link, txt)
+
+                parsed_html.append({
+                    "canonical_id": canonical_id,
+                    "source": p_info["name"],
+                    "language": p_info.get("lang", "Nepali"),
+                    "portal_category": p_info.get("category", "General News"),
+                    "structured_category": classified_cat,
+                    "primary_section": classified_cat,
+                    "sections": cls_res["sections"],
+                    "secondary_tags": cls_res["secondary_tags"],
+                    "classification_confidence": cls_res["confidence"],
+                    "low_confidence": cls_res["low_confidence"],
+                    "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
+                    "title": txt,
+                    "headline_english": headline_en,
+                    "link": href,
+                    "canonical_url": norm_link,
+                    "summary": art_summary,
+                    "full_content": art_summary,
+                    "published_dt": art_dt,
+                    "relative_time": rel_time,
+                    "exact_time": exact_time,
+                    "is_viral": False
+                })
+                if len(items) + len(parsed_html) >= max_entries:
+                    break
+        return parsed_html
+
+    def _fetch_bytes(target_url: str, timeout_secs: float) -> bytes:
+        req = urllib.request.Request(target_url, headers=DEFAULT_HEADERS)
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout_secs) as response:
+            return response.read()
+
+    last_exc: Optional[Exception] = None
     try:
         if portal["type"] == "rss":
-            req = urllib.request.Request(portal["url"], headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=3.5) as response:
-                content = response.read()
-            items.extend(process_rss_content(content, portal))
+            try:
+                items.extend(process_rss_content(_fetch_bytes(portal["url"], 6.0), portal))
+            except Exception as e:
+                last_exc = e
 
-            # If primary feed yielded few articles, check configured alt_urls (category feeds)
+            # If primary feed failed or yielded few articles, check configured alt_urls (category/fallback feeds)
             if len(items) < 8 and portal.get("alt_urls"):
                 for alt_url in portal.get("alt_urls", []):
                     if len(items) >= max_entries:
                         break
                     try:
-                        alt_req = urllib.request.Request(alt_url, headers=DEFAULT_HEADERS)
-                        with urllib.request.urlopen(alt_req, context=SSL_CTX, timeout=2.5) as alt_resp:
-                            alt_content = alt_resp.read()
-                        items.extend(process_rss_content(alt_content, portal))
-                    except Exception:
-                        pass
+                        items.extend(process_rss_content(_fetch_bytes(alt_url, 4.0), portal))
+                    except Exception as e:
+                        if last_exc is None:
+                            last_exc = e
         else:
-            # HTML discovery mode (eKantipur, The Himalayan Times, Setopati EN, Nepal Aaja)
-            req = urllib.request.Request(portal["url"], headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=3.5) as response:
-                html_raw = response.read().decode("utf-8", errors="ignore")
+            # HTML discovery mode with automatic RSS/alt_url fallback when primary HTML is blocked/empty
+            try:
+                html_bytes = _fetch_bytes(portal["url"], 6.0)
+                items.extend(_process_html_content(html_bytes.decode("utf-8", errors="ignore"), portal["url"], portal))
+            except Exception as e:
+                last_exc = e
 
-            soup = BeautifulSoup(html_raw, "html.parser")
-            seen_titles = set()
-            for a in soup.find_all("a", href=True):
-                txt = " ".join(a.get_text(" ", strip=True).split())
-                href = a["href"].strip()
-                if len(txt) >= 20 and txt not in seen_titles:
-                    # Skip links inside navbars, headers, footers, search overlays, or trending search drawers
-                    anc_tags = {p.name for p in a.parents if hasattr(p, "name")}
-                    if "nav" in anc_tags or "header" in anc_tags or "footer" in anc_tags:
-                        continue
-                    anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
-                    if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll", "navbar", "nav-menu", "main-menu", "header-menu", "footer"]):
-                        continue
-                    if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/", "/morearticles/", "/page/", "/hong-kong-home", "/entertainment"]):
-                        continue
-                    if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login", "more articles", "see more"]):
-                        continue
-                    if href.startswith("/"):
-                        href = portal["url"].rstrip("/") + href
-                    elif not href.startswith("http"):
-                        continue
-
-                    norm_link = normalize_canonical_url(href)
-                    if norm_link in seen_links:
-                        continue
-
-                    seen_titles.add(txt)
-                    seen_links.add(norm_link)
-                    
-                    art_summary = txt
-                    curr = a.parent
-                    for _ in range(3):
-                        if not curr:
-                            break
-                        for p in curr.find_all("p", recursive=False):
-                            p_text = p.get_text(strip=True)
-                            if len(p_text) > 15 and p_text != txt:
-                                art_summary = p_text
-                                break
-                        if art_summary != txt:
-                            break
-                        curr = curr.parent
-
-                    parsed_dt = extract_date_from_card_or_url(a, href, now_npt)
-                    art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
-                    cls_res = classify_article_editorial(txt, art_summary, portal["name"], art_summary)
-                    classified_cat = cls_res["primary_section"]
-                    headline_en = txt if portal.get("lang") == "English" else ""
-                    canonical_id = generate_canonical_id(portal["name"], norm_link, txt)
-
-                    items.append({
-                        "canonical_id": canonical_id,
-                        "source": portal["name"],
-                        "language": portal.get("lang", "Nepali"),
-                        "portal_category": portal.get("category", "General News"),
-                        "structured_category": classified_cat,
-                        "primary_section": classified_cat,
-                        "sections": cls_res["sections"],
-                        "secondary_tags": cls_res["secondary_tags"],
-                        "classification_confidence": cls_res["confidence"],
-                        "low_confidence": cls_res["low_confidence"],
-                        "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
-                        "title": txt,
-                        "headline_english": headline_en,
-                        "link": href,
-                        "canonical_url": norm_link,
-                        "summary": art_summary,
-                        "full_content": art_summary,
-                        "published_dt": art_dt,
-                        "relative_time": rel_time,
-                        "exact_time": exact_time,
-                        "is_viral": False
-                    })
+            if not items and portal.get("alt_urls"):
+                for alt_url in portal.get("alt_urls", []):
                     if len(items) >= max_entries:
                         break
+                    try:
+                        alt_bytes = _fetch_bytes(alt_url, 4.0)
+                        head_low = alt_bytes[:512].lstrip().lower()
+                        if b"<rss" in head_low or b"<feed" in head_low or alt_url.rstrip("/").endswith(("/rss", "/feed")):
+                            items.extend(process_rss_content(alt_bytes, portal))
+                        else:
+                            items.extend(_process_html_content(alt_bytes.decode("utf-8", errors="ignore"), alt_url, portal))
+                    except Exception as e:
+                        if last_exc is None:
+                            last_exc = e
+
+        # If every candidate URL errored and nothing was parsed, surface real failure instead of silent empty
+        if not items and last_exc is not None:
+            raise last_exc
 
         # Store raw discovered items without automatic English brief or translation processing
         if items:
@@ -1046,13 +1080,15 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
             except Exception:
                 pass
 
-        # Persist discovered batch into durable news store
+        # Persist discovered batch once when caller doesn't handle persistence itself
         latency = round(time.time() - t0, 3)
-        if items:
+        if items and persist:
             batch_upsert_articles(items, portal["name"], latency_secs=latency)
     except Exception as e:
+        if raise_on_error:
+            raise
         latency = round(time.time() - t0, 3)
-        record_source_error(portal["name"], str(e), latency_secs=latency)
+        record_source_error(portal["name"], format_exc(e), latency_secs=latency)
 
     return items
 

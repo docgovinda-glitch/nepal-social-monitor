@@ -145,3 +145,11 @@ def parse_to_nepal_time(raw_date_val: Any, now_npt: datetime.datetime):
     except Exception:
         fallback_dt = now_npt - datetime.timedelta(days=7)
         return fallback_dt, "Date unlisted", "Archived"
+
+
+def format_exc(exc: BaseException, limit: int = 300) -> str:
+    """Formats an exception consistently so TimeoutError and message-less errors are never blank."""
+    msg = str(exc).strip()
+    cls = type(exc).__name__
+    text = f"{cls}: {msg}" if msg else cls
+    return text[:limit] if limit and len(text) > limit else text

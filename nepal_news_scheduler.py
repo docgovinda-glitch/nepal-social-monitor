@@ -11,7 +11,8 @@ import threading
 import datetime
 import zoneinfo
 import concurrent.futures
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Callable
+from nepal_config import format_exc
 
 try:
     import streamlit as st
@@ -51,7 +52,13 @@ def run_single_source_discovery(source_config: Dict[str, Any], max_articles: int
     now_npt = datetime.datetime.now(NEPAL_TZ)
 
     try:
-        articles = fetch_single_portal(source_config, now_npt, max_entries=max_articles)
+        articles = fetch_single_portal(
+            source_config,
+            now_npt,
+            max_entries=max_articles,
+            persist=False,
+            raise_on_error=True,
+        )
         latency = round(time.time() - t0, 3)
 
         if articles:
@@ -76,7 +83,7 @@ def run_single_source_discovery(source_config: Dict[str, Any], max_articles: int
             return stats
     except Exception as e:
         latency = round(time.time() - t0, 3)
-        err_msg = str(e)[:300]
+        err_msg = format_exc(e, limit=300)
         record_source_error(source_name, err_msg, latency_secs=latency)
         logger.error(f"[{source_name}] Discovery failed after {latency}s: {err_msg}")
         return {
@@ -89,7 +96,11 @@ def run_single_source_discovery(source_config: Dict[str, Any], max_articles: int
             "latency_secs": latency
         }
 
-def run_all_sources_discovery(parallel_workers: int = 15, force_all: bool = False) -> Dict[str, Any]:
+def run_all_sources_discovery(
+    parallel_workers: int = 15,
+    force_all: bool = False,
+    cycle_timeout_secs: Optional[float] = 55.0,
+) -> Dict[str, Any]:
     """
     Runs an ingestion cycle across all enabled Nepali media outlets.
     If force_all=False, only polls sources whose check_interval_mins have elapsed.
@@ -140,16 +151,31 @@ def run_all_sources_discovery(parallel_workers: int = 15, force_all: bool = Fals
     results = {}
     total_ingested = 0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=parallel_workers)
+    try:
         future_map = {executor.submit(run_single_source_discovery, p): p["name"] for p in portals_to_run}
-        for future in concurrent.futures.as_completed(future_map):
-            src_name = future_map[future]
-            try:
-                res = future.result()
-                results[src_name] = res
-                total_ingested += res.get("ingested", 0)
-            except Exception as e:
-                results[src_name] = {"status": "ERROR", "error": str(e)}
+        try:
+            for future in concurrent.futures.as_completed(future_map, timeout=cycle_timeout_secs):
+                src_name = future_map[future]
+                try:
+                    res = future.result(timeout=1.0)
+                    results[src_name] = res
+                    total_ingested += res.get("ingested", 0)
+                except Exception as e:
+                    results[src_name] = {"status": "ERROR", "error": format_exc(e)}
+        except concurrent.futures.TimeoutError:
+            timed_out = [name for name in future_map.values() if name not in results]
+            for name in timed_out:
+                results[name] = {
+                    "status": "TIMEOUT",
+                    "error": f"Discovery timed out after {int(cycle_timeout_secs or 0)}s",
+                }
+            if timed_out:
+                logger.warning(
+                    f"Scheduled discovery reached {cycle_timeout_secs}s budget; deferred {len(timed_out)} slow portal(s): {', '.join(timed_out[:6])}"
+                )
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     return {
         "total_checked": len(portals_to_run),
@@ -336,7 +362,7 @@ def _run_concurrent_ingest_pipelines(
                     if on_pipeline_done is not None:
                         on_pipeline_done(name, "done", cnt, elapsed, "")
                 except Exception as exc:
-                    err_str = str(exc)
+                    err_str = format_exc(exc)
                     errors[name] = err_str
                     logger.warning(f"Pipeline '{name}' failed during sync: {err_str}")
                     if on_pipeline_done is not None:
@@ -404,7 +430,7 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             on_pipeline_done=_on_stream_done,
         )
     except Exception as exc:
-        errors["sync"] = str(exc)
+        errors["sync"] = format_exc(exc)
     finally:
         if acquired:
             _INGEST_RUN_LOCK.release()
@@ -468,42 +494,47 @@ def _monitoring_daemon_loop():
                 run_x = (now_sec - _LAST_X_SCAN_TIME) >= X_SCAN_INTERVAL_SECS
 
                 def _run_scheduled_nepali():
-                    return run_all_sources_discovery(parallel_workers=4, force_all=False)
+                    return run_all_sources_discovery(parallel_workers=10, force_all=False, cycle_timeout_secs=45.0)
 
                 pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
                 try:
                     f_np = pool.submit(_run_scheduled_nepali)
-                    f_in = None
-                    f_x = None
+                    fut_meta: Dict[concurrent.futures.Future, Tuple[str, Optional[Callable[[], None]]]] = {
+                        f_np: ("Nepali", None),
+                    }
                     if run_indian:
                         from nepal_fetcher import fetch_nepal_in_indian_media
-                        f_in = pool.submit(fetch_nepal_in_indian_media, 4, 0.55, False, True, False)
+                        def _mark_indian():
+                            global _LAST_INDIAN_SCAN_TIME
+                            _LAST_INDIAN_SCAN_TIME = time.time()
+                        fut_meta[pool.submit(fetch_nepal_in_indian_media, 4, 0.55, False, True, False)] = ("Indian Press", _mark_indian)
                     if run_x:
                         from nepal_x_scanner import scan_popular_nepal_x_posts
-                        f_x = pool.submit(scan_popular_nepal_x_posts, True)
-
-                    try:
-                        f_np.result(timeout=65)
-                    except Exception as e:
-                        if "shutdown" in str(e).lower():
-                            return
-                        logger.error(f"Error in monitoring loop Nepali cycle: {e}")
-                    if f_in is not None:
-                        try:
-                            f_in.result(timeout=55)
-                            _LAST_INDIAN_SCAN_TIME = time.time()
-                        except Exception as e:
-                            if "shutdown" in str(e).lower():
-                                return
-                            logger.error(f"Error in background Indian Press scan cycle: {e}")
-                    if f_x is not None:
-                        try:
-                            f_x.result(timeout=55)
+                        def _mark_x():
+                            global _LAST_X_SCAN_TIME
                             _LAST_X_SCAN_TIME = time.time()
-                        except Exception as e:
-                            if "shutdown" in str(e).lower():
-                                return
-                            logger.error(f"Error in background X scan cycle: {e}")
+                        fut_meta[pool.submit(scan_popular_nepal_x_posts, True)] = ("X", _mark_x)
+
+                    done_futs = set()
+                    try:
+                        for fut in concurrent.futures.as_completed(fut_meta, timeout=65.0):
+                            done_futs.add(fut)
+                            label, on_done = fut_meta[fut]
+                            try:
+                                fut.result(timeout=0.5)
+                                if on_done is not None:
+                                    on_done()
+                            except concurrent.futures.TimeoutError:
+                                logger.warning(f"Monitoring loop {label} cycle timed out after 65s; continuing.")
+                            except Exception as e:
+                                err_msg = format_exc(e)
+                                if "shutdown" in err_msg.lower():
+                                    return
+                                logger.error(f"Error in background {label} scan cycle: {err_msg}")
+                    except concurrent.futures.TimeoutError:
+                        for fut, (label, _cb) in fut_meta.items():
+                            if fut not in done_futs:
+                                logger.warning(f"Monitoring loop {label} cycle timed out after 65s; continuing.")
                 finally:
                     pool.shutdown(wait=False, cancel_futures=True)
             finally:
