@@ -1251,8 +1251,8 @@ APPLE_DESIGN_SYSTEM_CSS = """
             gap: 6px !important;
             align-items: center !important;
         }
-        /* Hide empty desktop spacer columns on mobile */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:not(:has([data-testid="stElementContainer"])) {
+        /* Hide empty desktop spacer columns on mobile (must exclude stPopover and stLayoutWrapper) */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:not(:has([data-testid="stElementContainer"], [data-testid="stPopover"], [data-testid="stLayoutWrapper"], button, input)) {
             display: none !important;
         }
         /* Filter selectboxes sit side-by-side (2 per row on phone) */
@@ -1263,12 +1263,13 @@ APPLE_DESIGN_SYSTEM_CSS = """
         }
         /* Timeframe popover pill expands cleanly alongside icon buttons */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stPopover"]) {
+            display: flex !important;
             flex: 1 1 auto !important;
-            min-width: 92px !important;
+            min-width: 105px !important;
             width: auto !important;
         }
-        /* Search & Sync icon buttons stay compact 38px pills */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton) {
+        /* Search & Sync icon buttons stay compact 40px pills (exclude popover column) */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) {
             flex: 0 0 40px !important;
             min-width: 40px !important;
             max-width: 44px !important;
