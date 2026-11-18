@@ -2115,7 +2115,7 @@ def render_live_feed_section() -> None:
     sel_comb_stream = "All Sources"
 
     # Row 2: Pill Filter Chips + Utility Controls [ 🕒 12h ▾ | 🔍 | 🔄 ]
-    lf_c1, lf_c2, _lf_sp, lf_t, lf_s, lf_r = st.columns([1.85, 1.4, 0.65, 1.05, 0.48, 0.48], gap="small")
+    lf_c1, lf_c2, lf_t, lf_s, lf_r = st.columns([2.2, 1.65, 1.1, 0.48, 0.48], gap="small")
     with lf_c1:
         sel_comb_cat = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter", label_visibility="collapsed")
     with lf_c2:
@@ -2228,7 +2228,7 @@ if selected_nav == "Nepali Media":
 # ==========================================
 @st.fragment
 def render_indian_press_section() -> None:
-    in_c1, in_c2, _in_sp, in_t, in_s, in_r = st.columns([1.9, 1.25, 0.75, 1.05, 0.48, 0.48], gap="small")
+    in_c1, in_c2, in_t, in_s, in_r = st.columns([2.25, 1.6, 1.1, 0.48, 0.48], gap="small")
     with in_c1:
         selected_indian_outlet = st.selectbox("News Outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter", label_visibility="collapsed")
     with in_c2:

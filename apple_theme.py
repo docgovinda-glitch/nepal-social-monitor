@@ -1243,17 +1243,22 @@ APPLE_DESIGN_SYSTEM_CSS = """
             line-height: 28px !important;
         }
 
-        /* Row 2: Keep Filter Pills & Utility Controls in strictly 2 rows on mobile */
+        /* Row 2: Keep Filter Pills & Utility Controls in strictly 2 full-width rows on mobile */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: wrap !important;
             gap: 5px !important;
             align-items: center !important;
+            width: 100% !important;
         }
-        /* Hide empty desktop spacer columns on mobile (must exclude stPopover and stLayoutWrapper) */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:not(:has([data-testid="stElementContainer"], [data-testid="stPopover"], [data-testid="stLayoutWrapper"], button, input)) {
-            display: none !important;
+        /* Ensure popover and buttons stretch to 100% of their mobile flex column */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) [data-testid="stPopover"],
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) [data-testid="stPopover"] > div,
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) [data-testid="stPopover"] button,
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) .stButton,
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) .stButton > button {
+            width: 100% !important;
         }
         /* First 2 filter selectboxes sit side-by-side on Line 1 (50% / 50%) */
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stSelectbox"]) {
@@ -1261,25 +1266,37 @@ APPLE_DESIGN_SYSTEM_CSS = """
             min-width: 130px !important;
             width: auto !important;
         }
-        /* 3rd filter selectbox (in Nepali Media & X) sits on Line 2 alongside [🕒 12h ▾ | 🔍 | 🔄] */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stSelectbox"]):nth-of-type(3) {
-            flex: 1 1 100px !important;
+        /* Default (2-selectbox workspaces: Live Feed & Indian Press):
+           Line 2 fills 100% equally — [🕒 12h ▾ (50%)] + [🔍 (25%)] + [🔄 (25%)] */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stPopover"]) {
+            display: flex !important;
+            flex: 1 1 calc(50% - 5px) !important;
+            min-width: 110px !important;
+            width: auto !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) {
+            flex: 1 1 calc(25% - 5px) !important;
+            min-width: 48px !important;
+            max-width: none !important;
+            width: auto !important;
+        }
+        /* 3-selectbox workspaces (Nepali Media & X):
+           Line 2 has [3rd Selectbox] + [🕒 12h ▾] + [🔍] + [🔄] filling 100% on one line */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-of-type(3) [data-testid="stSelectbox"]) > div[data-testid="stColumn"]:has([data-testid="stSelectbox"]):nth-of-type(3) {
+            flex: 1 1 105px !important;
             min-width: 96px !important;
             width: auto !important;
         }
-        /* Timeframe popover pill fits on Line 2 next to the 3rd selectbox and icon buttons */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stPopover"]) {
-            display: flex !important;
-            flex: 0 1 auto !important;
-            min-width: 78px !important;
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-of-type(3) [data-testid="stSelectbox"]) > div[data-testid="stColumn"]:has([data-testid="stPopover"]) {
+            flex: 0.85 1 78px !important;
+            min-width: 76px !important;
             width: auto !important;
         }
-        /* Search & Sync icon buttons stay compact 36px pills on Line 2 */
-        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) {
-            flex: 0 0 36px !important;
-            min-width: 36px !important;
-            max-width: 38px !important;
-            width: 36px !important;
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-of-type(3) [data-testid="stSelectbox"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) {
+            flex: 0 0 38px !important;
+            min-width: 38px !important;
+            max-width: 40px !important;
+            width: 38px !important;
         }
         div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton):not(:has([data-testid="stPopover"])) button {
             padding: 0 !important;
