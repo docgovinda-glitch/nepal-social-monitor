@@ -181,14 +181,14 @@ def check_password() -> bool:
 
 check_password()
 
-# 3. Time Reference (floored to 3-minute buckets so @st.cache_data keys stay stable across interactions)
-_raw_now_npt = datetime.datetime.now(NEPAL_TZ)
-now_npt = _raw_now_npt.replace(minute=(_raw_now_npt.minute // 3) * 3, second=0, microsecond=0)
-formatted_now_time = _raw_now_npt.strftime("%I:%M %p NPT").lstrip("0")
-past_12h_ref = now_npt - datetime.timedelta(hours=12)
+# 3. Time Reference (separate actual filtering timestamp from 3-minute cache-bucket anchor)
+actual_now_npt = datetime.datetime.now(NEPAL_TZ)
+now_npt = actual_now_npt.replace(minute=(actual_now_npt.minute // 3) * 3, second=0, microsecond=0)
+formatted_now_time = actual_now_npt.strftime("%I:%M %p NPT").lstrip("0")
+past_12h_ref = actual_now_npt - datetime.timedelta(hours=12)
 default_start_date = past_12h_ref.date()
 default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
-st.session_state.setdefault("last_sync_npt", _raw_now_npt.strftime("%I:%M %p").lstrip("0"))
+st.session_state.setdefault("last_sync_npt", actual_now_npt.strftime("%I:%M %p").lstrip("0"))
 st.session_state.setdefault("auto_sync_enabled", True)
 st.session_state.setdefault("cp_timeframe_segment", "12h")
 
@@ -224,21 +224,25 @@ if active_preset == "Custom":
         st.session_state.get("filter_start_time", default_start_time),
         tzinfo=NEPAL_TZ,
     )
+    cache_start_dt = filter_start_dt
     is_to_current = st.session_state.get("filter_use_current_time", True)
 else:
-    filter_start_dt = _preset_start(active_preset, now_npt)
+    filter_start_dt = _preset_start(active_preset, actual_now_npt)
+    cache_start_dt = _preset_start(active_preset, now_npt)
     is_to_current = True
 
 if is_to_current:
-    filter_end_dt = now_npt
+    filter_end_dt = actual_now_npt
+    cache_end_dt = None
 else:
     filter_end_dt = datetime.datetime.combine(
-        st.session_state.get("filter_end_date", now_npt.date()),
-        st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)),
+        st.session_state.get("filter_end_date", actual_now_npt.date()),
+        st.session_state.get("filter_end_time", actual_now_npt.time().replace(second=0, microsecond=0)),
         tzinfo=NEPAL_TZ,
     )
     if filter_end_dt < filter_start_dt:
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
+    cache_end_dt = filter_end_dt
 
 def fmt_short(dt: datetime.datetime) -> str:
     return dt.strftime("%d %b, %I:%M %p").lstrip("0")
@@ -284,6 +288,9 @@ def reset_all_filters():
         "indian_visible_count": PAGE_SIZE,
         "x_visible_count": PAGE_SIZE,
         "combined_visible_count": PAGE_SIZE,
+        "np_fetch_limit": 500,
+        "in_fetch_limit": 500,
+        "x_fetch_limit": 500,
     })
 
 # 6. High-Performance Cached Data Pipeline (Lazy-loaded, feed-projected)
@@ -291,44 +298,50 @@ MIN_DATE = datetime.datetime(2020, 1, 1, tzinfo=NEPAL_TZ)
 
 def in_window(item: Dict[str, Any], start_dt: datetime.datetime = None, end_dt: datetime.datetime = None) -> bool:
     pdt = item.get("published_dt")
-    s = start_dt or filter_start_dt
-    e = end_dt or filter_end_dt
-    return isinstance(pdt, datetime.datetime) and s <= pdt <= e
+    if not isinstance(pdt, datetime.datetime):
+        return False
+    pdt_npt = pdt.astimezone(NEPAL_TZ) if pdt.tzinfo else pdt.replace(tzinfo=NEPAL_TZ)
+    s = start_dt if start_dt is not None else filter_start_dt
+    e = end_dt if end_dt is not None else (datetime.datetime.now(NEPAL_TZ) if is_to_current else filter_end_dt)
+    return s <= pdt_npt <= e
 
 @st.cache_data(ttl=180, show_spinner=False)
-def get_cached_stream_counts(start_dt: datetime.datetime, end_dt: datetime.datetime) -> Dict[str, int]:
+def get_cached_stream_counts(start_dt: datetime.datetime, end_dt: datetime.datetime = None) -> Dict[str, int]:
     """Retrieves fast aggregated counts across streams without downloading article bodies."""
+    eff_end = end_dt if end_dt is not None else datetime.datetime.now(NEPAL_TZ)
     try:
-        return get_stored_counts_by_stream(start_dt=start_dt, end_dt=end_dt)
+        return get_stored_counts_by_stream(start_dt=start_dt, end_dt=eff_end)
     except Exception:
         return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
 @st.cache_data(ttl=180, show_spinner=False)
-def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.datetime) -> List[Dict[str, Any]]:
+def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.datetime = None, limit: int = 500) -> List[Dict[str, Any]]:
     """Loads Nepali media for the active window directly from Supabase with feed projection."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
+    eff_end = end_dt if end_dt is not None else now_curr
     try:
-        stored = get_stored_articles(start_dt=start_dt, end_dt=end_dt, limit=500, include_full_content=False)
+        stored = get_stored_articles(start_dt=start_dt, end_dt=eff_end, limit=int(limit), include_full_content=False)
     except Exception:
         stored = []
     for sa in stored:
         pdt = sa.get("published_dt")
         if isinstance(pdt, datetime.datetime):
             _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
-    stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
+    stored = [sa for sa in stored if in_window(sa, start_dt, eff_end)]
     stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
     return stored
 
 @st.cache_data(ttl=180, show_spinner=False)
-def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.datetime) -> List[Dict[str, Any]]:
+def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.datetime = None, limit: int = 500) -> List[Dict[str, Any]]:
     """Loads Indian press articles covering Nepal from Supabase strictly within the active timeframe window."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
+    eff_end = end_dt if end_dt is not None else now_curr
     try:
         stored = get_stored_indian_articles(
             status_filter="substantive",
             start_dt=start_dt,
-            end_dt=end_dt,
-            limit=500,
+            end_dt=eff_end,
+            limit=int(limit),
             include_full_content=False,
         )
     except Exception:
@@ -337,17 +350,22 @@ def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.dat
         pdt = sa.get("published_dt")
         if isinstance(pdt, datetime.datetime):
             _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
-    stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
+    stored = [sa for sa in stored if in_window(sa, start_dt, eff_end)]
     stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
     return stored
 
 @st.cache_data(ttl=180, show_spinner=False)
-def get_active_x_posts(start_dt: datetime.datetime = None, end_dt: datetime.datetime = None) -> List[Dict[str, Any]]:
+def get_active_x_posts(start_dt: datetime.datetime = None, end_dt: datetime.datetime = None, limit: int = 500) -> List[Dict[str, Any]]:
     """Loads monitored X posts from Supabase store for the active timeframe window."""
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    eff_end = end_dt if end_dt is not None else now_curr
     try:
-        return get_stored_x_posts(start_dt=start_dt, end_dt=end_dt, limit=500)
+        posts = get_stored_x_posts(start_dt=start_dt, end_dt=eff_end, limit=int(limit))
     except Exception:
         return []
+    if start_dt is not None:
+        posts = [p for p in posts if in_window(p, start_dt, eff_end)]
+    return posts
 
 # ==========================================
 # CATEGORY TAXONOMY (one alias map + one slug map for badges & accents)
@@ -1275,8 +1293,21 @@ def _on_show_more_feed(state_key: str) -> None:
     st.session_state[state_key] = st.session_state.get(state_key, PAGE_SIZE) + PAGE_SIZE
 
 
-def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer: Callable[[Dict[str, Any]], str], noun: str) -> None:
-    """Renders items PAGE_SIZE at a time with on-demand action controls and a single 'Show more' control."""
+def _on_load_more_db(fetch_limit_key: str, state_key: str) -> None:
+    st.session_state[fetch_limit_key] = st.session_state.get(fetch_limit_key, 500) + 500
+    st.session_state[state_key] = st.session_state.get(state_key, PAGE_SIZE) + PAGE_SIZE
+
+
+def render_paginated_feed(
+    items: List[Dict[str, Any]],
+    state_key: str,
+    renderer: Callable[[Dict[str, Any]], str],
+    noun: str,
+    total_db_count: int = None,
+    loaded_count: int = None,
+    fetch_limit_key: str = None,
+) -> None:
+    """Renders items PAGE_SIZE at a time with on-demand action controls and DB batch expansion."""
     st.session_state.setdefault(state_key, PAGE_SIZE)
     limit = st.session_state[state_key]
     seen_uids: Dict[str, int] = {}
@@ -1288,6 +1319,12 @@ def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer:
         render_feed_item_with_actions(it, renderer=renderer, state_key=state_key, item_uid=uid)
 
     remaining = len(items) - limit
+    eff_loaded = loaded_count if loaded_count is not None else len(items)
+    has_more_in_db = (
+        total_db_count is not None
+        and total_db_count > eff_loaded
+        and bool(fetch_limit_key)
+    )
     if remaining > 0:
         _, mid, _ = st.columns([1.5, 2, 1.5])
         with mid:
@@ -1298,7 +1335,21 @@ def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer:
                 on_click=_on_show_more_feed,
                 args=(state_key,),
             )
-            st.caption(f"Showing {limit:,} of {len(items):,} {noun}")
+            if has_more_in_db:
+                st.caption(f"Showing {limit:,} of {len(items):,} loaded {noun} ({total_db_count:,} total in window)")
+            else:
+                st.caption(f"Showing {limit:,} of {len(items):,} {noun}")
+    elif has_more_in_db:
+        _, mid, _ = st.columns([1.5, 2, 1.5])
+        with mid:
+            st.button(
+                f"Load 500 more {noun} from database",
+                width="stretch",
+                key=f"btn_db_more_{state_key}",
+                on_click=_on_load_more_db,
+                args=(fetch_limit_key, state_key),
+            )
+            st.caption(f"Loaded {eff_loaded:,} of {total_db_count:,} total {noun} in window")
     elif items:
         st.caption(f"You're all caught up · {len(items):,} {noun}")
 
@@ -1527,8 +1578,8 @@ with st.sidebar:
         with sb_btn2:
             st.button("Reset", icon=":material/restart_alt:", key="btn_top_reset", width="stretch", on_click=reset_all_filters, help="Reset all filters")
 
-# Fast stream counts for workspace navigation badges
-stream_counts = get_cached_stream_counts(filter_start_dt, filter_end_dt)
+# Fast stream counts for workspace navigation badges (uses stable cache window)
+stream_counts = get_cached_stream_counts(cache_start_dt, cache_end_dt)
 total_combined_count = (
     stream_counts.get("nepali_count", 0) +
     stream_counts.get("indian_count", 0) +
@@ -1539,35 +1590,53 @@ total_combined_count = (
 # 7. SIDEBAR · Card 2 — Workspace, Card 3 — Contextual filters
 # ==========================================
 NAV_ITEMS = [
-    ("Live Feed", "🌐", total_combined_count),
-    ("Nepali Media", "📰", stream_counts.get("nepali_count", 0)),
-    ("Indian Press", "🇮🇳", stream_counts.get("indian_count", 0)),
-    ("X", "𝕏", stream_counts.get("x_count", 0)),
-    ("Analytics & Export", "📈", None),
-    ("System Health", "🩺", None),
+    ("Live Feed", "🌐"),
+    ("Nepali Media", "📰"),
+    ("Indian Press", "🇮🇳"),
+    ("X", "𝕏"),
+    ("Analytics & Export", "📈"),
+    ("System Health", "🩺"),
 ]
+_NAV_ICON_MAP = dict(NAV_ITEMS)
+
 
 def nav_label(name: str) -> str:
-    icon, count = next((i, c) for n, i, c in NAV_ITEMS if n == name)
-    return f"{icon}  {name}" + (f"  ·  {count:,}" if count is not None else "")
+    return f"{_NAV_ICON_MAP.get(name, '')}  {name}"
+
+
+def _resolve_nav_from_query_param() -> str:
+    param_nav = str(st.query_params.get("nav", "") or "").strip().lower()
+    if not param_nav:
+        return "Live Feed"
+    for n, _ in NAV_ITEMS:
+        if n.lower() == param_nav or (param_nav == "x" and n == "X") or (param_nav in ("live", "feed", "unified", "combined") and "Live" in n):
+            return n
+    return "Live Feed"
+
+
+def _on_workspace_change() -> None:
+    chosen = st.session_state.get("app_nav_section", "Live Feed")
+    st.query_params["nav"] = chosen
+
 
 with st.sidebar:
     with st.container(border=True):
         sidebar_section("Workspace")
-        default_nav_idx = 0
-        if "nav" in st.query_params:
-            param_nav = st.query_params.get("nav", "").lower()
-            for idx, (n, _, _) in enumerate(NAV_ITEMS):
-                if n.lower() == param_nav or (param_nav == "x" and n == "X") or (param_nav in ("live", "feed", "unified", "combined") and "Live" in n):
-                    default_nav_idx = idx
-                    break
+        if "app_nav_section" not in st.session_state:
+            st.session_state["app_nav_section"] = _resolve_nav_from_query_param()
         selected_nav = st.selectbox(
             "Workspace",
-            options=[n for n, _, _ in NAV_ITEMS],
-            index=default_nav_idx,
+            options=[n for n, _ in NAV_ITEMS],
             format_func=nav_label,
             key="app_nav_section",
+            on_change=_on_workspace_change,
             label_visibility="collapsed",
+        )
+        if st.query_params.get("nav") != selected_nav:
+            st.query_params["nav"] = selected_nav
+        st.caption(
+            f"🌐 {total_combined_count:,} · 📰 {stream_counts.get('nepali_count', 0):,} · "
+            f"🇮🇳 {stream_counts.get('indian_count', 0):,} · 𝕏 {stream_counts.get('x_count', 0):,}"
         )
 
     with st.container(border=True):
@@ -1622,10 +1691,12 @@ with st.sidebar:
 # ==========================================
 @st.fragment
 def render_live_feed_section() -> None:
-    nepal_arts = get_active_nepal_articles(filter_start_dt, filter_end_dt)
-    indian_arts = get_active_indian_articles(filter_start_dt, filter_end_dt)
-    x_posts_all = get_active_x_posts(filter_start_dt, filter_end_dt)
-    x_posts_in_win = [p for p in x_posts_all if in_window(p)]
+    np_lim = st.session_state.setdefault("np_fetch_limit", 500)
+    in_lim = st.session_state.setdefault("in_fetch_limit", 500)
+    x_lim = st.session_state.setdefault("x_fetch_limit", 500)
+    nepal_arts = get_active_nepal_articles(cache_start_dt, cache_end_dt, limit=np_lim)
+    indian_arts = get_active_indian_articles(cache_start_dt, cache_end_dt, limit=in_lim)
+    x_posts_in_win = get_active_x_posts(cache_start_dt, cache_end_dt, limit=x_lim)
 
     comb_items = []
     for a in nepal_arts:
@@ -1710,7 +1781,21 @@ def render_live_feed_section() -> None:
                     get_active_x_posts.clear()
                 st.rerun()
     else:
-        render_paginated_feed(comb_items, "combined_visible_count", render_apple_combined_item_card, "items")
+        _live_total_db = total_combined_count if (
+            sel_comb_stream == "All Sources"
+            and sel_comb_cat == CAT_FILTER_ALL_UNFILTERED
+            and not (search_query and search_query.strip())
+        ) else None
+        _live_loaded = len(nepal_arts) + len(indian_arts) + len(x_posts_in_win)
+        render_paginated_feed(
+            comb_items,
+            "combined_visible_count",
+            render_apple_combined_item_card,
+            "items",
+            total_db_count=_live_total_db,
+            loaded_count=_live_loaded,
+            fetch_limit_key="np_fetch_limit",
+        )
 
 
 if selected_nav == "Live Feed":
@@ -1721,10 +1806,17 @@ if selected_nav == "Live Feed":
 # SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
 if selected_nav == "Nepali Media":
-    all_articles = get_active_nepal_articles(filter_start_dt, filter_end_dt)
+    np_lim = st.session_state.setdefault("np_fetch_limit", 500)
+    all_articles = get_active_nepal_articles(cache_start_dt, cache_end_dt, limit=np_lim)
     filtered_articles = [a for a in all_articles if smart_search_match(a, search_query)] if search_query else all_articles
 
-    render_page_header("Nepali Media", f"{len(filtered_articles):,} stories discovered across 34 portals")
+    np_db_total = stream_counts.get("nepali_count", len(all_articles))
+    np_hdr_sub = (
+        f"{len(filtered_articles):,} loaded of {np_db_total:,} stories in window across 34 portals"
+        if np_db_total > len(all_articles) and not (search_query and search_query.strip())
+        else f"{len(filtered_articles):,} stories discovered across 34 portals"
+    )
+    render_page_header("Nepali Media", np_hdr_sub)
 
     tab_articles = filter_items_by_category(filtered_articles, sel_np_cat, is_social=False)
     if sel_np_lang == "Nepali Only":
@@ -1753,14 +1845,29 @@ if selected_nav == "Nepali Media":
                     get_active_nepal_articles.clear()
                 st.rerun()
     else:
-        render_paginated_feed(tab_articles, "media_visible_count", render_apple_article_card, "stories")
+        _np_is_unfiltered = (
+            sel_np_cat == CAT_FILTER_ALL_UNFILTERED
+            and sel_np_lang == ALL_LANG_DEFAULT
+            and sel_np_portal == ALL_PORTALS_DEFAULT
+            and not (search_query and search_query.strip())
+        )
+        render_paginated_feed(
+            tab_articles,
+            "media_visible_count",
+            render_apple_article_card,
+            "stories",
+            total_db_count=(stream_counts.get("nepali_count") if _np_is_unfiltered else None),
+            loaded_count=len(all_articles),
+            fetch_limit_key="np_fetch_limit",
+        )
 
 
 # ==========================================
 # SECTION 2: Nepal in Indian Media
 # ==========================================
 elif selected_nav == "Indian Press":
-    all_indian = get_active_indian_articles(filter_start_dt, filter_end_dt)
+    in_lim = st.session_state.setdefault("in_fetch_limit", 500)
+    all_indian = get_active_indian_articles(cache_start_dt, cache_end_dt, limit=in_lim)
     if not all_indian:
         try:
             recent_indian = get_stored_indian_articles(status_filter="substantive", limit=30, include_full_content=False)
@@ -1797,11 +1904,19 @@ elif selected_nav == "Indian Press":
                     get_active_indian_articles.clear()
                 st.rerun()
     else:
+        _in_is_unfiltered = (
+            selected_indian_outlet == ALL_INDIAN_DEFAULT
+            and sel_in_lang == ALL_LANG_DEFAULT
+            and not (search_query and search_query.strip())
+        )
         render_paginated_feed(
             tab_filtered_indian,
             "indian_visible_count",
             lambda a: render_apple_article_card(a, is_indian=True),
-            "stories"
+            "stories",
+            total_db_count=(stream_counts.get("indian_count") if _in_is_unfiltered else None),
+            loaded_count=len(all_indian),
+            fetch_limit_key="in_fetch_limit",
         )
 
     # Flagged Borderline Articles for Editorial Review & Central DB Retention Audit
@@ -1862,8 +1977,8 @@ elif selected_nav == "Indian Press":
 # ==========================================
 @st.fragment
 def render_x_section() -> None:
-    all_x = get_active_x_posts(filter_start_dt, filter_end_dt)
-    in_win_x = [p for p in all_x if in_window(p)]
+    x_lim = st.session_state.setdefault("x_fetch_limit", 500)
+    in_win_x = get_active_x_posts(cache_start_dt, cache_end_dt, limit=x_lim)
     filtered_x_posts = [p for p in in_win_x if smart_search_match(p, search_query)] if search_query else in_win_x
 
     # 1. Fetch DB KPIs and Monitored Accounts
@@ -1922,7 +2037,20 @@ def render_x_section() -> None:
                         get_active_x_posts.clear()
                     st.rerun()
         else:
-            render_paginated_feed(filtered_feed, "x_visible_count", render_apple_x_post_card, "posts")
+            _x_is_unfiltered = (
+                x_cat_filter == CAT_FILTER_ALL_UNFILTERED
+                and selected_acc_type == ALL_ACC_TYPES
+                and not (search_query and search_query.strip())
+            )
+            render_paginated_feed(
+                filtered_feed,
+                "x_visible_count",
+                render_apple_x_post_card,
+                "posts",
+                total_db_count=(stream_counts.get("x_count") if _x_is_unfiltered else None),
+                loaded_count=len(in_win_x),
+                fetch_limit_key="x_fetch_limit",
+            )
 
         with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
             clean_q = search_query.strip() if search_query else ""
@@ -2264,10 +2392,9 @@ if selected_nav == "X":
 elif selected_nav == "Analytics & Export":
     render_page_header("Analytics & Export", "Consolidated intelligence dataset & executive document generation")
 
-    articles_src = get_active_nepal_articles(filter_start_dt, filter_end_dt)
-    indian_src = get_active_indian_articles(filter_start_dt, filter_end_dt)
-    all_x = get_active_x_posts(filter_start_dt, filter_end_dt)
-    x_src = [p for p in all_x if in_window(p)]
+    articles_src = get_active_nepal_articles(cache_start_dt, cache_end_dt)
+    indian_src = get_active_indian_articles(cache_start_dt, cache_end_dt)
+    x_src = get_active_x_posts(cache_start_dt, cache_end_dt)
 
     if search_query and search_query.strip():
         filtered_articles = [a for a in articles_src if smart_search_match(a, search_query)]
