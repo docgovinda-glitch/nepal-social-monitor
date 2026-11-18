@@ -1602,6 +1602,15 @@ def _extract_next_cursor(workspace: str, rows: List[Dict[str, Any]], sort_mode: 
     return (pdt, str(last.get("canonical_id") or ""))
 
 
+def _safe_fragment_rerun() -> None:
+    """Reruns the current fragment when inside a fragment rerun, falling back to a full rerun during full script runs."""
+    try:
+        from streamlit.errors import StreamlitInvalidLayoutContextError
+        st.rerun(scope="fragment")
+    except StreamlitInvalidLayoutContextError:
+        st.rerun()
+
+
 def render_infinite_workspace_feed(
     workspace: str,
     renderer: Callable[[Dict[str, Any]], str],
@@ -1731,7 +1740,7 @@ def render_infinite_workspace_feed(
             if st.button("Refresh feed", icon=":material/refresh:", key=f"btn_new_stories_{workspace}", width="stretch"):
                 sessions.pop(workspace, None)
                 _get_cached_filtered_count.clear()
-                st.rerun(scope="fragment")
+                _safe_fragment_rerun()
 
     if not sess["batches"] and not sess["error_msg"]:
         render_empty_state(empty_icon, empty_title, empty_body)
@@ -1759,7 +1768,10 @@ def render_infinite_workspace_feed(
         key=f"inf_feed_{workspace}",
     )
 
-    if isinstance(ev, dict) and int(ev.get("ts") or 0) > int(sess.get("last_event_ts") or 0):
+    _last_ts_map = st.session_state.setdefault("inf_feed_last_ts", {})
+    _last_ts = int(_last_ts_map.get(workspace) or 0)
+    if isinstance(ev, dict) and int(ev.get("ts") or 0) > _last_ts:
+        _last_ts_map[workspace] = int(ev.get("ts") or 0)
         sess["last_event_ts"] = int(ev.get("ts") or 0)
         ev_type = ev.get("event")
         if ev_type in ("load_more", "retry") and sess["has_more"]:
@@ -1790,7 +1802,7 @@ def render_infinite_workspace_feed(
                         sess["has_more"] = False
                 except Exception as exc:
                     sess["error_msg"] = f"Could not load next {noun} ({type(exc).__name__})."
-                st.rerun(scope="fragment")
+                _safe_fragment_rerun()
         elif ev_type == "action":
             uid = str(ev.get("item_uid") or "")
             target_item = sess["items_by_uid"].get(uid)
