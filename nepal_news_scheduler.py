@@ -12,6 +12,16 @@ import datetime
 import zoneinfo
 from typing import List, Dict, Any, Optional
 
+try:
+    import streamlit as st
+except ImportError:
+    st = None  # type: ignore
+
+def _cache_resource_if_available(fn):
+    if st is not None and hasattr(st, "cache_resource"):
+        return st.cache_resource(fn)
+    return fn
+
 from nepal_news_store import (
     batch_upsert_articles,
     record_source_error,
@@ -239,10 +249,13 @@ INDIAN_SCAN_INTERVAL_SECS = 15 * 60  # Automatically poll 18 Indian outlets ever
 def _monitoring_daemon_loop():
     """Background continuous loop that checks and ingests Nepali portals, Indian press, and X posts."""
     global _LAST_X_SCAN_TIME, _LAST_INDIAN_SCAN_TIME
-    logger.info("Continuous News Monitoring Daemon started in background.")
+    logger.info("Continuous News Monitoring Daemon started in background (15s startup delay).")
+    # Delay first cycle so initial UI queries get uncontested bandwidth
+    if _STOP_EVENT.wait(15.0):
+        return
     while not _STOP_EVENT.is_set():
         try:
-            run_all_sources_discovery(parallel_workers=12, force_all=False)
+            run_all_sources_discovery(parallel_workers=4, force_all=False)
         except Exception as e:
             logger.error(f"Error in monitoring loop cycle: {e}")
 
@@ -252,7 +265,7 @@ def _monitoring_daemon_loop():
             try:
                 from nepal_fetcher import fetch_nepal_in_indian_media
                 logger.info("Triggering periodic background Indian Press scan across 18 outlets...")
-                fetch_nepal_in_indian_media(max_workers=15, force_refresh=True)
+                fetch_nepal_in_indian_media(max_workers=4, force_refresh=True)
                 _LAST_INDIAN_SCAN_TIME = time.time()
                 logger.info("Periodic background Indian Press scan completed successfully.")
             except Exception as e:
@@ -275,14 +288,16 @@ def _monitoring_daemon_loop():
         # Sleep for 60 seconds between cycle evaluations
         _STOP_EVENT.wait(60.0)
 
+@_cache_resource_if_available
 def start_monitoring_daemon():
     """Starts the continuous news monitoring worker in a background daemon thread."""
     global _MONITOR_THREAD
     if _MONITOR_THREAD and _MONITOR_THREAD.is_alive():
-        return
+        return _MONITOR_THREAD
     _STOP_EVENT.clear()
     _MONITOR_THREAD = threading.Thread(target=_monitoring_daemon_loop, name="NepalNewsMonitorDaemon", daemon=True)
     _MONITOR_THREAD.start()
     logger.info("Launched NepalNewsMonitorDaemon thread.")
+    return _MONITOR_THREAD
 
 

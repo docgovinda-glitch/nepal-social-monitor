@@ -181,14 +181,14 @@ def check_password() -> bool:
 
 check_password()
 
-# 3. Time Reference
-now_npt = datetime.datetime.now(NEPAL_TZ)
-formatted_now_time = now_npt.strftime("%I:%M %p NPT").lstrip("0")
+# 3. Time Reference (floored to 3-minute buckets so @st.cache_data keys stay stable across interactions)
+_raw_now_npt = datetime.datetime.now(NEPAL_TZ)
+now_npt = _raw_now_npt.replace(minute=(_raw_now_npt.minute // 3) * 3, second=0, microsecond=0)
+formatted_now_time = _raw_now_npt.strftime("%I:%M %p NPT").lstrip("0")
 past_12h_ref = now_npt - datetime.timedelta(hours=12)
 default_start_date = past_12h_ref.date()
 default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
-st.session_state.setdefault("last_sync_npt", now_npt.strftime("%I:%M %p").lstrip("0"))
-st.session_state.setdefault("last_auto_sync_ts", time.time())
+st.session_state.setdefault("last_sync_npt", _raw_now_npt.strftime("%I:%M %p").lstrip("0"))
 st.session_state.setdefault("auto_sync_enabled", True)
 st.session_state.setdefault("cp_timeframe_segment", "12h")
 
@@ -308,21 +308,14 @@ def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.date
     """Loads Nepali media for the active window directly from Supabase with feed projection."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
     try:
-        stored = get_stored_articles(start_dt=start_dt, end_dt=end_dt, limit=3000, include_full_content=False)
+        stored = get_stored_articles(start_dt=start_dt, end_dt=end_dt, limit=500, include_full_content=False)
     except Exception:
         stored = []
-    if not stored:
-        try:
-            live = fetch_top_nepal_media(max_workers=25)
-            stored = [a for a in live if in_window(a, start_dt, end_dt)]
-        except Exception:
-            stored = []
-    else:
-        for sa in stored:
-            pdt = sa.get("published_dt")
-            if isinstance(pdt, datetime.datetime):
-                _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
-        stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
+    for sa in stored:
+        pdt = sa.get("published_dt")
+        if isinstance(pdt, datetime.datetime):
+            _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+    stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
     stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
     return stored
 
@@ -331,37 +324,30 @@ def get_active_indian_articles(start_dt: datetime.datetime, end_dt: datetime.dat
     """Loads Indian press articles covering Nepal from Supabase strictly within the active timeframe window."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
     try:
-        stored = get_stored_indian_articles(status_filter="substantive", limit=500, include_full_content=False)
+        stored = get_stored_indian_articles(
+            status_filter="substantive",
+            start_dt=start_dt,
+            end_dt=end_dt,
+            limit=500,
+            include_full_content=False,
+        )
     except Exception:
         stored = []
-    if not stored:
-        try:
-            live = fetch_nepal_in_indian_media(max_workers=18)
-            stored = [a for a in live if in_window(a, start_dt, end_dt)]
-        except Exception:
-            stored = []
-    else:
-        for sa in stored:
-            pdt = sa.get("published_dt")
-            if isinstance(pdt, datetime.datetime):
-                _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
-        stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
+    for sa in stored:
+        pdt = sa.get("published_dt")
+        if isinstance(pdt, datetime.datetime):
+            _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+    stored = [sa for sa in stored if in_window(sa, start_dt, end_dt)]
     stored.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
     return stored
 
 @st.cache_data(ttl=180, show_spinner=False)
-def get_active_x_posts() -> List[Dict[str, Any]]:
-    """Loads monitored X posts from Supabase store or local cache."""
+def get_active_x_posts(start_dt: datetime.datetime = None, end_dt: datetime.datetime = None) -> List[Dict[str, Any]]:
+    """Loads monitored X posts from Supabase store for the active timeframe window."""
     try:
-        posts = get_stored_x_posts(limit=1500)
+        return get_stored_x_posts(start_dt=start_dt, end_dt=end_dt, limit=500)
     except Exception:
-        posts = []
-    if not posts:
-        try:
-            posts = scan_popular_nepal_x_posts(force_refresh=False)
-        except Exception:
-            posts = []
-    return posts
+        return []
 
 # ==========================================
 # CATEGORY TAXONOMY (one alias map + one slug map for badges & accents)
@@ -675,7 +661,7 @@ def _get_cached_wa_dest() -> Dict[str, Any]:
     return get_wa_destination_group()
 
 
-@st.cache_data(ttl=20, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def _get_wa_sent_map() -> Dict[str, Dict[str, Any]]:
     try:
         return get_whatsapp_sent_map()
@@ -1259,7 +1245,7 @@ def render_feed_item_with_actions(
                         "item_uid": item_uid,
                         "item_link": item_link,
                     }
-                    st.rerun()
+                    _show_read_in_app_dialog()
             ci += 1
         if has_link:
             with cols[ci]:
@@ -1282,7 +1268,11 @@ def render_feed_item_with_actions(
                     "item_uid": item_uid,
                     "item_link": item_link,
                 }
-                st.rerun()
+                _show_share_dialog()
+
+
+def _on_show_more_feed(state_key: str) -> None:
+    st.session_state[state_key] = st.session_state.get(state_key, PAGE_SIZE) + PAGE_SIZE
 
 
 def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer: Callable[[Dict[str, Any]], str], noun: str) -> None:
@@ -1301,9 +1291,13 @@ def render_paginated_feed(items: List[Dict[str, Any]], state_key: str, renderer:
     if remaining > 0:
         _, mid, _ = st.columns([1.5, 2, 1.5])
         with mid:
-            if st.button(f"Show {min(PAGE_SIZE, remaining)} more {noun}", width="stretch", key=f"btn_more_{state_key}"):
-                st.session_state[state_key] += PAGE_SIZE
-                st.rerun()
+            st.button(
+                f"Show {min(PAGE_SIZE, remaining)} more {noun}",
+                width="stretch",
+                key=f"btn_more_{state_key}",
+                on_click=_on_show_more_feed,
+                args=(state_key,),
+            )
             st.caption(f"Showing {limit:,} of {len(items):,} {noun}")
     elif items:
         st.caption(f"You're all caught up · {len(items):,} {noun}")
@@ -1520,7 +1514,10 @@ with st.sidebar:
                     except Exception as x_exc:
                         sync_status.write(f"⚠️ X feed skipped: {type(x_exc).__name__}")
                     sync_prog.progress(1.0, text="Refreshing dashboard cache…")
-                    st.cache_data.clear()
+                    get_cached_stream_counts.clear()
+                    get_active_nepal_articles.clear()
+                    get_active_indian_articles.clear()
+                    get_active_x_posts.clear()
                     st.session_state.pop("x_posts", None)
                     st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
                     sync_prog.empty()
@@ -1620,23 +1617,14 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-# Auto-sync cache refresh (passive, never interrupts active button clicks with st.rerun)
-if st.session_state.get("auto_sync_enabled", True):
-    now_ts = time.time()
-    last_sync_ts = st.session_state.get("last_auto_sync_ts", 0)
-    if now_ts - last_sync_ts >= 180:
-        st.session_state["last_auto_sync_ts"] = now_ts
-        st.cache_data.clear()
-        st.session_state.pop("x_posts", None)
-        st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
-
 # ==========================================
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
-if selected_nav == "Live Feed":
+@st.fragment
+def render_live_feed_section() -> None:
     nepal_arts = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     indian_arts = get_active_indian_articles(filter_start_dt, filter_end_dt)
-    x_posts_all = get_active_x_posts()
+    x_posts_all = get_active_x_posts(filter_start_dt, filter_end_dt)
     x_posts_in_win = [p for p in x_posts_all if in_window(p)]
 
     comb_items = []
@@ -1706,14 +1694,33 @@ if selected_nav == "Live Feed":
 
     if not comb_items:
         render_empty_state("🌐", "No combined stories found", "Try widening the timeframe preset or choosing 'All Streams' / 'All News'.")
+        _, mid_col, _ = st.columns([1.5, 2, 1.5])
+        with mid_col:
+            if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_live", width="stretch"):
+                with st.spinner("Fetching latest stories across all streams…"):
+                    fetch_top_nepal_media(max_workers=12, force_refresh=True)
+                    fetch_nepal_in_indian_media(max_workers=10, force_refresh=True)
+                    try:
+                        scan_popular_nepal_x_posts(force_refresh=True)
+                    except Exception:
+                        pass
+                    get_cached_stream_counts.clear()
+                    get_active_nepal_articles.clear()
+                    get_active_indian_articles.clear()
+                    get_active_x_posts.clear()
+                st.rerun()
     else:
         render_paginated_feed(comb_items, "combined_visible_count", render_apple_combined_item_card, "items")
+
+
+if selected_nav == "Live Feed":
+    render_live_feed_section()
 
 
 # ==========================================
 # SECTION 1: Nepali Media (Top 34 Portals)
 # ==========================================
-elif selected_nav == "Nepali Media":
+if selected_nav == "Nepali Media":
     all_articles = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     filtered_articles = [a for a in all_articles if smart_search_match(a, search_query)] if search_query else all_articles
 
@@ -1737,6 +1744,14 @@ elif selected_nav == "Nepali Media":
 
     if not tab_articles:
         render_empty_state("📰", "No articles found", "Try widening the timeframe or choosing 'All Portals' / 'All News'.")
+        _, mid_col, _ = st.columns([1.5, 2, 1.5])
+        with mid_col:
+            if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_np", width="stretch"):
+                with st.spinner("Fetching latest Nepali news portals…"):
+                    fetch_top_nepal_media(max_workers=15, force_refresh=True)
+                    get_cached_stream_counts.clear()
+                    get_active_nepal_articles.clear()
+                st.rerun()
     else:
         render_paginated_feed(tab_articles, "media_visible_count", render_apple_article_card, "stories")
 
@@ -1773,6 +1788,14 @@ elif selected_nav == "Indian Press":
 
     if not tab_filtered_indian:
         render_empty_state("🇮🇳", "No Indian media coverage found", "Try selecting 'All 18 Indian Outlets' or adjusting the timeframe.")
+        _, mid_col, _ = st.columns([1.5, 2, 1.5])
+        with mid_col:
+            if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_in", width="stretch"):
+                with st.spinner("Fetching latest Indian press coverage…"):
+                    fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
+                    get_cached_stream_counts.clear()
+                    get_active_indian_articles.clear()
+                st.rerun()
     else:
         render_paginated_feed(
             tab_filtered_indian,
@@ -1837,8 +1860,9 @@ elif selected_nav == "Indian Press":
 # ==========================================
 # SECTION 3: X (Twitter) Nepal
 # ==========================================
-elif selected_nav == "X":
-    all_x = get_active_x_posts()
+@st.fragment
+def render_x_section() -> None:
+    all_x = get_active_x_posts(filter_start_dt, filter_end_dt)
     in_win_x = [p for p in all_x if in_window(p)]
     filtered_x_posts = [p for p in in_win_x if smart_search_match(p, search_query)] if search_query else in_win_x
 
@@ -1886,6 +1910,17 @@ elif selected_nav == "X":
 
         if not filtered_feed:
             render_empty_state("𝕏", "No X posts found", "Try selecting 'All Account Types' or choosing 'All News'.")
+            _, mid_col, _ = st.columns([1.5, 2, 1.5])
+            with mid_col:
+                if st.button("Fetch Now", icon=":material/sync:", key="btn_fetch_now_x", width="stretch"):
+                    with st.spinner("Scanning verified X accounts…"):
+                        try:
+                            scan_popular_nepal_x_posts(force_refresh=True)
+                        except Exception:
+                            pass
+                        get_cached_stream_counts.clear()
+                        get_active_x_posts.clear()
+                    st.rerun()
         else:
             render_paginated_feed(filtered_feed, "x_visible_count", render_apple_x_post_card, "posts")
 
@@ -2223,12 +2258,15 @@ elif selected_nav == "X":
 # ==========================================
 # SECTION 4: Analytics & Export
 # ==========================================
+if selected_nav == "X":
+    render_x_section()
+
 elif selected_nav == "Analytics & Export":
     render_page_header("Analytics & Export", "Consolidated intelligence dataset & executive document generation")
 
     articles_src = get_active_nepal_articles(filter_start_dt, filter_end_dt)
     indian_src = get_active_indian_articles(filter_start_dt, filter_end_dt)
-    all_x = get_active_x_posts()
+    all_x = get_active_x_posts(filter_start_dt, filter_end_dt)
     x_src = [p for p in all_x if in_window(p)]
 
     if search_query and search_query.strip():
@@ -2450,7 +2488,8 @@ elif selected_nav == "Analytics & Export":
 # ==========================================
 # SECTION 5: Health & Diagnostics
 # ==========================================
-elif selected_nav == "System Health":
+@st.fragment
+def render_system_health_section() -> None:
     render_page_header("System Health & Diagnostics", "Portal telemetry, discovery latency, and background worker status", show_window=False)
 
     try:
@@ -2649,10 +2688,7 @@ elif selected_nav == "System Health":
         if quiet_sources:
             st.info(f"ℹ️ **Quiet / Periodic Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")
 
-_active_modal = st.session_state.get("active_modal")
-if _active_modal:
-    if _active_modal.get("mode") == "read":
-        _show_read_in_app_dialog()
-    elif _active_modal.get("mode") == "share":
-        _show_share_dialog()
+
+if selected_nav == "System Health":
+    render_system_health_section()
 

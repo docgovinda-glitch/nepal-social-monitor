@@ -16,9 +16,25 @@ import datetime
 import zoneinfo
 import threading
 import urllib.parse
-import urllib.request
-import urllib.error
 from typing import List, Dict, Any, Optional, Tuple
+
+import requests
+from requests.adapters import HTTPAdapter
+
+try:
+    import streamlit as st
+except ImportError:
+    st = None  # type: ignore
+
+def _cache_data_if_available(ttl: int = 180):
+    if st is not None and hasattr(st, "cache_data"):
+        return st.cache_data(ttl=ttl, show_spinner=False)
+    return lambda fn: fn
+
+def _cache_resource_if_available(fn):
+    if st is not None and hasattr(st, "cache_resource"):
+        return st.cache_resource(fn)
+    return fn
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
 _SUPABASE_SEM = threading.Semaphore(6)
@@ -77,35 +93,41 @@ SUPABASE_TOKEN = get_env_variable("SUPABASE_MANAGEMENT_TOKEN")
 SUPABASE_REF = get_env_variable("SUPABASE_PROJECT_REF", "iiztmvbfrydfowehtiqa")
 SUPABASE_QUERY_ENDPOINT = f"https://api.supabase.com/v1/projects/{SUPABASE_REF}/database/query"
 
+@_cache_resource_if_available
+def _get_supabase_session() -> requests.Session:
+    """Returns a shared HTTP keep-alive session for Supabase Management API queries."""
+    session = requests.Session()
+    adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update({
+        "Authorization": f"Bearer {SUPABASE_TOKEN}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "NepalMonitor-Supabase/1.0",
+    })
+    return session
+
+
 def query_supabase(sql: str) -> List[Dict[str, Any]]:
     """Executes a PostgreSQL query directly against Supabase via its secure API."""
-    data = json.dumps({"query": sql}).encode("utf-8")
-    req = urllib.request.Request(
-        SUPABASE_QUERY_ENDPOINT,
-        data=data,
-        headers={
-            "Authorization": f"Bearer {SUPABASE_TOKEN}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "NepalMonitor-Supabase/1.0"
-        },
-        method="POST"
-    )
+    session = _get_supabase_session()
+    payload = {"query": sql}
     for attempt in range(1, 5):
         try:
             with _SUPABASE_SEM:
-                with urllib.request.urlopen(req, timeout=25) as resp:
-                    res = json.loads(resp.read().decode())
-                    return res if isinstance(res, list) else []
-        except urllib.error.HTTPError as he:
-            err_msg = he.read().decode()
-            if he.code == 429 and attempt < 4:
+                resp = session.post(SUPABASE_QUERY_ENDPOINT, json=payload, timeout=25)
+            if resp.status_code == 429 and attempt < 4:
                 time.sleep(1.5 * attempt + random.uniform(0.2, 0.8))
                 continue
-            logger.error(f"Supabase HTTP Error {he.code}: {err_msg}")
-            if attempt == 4:
-                return []
-            time.sleep(0.8 * attempt)
+            if not resp.ok:
+                logger.error(f"Supabase HTTP Error {resp.status_code}: {resp.text}")
+                if attempt == 4:
+                    return []
+                time.sleep(0.8 * attempt)
+                continue
+            res = resp.json()
+            return res if isinstance(res, list) else []
         except Exception as ex:
             logger.error(f"Supabase request error (attempt {attempt}): {ex}")
             if attempt == 4:
@@ -334,6 +356,7 @@ def record_source_error(source_name: str, error_msg: str, latency_secs: float = 
     """
     query_supabase(sql)
 
+@_cache_data_if_available(ttl=180)
 def get_all_source_health() -> List[Dict[str, Any]]:
     """Returns comprehensive portal health, counts, and status directly from Supabase."""
     sql = """
@@ -364,7 +387,7 @@ def get_stored_articles(
     end_dt: Optional[datetime.datetime] = None,
     source: Optional[str] = None,
     primary_section: Optional[str] = None,
-    limit: int = 1500,
+    limit: int = 500,
     include_full_content: bool = False,
 ) -> List[Dict[str, Any]]:
     """Retrieves articles directly from Supabase PostgreSQL cloud table."""
@@ -421,12 +444,19 @@ def set_source_enabled(source_name: str, enabled: bool):
     """Enables or disables monitoring for a portal in Supabase."""
     sql = f"UPDATE sources SET enabled = {1 if enabled else 0} WHERE name = {esc_sql(source_name)};"
     query_supabase(sql)
+    if hasattr(get_all_source_health, "clear"):
+        get_all_source_health.clear()
+    if hasattr(get_system_kpis, "clear"):
+        get_system_kpis.clear()
 
 def set_source_interval(source_name: str, interval_mins: int):
     """Updates the check interval for a portal in Supabase."""
     sql = f"UPDATE sources SET check_interval_mins = {interval_mins} WHERE name = {esc_sql(source_name)};"
     query_supabase(sql)
+    if hasattr(get_all_source_health, "clear"):
+        get_all_source_health.clear()
 
+@_cache_data_if_available(ttl=180)
 def get_system_kpis() -> Dict[str, Any]:
     """Computes global intelligence KPIs directly from Supabase."""
     sql = """
@@ -630,10 +660,16 @@ def get_stored_indian_articles(
     min_score: float = 0.0,
     limit: int = 500,
     include_full_content: bool = False,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
 ) -> List[Dict[str, Any]]:
     """Retrieves Indian media articles from Supabase."""
     eff_status = relevance_status if relevance_status is not None else status_filter
     clauses = ["1=1"]
+    if start_dt:
+        clauses.append(f"published_dt >= '{start_dt.strftime('%Y-%m-%d %H:%M:%S')}'")
+    if end_dt:
+        clauses.append(f"published_dt <= '{end_dt.strftime('%Y-%m-%d %H:%M:%S')}'")
     if eff_status:
         if eff_status in ("substantive", "relevant"):
             clauses.append("relevance_status IN ('substantive', 'relevant')")
@@ -824,6 +860,7 @@ def get_all_x_accounts(
     return rows if rows else []
 
 
+@_cache_data_if_available(ttl=180)
 def get_x_account_kpis() -> Dict[str, Any]:
     """
     Computes key performance indicators for X accounts in the database:
@@ -1093,9 +1130,21 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 50) -> int:
     return inserted
 
 
-def get_stored_x_posts(category: Optional[str] = None, author_type: Optional[str] = None, limit: int = 1500) -> List[Dict[str, Any]]:
+def get_stored_x_posts(
+    category: Optional[str] = None,
+    author_type: Optional[str] = None,
+    limit: int = 500,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+) -> List[Dict[str, Any]]:
     """Retrieves X posts from Supabase PostgreSQL ordered by published_dt DESC."""
     clauses = ["1=1"]
+    if start_dt:
+        dt_utc = start_dt.astimezone(datetime.timezone.utc) if start_dt.tzinfo else start_dt
+        clauses.append(f"published_dt >= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')}'")
+    if end_dt:
+        dt_utc = end_dt.astimezone(datetime.timezone.utc) if end_dt.tzinfo else end_dt
+        clauses.append(f"published_dt <= '{dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')}'")
     if category and category.lower() != "all":
         clauses.append(f"structured_category = {esc_sql(category)}")
     if author_type and author_type.lower() != "all":
