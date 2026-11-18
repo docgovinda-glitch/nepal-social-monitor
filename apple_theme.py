@@ -656,7 +656,7 @@ APPLE_DESIGN_SYSTEM_CSS = """
         border-color: #0052A3 !important;
     }
     @media (max-width: 640px) {
-        .apple-card-meta .time-badge { margin-left: 0; }
+        .apple-card-meta .time-badge { margin-left: auto !important; }
         :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlock"]:has(.feed-card-anchor) div[data-testid="stHorizontalBlock"] {
             gap: 8px !important;
         }
@@ -1188,12 +1188,135 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .sb-footer { margin-top: 16px; text-align: center; font-size: 0.7rem; line-height: 1.5; color: var(--label-3); }
 
     /* ==========================================================
-       9. RESPONSIVE + ACCESSIBILITY
+       9. RESPONSIVE (MOBILE-FIRST NEWSROOM UPGRADE) + ACCESSIBILITY
        ========================================================== */
     @media (max-width: 900px) {
-        .block-container { padding: 1.2rem 0.8rem 2rem 0.8rem !important; }
+        .block-container { padding: 0.75rem 0.75rem 2rem 0.75rem !important; }
         .page-header__title { font-size: 1.35rem !important; }
     }
+
+    @media (max-width: 768px) {
+        header[data-testid="stHeader"] { height: 0.25rem !important; min-height: 0 !important; }
+        .block-container {
+            padding: 0.45rem 0.6rem 2rem 0.6rem !important;
+            max-width: 100% !important;
+        }
+
+        /* Row 1: Compact stacked Brand + Horizontally Swipeable Editorial Tabs */
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 2px !important;
+            padding: 0 !important;
+            margin-bottom: -4px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.editorial-brand-anchor) > div[data-testid="stColumn"] {
+            width: 100% !important;
+            min-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+        .editorial-brand-anchor {
+            height: 30px !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+        }
+        div[data-testid="stButtonGroup"],
+        div[data-testid="stButtonGroup"] > div,
+        div[data-baseweb="button-group"] {
+            justify-content: flex-start !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+            column-gap: 2px !important;
+        }
+        div[data-testid="stButtonGroup"] button,
+        div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
+            height: 32px !important;
+            min-height: 32px !important;
+            padding: 0 8px 3px 8px !important;
+            font-size: 0.76rem !important;
+            flex: 0 0 auto !important;
+        }
+        div[data-testid="stButtonGroup"] button *,
+        div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] * {
+            font-size: 0.76rem !important;
+            line-height: 28px !important;
+        }
+
+        /* Row 2: Keep Filter Pills & Utility Controls in a compact multi-column toolbar instead of 6 stacked rows */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+            align-items: center !important;
+        }
+        /* Hide empty desktop spacer columns on mobile */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:not(:has([data-testid="stElementContainer"])) {
+            display: none !important;
+        }
+        /* Filter selectboxes sit side-by-side (2 per row on phone) */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stSelectbox"]) {
+            flex: 1 1 calc(50% - 6px) !important;
+            min-width: 135px !important;
+            width: auto !important;
+        }
+        /* Timeframe popover pill expands cleanly alongside icon buttons */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has([data-testid="stPopover"]) {
+            flex: 1 1 auto !important;
+            min-width: 92px !important;
+            width: auto !important;
+        }
+        /* Search & Sync icon buttons stay compact 38px pills */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stPopover"]) > div[data-testid="stColumn"]:has(.stButton) {
+            flex: 0 0 40px !important;
+            min-width: 40px !important;
+            max-width: 44px !important;
+            width: 40px !important;
+        }
+
+        /* 2x2 grid for KPI Metric rows on mobile */
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) > div[data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 8px) !important;
+            min-width: 135px !important;
+            width: auto !important;
+        }
+        div[data-testid="stMetric"] {
+            padding: 10px 12px !important;
+        }
+        div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * {
+            font-size: 1.15rem !important;
+        }
+
+        /* Mobile typography & card spacing */
+        .apple-card-title {
+            font-size: 0.97rem !important;
+            line-height: 1.35 !important;
+        }
+        .apple-card-summary, .x-post-text {
+            font-size: 0.84rem !important;
+            line-height: 1.48 !important;
+        }
+        .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge, .x-metric-item {
+            font-size: 0.69rem !important;
+            padding: 2px 7px !important;
+        }
+        .sec-tag-chip {
+            font-size: 0.67rem !important;
+            padding: 2px 6px !important;
+        }
+        .time-badge {
+            margin-left: auto !important;
+            font-size: 0.7rem !important;
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { animation: none !important; transition: none !important; }
     }
