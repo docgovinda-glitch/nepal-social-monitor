@@ -425,7 +425,7 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             include_indian=("indian" in target_set),
             include_x=("x" in target_set),
             nepali_workers=12,
-            indian_workers=8,
+            indian_workers=12,
             pipeline_timeout_secs=65.0,
             on_pipeline_done=_on_stream_done,
         )
@@ -503,11 +503,21 @@ def _monitoring_daemon_loop():
                         f_np: ("Nepali", None),
                     }
                     if run_indian:
+                        from nepal_config import DEFAULT_NEPAL_RELEVANCE_THRESHOLD
                         from nepal_fetcher import fetch_nepal_in_indian_media
                         def _mark_indian():
                             global _LAST_INDIAN_SCAN_TIME
                             _LAST_INDIAN_SCAN_TIME = time.time()
-                        fut_meta[pool.submit(fetch_nepal_in_indian_media, 4, 0.55, False, True, False)] = ("Indian Press", _mark_indian)
+                        fut_meta[
+                            pool.submit(
+                                fetch_nepal_in_indian_media,
+                                10,
+                                DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
+                                False,
+                                True,
+                                False,
+                            )
+                        ] = ("Indian Press", _mark_indian)
                     if run_x:
                         from nepal_x_scanner import scan_popular_nepal_x_posts
                         def _mark_x():

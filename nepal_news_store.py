@@ -530,12 +530,17 @@ def esc_sql(v: Any) -> str:
     return f"'{s}'"
 
 def normalize_canonical_url(url: str) -> str:
-    """Normalizes URL by stripping UTM parameters, session tokens, and trailing slashes."""
+    """Normalizes URL by unwrapping redirect wrappers, stripping tracking parameters, and trailing slashes."""
     if not url or not url.startswith("http"):
         return url or ""
     try:
         parsed = urllib.parse.urlparse(url)
         query_params = urllib.parse.parse_qsl(parsed.query)
+        # Unwrap Bing News redirect wrapper URLs (e.g. bing.com/news/apiclick.aspx?...&url=https://...)
+        if "bing.com" in parsed.netloc.lower() and "apiclick" in parsed.path.lower():
+            for k, v in query_params:
+                if k.lower() == "url" and v.startswith("http"):
+                    return normalize_canonical_url(v)
         clean_params = [
             (k, v) for k, v in query_params
             if not k.lower().startswith("utm_") and k.lower() not in ("ref", "fbclid", "gclid", "source", "pk_campaign")
@@ -557,7 +562,9 @@ def normalize_canonical_url(url: str) -> str:
 def generate_canonical_id(source: str, url: str, title: str) -> str:
     """Generates an unambiguous hash representing an article record."""
     norm_url = normalize_canonical_url(url)
-    norm_title = " ".join(title.lower().split()) if title else ""
+    norm_title = ""
+    if title:
+        norm_title = " ".join(title.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"').lower().split())
     raw = f"{norm_url}::{norm_title}" if norm_url else f"{source}::{norm_title}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
@@ -871,14 +878,17 @@ def _hydrate_article_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _hydrate_indian_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalizes published_dt and stream metadata for Indian press rows."""
+    """Normalizes published_dt, JSON list fields, and stream metadata for Indian press rows."""
     for d in rows:
         d["published_dt"] = _parse_npt_wallclock_ts(d.get("published_dt"))
-        try:
-            if isinstance(d.get("sections"), str):
-                d["sections"] = json.loads(d["sections"] or "[]")
-        except Exception:
-            d["sections"] = [d.get("primary_section")]
+        for col, default_val in (("sections", [d.get("primary_section") or "India Section"]), ("nepal_dimensions", []), ("secondary_tags", [])):
+            raw = d.get(col)
+            if isinstance(raw, list):
+                continue
+            try:
+                d[col] = json.loads(raw or "[]") if raw else list(default_val)
+            except Exception:
+                d[col] = list(default_val)
         if not d.get("structured_category"):
             d["structured_category"] = d.get("primary_section") or "India Section"
         if not d.get("stream"):
@@ -1117,71 +1127,143 @@ def get_system_kpis() -> Dict[str, Any]:
 
 
 def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
-    """Upserts Indian media articles into Supabase."""
+    """Upserts Indian media articles into Supabase, deduplicating batch IDs and upgrading metadata on conflict."""
     if not articles:
         return
-    values_list = []
+
+    # Guard against PostgreSQL CardinalityViolation when two items map to the same canonical_id
+    deduped: Dict[str, Dict[str, Any]] = {}
     for a in articles:
-        cid = a.get("canonical_id") or generate_canonical_id(a.get("source", ""), a.get("link", ""), a.get("title", ""))
+        clean_link = normalize_canonical_url(a.get("link", ""))
+        cid = a.get("canonical_id") or generate_canonical_id(a.get("source", ""), clean_link, a.get("title", ""))
+        prev = deduped.get(cid)
+        if prev is None or float(a.get("nepal_relevance_score", 0.0)) > float(prev.get("nepal_relevance_score", 0.0)):
+            item_copy = dict(a)
+            item_copy["_cid"] = cid
+            item_copy["_clean_link"] = clean_link or (a.get("link") or "")
+            deduped[cid] = item_copy
+
+    values_list = []
+    for cid, a in deduped.items():
+        pub_dt = a.get("published_dt")
+        if isinstance(pub_dt, datetime.datetime):
+            pub_dt_npt = pub_dt.astimezone(NEPAL_TZ) if pub_dt.tzinfo else pub_dt
+        else:
+            pub_dt_npt = datetime.datetime.now(NEPAL_TZ)
+        prim_sec = a.get("primary_section") or "India Section"
+        secs = a.get("sections") or [prim_sec]
+        sec_tags = a.get("secondary_tags") or []
+        dims = a.get("nepal_dimensions") or []
         vals = [
             esc_sql(cid),
             esc_sql(a.get("source", "Indian Media")),
             esc_sql(a.get("title", "")),
             esc_sql(a.get("headline_english", "")),
-            esc_sql(a.get("link", "")),
-            esc_sql(normalize_canonical_url(a.get("link", ""))),
+            esc_sql(a.get("_clean_link") or a.get("link", "")),
+            esc_sql(a.get("_clean_link")),
             esc_sql(a.get("summary", "")),
             esc_sql(a.get("full_content", "")),
-            esc_sql(a.get("published_dt") or datetime.datetime.now()),
+            esc_sql(_fmt_sql_ts(pub_dt_npt, as_utc=False)[:19]),
+            esc_sql(a.get("relative_time", "")),
+            esc_sql(a.get("exact_time", "")),
             esc_sql(a.get("language", "English")),
+            esc_sql(prim_sec),
+            esc_sql(json.dumps(secs if isinstance(secs, list) else [prim_sec])),
+            esc_sql(json.dumps(sec_tags if isinstance(sec_tags, list) else [])),
+            esc_sql(float(a.get("classification_confidence", 0.85))),
             esc_sql(float(a.get("nepal_relevance_score", 0.0))),
-            esc_sql(a.get("relevance_status", "relevant")),
-            esc_sql(a.get("relevance_reason", ""))
+            esc_sql(a.get("relevance_status", "substantive")),
+            esc_sql(a.get("relevance_reason", "")),
+            esc_sql(json.dumps(dims if isinstance(dims, list) else [])),
         ]
         values_list.append(f"({', '.join(vals)})")
 
     if values_list:
-        sql = f"""
-        INSERT INTO indian_media_articles (
-            canonical_id, source, title, headline_english, link, canonical_url,
-            summary, full_content, published_dt, language, nepal_relevance_score,
-            relevance_status, relevance_reason
-        ) VALUES {', '.join(values_list)}
-        ON CONFLICT (canonical_id) DO UPDATE SET
-            full_content = CASE
-                WHEN LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(indian_media_articles.full_content, ''))
-                THEN EXCLUDED.full_content
-                ELSE indian_media_articles.full_content
-            END,
-            summary = CASE
-                WHEN COALESCE(EXCLUDED.summary, '') <> ''
-                     AND NOT (EXCLUDED.summary ~ '[\u0900-\u097F]')
-                     AND (
-                         COALESCE(indian_media_articles.summary, '') = ''
-                         OR indian_media_articles.summary = indian_media_articles.title
-                         OR indian_media_articles.summary LIKE '%...%'
-                         OR indian_media_articles.summary LIKE '%appeared first on%'
-                         OR indian_media_articles.summary LIKE 'Author %'
-                         OR indian_media_articles.summary LIKE 'By %'
-                         OR indian_media_articles.summary LIKE 'Edited by %'
-                         OR indian_media_articles.summary LIKE 'Kathmandu [%'
-                         OR indian_media_articles.summary ~ '[\u0900-\u097F]'
-                     )
-                THEN EXCLUDED.summary
-                ELSE indian_media_articles.summary
-            END,
-            headline_english = CASE
-                WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
-                     AND NOT (EXCLUDED.headline_english ~ '[\u0900-\u097F]')
-                     AND (
-                         COALESCE(indian_media_articles.headline_english, '') = ''
-                         OR indian_media_articles.headline_english ~ '[\u0900-\u097F]'
-                     )
-                THEN EXCLUDED.headline_english
-                ELSE indian_media_articles.headline_english
-            END;
-        """
-        query_supabase(sql)
+        chunk_size = 50
+        for i in range(0, len(values_list), chunk_size):
+            chunk = values_list[i:i + chunk_size]
+            sql = f"""
+            INSERT INTO indian_media_articles (
+                canonical_id, source, title, headline_english, link, canonical_url,
+                summary, full_content, published_dt, relative_time, exact_time,
+                language, primary_section, sections, secondary_tags,
+                classification_confidence, nepal_relevance_score,
+                relevance_status, relevance_reason, nepal_dimensions
+            ) VALUES {', '.join(chunk)}
+            ON CONFLICT (canonical_id) DO UPDATE SET
+                full_content = CASE
+                    WHEN LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(indian_media_articles.full_content, ''))
+                    THEN EXCLUDED.full_content
+                    ELSE indian_media_articles.full_content
+                END,
+                summary = CASE
+                    WHEN COALESCE(EXCLUDED.summary, '') <> ''
+                         AND NOT (EXCLUDED.summary ~ '[\u0900-\u097F]')
+                         AND (
+                             COALESCE(indian_media_articles.summary, '') = ''
+                             OR indian_media_articles.summary = indian_media_articles.title
+                             OR indian_media_articles.summary LIKE '%...%'
+                             OR indian_media_articles.summary LIKE '%appeared first on%'
+                             OR indian_media_articles.summary LIKE 'Author %'
+                             OR indian_media_articles.summary LIKE 'By %'
+                             OR indian_media_articles.summary LIKE 'Edited by %'
+                             OR indian_media_articles.summary LIKE 'Kathmandu [%'
+                             OR indian_media_articles.summary ~ '[\u0900-\u097F]'
+                         )
+                    THEN EXCLUDED.summary
+                    ELSE indian_media_articles.summary
+                END,
+                headline_english = CASE
+                    WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
+                         AND NOT (EXCLUDED.headline_english ~ '[\u0900-\u097F]')
+                         AND (
+                             COALESCE(indian_media_articles.headline_english, '') = ''
+                             OR indian_media_articles.headline_english ~ '[\u0900-\u097F]'
+                         )
+                    THEN EXCLUDED.headline_english
+                    ELSE indian_media_articles.headline_english
+                END,
+                published_dt = CASE
+                    WHEN COALESCE(indian_media_articles.exact_time, '') IN ('', 'Archived')
+                         AND COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                    THEN EXCLUDED.published_dt
+                    ELSE indian_media_articles.published_dt
+                END,
+                relative_time = CASE
+                    WHEN COALESCE(EXCLUDED.relative_time, '') NOT IN ('', 'Date unlisted')
+                    THEN EXCLUDED.relative_time
+                    ELSE indian_media_articles.relative_time
+                END,
+                exact_time = CASE
+                    WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                    THEN EXCLUDED.exact_time
+                    ELSE indian_media_articles.exact_time
+                END,
+                primary_section = COALESCE(NULLIF(EXCLUDED.primary_section, ''), indian_media_articles.primary_section),
+                sections = CASE
+                    WHEN COALESCE(EXCLUDED.sections, '') NOT IN ('', '[]')
+                    THEN EXCLUDED.sections
+                    ELSE indian_media_articles.sections
+                END,
+                nepal_relevance_score = GREATEST(indian_media_articles.nepal_relevance_score, EXCLUDED.nepal_relevance_score),
+                relevance_status = CASE
+                    WHEN EXCLUDED.nepal_relevance_score >= indian_media_articles.nepal_relevance_score
+                         OR (indian_media_articles.relevance_status IN ('borderline_review', 'excluded') AND EXCLUDED.relevance_status IN ('substantive', 'relevant'))
+                    THEN EXCLUDED.relevance_status
+                    ELSE indian_media_articles.relevance_status
+                END,
+                relevance_reason = CASE
+                    WHEN EXCLUDED.nepal_relevance_score >= indian_media_articles.nepal_relevance_score
+                    THEN EXCLUDED.relevance_reason
+                    ELSE indian_media_articles.relevance_reason
+                END,
+                nepal_dimensions = CASE
+                    WHEN COALESCE(EXCLUDED.nepal_dimensions, '') NOT IN ('', '[]')
+                    THEN EXCLUDED.nepal_dimensions
+                    ELSE indian_media_articles.nepal_dimensions
+                END;
+            """
+            query_supabase(sql)
 
 
 def hydrate_article_full_content(art: Dict[str, Any]) -> None:

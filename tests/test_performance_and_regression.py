@@ -222,6 +222,98 @@ class StoreAndPaginationUnitTests(unittest.TestCase):
         self.assertLess(elapsed, 0.8)
         self.assertEqual(res["results"]["SlowPortal"]["status"], "TIMEOUT")
 
+    def test_indian_media_scoring_monotonicity_bing_fresh_and_dedupe(self):
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_news_store as store
+
+        # 1) Regression check on real headlines previously lost at 0.64 + promo filtering
+        trapped_cases = [
+            ("Centre Notifies Immigration Rule Changes, Revises Passport Norms For Nepal & Bhutan Travel", "https://outlookindia.com/national/nepal-bhutan"),
+            ("In first bilateral trip, Nepal PM Balendra Shah to visit India from Nov 22", "https://indianexpress.com/article/india/nepal-pm-balendra-shah-india-visit"),
+            ("Ayodhya-Janakpur Train Completes Trial Run Linking India", "https://www.ndtv.com/india-news/ayodhya-janakpur-train"),
+            ("Flash floods in Nepal again: Warning bells for Himalaya, lessons for India", "https://indianexpress.com/article/explained/flash-floods-in-nepal"),
+            ("बिहार: पुराने मोबाइल खरीद नेपाल- बांग्लादेश भेज रहे शातिर", "https://www.livehindustan.com/bihar/cyber-criminals-nepal"),
+        ]
+        for headline, url in trapped_cases:
+            ev = fetcher.evaluate_indian_article_nepal_relevance(
+                title=headline, summary=headline, full_content=headline, link=url, source="Test"
+            )
+            self.assertEqual(ev["relevance_status"], "substantive", f"Expected substantive for {headline}: {ev}")
+            self.assertGreaterEqual(ev["nepal_relevance_score"], 0.66, f"Expected >=0.66 for {headline}: {ev}")
+
+        promo = fetcher.evaluate_indian_article_nepal_relevance(
+            title="प्रभात खबर को Google पर पसंदीदा सोर्स बनाएं →",
+            summary="नेपाल में बड़ी खबर",
+            link="https://profile.google.com/@prabhatkhabartv",
+        )
+        self.assertEqual(promo["relevance_status"], "excluded")
+        self.assertEqual(promo["nepal_relevance_score"], 0.0)
+
+        # 2) Redirect unwrap + smart quote canonical_id dedupe
+        wrapped = "http://www.bing.com/news/apiclick.aspx?ref=FexRss&url=https%3a%2f%2fwww.moneycontrol.com%2fworld%2fnepal-visit.html%3futm_source%3dbing"
+        self.assertEqual(store.normalize_canonical_url(wrapped), "https://www.moneycontrol.com/world/nepal-visit.html")
+        cid1 = store.generate_canonical_id("The Indian Express", wrapped, "Nepal PM Balendra Shah's agenda")
+        cid2 = store.generate_canonical_id("The Indian Express", "https://www.moneycontrol.com/world/nepal-visit.html", "Nepal PM Balendra Shah’s agenda")
+        self.assertEqual(cid1, cid2)
+
+        # 3) Stale >72h HTML items still trigger date-sorted Bing fallback & strip .np sites + hydrate body scores
+        now_npt = datetime.datetime.now(cfg.NEPAL_TZ)
+        old_html = (
+            "<html><body>"
+            "<article><a href='/news/old-1'><h2>Nepal flood situation reviewed by border officials in Patna</h2></a><time>2026-09-01</time></article>"
+            "<article><a href='/news/old-2'><h2>India Nepal power corridor meeting concludes in New Delhi</h2></a><time>2026-09-02</time></article>"
+            "<article><a href='/news/old-3'><h2>Kathmandu trade delegation arrives in Kolkata for talks</h2></a><time>2026-09-03</time></article>"
+            "<article><a href='/news/nepal-borderline-1'><h2>Regional energy grid talks advance across eastern corridor</h2></a><time>2026-11-18</time></article>"
+            "</body></html>"
+        ).encode("utf-8")
+        bing_rss = (
+            b'<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>'
+            b'<item><title>Why Nepal PM Balendra Shah cut short first India visit - Moneycontrol</title>'
+            b'<link>http://www.bing.com/news/apiclick.aspx?url=https%3a%2f%2fwww.moneycontrol.com%2fworld%2fbalen-25h.html</link>'
+            b'<pubDate>Wed, 18 Nov 2026 02:50:00 GMT</pubDate><description>Nepal PM Balendra Shah bilateral talks in Delhi</description></item>'
+            b'<item><title>Kathmandu airport flight update - Onlinekhabar</title>'
+            b'<link>http://www.bing.com/news/apiclick.aspx?url=https%3a%2f%2fenglish.onlinekhabar.com%2fflight.html</link>'
+            b'<pubDate>Wed, 18 Nov 2026 03:00:00 GMT</pubDate><description>Nepal domestic aviation update</description></item>'
+            b'</channel></rss>'
+        )
+
+        class _Resp:
+            def __init__(self, b: bytes):
+                self._b = b
+            def read(self):
+                return self._b
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        seen_urls = []
+        def _mock_urlopen(req, context=None, timeout=None):
+            u = req.full_url if hasattr(req, "full_url") else str(req)
+            seen_urls.append(u)
+            if "bing.com/news/search" in u:
+                return _Resp(bing_rss)
+            return _Resp(old_html)
+
+        def _fake_hydrate(cands, max_workers=10, summarize_english=False):
+            for c in cands:
+                if "Regional energy grid talks" in c["title"]:
+                    c["full_content"] = "Nepal electricity grid connectivity with India expanded as Nepal Power Authority signed 350 MW winter bilateral trade agreement in Kathmandu."
+
+        src_cfg = {"name": "Moneycontrol", "type": "topic_html", "domain": "moneycontrol.com", "url": "https://www.moneycontrol.com/news/tags/nepal.html", "lang": "English"}
+        with mock.patch("urllib.request.urlopen", side_effect=_mock_urlopen), \
+             mock.patch("nepal_fetcher.extract_date_from_card_or_url", return_value=now_npt - datetime.timedelta(days=20)), \
+             mock.patch("nepal_fetcher.batch_fetch_full_content", side_effect=_fake_hydrate):
+            out = fetcher.fetch_single_indian_media(src_cfg, now_npt, relevance_threshold=0.65)
+
+        self.assertTrue(any("qft=sortbydate" in u for u in seen_urls), f"Date-sorted Bing fallback did not trigger: {seen_urls}")
+        by_link = {x["link"]: x for x in out}
+        self.assertIn("https://www.moneycontrol.com/world/balen-25h.html", by_link)
+        self.assertIn("https://www.moneycontrol.com/news/nepal-borderline-1", by_link)
+        self.assertEqual(by_link["https://www.moneycontrol.com/news/nepal-borderline-1"]["relevance_status"], "substantive")
+        self.assertFalse(any("onlinekhabar.com" in lk for lk in by_link), "Nepali portal must be excluded from Indian Press")
+
 
 class SupabaseLiveIntegrationTests(unittest.TestCase):
     def test_live_feed_keyset_pagination_and_single_cte_bootstraps(self):

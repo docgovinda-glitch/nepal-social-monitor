@@ -2687,7 +2687,7 @@ def render_indian_press_section() -> None:
         search_query=search_query or "",
         empty_icon="🇮🇳",
         empty_title="No Indian media coverage found",
-        empty_body="Try selecting 'All 18 Indian Outlets' or adjusting the timeframe.",
+        empty_body=f"Try selecting '{ALL_INDIAN_DEFAULT}' or adjusting the timeframe.",
         on_fetch_now=_fetch_in_now,
         wa_sent_map=_shared_wa_sent_map,
         prefetched_init=_ind_prefetched,
