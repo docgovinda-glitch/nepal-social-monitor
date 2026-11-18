@@ -9,15 +9,12 @@ Design principles (Apple HIG inspired):
   • Accessible by default: visible focus rings and prefers-reduced-motion support.
 """
 
-APPLE_DESIGN_SYSTEM_CSS = """
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
+_DESIGN_TOKENS_CSS = """
     /* ==========================================================
        1. DESIGN TOKENS
        ========================================================== */
     :root {
-        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
 
         /* Neutrals */
         --bg: #F6F8FA;
@@ -46,6 +43,108 @@ APPLE_DESIGN_SYSTEM_CSS = """
         --shadow-2: 0 6px 20px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.03);
         --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
+"""
+
+_PILL_AND_FEED_CARD_CSS = """
+    .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge,
+    .x-sentiment-badge, .x-metric-item, .status-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 3px 9px; border-radius: 7px;
+        font-size: 0.73rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
+        background: var(--surface-muted); color: var(--label-2);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    .portal-tag { background: #F1F5F9; color: #0F172A; border-color: rgba(15, 23, 42, 0.10); font-weight: 650; }
+    .indian-portal-tag { background: #FFF7ED; color: #C2410C; border-color: rgba(194, 65, 12, 0.18); font-weight: 650; }
+    .lang-label { font-size: 0.73rem; font-weight: 500; color: var(--label-2); white-space: nowrap; padding: 0 2px; }
+    .time-badge { margin-left: auto; font-size: 0.75rem; font-weight: 500; color: var(--label-3); white-space: nowrap; line-height: 1.35; }
+    .pill--success { background: var(--green-soft); color: var(--green); }
+    .pill--warn, .conf-review-badge { background: var(--amber-soft); color: var(--amber); }
+    .pill--tint { background: var(--tint-soft); color: var(--tint); }
+    .sec-tag-chip {
+        display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px;
+        background: #F8FAFC; border: 1px solid rgba(15, 23, 42, 0.08);
+        font-size: 0.72rem; font-weight: 500; color: var(--label-2); line-height: 1.35;
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .cat-badge--india { background: #FFFBEB; color: #B45309; border-color: rgba(180, 83, 9, 0.16); }
+    .cat-badge--china { background: #FEF2F2; color: #B91C1C; border-color: rgba(185, 28, 28, 0.16); }
+    .cat-badge--pakistan { background: #F0FDF4; color: #15803D; border-color: rgba(21, 128, 61, 0.16); }
+    .cat-badge--bangladesh { background: #ECFEFF; color: #0E7490; border-color: rgba(14, 116, 144, 0.16); }
+    .cat-badge--internal { background: #EEF2FF; color: #4338CA; border-color: rgba(67, 56, 202, 0.16); }
+    .cat-badge--external { background: #FAF5FF; color: #7E22CE; border-color: rgba(126, 34, 206, 0.16); }
+    .cat-badge--economy { background: #ECFDF5; color: #047857; border-color: rgba(4, 120, 87, 0.16); }
+    .cat-badge--international { background: #F5F3FF; color: #6D28D9; border-color: rgba(109, 40, 217, 0.16); }
+    .cat-badge--others { background: #F1F5F9; color: #475569; border-color: rgba(71, 85, 105, 0.14); }
+    .status-pill--ok { background: var(--green-soft); color: var(--green); }
+    .status-pill--warn { background: var(--amber-soft); color: var(--amber); }
+    .status-pill--fail { background: var(--red-soft); color: var(--red); }
+
+    .feed-item-card {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 185px;
+        contain: layout style;
+    }
+    .apple-news-card { position: relative; padding: 0 0 4px 0; margin: 0; background: transparent; border: none; box-shadow: none; overflow: hidden; }
+    .apple-news-card:hover { box-shadow: none; border: none; }
+    .apple-news-card::before { display: none; }
+    .apple-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; width: 100%; }
+    .apple-card-title { margin: 0 0 6px 0 !important; padding: 0 !important; font-size: 1.06rem !important; font-weight: 700 !important; line-height: 1.38 !important; letter-spacing: -0.015em !important; }
+    .apple-card-title a { color: var(--label) !important; text-decoration: none !important; }
+    .apple-card-title a:hover { color: var(--link) !important; }
+    .apple-card-native-title { font-size: 0.78rem; color: var(--label-3); margin: -2px 0 6px 0; line-height: 1.35; }
+    .apple-card-summary {
+        color: #334155; font-size: 0.885rem; line-height: 1.54; margin: 0 0 2px 0;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+
+    .x-post-card { padding: 2px 2px 8px 2px; margin: 0; background: transparent; border: none; box-shadow: none; }
+    .x-post-card:hover { box-shadow: none; border: none; }
+    .x-post-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .x-post-header__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .x-author-box { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .x-avatar {
+        width: 36px; height: 36px; min-width: 36px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: #FFFFFF; font-weight: 700; font-size: 0.76rem; letter-spacing: 0.02em;
+    }
+    .x-author-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .x-author-name { font-size: 0.92rem; font-weight: 650; color: var(--label); display: inline-flex; align-items: center; gap: 4px; }
+    .x-author-handle { font-size: 0.76rem; color: var(--label-2); }
+    .x-type-badge { color: var(--tint); font-weight: 600; }
+    .x-verified-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 15px; height: 15px; border-radius: 50%;
+        background: #1D9BF0; color: #FFFFFF; font-weight: 700; font-size: 0.6rem;
+    }
+    .x-post-text { font-size: 0.93rem; line-height: 1.55; color: var(--label); margin: 10px 0 12px 0; white-space: pre-wrap; word-break: break-word; }
+    .x-post-text b { color: var(--link); font-weight: 600; }
+    .x-engagement-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--separator); }
+    .x-metrics-group { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .x-metric-item { font-weight: 500; }
+    .x-sentiment-positive { background: var(--green-soft); color: var(--green); }
+    .x-sentiment-alert { background: var(--red-soft); color: var(--red); }
+
+    .wa-already-sent-notice {
+        display: flex; align-items: center; gap: 8px; padding: 7px 12px; margin: 6px 0 6px 0;
+        border-radius: var(--r-md, 10px); background: rgba(30, 142, 62, 0.08);
+        color: #136b2c; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(30, 142, 62, 0.25);
+    }
+
+    @media (max-width: 768px) {
+        .apple-card-title { font-size: 0.97rem !important; line-height: 1.35 !important; }
+        .apple-card-summary, .x-post-text { font-size: 0.84rem !important; line-height: 1.48 !important; }
+        .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge, .x-metric-item {
+            font-size: 0.69rem !important; padding: 2px 7px !important;
+        }
+        .sec-tag-chip { font-size: 0.67rem !important; padding: 2px 6px !important; }
+        .time-badge { margin-left: auto !important; font-size: 0.7rem !important; }
+    }
+"""
+
+FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
+
+APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
 
     /* ==========================================================
        2. FOUNDATION
@@ -178,83 +277,20 @@ APPLE_DESIGN_SYSTEM_CSS = """
     }
 
     /* ==========================================================
-       5. PILLS / CHIPS / BADGES (shared base + colour variants)
+       5. PILLS / CHIPS / BADGES & 6. CARDS (single-source-of-truth shared block)
        ========================================================== */
-    .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge,
-    .x-sentiment-badge, .x-metric-item, .status-pill {
-        display: inline-flex; align-items: center; gap: 4px;
-        padding: 3px 9px; border-radius: 7px;
-        font-size: 0.73rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
-        background: var(--surface-muted); color: var(--label-2);
-        border: 1px solid rgba(0, 0, 0, 0.06);
-    }
-    .portal-tag { background: #F1F5F9; color: #0F172A; border-color: rgba(15, 23, 42, 0.10); font-weight: 650; }
-    .indian-portal-tag { background: #FFF7ED; color: #C2410C; border-color: rgba(194, 65, 12, 0.18); font-weight: 650; }
-    .lang-label {
-        font-size: 0.73rem;
-        font-weight: 500;
-        color: var(--label-2);
-        white-space: nowrap;
-        padding: 0 2px;
-    }
-    .time-badge {
-        margin-left: auto;
-        font-size: 0.75rem;
-        font-weight: 500;
-        color: var(--label-3);
-        white-space: nowrap;
-        line-height: 1.35;
-    }
-    .pill--success { background: var(--green-soft); color: var(--green); }
-    .pill--warn, .conf-review-badge { background: var(--amber-soft); color: var(--amber); }
-    .pill--tint { background: var(--tint-soft); color: var(--tint); }
-    .sec-tag-chip {
-        display: inline-flex;
-        align-items: center;
-        padding: 2px 8px;
-        border-radius: 6px;
-        background: #F8FAFC;
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        font-size: 0.72rem;
-        font-weight: 500;
-        color: var(--label-2);
-        line-height: 1.35;
-    }
-    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-
-    .cat-badge--india { background: #FFFBEB; color: #B45309; border-color: rgba(180, 83, 9, 0.16); }
-    .cat-badge--china { background: #FEF2F2; color: #B91C1C; border-color: rgba(185, 28, 28, 0.16); }
-    .cat-badge--pakistan { background: #F0FDF4; color: #15803D; border-color: rgba(21, 128, 61, 0.16); }
-    .cat-badge--bangladesh { background: #ECFEFF; color: #0E7490; border-color: rgba(14, 116, 144, 0.16); }
-    .cat-badge--internal { background: #EEF2FF; color: #4338CA; border-color: rgba(67, 56, 202, 0.16); }
-    .cat-badge--external { background: #FAF5FF; color: #7E22CE; border-color: rgba(126, 34, 206, 0.16); }
-    .cat-badge--economy { background: #ECFDF5; color: #047857; border-color: rgba(4, 120, 87, 0.16); }
-    .cat-badge--international { background: #F5F3FF; color: #6D28D9; border-color: rgba(109, 40, 217, 0.16); }
-    .cat-badge--others { background: #F1F5F9; color: #475569; border-color: rgba(71, 85, 105, 0.14); }
-
-    .status-pill--ok { background: var(--green-soft); color: var(--green); }
-    .status-pill--warn { background: var(--amber-soft); color: var(--amber); }
-    .status-pill--fail { background: var(--red-soft); color: var(--red); }
-
-    /* ==========================================================
-       6. CARDS (articles, X posts, accounts, health)
-       ========================================================== */
-    .apple-news-card, .x-post-card, .health-card {
+""" + _PILL_AND_FEED_CARD_CSS + """
+    .health-card {
         background: var(--surface);
         border: 1px solid var(--separator);
         border-radius: var(--r-md);
         box-shadow: var(--shadow-1);
         transition: box-shadow 0.25s var(--ease), border-color 0.25s var(--ease);
     }
-    .apple-news-card:hover, .x-post-card:hover, .health-card:hover {
+    .health-card:hover {
         box-shadow: var(--shadow-2);
         border-color: var(--separator-strong);
     }
-
-    /* Article card (lives inside consolidated st.container(border=True) card) */
-    .apple-news-card { position: relative; padding: 0 0 4px 0; margin: 0; background: transparent; border: none; box-shadow: none; overflow: hidden; }
-    .apple-news-card:hover { box-shadow: none; border: none; }
-    .apple-news-card::before { display: none; }
     .accent--india { --accent: #F5A623; }
     .accent--china { --accent: #E5484D; }
     .accent--pakistan { --accent: #30A46C; }
@@ -263,57 +299,13 @@ APPLE_DESIGN_SYSTEM_CSS = """
     .accent--external { --accent: #8E4EC6; }
     .accent--economy { --accent: #0E9F6E; }
     .accent--international { --accent: #6E56CF; }
-    .accent--others { --accent: #C7C7CC; }
+    .accent--others { --accent: #94A3B8; }
     .accent--indian-press { --accent: #F76B15; }
-
-    .apple-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; width: 100%; }
-    .apple-card-title { margin: 0 0 6px 0 !important; padding: 0 !important; font-size: 1.06rem !important; font-weight: 700 !important; line-height: 1.38 !important; letter-spacing: -0.015em !important; }
-    .apple-card-title a { color: var(--label) !important; text-decoration: none !important; }
-    .apple-card-title a:hover { color: var(--link) !important; }
-    .apple-card-native-title { font-size: 0.78rem; color: var(--label-3); margin: -2px 0 6px 0; line-height: 1.35; }
-    .apple-card-summary {
-        color: #334155;
-        font-size: 0.885rem;
-        line-height: 1.54;
-        margin: 0 0 2px 0;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
     .apple-summary-badge {
         display: inline-block; padding: 1px 6px; margin-right: 6px; border-radius: 5px;
         background: var(--tint-soft); color: var(--tint); font-size: 0.65rem; font-weight: 700;
         letter-spacing: 0.04em; vertical-align: 1px;
     }
-
-    /* X post card (lives inside consolidated st.container(border=True) card) */
-    .x-post-card { padding: 2px 2px 8px 2px; margin: 0; background: transparent; border: none; box-shadow: none; }
-    .x-post-card:hover { box-shadow: none; border: none; }
-    .x-post-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .x-post-header__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .x-author-box { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .x-avatar {
-        width: 36px; height: 36px; min-width: 36px; border-radius: 50%;
-        display: inline-flex; align-items: center; justify-content: center;
-        color: #FFFFFF; font-weight: 700; font-size: 0.76rem; letter-spacing: 0.02em;
-    }
-    .x-author-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
-    .x-author-name { font-size: 0.92rem; font-weight: 650; color: var(--label); display: inline-flex; align-items: center; gap: 4px; }
-    .x-author-handle { font-size: 0.76rem; color: var(--label-2); }
-    .x-type-badge { color: var(--tint); font-weight: 600; }
-    .x-verified-badge {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 15px; height: 15px; border-radius: 50%;
-        background: #1D9BF0; color: #FFFFFF; font-weight: 700; font-size: 0.6rem;
-    }
-    .x-post-text { font-size: 0.93rem; line-height: 1.55; color: var(--label); margin: 10px 0 12px 0; white-space: pre-wrap; word-break: break-word; }
-    .x-post-text b { color: var(--link); font-weight: 600; }
-    .x-engagement-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--separator); }
-    .x-metrics-group { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .x-metric-item { font-weight: 500; }
-    .x-sentiment-positive { background: var(--green-soft); color: var(--green); }
-    .x-sentiment-alert { background: var(--red-soft); color: var(--red); }
 
     /* Enhanced Account Directory Card (200+ Verified Accounts) */
     .acct-card-rich {
@@ -1444,8 +1436,9 @@ APPLE_DESIGN_SYSTEM_CSS = """
 </style>
 """
 
-AUTH_CSS = """
-<style>
+AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
+    html, body, .stMarkdown, p, label, h1, button, input { font-family: var(--font) !important; -webkit-font-smoothing: antialiased !important; }
+    [data-testid="stAppViewContainer"], .main { background-color: var(--bg) !important; }
     [data-testid="stSidebar"], [data-testid="collapsedControl"], header[data-testid="stHeader"] { display: none !important; }
     .block-container { padding-top: 14vh !important; max-width: 420px !important; margin: 0 auto !important; }
     div[data-testid="stForm"] {
@@ -1457,11 +1450,11 @@ AUTH_CSS = """
     .auth-header__title { font-size: 1.85rem !important; font-weight: 700 !important; color: var(--label) !important; letter-spacing: -0.028em !important; margin: 0 0 4px 0 !important; padding: 0 !important; }
     .auth-header__subtitle { font-size: 0.92rem; color: var(--label-2); margin: 0; }
     div[data-testid="stForm"] div[data-baseweb="input"] > div { min-height: 48px !important; border-radius: 12px !important; }
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button { min-height: 48px !important; width: 100% !important; border-radius: 12px !important; font-size: 0.95rem !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button { min-height: 48px !important; width: 100% !important; border-radius: 12px !important; font-size: 0.95rem !important; background: var(--tint) !important; color: #FFFFFF !important; border: none !important; font-weight: 600 !important; }
     div[data-testid="InputInstructions"] { display: none !important; }
     .auth-footer { text-align: center; font-size: 0.76rem; color: var(--label-3); margin-top: 14px; }
 </style>
 """
 
-__all__ = ["APPLE_DESIGN_SYSTEM_CSS", "AUTH_CSS"]
+__all__ = ["APPLE_DESIGN_SYSTEM_CSS", "FEED_CARD_CSS", "AUTH_CSS"]
 

@@ -16,10 +16,13 @@ import datetime
 import zoneinfo
 import threading
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional, Tuple
 
-import requests
-from requests.adapters import HTTPAdapter
+try:
+    import tomllib
+except ImportError:  # Python < 3.11
+    tomllib = None  # type: ignore
 
 try:
     import streamlit as st
@@ -159,11 +162,11 @@ def _esc_like(val: str) -> str:
 
 
 def _build_search_sql(search_query: Optional[str], corpus_cols: List[str]) -> Optional[str]:
-    """Builds a PostgreSQL WHERE predicate matching smart_search_match semantics."""
+    """Builds a PostgreSQL WHERE predicate matching smart_search_match and GIN pg_trgm expression indexes."""
     groups = expand_search_tokens(search_query or "")
     if not groups:
         return None
-    corpus_expr = f"CONCAT_WS(' ', {', '.join(corpus_cols)})"
+    corpus_expr = "(" + " || ' ' || ".join(f"COALESCE({c}, '')" for c in corpus_cols) + ")"
     and_parts = []
     for syns in groups:
         or_parts = [f"{corpus_expr} ILIKE {_esc_like(s)} ESCAPE '\\'" for s in syns]
@@ -234,27 +237,69 @@ if not logger.handlers:
 
 _DEFAULT_SB_TOKEN_B64 = "c2JwX2ZjMjU1YzMxNTdlNzgzNjg2NGU3YjQwZTQ0MDIyNWI3ZjQ0M2UyOTM="
 
-# Load environment credentials
-def get_env_variable(key: str, default: str = "") -> str:
+_LOCAL_CONFIG_CACHE: Optional[Dict[str, str]] = None
+_LOCAL_CONFIG_LOCK = threading.Lock()
+_PG_POOL = None
+_PG_POOL_FAILED = False
+_PG_POOL_LOCK = threading.Lock()
+_PG_TRANSPORT_META: Dict[str, Any] = {"mode": "management_api", "host": "api.supabase.com", "pool_max": 6}
+
+
+def _load_local_config_fast() -> Dict[str, str]:
+    """Reads .env and .streamlit/secrets.toml via stdlib in <1ms without triggering heavy st.secrets init."""
+    global _LOCAL_CONFIG_CACHE
+    if _LOCAL_CONFIG_CACHE is not None:
+        return _LOCAL_CONFIG_CACHE
+    with _LOCAL_CONFIG_LOCK:
+        if _LOCAL_CONFIG_CACHE is not None:
+            return _LOCAL_CONFIG_CACHE
+        cfg: Dict[str, str] = {}
+        root_dir = os.path.dirname(os.path.abspath(__file__))
+        env_file = os.path.join(root_dir, ".env")
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            cfg.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            except Exception:
+                pass
+        for secrets_file in (
+            os.path.join(root_dir, ".streamlit", "secrets.toml"),
+            os.path.join(os.path.expanduser("~"), ".streamlit", "secrets.toml"),
+        ):
+            if tomllib is not None and os.path.exists(secrets_file):
+                try:
+                    with open(secrets_file, "rb") as f:
+                        parsed = tomllib.load(f)
+                    if isinstance(parsed, dict):
+                        for k, v in parsed.items():
+                            if isinstance(v, (str, int, float, bool)):
+                                cfg.setdefault(str(k), str(v).strip())
+                except Exception:
+                    pass
+        _LOCAL_CONFIG_CACHE = cfg
+        return cfg
+
+
+def get_env_variable(key: str, default: str = "", allow_st_secrets: bool = True) -> str:
     val = os.environ.get(key)
     if val:
         return val.strip()
-    try:
-        import streamlit as st
-        if hasattr(st, "secrets") and key in st.secrets:
-            return str(st.secrets[key]).strip()
-    except Exception:
-        pass
-    env_file = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_file):
+    local_val = _load_local_config_fast().get(key)
+    if local_val:
+        return local_val
+    # Only touch st.secrets inside an active Streamlit runtime when key is absent on disk (e.g. Cloud secrets)
+    if allow_st_secrets and st is not None:
         try:
-            with open(env_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        if k.strip() == key:
-                            return v.strip().strip('"').strip("'")
+            from streamlit.runtime.scriptrunner_utils.script_run_context import get_script_run_ctx
+            if get_script_run_ctx(suppress_warning=True) is not None and hasattr(st, "secrets") and key in st.secrets:
+                sval = str(st.secrets[key]).strip()
+                if sval:
+                    os.environ.setdefault(key, sval)
+                return sval
         except Exception:
             pass
     if key == "SUPABASE_MANAGEMENT_TOKEN" and not default:
@@ -264,28 +309,188 @@ def get_env_variable(key: str, default: str = "") -> str:
             pass
     return default
 
+
 SUPABASE_TOKEN = get_env_variable("SUPABASE_MANAGEMENT_TOKEN")
 SUPABASE_REF = get_env_variable("SUPABASE_PROJECT_REF", "iiztmvbfrydfowehtiqa")
 SUPABASE_QUERY_ENDPOINT = f"https://api.supabase.com/v1/projects/{SUPABASE_REF}/database/query"
 
-@_cache_resource_if_available
-def _get_supabase_session() -> requests.Session:
-    """Returns a shared HTTP keep-alive session for Supabase Management API queries."""
-    session = requests.Session()
-    adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    session.headers.update({
-        "Authorization": f"Bearer {SUPABASE_TOKEN}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": "NepalMonitor-Supabase/1.0",
-    })
+_THREAD_LOCAL = threading.local()
+
+
+def _is_placeholder_secret(val: str) -> bool:
+    u = (val or "").strip()
+    return not u or any(
+        tok in u.upper()
+        for tok in ("[YOUR-DATABASE-PASSWORD]", "[YOUR-PASSWORD]", "<YOUR-", "CHANGE_ME")
+    )
+
+
+def _rewrite_direct_ipv6_dsn_to_pooler(dsn: str) -> str:
+    """Rewrites IPv6-only db.<ref>.supabase.co DSNs to IPv4 Supavisor pooler when AF_INET resolves empty."""
+    import socket
+    parsed = urllib.parse.urlparse(dsn)
+    host = parsed.hostname or ""
+    if not host.startswith("db.") or not host.endswith(".supabase.co"):
+        return dsn
+    try:
+        socket.getaddrinfo(host, parsed.port or 5432, socket.AF_INET, socket.SOCK_STREAM)
+        return dsn
+    except OSError:
+        pool_host = get_env_variable("SUPABASE_DB_HOST") or get_env_variable("SUPABASE_POOLER_HOST", "aws-1-ap-south-1.pooler.supabase.com")
+        pool_port = get_env_variable("SUPABASE_DB_PORT", "6543")
+        raw_user = urllib.parse.unquote(parsed.username or "postgres")
+        pool_user = f"postgres.{SUPABASE_REF}" if raw_user == "postgres" else raw_user
+        raw_pwd = urllib.parse.unquote(parsed.password or "")
+        dbname = parsed.path.lstrip("/") or "postgres"
+        base = (
+            f"postgresql://{urllib.parse.quote_plus(pool_user)}:{urllib.parse.quote_plus(raw_pwd)}"
+            f"@{pool_host}:{pool_port}/{dbname}"
+        )
+        return f"{base}?{parsed.query}" if parsed.query else base
+
+
+def _resolve_supavisor_dsn() -> Optional[str]:
+    """Resolves server-side PostgreSQL DSN (Supavisor transaction pooler port 6543) if configured."""
+    direct_url = get_env_variable("DATABASE_URL") or get_env_variable("SUPABASE_DB_URL")
+    if direct_url:
+        if _is_placeholder_secret(direct_url):
+            return None
+        direct_url = _rewrite_direct_ipv6_dsn_to_pooler(direct_url)
+        if "sslmode=" not in direct_url:
+            sep = "&" if "?" in direct_url else "?"
+            ca_file = get_env_variable("SUPABASE_DB_SSLROOTCERT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "migrations", "prod-ca-2021.crt")
+            if os.path.exists(ca_file):
+                direct_url = f"{direct_url}{sep}sslmode=verify-full&sslrootcert={urllib.parse.quote_plus(ca_file)}"
+            else:
+                direct_url = f"{direct_url}{sep}sslmode=require"
+        return direct_url
+
+    db_pwd = get_env_variable("SUPABASE_DB_PASSWORD")
+    if _is_placeholder_secret(db_pwd):
+        return None
+    db_host = get_env_variable("SUPABASE_DB_HOST") or get_env_variable("SUPABASE_POOLER_HOST", "aws-1-ap-south-1.pooler.supabase.com")
+    db_port = get_env_variable("SUPABASE_DB_PORT", "6543")
+    db_user = get_env_variable("SUPABASE_DB_USER") or f"postgres.{SUPABASE_REF}"
+    db_name = get_env_variable("SUPABASE_DB_NAME", "postgres")
+    ca_file = get_env_variable("SUPABASE_DB_SSLROOTCERT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "migrations", "prod-ca-2021.crt")
+    ssl_params = (
+        f"sslmode=verify-full&sslrootcert={urllib.parse.quote_plus(ca_file)}"
+        if os.path.exists(ca_file)
+        else "sslmode=require"
+    )
+    return (
+        f"postgresql://{urllib.parse.quote_plus(db_user)}:{urllib.parse.quote_plus(db_pwd)}"
+        f"@{db_host}:{db_port}/{db_name}?{ssl_params}"
+    )
+
+
+def _get_pg_pool():
+    """Returns singleton Supavisor psycopg_pool.ConnectionPool (or None when unconfigured/unavailable)."""
+    global _PG_POOL, _PG_POOL_FAILED, _PG_TRANSPORT_META
+    if _PG_POOL is not None:
+        return _PG_POOL
+    if _PG_POOL_FAILED:
+        return None
+    with _PG_POOL_LOCK:
+        if _PG_POOL is not None:
+            return _PG_POOL
+        if _PG_POOL_FAILED:
+            return None
+        dsn = _resolve_supavisor_dsn()
+        if not dsn:
+            return None
+        try:
+            from psycopg.rows import dict_row
+            from psycopg_pool import ConnectionPool
+
+            host_part = dsn.split("@", 1)[-1].split("/", 1)[0]
+            pool = ConnectionPool(
+                conninfo=dsn,
+                min_size=1,
+                max_size=6,
+                max_lifetime=1800,
+                max_idle=300,
+                timeout=10.0,
+                open=True,
+                kwargs={
+                    "prepare_threshold": None,
+                    "connect_timeout": 8,
+                    "options": "-c statement_timeout=20000",
+                    "row_factory": dict_row,
+                },
+            )
+            _PG_POOL = pool
+            _PG_TRANSPORT_META = {"mode": "supavisor_pool", "host": host_part, "pool_max": 6}
+            return _PG_POOL
+        except Exception as exc:
+            _PG_POOL_FAILED = True
+            logger.warning(f"Supavisor pool init unavailable ({type(exc).__name__}); using Management API fallback.")
+            return None
+
+
+def get_db_transport_info() -> Dict[str, Any]:
+    """Returns active shared database transport metadata without exposing credentials."""
+    _get_pg_pool()
+    return dict(_PG_TRANSPORT_META)
+
+
+def _get_supabase_session():
+    """Returns a thread-local HTTP keep-alive session for Supabase Management API fallback."""
+    session = getattr(_THREAD_LOCAL, "sb_session", None)
+    if session is None:
+        import requests
+        from requests.adapters import HTTPAdapter
+        session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=8, pool_maxsize=8)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        session.headers.update({
+            "Authorization": f"Bearer {SUPABASE_TOKEN}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "NepalMonitor-Supabase/1.0",
+        })
+        _THREAD_LOCAL.sb_session = session
     return session
 
 
-def query_supabase(sql: str) -> List[Dict[str, Any]]:
-    """Executes a PostgreSQL query directly against Supabase via its secure API."""
+def _query_via_pg_pool(pool, sql: str, params: Optional[Tuple[Any, ...]] = None) -> List[Dict[str, Any]]:
+    for attempt in (1, 2):
+        try:
+            with _SUPABASE_SEM, pool.connection(timeout=10.0) as conn:
+                with conn.cursor() as cur:
+                    if params is not None:
+                        cur.execute(sql, params)
+                    else:
+                        cur.execute(sql)
+                    last_rows: List[Dict[str, Any]] = []
+                    while True:
+                        if cur.description is not None:
+                            last_rows = [dict(r) for r in cur.fetchall()]
+                        if not cur.nextset():
+                            break
+                    return last_rows
+        except Exception as exc:
+            if attempt == 1 and "connection" in str(exc).lower():
+                continue
+            raise
+    return []
+
+
+def query_supabase(sql: str, params: Optional[Tuple[Any, ...]] = None) -> List[Dict[str, Any]]:
+    """
+    Unified PostgreSQL query entrypoint across the application.
+    Routes through Supavisor ConnectionPool (port 6543) when configured,
+    with transparent fallback to Supabase Management API.
+    """
+    pool = _get_pg_pool()
+    if pool is not None:
+        try:
+            return _query_via_pg_pool(pool, sql, params=params)
+        except Exception as pg_exc:
+            logger.error(f"Supavisor query error ({type(pg_exc).__name__}): {pg_exc}")
+            return []
+
     session = _get_supabase_session()
     payload = {"query": sql}
     for attempt in range(1, 5):
@@ -355,22 +560,35 @@ def generate_canonical_id(source: str, url: str, title: str) -> str:
     raw = f"{norm_url}::{norm_title}" if norm_url else f"{source}::{norm_title}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
-def register_portal_sources(portals_list: List[Dict[str, Any]]):
-    """Syncs the canonical 34 portal list into Supabase sources table."""
-    for p in portals_list:
-        name = p["name"]
-        ptype = p.get("type", "rss")
-        url = p.get("url", "")
-        alt_urls = json.dumps(p.get("alt_urls", []))
-        lang = p.get("lang", "Nepali")
-        cat = p.get("category", "General News")
-        priority = p.get("priority", "standard")
-        check_int = p.get("check_interval_mins", 15)
+_PORTALS_REG_STATE: Dict[str, Any] = {"ts": 0.0, "lock": threading.Lock()}
 
+
+def register_portal_sources(portals_list: List[Dict[str, Any]], force: bool = False):
+    """Syncs the canonical portal list into Supabase sources table in a single bulk SQL statement."""
+    if not portals_list:
+        return
+    now = time.time()
+    with _PORTALS_REG_STATE["lock"]:
+        if not force and (now - float(_PORTALS_REG_STATE["ts"])) < 900.0:
+            return
+        values_rows = []
+        for p in portals_list:
+            name = p["name"]
+            ptype = p.get("type", "rss")
+            url = p.get("url", "")
+            alt_urls = json.dumps(p.get("alt_urls", []))
+            lang = p.get("lang", "Nepali")
+            cat = p.get("category", "General News")
+            priority = p.get("priority", "standard")
+            check_int = int(p.get("check_interval_mins", 15))
+            values_rows.append(
+                f"({esc_sql(name)}, {esc_sql(ptype)}, {esc_sql(url)}, {esc_sql(alt_urls)}, "
+                f"{esc_sql(lang)}, {esc_sql(cat)}, {esc_sql(priority)}, {check_int}, 1)"
+            )
         sql = f"""
         INSERT INTO sources (name, type, url, alt_urls, lang, category, priority, check_interval_mins, enabled)
-        VALUES ({esc_sql(name)}, {esc_sql(ptype)}, {esc_sql(url)}, {esc_sql(alt_urls)}, {esc_sql(lang)}, {esc_sql(cat)}, {esc_sql(priority)}, {check_int}, 1)
-        ON CONFLICT (name) DO UPDATE SET 
+        VALUES {', '.join(values_rows)}
+        ON CONFLICT (name) DO UPDATE SET
             url = EXCLUDED.url,
             alt_urls = EXCLUDED.alt_urls,
             lang = EXCLUDED.lang,
@@ -379,6 +597,7 @@ def register_portal_sources(portals_list: List[Dict[str, Any]]):
             check_interval_mins = EXCLUDED.check_interval_mins;
         """
         query_supabase(sql)
+        _PORTALS_REG_STATE["ts"] = time.time()
 
 def batch_upsert_articles(
     articles: List[Dict[str, Any]],
@@ -531,58 +750,117 @@ def record_source_error(source_name: str, error_msg: str, latency_secs: float = 
     """
     query_supabase(sql)
 
-@_cache_data_if_available(ttl=180)
-def get_all_source_health() -> List[Dict[str, Any]]:
-    """Returns comprehensive portal health, counts, and status directly from Supabase."""
+def _fetch_all_source_health_raw() -> List[Dict[str, Any]]:
+    """Returns comprehensive portal health, counts, and status via a single aggregated CTE (uncached)."""
     sql = """
-    SELECT 
+    WITH art_stats AS (
+        SELECT
+            a.source,
+            COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '1 hour') AS count_1h,
+            COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '24 hour') AS count_24h,
+            COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '7 day') AS count_7d,
+            COUNT(*) AS count_total
+        FROM articles a
+        GROUP BY a.source
+    )
+    SELECT
         s.name, s.type, s.url, s.lang, s.category, s.priority, s.check_interval_mins, s.enabled,
-        h.last_discovery_time, h.last_ingestion_time, 
-        COALESCE(h.status, 'operational') as status, 
-        COALESCE(h.consecutive_failures, 0) as consecutive_failures,
-        COALESCE(h.total_discovered, 0) as total_discovered, 
-        COALESCE(h.total_ingested, 0) as total_ingested, 
-        COALESCE(h.duplicate_count, 0) as duplicate_count, 
-        COALESCE(h.failed_retrievals, 0) as failed_retrievals,
+        h.last_discovery_time, h.last_ingestion_time,
+        COALESCE(h.status, 'operational') AS status,
+        COALESCE(h.consecutive_failures, 0) AS consecutive_failures,
+        COALESCE(h.total_discovered, 0) AS total_discovered,
+        COALESCE(h.total_ingested, 0) AS total_ingested,
+        COALESCE(h.duplicate_count, 0) AS duplicate_count,
+        COALESCE(h.failed_retrievals, 0) AS failed_retrievals,
         h.latest_article_pub_dt, h.latest_article_title, h.latest_article_link,
-        h.last_error_message, 
-        COALESCE(h.discovery_latency_avg_secs, 0.0) as discovery_latency_avg_secs,
-        (SELECT COUNT(*) FROM articles a WHERE a.source = s.name AND a.published_dt >= NOW() - INTERVAL '1 hour') as count_1h,
-        (SELECT COUNT(*) FROM articles a WHERE a.source = s.name AND a.published_dt >= NOW() - INTERVAL '24 hour') as count_24h,
-        (SELECT COUNT(*) FROM articles a WHERE a.source = s.name AND a.published_dt >= NOW() - INTERVAL '7 day') as count_7d,
-        (SELECT COUNT(*) FROM articles a WHERE a.source = s.name) as count_total
+        h.last_error_message,
+        COALESCE(h.discovery_latency_avg_secs, 0.0) AS discovery_latency_avg_secs,
+        COALESCE(a.count_1h, 0) AS count_1h,
+        COALESCE(a.count_24h, 0) AS count_24h,
+        COALESCE(a.count_7d, 0) AS count_7d,
+        COALESCE(a.count_total, 0) AS count_total
     FROM sources s
     LEFT JOIN source_health h ON s.name = h.source_name
+    LEFT JOIN art_stats a ON a.source = s.name
     ORDER BY s.enabled DESC, s.name ASC;
     """
     return query_supabase(sql)
+
+
+@_cache_data_if_available(ttl=180)
+def get_all_source_health() -> List[Dict[str, Any]]:
+    """Returns comprehensive portal health, counts, and status via a single aggregated CTE."""
+    return _fetch_all_source_health_raw()
+
+
+def _parse_npt_wallclock_ts(raw_val: Any) -> Optional[datetime.datetime]:
+    """Parses NPT wall-clock published_dt stored in articles/indian tables while preserving microseconds."""
+    if isinstance(raw_val, datetime.datetime):
+        # psycopg3 returns UTC-aware datetimes for +00 columns; re-tag UTC wall-clock as NEPAL_TZ cleanly
+        if raw_val.tzinfo is not None:
+            raw_val = raw_val.astimezone(datetime.timezone.utc)
+        return raw_val.replace(tzinfo=NEPAL_TZ)
+    if isinstance(raw_val, str):
+        s = raw_val.strip()
+        if not s:
+            return None
+        try:
+            base = s.rstrip("Z")
+            if "+" in base:
+                base = base.split("+", 1)[0]
+            elif len(base) > 19 and "-" in base[19:]:
+                base = base[:19 + base[19:].find("-")]
+            return datetime.datetime.fromisoformat(base).replace(tzinfo=NEPAL_TZ)
+        except Exception:
+            return None
+    return None
+
+
+def _parse_utc_to_npt_ts(raw_val: Any) -> Optional[datetime.datetime]:
+    """Parses true-UTC/offset timestamps (x_posts) into NEPAL_TZ fast via C fromisoformat."""
+    if isinstance(raw_val, datetime.datetime):
+        return raw_val.replace(tzinfo=NEPAL_TZ) if raw_val.tzinfo is None else raw_val.astimezone(NEPAL_TZ)
+    if isinstance(raw_val, str):
+        s = raw_val.strip()
+        if not s:
+            return None
+        try:
+            norm = s.replace("Z", "+00:00")
+            if len(norm) >= 3 and norm[-3] in ("+", "-") and norm[-2:].isdigit():
+                norm = f"{norm}:00"
+            dt = datetime.datetime.fromisoformat(norm)
+            return dt.replace(tzinfo=NEPAL_TZ) if dt.tzinfo is None else dt.astimezone(NEPAL_TZ)
+        except Exception:
+            try:
+                from dateutil import parser as dt_parser
+                dt = dt_parser.parse(s)
+                return dt.replace(tzinfo=NEPAL_TZ) if dt.tzinfo is None else dt.astimezone(NEPAL_TZ)
+            except Exception:
+                return None
+    return None
+
 
 def _hydrate_article_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Normalizes published_dt, JSON tags, and boolean flags for article rows."""
     articles = []
     for d in rows:
-        if isinstance(d.get("published_dt"), str):
-            try:
-                d["published_dt"] = datetime.datetime.fromisoformat(d["published_dt"][:26].replace("Z", "+00:00"))
-                if d["published_dt"].tzinfo is None:
-                    d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
-                else:
-                    d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
-            except Exception:
-                d["published_dt"] = None
-        elif isinstance(d.get("published_dt"), datetime.datetime):
-            dt = d["published_dt"]
-            d["published_dt"] = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+        d["published_dt"] = _parse_npt_wallclock_ts(d.get("published_dt"))
+        sec_raw = d.get("sections")
+        if isinstance(sec_raw, list):
+            d["sections"] = sec_raw
         else:
-            d["published_dt"] = None
-        try:
-            d["sections"] = json.loads(d.get("sections") or "[]")
-        except Exception:
-            d["sections"] = [d.get("primary_section")]
-        try:
-            d["secondary_tags"] = json.loads(d.get("secondary_tags") or "[]")
-        except Exception:
-            d["secondary_tags"] = []
+            try:
+                d["sections"] = json.loads(sec_raw or "[]")
+            except Exception:
+                d["sections"] = [d.get("primary_section")]
+        tags_raw = d.get("secondary_tags")
+        if isinstance(tags_raw, list):
+            d["secondary_tags"] = tags_raw
+        else:
+            try:
+                d["secondary_tags"] = json.loads(tags_raw or "[]")
+            except Exception:
+                d["secondary_tags"] = []
         d["low_confidence"] = bool(d.get("low_confidence"))
         d["is_viral"] = bool(d.get("is_viral"))
         d["structured_category"] = d.get("primary_section")
@@ -593,20 +871,7 @@ def _hydrate_article_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def _hydrate_indian_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Normalizes published_dt and stream metadata for Indian press rows."""
     for d in rows:
-        if isinstance(d.get("published_dt"), str):
-            try:
-                d["published_dt"] = datetime.datetime.fromisoformat(d["published_dt"][:26].replace("Z", "+00:00"))
-                if d["published_dt"].tzinfo is None:
-                    d["published_dt"] = d["published_dt"].replace(tzinfo=NEPAL_TZ)
-                else:
-                    d["published_dt"] = d["published_dt"].astimezone(NEPAL_TZ)
-            except Exception:
-                d["published_dt"] = None
-        elif isinstance(d.get("published_dt"), datetime.datetime):
-            dt = d["published_dt"]
-            d["published_dt"] = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
-        else:
-            d["published_dt"] = None
+        d["published_dt"] = _parse_npt_wallclock_ts(d.get("published_dt"))
         try:
             if isinstance(d.get("sections"), str):
                 d["sections"] = json.loads(d["sections"] or "[]")
@@ -623,18 +888,7 @@ def _hydrate_x_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Normalizes published_dt and relative timestamps for X post rows."""
     now_npt = datetime.datetime.now(NEPAL_TZ)
     for p in rows:
-        if isinstance(p.get("published_dt"), str):
-            try:
-                from dateutil import parser as dt_parser
-                dt = dt_parser.parse(p["published_dt"])
-                p["published_dt"] = dt.replace(tzinfo=NEPAL_TZ) if dt.tzinfo is None else dt.astimezone(NEPAL_TZ)
-            except Exception:
-                p["published_dt"] = None
-        elif isinstance(p.get("published_dt"), datetime.datetime):
-            dt = p["published_dt"]
-            p["published_dt"] = dt.replace(tzinfo=NEPAL_TZ) if dt.tzinfo is None else dt.astimezone(NEPAL_TZ)
-        else:
-            p["published_dt"] = None
+        p["published_dt"] = _parse_utc_to_npt_ts(p.get("published_dt"))
         p["is_real_api"] = bool(p.get("is_real_api", True))
         p["verified"] = bool(p.get("verified", True))
         if not p.get("relative_time") and p.get("published_dt"):
@@ -663,9 +917,9 @@ def _build_articles_where(
 ) -> List[str]:
     where_clauses = ["1=1"]
     if start_dt:
-        where_clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=True)}'")
+        where_clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=False)}'")
     if end_dt:
-        where_clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=True)}'")
+        where_clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=False)}'")
     if snapshot_ingested_at:
         where_clauses.append(f"ingested_at <= '{_fmt_sql_ts(snapshot_ingested_at, as_utc=True)}'")
     if source and source != "All Portals" and not source.startswith("All Portals"):
@@ -695,9 +949,9 @@ def _build_indian_where(
 ) -> List[str]:
     clauses = ["1=1"]
     if start_dt:
-        clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=True)}'")
+        clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=False)}'")
     if end_dt:
-        clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=True)}'")
+        clauses.append(f"published_dt <= '{_fmt_sql_ts(end_dt, as_utc=False)}'")
     if snapshot_ingested_at:
         clauses.append(f"ingested_at <= '{_fmt_sql_ts(snapshot_ingested_at, as_utc=True)}'")
     if eff_status:
@@ -773,7 +1027,7 @@ def get_stored_articles(
     )
     if cursor_dt is not None and cursor_id is not None:
         op = ">" if sort_asc else "<"
-        where_clauses.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=True)}', {esc_sql(cursor_id)})")
+        where_clauses.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=False)}', {esc_sql(cursor_id)})")
 
     order_dir = "ASC" if sort_asc else "DESC"
     cols = "*" if include_full_content else ARTICLE_FEED_COLUMNS
@@ -785,37 +1039,53 @@ def get_stored_articles(
     """
     return _hydrate_article_rows(query_supabase(sql))
 
+def _clear_health_caches() -> None:
+    for fn_name in ("get_all_source_health", "get_system_kpis", "get_system_health_bundle"):
+        fn = globals().get(fn_name)
+        if fn is not None and hasattr(fn, "clear"):
+            fn.clear()
+
+
 def set_source_enabled(source_name: str, enabled: bool):
     """Enables or disables monitoring for a portal in Supabase."""
     sql = f"UPDATE sources SET enabled = {1 if enabled else 0} WHERE name = {esc_sql(source_name)};"
     query_supabase(sql)
-    if hasattr(get_all_source_health, "clear"):
-        get_all_source_health.clear()
-    if hasattr(get_system_kpis, "clear"):
-        get_system_kpis.clear()
+    _clear_health_caches()
+
 
 def set_source_interval(source_name: str, interval_mins: int):
     """Updates the check interval for a portal in Supabase."""
     sql = f"UPDATE sources SET check_interval_mins = {interval_mins} WHERE name = {esc_sql(source_name)};"
     query_supabase(sql)
-    if hasattr(get_all_source_health, "clear"):
-        get_all_source_health.clear()
+    _clear_health_caches()
 
-@_cache_data_if_available(ttl=180)
-def get_system_kpis() -> Dict[str, Any]:
-    """Computes global intelligence KPIs directly from Supabase."""
+
+def _fetch_system_kpis_raw() -> Dict[str, Any]:
+    """Computes global intelligence KPIs in a single CTE scan directly from Supabase (uncached)."""
     sql = """
-    SELECT 
-        (SELECT COUNT(*) FROM sources) as total_sources,
-        (SELECT COUNT(*) FROM sources WHERE enabled = 1) as active_sources,
-        (SELECT COUNT(*) FROM source_health WHERE status = 'operational') as operational,
-        (SELECT COUNT(*) FROM source_health WHERE status = 'degraded') as degraded,
-        (SELECT COUNT(*) FROM source_health WHERE status = 'failing') as failing,
-        (SELECT COALESCE(AVG(discovery_latency_avg_secs), 0.75) FROM source_health) as avg_latency,
-        (SELECT COUNT(*) FROM articles WHERE published_dt >= NOW() - INTERVAL '1 hour') as articles_1h,
-        (SELECT COUNT(*) FROM articles WHERE published_dt >= NOW() - INTERVAL '24 hour') as articles_24h,
-        (SELECT COUNT(*) FROM articles WHERE published_dt >= NOW() - INTERVAL '7 day') as articles_7d,
-        (SELECT COUNT(*) FROM articles) as total_stored_articles;
+    WITH src_kpis AS (
+        SELECT
+            COUNT(*) AS total_sources,
+            COUNT(*) FILTER (WHERE enabled = 1) AS active_sources
+        FROM sources
+    ),
+    hlth_kpis AS (
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'operational') AS operational,
+            COUNT(*) FILTER (WHERE status = 'degraded') AS degraded,
+            COUNT(*) FILTER (WHERE status = 'failing') AS failing,
+            COALESCE(AVG(discovery_latency_avg_secs), 0.75) AS avg_latency
+        FROM source_health
+    ),
+    art_kpis AS (
+        SELECT
+            COUNT(*) FILTER (WHERE published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '1 hour') AS articles_1h,
+            COUNT(*) FILTER (WHERE published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '24 hour') AS articles_24h,
+            COUNT(*) FILTER (WHERE published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '7 day') AS articles_7d,
+            COUNT(*) AS total_stored_articles
+        FROM articles
+    )
+    SELECT * FROM src_kpis, hlth_kpis, art_kpis;
     """
     rows = query_supabase(sql)
     if rows:
@@ -830,12 +1100,18 @@ def get_system_kpis() -> Dict[str, Any]:
             "articles_1h": int(r.get("articles_1h") or 0),
             "articles_24h": int(r.get("articles_24h") or 0),
             "articles_7d": int(r.get("articles_7d") or 0),
-            "total_stored_articles": int(r.get("total_stored_articles") or 0)
+            "total_stored_articles": int(r.get("total_stored_articles") or 0),
         }
     return {
         "total_sources": 34, "active_sources": 34, "operational": 34, "degraded": 0, "failing": 0,
-        "avg_latency_secs": 0.75, "articles_1h": 0, "articles_24h": 0, "articles_7d": 0, "total_stored_articles": 0
+        "avg_latency_secs": 0.75, "articles_1h": 0, "articles_24h": 0, "articles_7d": 0, "total_stored_articles": 0,
     }
+
+
+@_cache_data_if_available(ttl=180)
+def get_system_kpis() -> Dict[str, Any]:
+    """Computes global intelligence KPIs in a single CTE scan directly from Supabase."""
+    return _fetch_system_kpis_raw()
 
 
 def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
@@ -1031,7 +1307,7 @@ def get_stored_indian_articles(
     )
     if cursor_dt is not None and cursor_id is not None:
         op = ">" if sort_asc else "<"
-        clauses.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=True)}', {esc_sql(cursor_id)})")
+        clauses.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=False)}', {esc_sql(cursor_id)})")
 
     order_dir = "ASC" if sort_asc else "DESC"
     where = "WHERE " + " AND ".join(clauses)
@@ -1040,36 +1316,40 @@ def get_stored_indian_articles(
     return _hydrate_indian_rows(query_supabase(sql))
 
 
+def _build_stream_count_where(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+) -> Tuple[str, str, str]:
+    """Returns SQL WHERE clauses for (articles, indian_media_articles, x_posts) honoring NPT vs UTC storage."""
+    where_articles = ["1=1"]
+    where_indian = ["relevance_status IN ('substantive', 'relevant')"]
+    where_x = ["1=1"]
+    if start_dt:
+        dt_local_str = _fmt_sql_ts(start_dt, as_utc=False)
+        dt_utc_str = _fmt_sql_ts(start_dt, as_utc=True)
+        where_articles.append(f"published_dt >= '{dt_local_str}'")
+        where_indian.append(f"published_dt >= '{dt_local_str}'")
+        where_x.append(f"published_dt >= '{dt_utc_str}'")
+    if end_dt:
+        dt_local_str = _fmt_sql_ts(end_dt, as_utc=False)
+        dt_utc_str = _fmt_sql_ts(end_dt, as_utc=True)
+        where_articles.append(f"published_dt <= '{dt_local_str}'")
+        where_indian.append(f"published_dt <= '{dt_local_str}'")
+        where_x.append(f"published_dt <= '{dt_utc_str}'")
+    return " AND ".join(where_articles), " AND ".join(where_indian), " AND ".join(where_x)
+
+
 def get_stored_counts_by_stream(
     start_dt: Optional[datetime.datetime] = None,
     end_dt: Optional[datetime.datetime] = None,
 ) -> Dict[str, int]:
     """Lightweight aggregated counts for sidebar badges without pulling thousands of rows."""
-    where_articles = ["1=1"]
-    where_indian = ["relevance_status IN ('substantive', 'relevant')"]
-    where_x = ["1=1"]
-    if start_dt:
-        s_npt = start_dt.astimezone(NEPAL_TZ) if start_dt.tzinfo else start_dt.replace(tzinfo=NEPAL_TZ)
-        dt_utc = s_npt.astimezone(datetime.timezone.utc)
-        dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')
-        dt_local_str = s_npt.strftime('%Y-%m-%d %H:%M:%S')
-        where_articles.append(f"published_dt >= '{dt_local_str}'")
-        where_indian.append(f"published_dt >= '{dt_local_str}'")
-        where_x.append(f"published_dt >= '{dt_str}'")
-    if end_dt:
-        e_npt = end_dt.astimezone(NEPAL_TZ) if end_dt.tzinfo else end_dt.replace(tzinfo=NEPAL_TZ)
-        dt_utc = e_npt.astimezone(datetime.timezone.utc)
-        dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S%z')
-        dt_local_str = e_npt.strftime('%Y-%m-%d %H:%M:%S')
-        where_articles.append(f"published_dt <= '{dt_local_str}'")
-        where_indian.append(f"published_dt <= '{dt_local_str}'")
-        where_x.append(f"published_dt <= '{dt_str}'")
-
+    w_np, w_in, w_x = _build_stream_count_where(start_dt=start_dt, end_dt=end_dt)
     sql = f"""
-    SELECT 
-        (SELECT COUNT(*) FROM articles WHERE {' AND '.join(where_articles)}) as np_count,
-        (SELECT COUNT(*) FROM indian_media_articles WHERE {' AND '.join(where_indian)}) as in_count,
-        (SELECT COUNT(*) FROM x_posts WHERE {' AND '.join(where_x)}) as x_count;
+    SELECT
+        (SELECT COUNT(*) FROM articles WHERE {w_np}) as np_count,
+        (SELECT COUNT(*) FROM indian_media_articles WHERE {w_in}) as in_count,
+        (SELECT COUNT(*) FROM x_posts WHERE {w_x}) as x_count;
     """
     rows = query_supabase(sql)
     if rows:
@@ -1077,7 +1357,7 @@ def get_stored_counts_by_stream(
         return {
             "nepali_count": int(r.get("np_count") or 0),
             "indian_count": int(r.get("in_count") or 0),
-            "x_count": int(r.get("x_count") or 0)
+            "x_count": int(r.get("x_count") or 0),
         }
     return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
@@ -1201,18 +1481,31 @@ def get_all_x_accounts(
 @_cache_data_if_available(ttl=180)
 def get_x_account_kpis() -> Dict[str, Any]:
     """
-    Computes key performance indicators for X accounts in the database:
+    Computes key performance indicators for X accounts in the database in 1 SQL round-trip:
     total discovered, verified, pending verification, active vs inactive,
     and category-wise distribution across all 8 canonical sectors.
     """
     sql = """
+    WITH kpi AS (
+        SELECT
+            COUNT(*) AS total_discovered,
+            SUM(CASE WHEN verification_status = 'verified' THEN 1 ELSE 0 END) AS total_verified,
+            SUM(CASE WHEN verification_status != 'verified' THEN 1 ELSE 0 END) AS pending_verification,
+            SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END) AS active_monitored,
+            SUM(CASE WHEN enabled = 0 THEN 1 ELSE 0 END) AS inactive_monitored
+        FROM x_accounts
+    ),
+    cats AS (
+        SELECT category, COUNT(*) AS cnt
+        FROM x_accounts
+        WHERE category IS NOT NULL AND category <> ''
+        GROUP BY category
+        ORDER BY cnt DESC
+    )
     SELECT
-        COUNT(*) as total_discovered,
-        SUM(CASE WHEN verification_status = 'verified' THEN 1 ELSE 0 END) as total_verified,
-        SUM(CASE WHEN verification_status != 'verified' THEN 1 ELSE 0 END) as pending_verification,
-        SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END) as active_monitored,
-        SUM(CASE WHEN enabled = 0 THEN 1 ELSE 0 END) as inactive_monitored
-    FROM x_accounts;
+        kpi.*,
+        COALESCE((SELECT json_agg(row_to_json(cats)) FROM cats), '[]'::json) AS cats_json
+    FROM kpi;
     """
     rows = query_supabase(sql)
     res: Dict[str, Any] = {
@@ -1221,7 +1514,7 @@ def get_x_account_kpis() -> Dict[str, Any]:
         "pending_verification": 0,
         "active_monitored": 0,
         "inactive_monitored": 0,
-        "by_category": {}
+        "by_category": {},
     }
     if rows:
         r = rows[0]
@@ -1230,17 +1523,24 @@ def get_x_account_kpis() -> Dict[str, Any]:
         res["pending_verification"] = int(r.get("pending_verification") or 0)
         res["active_monitored"] = int(r.get("active_monitored") or 0)
         res["inactive_monitored"] = int(r.get("inactive_monitored") or 0)
-
-    # Category breakdown
-    cat_sql = "SELECT category, COUNT(*) as cnt FROM x_accounts GROUP BY category ORDER BY cnt DESC;"
-    cat_rows = query_supabase(cat_sql)
-    if cat_rows:
-        for cr in cat_rows:
-            cat_name = cr.get("category")
-            if cat_name:
-                res["by_category"][cat_name] = int(cr.get("cnt") or 0)
-
+        cats_raw = r.get("cats_json") or []
+        if isinstance(cats_raw, str):
+            try:
+                cats_raw = json.loads(cats_raw)
+            except Exception:
+                cats_raw = []
+        if isinstance(cats_raw, list):
+            for cr in cats_raw:
+                cat_name = cr.get("category")
+                if cat_name:
+                    res["by_category"][cat_name] = int(cr.get("cnt") or 0)
     return res
+
+
+def _clear_x_caches() -> None:
+    fn = globals().get("get_x_account_kpis")
+    if fn is not None and hasattr(fn, "clear"):
+        fn.clear()
 
 
 def set_x_account_enabled(handle: str, enabled: bool) -> bool:
@@ -1256,6 +1556,7 @@ def set_x_account_enabled(handle: str, enabled: bool) -> bool:
     RETURNING handle;
     """
     res = query_supabase(sql)
+    _clear_x_caches()
     return bool(res)
 
 
@@ -1312,6 +1613,7 @@ def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
     """
     res = query_supabase(sql)
     _X_PROFILE_CACHE["ts"] = 0.0
+    _clear_x_caches()
     return bool(res)
 
 
@@ -1348,6 +1650,8 @@ def delete_x_account(handle: str) -> bool:
         return False
     sql = f"DELETE FROM x_accounts WHERE handle = {esc_sql(norm_h)} RETURNING handle;"
     res = query_supabase(sql)
+    _X_PROFILE_CACHE["ts"] = 0.0
+    _clear_x_caches()
     return bool(res)
 
 
@@ -1509,6 +1813,149 @@ def get_stored_x_posts(
     return _hydrate_x_rows(query_supabase(sql))
 
 
+def _parse_json_val(raw_val: Any, default: Any = None) -> Any:
+    if raw_val is None:
+        return [] if default is None else default
+    if isinstance(raw_val, str):
+        try:
+            return json.loads(raw_val)
+        except Exception:
+            return [] if default is None else default
+    return raw_val
+
+
+def _branch_cursor_clause(
+    branch_rank: int,
+    cursor_rank: Optional[int],
+    cursor_dt: Optional[datetime.datetime],
+    cursor_id: Optional[str],
+    id_col: str,
+    sort_asc: bool,
+    as_utc: bool,
+) -> Optional[str]:
+    if cursor_dt is None or cursor_id is None or cursor_rank is None:
+        return None
+    ts_lit = _fmt_sql_ts(cursor_dt, as_utc=as_utc)
+    if not sort_asc:
+        if branch_rank < cursor_rank:
+            return f"published_dt <= '{ts_lit}'"
+        if branch_rank > cursor_rank:
+            return f"published_dt < '{ts_lit}'"
+        return f"(published_dt, {id_col}) < ('{ts_lit}', {esc_sql(cursor_id)})"
+    if branch_rank > cursor_rank:
+        return f"published_dt >= '{ts_lit}'"
+    if branch_rank < cursor_rank:
+        return f"published_dt > '{ts_lit}'"
+    return f"(published_dt, {id_col}) > ('{ts_lit}', {esc_sql(cursor_id)})"
+
+
+def _build_live_union_sql(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    search_query: Optional[str] = None,
+    sort_asc: bool = False,
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_rank: Optional[int] = None,
+    cursor_id: Optional[str] = None,
+    limit: int = 20,
+) -> str:
+    """Builds pushdown Top-K UNION ALL SQL across Nepali Media, Indian Press, and X."""
+    order_dir = "ASC" if sort_asc else "DESC"
+    lim = int(limit)
+    eff_rank = 3 if cursor_rank is None else int(cursor_rank)
+    unions: List[str] = []
+
+    if stream_filter in ("All Sources", "Nepali Media Only"):
+        np_where = _build_articles_where(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            primary_section=category_filter,
+            search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+        )
+        c_np = _branch_cursor_clause(3, eff_rank, cursor_dt, cursor_id, "canonical_id", sort_asc, as_utc=False)
+        if c_np:
+            np_where.append(c_np)
+        unions.append(
+            f"SELECT 'nepali'::text AS _ft, 3::int AS _sr, canonical_id AS _cid, "
+            f"(published_dt - INTERVAL '5 hours 45 minutes') AS _sort_dt, "
+            f"to_jsonb(t) AS _payload FROM ("
+            f"SELECT {ARTICLE_FEED_COLUMNS} FROM articles WHERE {' AND '.join(np_where)} "
+            f"ORDER BY published_dt {order_dir}, canonical_id {order_dir} LIMIT {lim}"
+            f") t"
+        )
+
+    if stream_filter in ("All Sources", "Indian Press Only"):
+        in_where = _build_indian_where(
+            eff_status="substantive",
+            start_dt=start_dt,
+            end_dt=end_dt,
+            category_filter=category_filter,
+            search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+        )
+        c_in = _branch_cursor_clause(2, eff_rank, cursor_dt, cursor_id, "canonical_id", sort_asc, as_utc=False)
+        if c_in:
+            in_where.append(c_in)
+        unions.append(
+            f"SELECT 'indian'::text AS _ft, 2::int AS _sr, canonical_id AS _cid, "
+            f"(published_dt - INTERVAL '5 hours 45 minutes') AS _sort_dt, "
+            f"to_jsonb(t) AS _payload FROM ("
+            f"SELECT {INDIAN_FEED_COLUMNS} FROM indian_media_articles WHERE {' AND '.join(in_where)} "
+            f"ORDER BY published_dt {order_dir}, canonical_id {order_dir} LIMIT {lim}"
+            f") t"
+        )
+
+    if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
+        x_where = _build_x_where(
+            category=category_filter,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+        )
+        c_x = _branch_cursor_clause(1, eff_rank, cursor_dt, cursor_id, "id", sort_asc, as_utc=True)
+        if c_x:
+            x_where.append(c_x)
+        unions.append(
+            f"SELECT 'x'::text AS _ft, 1::int AS _sr, id::text AS _cid, "
+            f"published_dt AS _sort_dt, "
+            f"to_jsonb(t) AS _payload FROM ("
+            f"SELECT {X_FEED_COLUMNS} FROM x_posts WHERE {' AND '.join(x_where)} "
+            f"ORDER BY published_dt {order_dir}, id {order_dir} LIMIT {lim}"
+            f") t"
+        )
+
+    union_body = " UNION ALL ".join(f"({u})" for u in unions)
+    return (
+        f"SELECT _ft, _sr, _cid, _payload FROM ({union_body}) AS combined "
+        f"ORDER BY _sort_dt {order_dir}, _sr {order_dir}, _cid {order_dir} LIMIT {lim}"
+    )
+
+
+def _hydrate_live_union_rows(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for r in raw:
+        ft = r.get("_ft")
+        payload = _parse_json_val(r.get("_payload"), default=None)
+        if not isinstance(payload, dict):
+            continue
+        if ft == "nepali":
+            item = _hydrate_article_rows([payload])[0]
+        elif ft == "indian":
+            item = _hydrate_indian_rows([payload])[0]
+        else:
+            item = _hydrate_x_rows([payload])[0]
+        item["_feed_type"] = ft
+        item["_stream_rank"] = int(r.get("_sr") or 1)
+        item["_cursor_id"] = str(r.get("_cid") or "")
+        out.append(item)
+    return out
+
+
 def get_stored_live_feed_page(
     start_dt: Optional[datetime.datetime] = None,
     end_dt: Optional[datetime.datetime] = None,
@@ -1523,7 +1970,7 @@ def get_stored_live_feed_page(
     limit: int = 20,
 ) -> List[Dict[str, Any]]:
     """
-    Fetches a single unified 20-item page across Nepali Media, Indian Press, and X
+    Fetches a single unified page across Nepali Media, Indian Press, and X
     in 1 SQL round-trip using a deterministic (published_dt, stream_rank, record_id) keyset cursor.
     """
     if stream_filter == "Nepali Media Only":
@@ -1562,76 +2009,73 @@ def get_stored_live_feed_page(
             r["_cursor_id"] = str(r.get("id", ""))
         return rows
 
-    np_where = _build_articles_where(
-        start_dt=start_dt, end_dt=end_dt, primary_section=category_filter,
-        search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
-    )
-    in_where = _build_indian_where(
-        eff_status="substantive", start_dt=start_dt, end_dt=end_dt,
-        category_filter=category_filter, search_query=search_query,
+    sql = _build_live_union_sql(
+        start_dt=start_dt,
+        end_dt=end_dt,
         snapshot_ingested_at=snapshot_ingested_at,
-    )
-    x_where = _build_x_where(
-        category=category_filter, start_dt=start_dt, end_dt=end_dt,
-        search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
-    )
+        stream_filter=stream_filter,
+        category_filter=category_filter,
+        search_query=search_query,
+        sort_asc=sort_asc,
+        cursor_dt=cursor_dt,
+        cursor_rank=cursor_rank,
+        cursor_id=cursor_id,
+        limit=limit,
+    ) + ";"
+    return _hydrate_live_union_rows(query_supabase(sql))
 
-    unions = []
-    if stream_filter in ("All Sources", "Nepali Media Only"):
-        unions.append(
-            f"SELECT 'nepali'::text AS _ft, 3::int AS _sr, canonical_id AS _cid, published_dt, "
-            f"to_jsonb(t) AS _payload FROM (SELECT {ARTICLE_FEED_COLUMNS} FROM articles WHERE {' AND '.join(np_where)}) t"
-        )
-    if stream_filter in ("All Sources", "Indian Press Only"):
-        unions.append(
-            f"SELECT 'indian'::text AS _ft, 2::int AS _sr, canonical_id AS _cid, published_dt, "
-            f"to_jsonb(t) AS _payload FROM (SELECT {INDIAN_FEED_COLUMNS} FROM indian_media_articles WHERE {' AND '.join(in_where)}) t"
-        )
-    if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
-        unions.append(
-            f"SELECT 'x'::text AS _ft, 1::int AS _sr, id::text AS _cid, published_dt, "
-            f"to_jsonb(t) AS _payload FROM (SELECT {X_FEED_COLUMNS} FROM x_posts WHERE {' AND '.join(x_where)}) t"
-        )
 
-    cursor_clause = ""
-    op = ">" if sort_asc else "<"
-    if cursor_dt is not None and cursor_rank is not None and cursor_id is not None:
-        cursor_clause = (
-            f"WHERE (published_dt, _sr, _cid) {op} "
-            f"('{_fmt_sql_ts(cursor_dt, as_utc=True)}', {int(cursor_rank)}, {esc_sql(cursor_id)})"
-        )
-
-    order_dir = "ASC" if sort_asc else "DESC"
-    sql = f"""
-    WITH combined AS (
-        {' UNION ALL '.join(unions)}
-    )
-    SELECT _ft, _sr, _cid, _payload
-    FROM combined
-    {cursor_clause}
-    ORDER BY published_dt {order_dir}, _sr {order_dir}, _cid {order_dir}
-    LIMIT {int(limit)};
-    """
-    raw = query_supabase(sql)
-    out: List[Dict[str, Any]] = []
-    for r in raw:
-        ft = r.get("_ft")
-        payload = r.get("_payload")
-        if isinstance(payload, str):
-            payload = json.loads(payload)
-        if not isinstance(payload, dict):
-            continue
-        if ft == "nepali":
-            item = _hydrate_article_rows([payload])[0]
-        elif ft == "indian":
-            item = _hydrate_indian_rows([payload])[0]
+def _build_filtered_count_sql_parts(
+    workspace: str,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    author_type: Optional[str] = None,
+    search_query: Optional[str] = None,
+    include_new_count: bool = True,
+) -> Tuple[str, str]:
+    """Returns (total_count_expr, new_since_snapshot_expr) SQL fragments."""
+    def _pair_sql(table: str, where_list: List[str]) -> Tuple[str, str]:
+        base = " AND ".join(where_list)
+        if snapshot_ingested_at:
+            snap_ts = _fmt_sql_ts(snapshot_ingested_at, as_utc=True)
+            tot = f"(SELECT COUNT(*) FROM {table} WHERE {base} AND ingested_at <= '{snap_ts}')"
+            new = f"(SELECT COUNT(*) FROM {table} WHERE {base} AND ingested_at > '{snap_ts}')" if include_new_count else "0"
         else:
-            item = _hydrate_x_rows([payload])[0]
-        item["_feed_type"] = ft
-        item["_stream_rank"] = int(r.get("_sr") or 1)
-        item["_cursor_id"] = str(r.get("_cid") or "")
-        out.append(item)
-    return out
+            tot = f"(SELECT COUNT(*) FROM {table} WHERE {base})"
+            new = "0"
+        return tot, new
+
+    if workspace == "nepali":
+        w = _build_articles_where(start_dt=start_dt, end_dt=end_dt, source=source, primary_section=category_filter, language=language, search_query=search_query)
+        return _pair_sql("articles", w)
+    if workspace == "indian":
+        w = _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, source=source, language=language, category_filter=category_filter, search_query=search_query)
+        return _pair_sql("indian_media_articles", w)
+    if workspace == "x":
+        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query)
+        return _pair_sql("x_posts", w)
+
+    tots, news = [], []
+    if stream_filter in ("All Sources", "Nepali Media Only"):
+        t, n = _pair_sql("articles", _build_articles_where(start_dt=start_dt, end_dt=end_dt, primary_section=category_filter, search_query=search_query))
+        tots.append(t)
+        news.append(n)
+    if stream_filter in ("All Sources", "Indian Press Only"):
+        t, n = _pair_sql("indian_media_articles", _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, category_filter=category_filter, search_query=search_query))
+        tots.append(t)
+        news.append(n)
+    if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
+        t, n = _pair_sql("x_posts", _build_x_where(category=category_filter, start_dt=start_dt, end_dt=end_dt, search_query=search_query))
+        tots.append(t)
+        news.append(n)
+    tot_expr = f"({' + '.join(tots or ['0'])})"
+    new_expr = f"({' + '.join(news or ['0'])})" if (snapshot_ingested_at and include_new_count) else "0"
+    return tot_expr, new_expr
 
 
 def get_filtered_feed_count(
@@ -1647,42 +2091,20 @@ def get_filtered_feed_count(
     search_query: Optional[str] = None,
 ) -> Dict[str, int]:
     """Returns {'total_count': int, 'new_since_snapshot': int} in 1 lightweight SQL query."""
-    def _pair_sql(table: str, where_list: List[str]) -> Tuple[str, str]:
-        base = " AND ".join(where_list)
-        if snapshot_ingested_at:
-            snap_ts = _fmt_sql_ts(snapshot_ingested_at, as_utc=True)
-            tot = f"(SELECT COUNT(*) FROM {table} WHERE {base} AND ingested_at <= '{snap_ts}')"
-            new = f"(SELECT COUNT(*) FROM {table} WHERE {base} AND ingested_at > '{snap_ts}')"
-        else:
-            tot = f"(SELECT COUNT(*) FROM {table} WHERE {base})"
-            new = "0"
-        return tot, new
-
-    if workspace == "nepali":
-        w = _build_articles_where(start_dt=start_dt, end_dt=end_dt, source=source, primary_section=category_filter, language=language, search_query=search_query)
-        tot_s, new_s = _pair_sql("articles", w)
-        sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
-    elif workspace == "indian":
-        w = _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, source=source, language=language, category_filter=category_filter, search_query=search_query)
-        tot_s, new_s = _pair_sql("indian_media_articles", w)
-        sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
-    elif workspace == "x":
-        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query)
-        tot_s, new_s = _pair_sql("x_posts", w)
-        sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
-    else:
-        tots, news = [], []
-        if stream_filter in ("All Sources", "Nepali Media Only"):
-            t, n = _pair_sql("articles", _build_articles_where(start_dt=start_dt, end_dt=end_dt, primary_section=category_filter, search_query=search_query))
-            tots.append(t); news.append(n)
-        if stream_filter in ("All Sources", "Indian Press Only"):
-            t, n = _pair_sql("indian_media_articles", _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, category_filter=category_filter, search_query=search_query))
-            tots.append(t); news.append(n)
-        if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
-            t, n = _pair_sql("x_posts", _build_x_where(category=category_filter, start_dt=start_dt, end_dt=end_dt, search_query=search_query))
-            tots.append(t); news.append(n)
-        sql = f"SELECT ({' + '.join(tots or ['0'])}) AS total_count, ({' + '.join(news or ['0'])}) AS new_since_snapshot;"
-
+    tot_s, new_s = _build_filtered_count_sql_parts(
+        workspace=workspace,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        snapshot_ingested_at=snapshot_ingested_at,
+        stream_filter=stream_filter,
+        category_filter=category_filter,
+        source=source,
+        language=language,
+        author_type=author_type,
+        search_query=search_query,
+        include_new_count=bool(snapshot_ingested_at),
+    )
+    sql = f"SELECT {tot_s} AS total_count, {new_s} AS new_since_snapshot;"
     rows = query_supabase(sql)
     if rows:
         return {
@@ -1690,6 +2112,679 @@ def get_filtered_feed_count(
             "new_since_snapshot": int(rows[0].get("new_since_snapshot") or 0),
         }
     return {"total_count": 0, "new_since_snapshot": 0}
+
+
+def _build_workspace_page_sql(
+    workspace: str,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    author_type: Optional[str] = None,
+    search_query: Optional[str] = None,
+    sort_asc: bool = False,
+    sort_mode: str = "Newest",
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_rank: Optional[int] = None,
+    cursor_id: Optional[str] = None,
+    cursor_metric: Optional[int] = None,
+    limit: int = 20,
+) -> str:
+    """Shared SQL SELECT builder for paginated feeds across all 4 workspaces."""
+    lim = int(limit)
+    if workspace == "nepali":
+        w = _build_articles_where(
+            start_dt=start_dt, end_dt=end_dt, source=source, primary_section=category_filter,
+            language=language, search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+        )
+        if cursor_dt is not None and cursor_id is not None:
+            op = ">" if sort_asc else "<"
+            w.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=False)}', {esc_sql(cursor_id)})")
+        order_dir = "ASC" if sort_asc else "DESC"
+        return (
+            f"SELECT {ARTICLE_FEED_COLUMNS} FROM articles WHERE {' AND '.join(w)} "
+            f"ORDER BY published_dt {order_dir}, canonical_id {order_dir} LIMIT {lim}"
+        )
+    if workspace == "indian":
+        w = _build_indian_where(
+            eff_status="substantive", start_dt=start_dt, end_dt=end_dt, source=source,
+            language=language, category_filter=category_filter, search_query=search_query,
+            snapshot_ingested_at=snapshot_ingested_at,
+        )
+        if cursor_dt is not None and cursor_id is not None:
+            op = ">" if sort_asc else "<"
+            w.append(f"(published_dt, canonical_id) {op} ('{_fmt_sql_ts(cursor_dt, as_utc=False)}', {esc_sql(cursor_id)})")
+        order_dir = "ASC" if sort_asc else "DESC"
+        return (
+            f"SELECT {INDIAN_FEED_COLUMNS} FROM indian_media_articles WHERE {' AND '.join(w)} "
+            f"ORDER BY published_dt {order_dir}, canonical_id {order_dir} LIMIT {lim}"
+        )
+    if workspace == "x":
+        w = _build_x_where(
+            category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt,
+            search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+        )
+        metric_col_map = {
+            "Most engagement": "COALESCE(engagement_score, 0)",
+            "Most liked": "COALESCE(likes, 0)",
+            "Most reposted": "COALESCE(retweets, 0)",
+        }
+        metric_col = metric_col_map.get(sort_mode)
+        if cursor_dt is not None and cursor_id is not None:
+            c_dt_str = _fmt_sql_ts(cursor_dt, as_utc=True)
+            if metric_col and cursor_metric is not None:
+                w.append(f"({metric_col}, published_dt, id) < ({int(cursor_metric)}, '{c_dt_str}', {esc_sql(cursor_id)})")
+            else:
+                w.append(f"(published_dt, id) < ('{c_dt_str}', {esc_sql(cursor_id)})")
+        order_sql = f"{metric_col} DESC, published_dt DESC, id DESC" if metric_col else "published_dt DESC, id DESC"
+        return f"SELECT {X_FEED_COLUMNS} FROM x_posts WHERE {' AND '.join(w)} ORDER BY {order_sql} LIMIT {lim}"
+
+    return _build_live_union_sql(
+        start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+        stream_filter=stream_filter, category_filter=category_filter, search_query=search_query,
+        sort_asc=sort_asc, cursor_dt=cursor_dt, cursor_rank=cursor_rank,
+        cursor_id=cursor_id, limit=lim,
+    )
+
+
+def _hydrate_workspace_raw_list(workspace: str, raw_list: Any) -> List[Dict[str, Any]]:
+    raw_list = _parse_json_val(raw_list, default=[])
+    if not isinstance(raw_list, list):
+        return []
+    if workspace == "live":
+        return _hydrate_live_union_rows(raw_list)
+    for item in raw_list:
+        if isinstance(item, dict):
+            item.pop("_rn", None)
+    if workspace == "nepali":
+        return _hydrate_article_rows(raw_list)
+    if workspace == "indian":
+        return _hydrate_indian_rows(raw_list)
+    return _hydrate_x_rows(raw_list)
+
+
+def get_feed_page_with_count(
+    workspace: str,
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    author_type: Optional[str] = None,
+    search_query: Optional[str] = None,
+    sort_asc: bool = False,
+    sort_mode: str = "Newest",
+    cursor_dt: Optional[datetime.datetime] = None,
+    cursor_rank: Optional[int] = None,
+    cursor_id: Optional[str] = None,
+    cursor_metric: Optional[int] = None,
+    limit: int = 20,
+    include_count: bool = True,
+    include_new_count: bool = False,
+) -> Dict[str, Any]:
+    """
+    Fetches a workspace page and (optionally) exact filtered total_count in ONE SQL round-trip.
+    When include_count=False (e.g. keyset pagination load_more), executes only the page query.
+    """
+    if not include_count and not include_new_count:
+        if workspace == "nepali":
+            rows = get_stored_articles(
+                start_dt=start_dt, end_dt=end_dt, source=source, primary_section=category_filter,
+                language=language, search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+                cursor_dt=cursor_dt, cursor_id=cursor_id, sort_asc=sort_asc, limit=limit,
+            )
+        elif workspace == "indian":
+            rows = get_stored_indian_articles(
+                status_filter="substantive", start_dt=start_dt, end_dt=end_dt, source=source,
+                language=language, category_filter=category_filter, search_query=search_query,
+                snapshot_ingested_at=snapshot_ingested_at, cursor_dt=cursor_dt,
+                cursor_id=cursor_id, sort_asc=sort_asc, limit=limit,
+            )
+        elif workspace == "x":
+            rows = get_stored_x_posts(
+                category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt,
+                search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+                cursor_dt=cursor_dt, cursor_id=cursor_id, cursor_metric=cursor_metric,
+                sort_mode=sort_mode, limit=limit,
+            )
+        else:
+            rows = get_stored_live_feed_page(
+                start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+                stream_filter=stream_filter, category_filter=category_filter, search_query=search_query,
+                sort_asc=sort_asc, cursor_dt=cursor_dt, cursor_rank=cursor_rank,
+                cursor_id=cursor_id, limit=limit,
+            )
+        return {"rows": rows, "total_count": None, "new_since_snapshot": None}
+
+    page_sql = _build_workspace_page_sql(
+        workspace=workspace, start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+        stream_filter=stream_filter, category_filter=category_filter, source=source, language=language,
+        author_type=author_type, search_query=search_query, sort_asc=sort_asc, sort_mode=sort_mode,
+        cursor_dt=cursor_dt, cursor_rank=cursor_rank, cursor_id=cursor_id, cursor_metric=cursor_metric, limit=limit,
+    )
+    tot_s, new_s = _build_filtered_count_sql_parts(
+        workspace=workspace,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        snapshot_ingested_at=snapshot_ingested_at,
+        stream_filter=stream_filter,
+        category_filter=category_filter,
+        source=source,
+        language=language,
+        author_type=author_type,
+        search_query=search_query,
+        include_new_count=include_new_count and bool(snapshot_ingested_at),
+    )
+
+    sql = f"""
+    WITH page_rows AS (
+        SELECT *, ROW_NUMBER() OVER () AS _rn
+        FROM ({page_sql}) AS _ordered
+    ),
+    cnts AS (
+        SELECT {tot_s if include_count else 'NULL::bigint'} AS total_count,
+               {new_s if (include_new_count and snapshot_ingested_at) else '0::bigint'} AS new_since_snapshot
+    )
+    SELECT
+        cnts.total_count,
+        cnts.new_since_snapshot,
+        COALESCE((SELECT json_agg(row_to_json(p) ORDER BY p._rn) FROM page_rows p), '[]'::json) AS rows_json
+    FROM cnts;
+    """
+    res_rows = query_supabase(sql)
+    if not res_rows:
+        return {"rows": [], "total_count": 0 if include_count else None, "new_since_snapshot": 0 if include_new_count else None}
+
+    r0 = res_rows[0]
+    return {
+        "rows": _hydrate_workspace_raw_list(workspace, r0.get("rows_json")),
+        "total_count": int(r0["total_count"]) if (include_count and r0.get("total_count") is not None) else None,
+        "new_since_snapshot": int(r0.get("new_since_snapshot") or 0) if include_new_count else None,
+    }
+
+
+def _parse_wa_sent_rows(wa_raw: Any) -> Dict[str, Dict[str, Any]]:
+    wa_sent_map: Dict[str, Dict[str, Any]] = {}
+    wa_list = _parse_json_val(wa_raw, default=[])
+    if isinstance(wa_list, list):
+        for wr in wa_list:
+            if isinstance(wr, dict):
+                key = str(wr.get("item_key") or "").strip()
+                if key:
+                    wa_sent_map[key] = wr
+    return wa_sent_map
+
+
+def get_login_bootstrap_bundle(
+    header_start_dt: datetime.datetime,
+    header_end_dt: datetime.datetime,
+    live_start_dt: Optional[datetime.datetime] = None,
+    live_end_dt: Optional[datetime.datetime] = None,
+    stream_filter: str = "All Sources",
+    category_filter: Optional[str] = None,
+    search_query: Optional[str] = None,
+    sort_asc: bool = False,
+    limit: int = 20,
+    wa_limit: int = 1000,
+) -> Dict[str, Any]:
+    """
+    Single SQL round-trip for Cold Login: fetches navbar stream counts, WhatsApp sent log,
+    Live Feed page 0, and exact filtered Live Feed total_count simultaneously.
+    """
+    ls = live_start_dt or header_start_dt
+    le = live_end_dt or header_end_dt
+    w_np, w_in, w_x = _build_stream_count_where(start_dt=header_start_dt, end_dt=header_end_dt)
+    live_page_sql = _build_workspace_page_sql(
+        workspace="live", start_dt=ls, end_dt=le, snapshot_ingested_at=le,
+        stream_filter=stream_filter, category_filter=category_filter, search_query=search_query,
+        sort_asc=sort_asc, limit=limit,
+    )
+    tot_s, _ = _build_filtered_count_sql_parts(
+        workspace="live", start_dt=ls, end_dt=le, snapshot_ingested_at=le,
+        stream_filter=stream_filter, category_filter=category_filter, search_query=search_query,
+        include_new_count=False,
+    )
+    sql = f"""
+    WITH wa_rows AS (
+        SELECT item_key, group_id, group_name, id_message, item_link, sent_at
+        FROM whatsapp_sent_log
+        ORDER BY sent_at DESC
+        LIMIT {int(wa_limit)}
+    ),
+    live_rows AS (
+        SELECT *, ROW_NUMBER() OVER () AS _rn
+        FROM ({live_page_sql}) AS _ordered
+    )
+    SELECT
+        (SELECT COUNT(*) FROM articles WHERE {w_np}) AS np_count,
+        (SELECT COUNT(*) FROM indian_media_articles WHERE {w_in}) AS in_count,
+        (SELECT COUNT(*) FROM x_posts WHERE {w_x}) AS x_count,
+        COALESCE((SELECT json_agg(row_to_json(w)) FROM wa_rows w), '[]'::json) AS wa_json,
+        {tot_s} AS live_total_count,
+        COALESCE((SELECT json_agg(row_to_json(p) ORDER BY p._rn) FROM live_rows p), '[]'::json) AS live_rows_json;
+    """
+    try:
+        rows = query_supabase(sql)
+    except Exception as exc:
+        if "whatsapp_sent_log" in str(exc).lower():
+            ensure_whatsapp_sent_log_table()
+            rows = query_supabase(sql)
+        else:
+            raise
+
+    if not rows:
+        return {
+            "header": {"counts": {"nepali_count": 0, "indian_count": 0, "x_count": 0}, "wa_sent_map": {}},
+            "live_page": {"rows": [], "total_count": 0},
+        }
+    r0 = rows[0]
+    counts = {
+        "nepali_count": int(r0.get("np_count") or 0),
+        "indian_count": int(r0.get("in_count") or 0),
+        "x_count": int(r0.get("x_count") or 0),
+    }
+    return {
+        "header": {"counts": counts, "wa_sent_map": _parse_wa_sent_rows(r0.get("wa_json"))},
+        "live_page": {
+            "rows": _hydrate_workspace_raw_list("live", r0.get("live_rows_json")),
+            "total_count": int(r0.get("live_total_count") or 0),
+        },
+    }
+
+
+def get_indian_workspace_bootstrap(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    source: Optional[str] = None,
+    language: Optional[str] = None,
+    category_filter: Optional[str] = None,
+    search_query: Optional[str] = None,
+    limit: int = 20,
+    relevance_threshold: float = 0.65,
+    borderline_floor: float = 0.40,
+    borderline_limit: int = 15,
+) -> Dict[str, Any]:
+    """
+    Single SQL round-trip for Indian Press workspace: returns page 0, exact filtered total_count,
+    retention audit stats, and SQL-filtered borderline review items without redundant regex re-eval.
+    """
+    page_sql = _build_workspace_page_sql(
+        workspace="indian", start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+        source=source, language=language, category_filter=category_filter, search_query=search_query, limit=limit,
+    )
+    tot_s, _ = _build_filtered_count_sql_parts(
+        workspace="indian", start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+        source=source, language=language, category_filter=category_filter, search_query=search_query,
+        include_new_count=False,
+    )
+    sql = f"""
+    WITH page_rows AS (
+        SELECT *, ROW_NUMBER() OVER () AS _rn
+        FROM ({page_sql}) AS _ordered
+    ),
+    audit AS (
+        SELECT
+            COUNT(*) AS total_discovered,
+            SUM(CASE WHEN relevance_status IN ('substantive', 'relevant') THEN 1 ELSE 0 END) AS substantive,
+            SUM(CASE WHEN relevance_status IN ('borderline_review', 'borderline') THEN 1 ELSE 0 END) AS borderline_review,
+            SUM(CASE WHEN relevance_status = 'excluded' THEN 1 ELSE 0 END) AS excluded
+        FROM indian_media_articles
+    ),
+    bord_rows AS (
+        SELECT {INDIAN_FEED_COLUMNS}
+        FROM indian_media_articles
+        WHERE nepal_relevance_score >= {float(borderline_floor)}
+          AND nepal_relevance_score < {float(relevance_threshold)}
+        ORDER BY published_dt DESC, canonical_id DESC
+        LIMIT {int(borderline_limit)}
+    )
+    SELECT
+        {tot_s} AS total_count,
+        COALESCE((SELECT json_agg(row_to_json(p) ORDER BY p._rn) FROM page_rows p), '[]'::json) AS rows_json,
+        audit.*,
+        COALESCE((SELECT json_agg(row_to_json(b)) FROM bord_rows b), '[]'::json) AS borderline_json
+    FROM audit;
+    """
+    res_rows = query_supabase(sql)
+    if not res_rows:
+        return {
+            "rows": [],
+            "total_count": 0,
+            "audit": {"total": 0, "total_discovered": 0, "substantive": 0, "relevant": 0, "borderline_review": 0, "borderline": 0, "excluded": 0},
+            "borderline_items": [],
+        }
+    r0 = res_rows[0]
+    total = int(r0.get("total_discovered") or 0)
+    sub = int(r0.get("substantive") or 0)
+    bord = int(r0.get("borderline_review") or 0)
+    excl = int(r0.get("excluded") or 0)
+    b_raw = _parse_json_val(r0.get("borderline_json"), default=[])
+    borderline_items = _hydrate_indian_rows(b_raw) if isinstance(b_raw, list) else []
+    for bc in borderline_items:
+        bc["relevance_status"] = "borderline_review"
+    return {
+        "rows": _hydrate_workspace_raw_list("indian", r0.get("rows_json")),
+        "total_count": int(r0.get("total_count") or 0),
+        "audit": {
+            "total": total, "total_discovered": total, "substantive": sub,
+            "relevant": sub, "borderline_review": bord, "borderline": bord, "excluded": excl,
+        },
+        "borderline_items": borderline_items,
+    }
+
+
+def get_x_workspace_bootstrap(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    snapshot_ingested_at: Optional[datetime.datetime] = None,
+    category_filter: Optional[str] = None,
+    author_type: Optional[str] = None,
+    search_query: Optional[str] = None,
+    sort_mode: str = "Newest",
+    limit: int = 20,
+) -> Dict[str, Any]:
+    """Single SQL round-trip for X workspace: fetches x_account KPIs + category counts + page 0 + total_count."""
+    page_sql = _build_workspace_page_sql(
+        workspace="x", start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+        category_filter=category_filter, author_type=author_type, search_query=search_query,
+        sort_mode=sort_mode, limit=limit,
+    )
+    tot_s, _ = _build_filtered_count_sql_parts(
+        workspace="x", start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
+        category_filter=category_filter, author_type=author_type, search_query=search_query,
+        include_new_count=False,
+    )
+    sql = f"""
+    WITH page_rows AS (
+        SELECT *, ROW_NUMBER() OVER () AS _rn
+        FROM ({page_sql}) AS _ordered
+    ),
+    kpi AS (
+        SELECT
+            COUNT(*) AS total_discovered,
+            SUM(CASE WHEN verification_status = 'verified' THEN 1 ELSE 0 END) AS total_verified,
+            SUM(CASE WHEN verification_status != 'verified' THEN 1 ELSE 0 END) AS pending_verification,
+            SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END) AS active_monitored,
+            SUM(CASE WHEN enabled = 0 THEN 1 ELSE 0 END) AS inactive_monitored
+        FROM x_accounts
+    ),
+    cats AS (
+        SELECT category, COUNT(*) AS cnt
+        FROM x_accounts
+        WHERE category IS NOT NULL AND category <> ''
+        GROUP BY category
+        ORDER BY cnt DESC
+    )
+    SELECT
+        {tot_s} AS total_count,
+        COALESCE((SELECT json_agg(row_to_json(p) ORDER BY p._rn) FROM page_rows p), '[]'::json) AS rows_json,
+        kpi.*,
+        COALESCE((SELECT json_agg(row_to_json(c)) FROM cats c), '[]'::json) AS cats_json
+    FROM kpi;
+    """
+    res_rows = query_supabase(sql)
+    kpis: Dict[str, Any] = {
+        "total_discovered": 0, "total_verified": 0, "pending_verification": 0,
+        "active_monitored": 0, "inactive_monitored": 0, "by_category": {},
+    }
+    if not res_rows:
+        return {"kpis": kpis, "rows": [], "total_count": 0}
+    r0 = res_rows[0]
+    kpis["total_discovered"] = int(r0.get("total_discovered") or 0)
+    kpis["total_verified"] = int(r0.get("total_verified") or 0)
+    kpis["pending_verification"] = int(r0.get("pending_verification") or 0)
+    kpis["active_monitored"] = int(r0.get("active_monitored") or 0)
+    kpis["inactive_monitored"] = int(r0.get("inactive_monitored") or 0)
+    cats_raw = _parse_json_val(r0.get("cats_json"), default=[])
+    if isinstance(cats_raw, list):
+        for cr in cats_raw:
+            if isinstance(cr, dict) and cr.get("category"):
+                kpis["by_category"][cr["category"]] = int(cr.get("cnt") or 0)
+    return {
+        "kpis": kpis,
+        "rows": _hydrate_workspace_raw_list("x", r0.get("rows_json")),
+        "total_count": int(r0.get("total_count") or 0),
+    }
+
+
+def get_dashboard_header_state(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    include_wa_sent: bool = True,
+    wa_limit: int = 1000,
+) -> Dict[str, Any]:
+    """Fetches stream counts AND WhatsApp sent map in ONE SQL round-trip without runtime DDL."""
+    w_np, w_in, w_x = _build_stream_count_where(start_dt=start_dt, end_dt=end_dt)
+    if include_wa_sent:
+        sql = f"""
+        WITH wa_rows AS (
+            SELECT item_key, group_id, group_name, id_message, item_link, sent_at
+            FROM whatsapp_sent_log
+            ORDER BY sent_at DESC
+            LIMIT {int(wa_limit)}
+        )
+        SELECT
+            (SELECT COUNT(*) FROM articles WHERE {w_np}) AS np_count,
+            (SELECT COUNT(*) FROM indian_media_articles WHERE {w_in}) AS in_count,
+            (SELECT COUNT(*) FROM x_posts WHERE {w_x}) AS x_count,
+            COALESCE((SELECT json_agg(row_to_json(w)) FROM wa_rows w), '[]'::json) AS wa_json;
+        """
+    else:
+        sql = f"""
+        SELECT
+            (SELECT COUNT(*) FROM articles WHERE {w_np}) AS np_count,
+            (SELECT COUNT(*) FROM indian_media_articles WHERE {w_in}) AS in_count,
+            (SELECT COUNT(*) FROM x_posts WHERE {w_x}) AS x_count,
+            '[]'::json AS wa_json;
+        """
+    try:
+        rows = query_supabase(sql)
+    except Exception as exc:
+        if include_wa_sent and "whatsapp_sent_log" in str(exc).lower():
+            ensure_whatsapp_sent_log_table()
+            rows = query_supabase(sql)
+        else:
+            raise
+
+    counts = {"nepali_count": 0, "indian_count": 0, "x_count": 0}
+    wa_sent_map: Dict[str, Dict[str, Any]] = {}
+    if rows:
+        r0 = rows[0]
+        counts = {
+            "nepali_count": int(r0.get("np_count") or 0),
+            "indian_count": int(r0.get("in_count") or 0),
+            "x_count": int(r0.get("x_count") or 0),
+        }
+        wa_sent_map = _parse_wa_sent_rows(r0.get("wa_json"))
+    return {"counts": counts, "wa_sent_map": wa_sent_map}
+
+
+def get_indian_borderline_bundle(limit: int = 100, min_score: float = 0.40) -> Dict[str, Any]:
+    """Fetches Indian media audit stats + recent borderline/relevant candidates in 1 SQL round-trip."""
+    min_sc = float(min_score)
+    sql = f"""
+    WITH audit AS (
+        SELECT
+            COUNT(*) AS total_discovered,
+            SUM(CASE WHEN relevance_status IN ('substantive', 'relevant') THEN 1 ELSE 0 END) AS substantive,
+            SUM(CASE WHEN relevance_status IN ('borderline_review', 'borderline') THEN 1 ELSE 0 END) AS borderline_review,
+            SUM(CASE WHEN relevance_status = 'excluded' THEN 1 ELSE 0 END) AS excluded
+        FROM indian_media_articles
+    ),
+    recent_rows AS (
+        SELECT {INDIAN_FEED_COLUMNS}
+        FROM indian_media_articles
+        WHERE nepal_relevance_score >= {min_sc}
+        ORDER BY published_dt DESC, canonical_id DESC
+        LIMIT {int(limit)}
+    )
+    SELECT
+        audit.*,
+        COALESCE((SELECT json_agg(row_to_json(r)) FROM recent_rows r), '[]'::json) AS candidates_json
+    FROM audit;
+    """
+    rows = query_supabase(sql)
+    audit = {
+        "total": 0, "total_discovered": 0, "substantive": 0,
+        "relevant": 0, "borderline_review": 0, "borderline": 0, "excluded": 0,
+    }
+    candidates: List[Dict[str, Any]] = []
+    if rows:
+        r = rows[0]
+        total = int(r.get("total_discovered") or 0)
+        sub = int(r.get("substantive") or 0)
+        bord = int(r.get("borderline_review") or 0)
+        excl = int(r.get("excluded") or 0)
+        audit = {
+            "total": total, "total_discovered": total, "substantive": sub,
+            "relevant": sub, "borderline_review": bord, "borderline": bord, "excluded": excl,
+        }
+        raw_list = _parse_json_val(r.get("candidates_json"), default=[])
+        if isinstance(raw_list, list):
+            candidates = _hydrate_indian_rows(raw_list)
+    return {"audit": audit, "candidates": candidates}
+
+
+@_cache_data_if_available(ttl=120)
+def get_system_health_bundle() -> Dict[str, Any]:
+    """Fetches global system KPIs AND per-source health table in ONE SQL CTE round-trip."""
+    sql = """
+    WITH art_stats AS (
+        SELECT
+            a.source,
+            COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '1 hour') AS count_1h,
+            COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '24 hour') AS count_24h,
+            COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '7 day') AS count_7d,
+            COUNT(*) AS count_total
+        FROM articles a
+        GROUP BY a.source
+    ),
+    src_kpis AS (
+        SELECT
+            COUNT(*) AS total_sources,
+            COUNT(*) FILTER (WHERE enabled = 1) AS active_sources
+        FROM sources
+    ),
+    hlth_kpis AS (
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'operational') AS operational,
+            COUNT(*) FILTER (WHERE status = 'degraded') AS degraded,
+            COUNT(*) FILTER (WHERE status = 'failing') AS failing,
+            COALESCE(AVG(discovery_latency_avg_secs), 0.75) AS avg_latency
+        FROM source_health
+    ),
+    art_kpis AS (
+        SELECT
+            COALESCE(SUM(count_1h), 0) AS articles_1h,
+            COALESCE(SUM(count_24h), 0) AS articles_24h,
+            COALESCE(SUM(count_7d), 0) AS articles_7d,
+            COALESCE(SUM(count_total), 0) AS total_stored_articles
+        FROM art_stats
+    ),
+    health_rows AS (
+        SELECT
+            s.name, s.type, s.url, s.lang, s.category, s.priority, s.check_interval_mins, s.enabled,
+            h.last_discovery_time, h.last_ingestion_time,
+            COALESCE(h.status, 'operational') AS status,
+            COALESCE(h.consecutive_failures, 0) AS consecutive_failures,
+            COALESCE(h.total_discovered, 0) AS total_discovered,
+            COALESCE(h.total_ingested, 0) AS total_ingested,
+            COALESCE(h.duplicate_count, 0) AS duplicate_count,
+            COALESCE(h.failed_retrievals, 0) AS failed_retrievals,
+            h.latest_article_pub_dt, h.latest_article_title, h.latest_article_link,
+            h.last_error_message,
+            COALESCE(h.discovery_latency_avg_secs, 0.0) AS discovery_latency_avg_secs,
+            COALESCE(a.count_1h, 0) AS count_1h,
+            COALESCE(a.count_24h, 0) AS count_24h,
+            COALESCE(a.count_7d, 0) AS count_7d,
+            COALESCE(a.count_total, 0) AS count_total
+        FROM sources s
+        LEFT JOIN source_health h ON s.name = h.source_name
+        LEFT JOIN art_stats a ON a.source = s.name
+        ORDER BY s.enabled DESC, s.name ASC
+    )
+    SELECT
+        src_kpis.*,
+        hlth_kpis.*,
+        art_kpis.*,
+        COALESCE((SELECT json_agg(row_to_json(hr)) FROM health_rows hr), '[]'::json) AS health_json
+    FROM src_kpis, hlth_kpis, art_kpis;
+    """
+    rows = query_supabase(sql)
+    if not rows:
+        return {"kpis": _fetch_system_kpis_raw(), "health": []}
+    r = rows[0]
+    kpis = {
+        "total_sources": int(r.get("total_sources") or 34),
+        "active_sources": int(r.get("active_sources") or 34),
+        "operational": int(r.get("operational") or 30),
+        "degraded": int(r.get("degraded") or 0),
+        "failing": int(r.get("failing") or 0),
+        "avg_latency_secs": round(float(r.get("avg_latency") or 0.75), 2),
+        "articles_1h": int(r.get("articles_1h") or 0),
+        "articles_24h": int(r.get("articles_24h") or 0),
+        "articles_7d": int(r.get("articles_7d") or 0),
+        "total_stored_articles": int(r.get("total_stored_articles") or 0),
+    }
+    health = _parse_json_val(r.get("health_json"), default=[])
+    return {"kpis": kpis, "health": health if isinstance(health, list) else []}
+
+
+def fetch_analytics_export_bundle(
+    start_dt: Optional[datetime.datetime] = None,
+    end_dt: Optional[datetime.datetime] = None,
+    limit: int = 500,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Fetches Nepali, Indian, and X export datasets in ONE single SQL CTE round-trip."""
+    lim = int(limit)
+    w_np = _build_articles_where(start_dt=start_dt, end_dt=end_dt)
+    w_in = _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt)
+    w_x = _build_x_where(start_dt=start_dt, end_dt=end_dt)
+    sql = f"""
+    WITH np_rows AS (
+        SELECT {ARTICLE_FEED_COLUMNS}
+        FROM articles
+        WHERE {' AND '.join(w_np)}
+        ORDER BY published_dt DESC, canonical_id DESC
+        LIMIT {lim}
+    ),
+    in_rows AS (
+        SELECT {INDIAN_FEED_COLUMNS}
+        FROM indian_media_articles
+        WHERE {' AND '.join(w_in)}
+        ORDER BY published_dt DESC, canonical_id DESC
+        LIMIT {lim}
+    ),
+    x_rows AS (
+        SELECT {X_FEED_COLUMNS}
+        FROM x_posts
+        WHERE {' AND '.join(w_x)}
+        ORDER BY published_dt DESC, id DESC
+        LIMIT {lim}
+    )
+    SELECT
+        COALESCE((SELECT json_agg(row_to_json(n)) FROM np_rows n), '[]'::json) AS np_json,
+        COALESCE((SELECT json_agg(row_to_json(i)) FROM in_rows i), '[]'::json) AS in_json,
+        COALESCE((SELECT json_agg(row_to_json(x)) FROM x_rows x), '[]'::json) AS x_json;
+    """
+    rows = query_supabase(sql)
+    if not rows:
+        return {"nepali": [], "indian": [], "x": []}
+    r0 = rows[0]
+    np_list = _parse_json_val(r0.get("np_json"), default=[])
+    in_list = _parse_json_val(r0.get("in_json"), default=[])
+    x_list = _parse_json_val(r0.get("x_json"), default=[])
+    return {
+        "nepali": _hydrate_article_rows(np_list) if isinstance(np_list, list) else [],
+        "indian": _hydrate_indian_rows(in_list) if isinstance(in_list, list) else [],
+        "x": _hydrate_x_rows(x_list) if isinstance(x_list, list) else [],
+    }
 
 
 _WA_SENT_TABLE_ENSURED = False
@@ -1724,7 +2819,6 @@ def record_whatsapp_sent(
     """Persists a successful WhatsApp share to Supabase so all users see the sent notice."""
     if not item_key:
         return False
-    ensure_whatsapp_sent_log_table()
     sql = f"""
     INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_at)
     VALUES (
@@ -1742,18 +2836,31 @@ def record_whatsapp_sent(
         item_link = EXCLUDED.item_link,
         sent_at = NOW();
     """
-    query_supabase(sql)
+    try:
+        query_supabase(sql)
+    except Exception as exc:
+        if "whatsapp_sent_log" in str(exc).lower():
+            ensure_whatsapp_sent_log_table()
+            query_supabase(sql)
+        else:
+            raise
     return True
 
 
 def get_whatsapp_sent_map(limit: int = 1000) -> Dict[str, Dict[str, Any]]:
-    """Returns a mapping of item_key -> sent metadata for feeds already shared to WhatsApp."""
-    ensure_whatsapp_sent_log_table()
+    """Returns a mapping of item_key -> sent metadata without unconditional DDL checks."""
     sql = (
         "SELECT item_key, group_id, group_name, id_message, item_link, sent_at "
         f"FROM whatsapp_sent_log ORDER BY sent_at DESC LIMIT {int(limit)};"
     )
-    rows = query_supabase(sql)
+    try:
+        rows = query_supabase(sql)
+    except Exception as exc:
+        if "whatsapp_sent_log" in str(exc).lower():
+            ensure_whatsapp_sent_log_table()
+            rows = query_supabase(sql)
+        else:
+            raise
     sent_map: Dict[str, Dict[str, Any]] = {}
     for row in rows:
         key = str(row.get("item_key") or "").strip()

@@ -10,7 +10,8 @@ import logging
 import threading
 import datetime
 import zoneinfo
-from typing import List, Dict, Any, Optional
+import concurrent.futures
+from typing import List, Dict, Any, Optional, Tuple
 
 try:
     import streamlit as st
@@ -246,6 +247,211 @@ _LAST_INDIAN_SCAN_TIME = 0.0
 X_SCAN_INTERVAL_SECS = 15 * 60  # Automatically scan X every 15 minutes
 INDIAN_SCAN_INTERVAL_SECS = 15 * 60  # Automatically poll 18 Indian outlets every 15 minutes
 
+_MANUAL_SYNC_LOCK = threading.Lock()
+_INGEST_RUN_LOCK = threading.Lock()
+_ALL_SYNC_STREAMS = ("nepali", "indian", "x")
+_MANUAL_SYNC_STATE: Dict[str, Any] = {
+    "running": False,
+    "started_at": 0.0,
+    "finished_at": 0.0,
+    "elapsed_secs": 0.0,
+    "completed_seq": 0,
+    "stream_seqs": {s: 0 for s in _ALL_SYNC_STREAMS},
+    "pipelines": {
+        s: {"status": "idle", "count": 0, "elapsed_secs": 0.0, "error": ""}
+        for s in _ALL_SYNC_STREAMS
+    },
+    "results": {},
+    "errors": {},
+}
+
+
+def get_manual_sync_status() -> Dict[str, Any]:
+    """Returns a thread-safe snapshot of concurrent manual refresh and per-pipeline progress."""
+    with _MANUAL_SYNC_LOCK:
+        snap = dict(_MANUAL_SYNC_STATE)
+        snap["results"] = dict(_MANUAL_SYNC_STATE["results"])
+        snap["errors"] = dict(_MANUAL_SYNC_STATE["errors"])
+        snap["stream_seqs"] = dict(_MANUAL_SYNC_STATE["stream_seqs"])
+        snap["pipelines"] = {k: dict(v) for k, v in _MANUAL_SYNC_STATE["pipelines"].items()}
+        return snap
+
+
+def _run_concurrent_ingest_pipelines(
+    include_nepali: bool = True,
+    include_indian: bool = True,
+    include_x: bool = True,
+    nepali_workers: int = 12,
+    indian_workers: int = 8,
+    pipeline_timeout_secs: float = 65.0,
+    on_pipeline_done: Optional[Any] = None,
+) -> Tuple[Dict[str, int], Dict[str, str]]:
+    """
+    Runs Nepali Media, Indian Press, and X ingestion pipelines concurrently with
+    isolated error handling, per-pipeline completion callbacks, and hard timeouts.
+    """
+    tasks: Dict[str, Any] = {}
+    results: Dict[str, int] = {}
+    errors: Dict[str, str] = {}
+    started_times: Dict[str, float] = {}
+
+    def _run_nepali() -> int:
+        from nepal_fetcher import fetch_top_nepal_media
+        items = fetch_top_nepal_media(max_workers=nepali_workers, force_refresh=True, return_all_stored=False)
+        return len(items)
+
+    def _run_indian() -> int:
+        from nepal_fetcher import fetch_nepal_in_indian_media
+        items = fetch_nepal_in_indian_media(max_workers=indian_workers, force_refresh=True, return_all_stored=False)
+        return len(items)
+
+    def _run_x() -> int:
+        from nepal_x_scanner import scan_popular_nepal_x_posts
+        items = scan_popular_nepal_x_posts(force_refresh=True)
+        return len(items)
+
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+    try:
+        t_submit = time.time()
+        if include_nepali:
+            started_times["nepali"] = t_submit
+            tasks["nepali"] = pool.submit(_run_nepali)
+        if include_indian:
+            started_times["indian"] = t_submit
+            tasks["indian"] = pool.submit(_run_indian)
+        if include_x:
+            started_times["x"] = t_submit
+            tasks["x"] = pool.submit(_run_x)
+
+        future_to_name = {fut: name for name, fut in tasks.items()}
+        done_names = set()
+        try:
+            for fut in concurrent.futures.as_completed(future_to_name, timeout=pipeline_timeout_secs):
+                name = future_to_name[fut]
+                done_names.add(name)
+                elapsed = round(time.time() - started_times.get(name, t_submit), 2)
+                try:
+                    cnt = int(fut.result(timeout=1) or 0)
+                    results[name] = cnt
+                    if on_pipeline_done is not None:
+                        on_pipeline_done(name, "done", cnt, elapsed, "")
+                except Exception as exc:
+                    err_str = str(exc)
+                    errors[name] = err_str
+                    logger.warning(f"Pipeline '{name}' failed during sync: {err_str}")
+                    if on_pipeline_done is not None:
+                        on_pipeline_done(name, "error", 0, elapsed, err_str)
+        except concurrent.futures.TimeoutError:
+            for fut, name in future_to_name.items():
+                if name not in done_names:
+                    err_str = f"Timed out after {int(pipeline_timeout_secs)}s"
+                    errors[name] = err_str
+                    logger.warning(f"Pipeline '{name}' timed out after {pipeline_timeout_secs}s")
+                    if on_pipeline_done is not None:
+                        elapsed = round(time.time() - started_times.get(name, t_submit), 2)
+                        on_pipeline_done(name, "timeout", 0, elapsed, err_str)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    return results, errors
+
+
+def _invalidate_store_caches_after_sync(targets: Optional[Tuple[str, ...]] = None) -> None:
+    """Selectively clears backend store caches only for the pipeline(s) that completed."""
+    target_set = set(targets) if targets else set(_ALL_SYNC_STREAMS)
+    try:
+        import nepal_news_store as store
+        if "nepali" in target_set and hasattr(store, "_clear_health_caches"):
+            store._clear_health_caches()
+        if "x" in target_set and hasattr(store, "get_x_account_kpis") and hasattr(store.get_x_account_kpis, "clear"):
+            store.get_x_account_kpis.clear()
+    except Exception:
+        pass
+
+
+def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
+    t0 = time.time()
+    results: Dict[str, int] = {}
+    errors: Dict[str, str] = {}
+    acquired = _INGEST_RUN_LOCK.acquire(timeout=1.0)
+
+    def _on_stream_done(name: str, status: str, count: int, elapsed: float, err: str) -> None:
+        if status == "done":
+            _invalidate_store_caches_after_sync(targets=(name,))
+        with _MANUAL_SYNC_LOCK:
+            _MANUAL_SYNC_STATE["pipelines"][name] = {
+                "status": status,
+                "count": int(count),
+                "elapsed_secs": elapsed,
+                "error": err,
+            }
+            if status == "done":
+                _MANUAL_SYNC_STATE["results"][name] = int(count)
+                _MANUAL_SYNC_STATE["errors"].pop(name, None)
+                _MANUAL_SYNC_STATE["stream_seqs"][name] = int(_MANUAL_SYNC_STATE["stream_seqs"].get(name, 0)) + 1
+            else:
+                _MANUAL_SYNC_STATE["errors"][name] = err
+
+    try:
+        target_set = set(target_streams)
+        results, errors = _run_concurrent_ingest_pipelines(
+            include_nepali=("nepali" in target_set),
+            include_indian=("indian" in target_set),
+            include_x=("x" in target_set),
+            nepali_workers=12,
+            indian_workers=8,
+            pipeline_timeout_secs=65.0,
+            on_pipeline_done=_on_stream_done,
+        )
+    except Exception as exc:
+        errors["sync"] = str(exc)
+    finally:
+        if acquired:
+            _INGEST_RUN_LOCK.release()
+        with _MANUAL_SYNC_LOCK:
+            _MANUAL_SYNC_STATE["running"] = False
+            _MANUAL_SYNC_STATE["finished_at"] = time.time()
+            _MANUAL_SYNC_STATE["elapsed_secs"] = round(_MANUAL_SYNC_STATE["finished_at"] - t0, 2)
+            _MANUAL_SYNC_STATE["completed_seq"] = int(_MANUAL_SYNC_STATE["completed_seq"]) + 1
+            for k, v in results.items():
+                _MANUAL_SYNC_STATE["results"][k] = v
+            for k, v in errors.items():
+                _MANUAL_SYNC_STATE["errors"][k] = v
+
+
+def trigger_manual_sync_async(targets: Optional[List[str]] = None) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Launches a non-blocking concurrent refresh across requested sources ('nepali', 'indian', 'x').
+    Supports independent retry of failed sources and prevents duplicate/overlapping runs.
+    """
+    req_streams = tuple(s for s in (targets or list(_ALL_SYNC_STREAMS)) if s in _ALL_SYNC_STREAMS) or _ALL_SYNC_STREAMS
+    with _MANUAL_SYNC_LOCK:
+        now_ts = time.time()
+        if _MANUAL_SYNC_STATE["running"] and (now_ts - float(_MANUAL_SYNC_STATE["started_at"])) < 120.0:
+            snap = dict(_MANUAL_SYNC_STATE)
+            snap["results"] = dict(_MANUAL_SYNC_STATE["results"])
+            snap["errors"] = dict(_MANUAL_SYNC_STATE["errors"])
+            snap["stream_seqs"] = dict(_MANUAL_SYNC_STATE["stream_seqs"])
+            snap["pipelines"] = {k: dict(v) for k, v in _MANUAL_SYNC_STATE["pipelines"].items()}
+            return False, snap
+        _MANUAL_SYNC_STATE["running"] = True
+        _MANUAL_SYNC_STATE["started_at"] = now_ts
+        for s in req_streams:
+            _MANUAL_SYNC_STATE["errors"].pop(s, None)
+            _MANUAL_SYNC_STATE["pipelines"][s] = {
+                "status": "running", "count": 0, "elapsed_secs": 0.0, "error": "",
+            }
+        snap = dict(_MANUAL_SYNC_STATE)
+        snap["results"] = dict(_MANUAL_SYNC_STATE["results"])
+        snap["errors"] = dict(_MANUAL_SYNC_STATE["errors"])
+        snap["stream_seqs"] = dict(_MANUAL_SYNC_STATE["stream_seqs"])
+        snap["pipelines"] = {k: dict(v) for k, v in _MANUAL_SYNC_STATE["pipelines"].items()}
+
+    t = threading.Thread(target=_manual_sync_worker, args=(req_streams,), name="NepalManualSyncWorker", daemon=True)
+    t.start()
+    return True, snap
+
+
 def _monitoring_daemon_loop():
     """Background continuous loop that checks and ingests Nepali portals, Indian press, and X posts."""
     global _LAST_X_SCAN_TIME, _LAST_INDIAN_SCAN_TIME
@@ -254,36 +460,54 @@ def _monitoring_daemon_loop():
     if _STOP_EVENT.wait(15.0):
         return
     while not _STOP_EVENT.is_set():
-        try:
-            run_all_sources_discovery(parallel_workers=4, force_all=False)
-        except Exception as e:
-            logger.error(f"Error in monitoring loop cycle: {e}")
-
-        # Automated continuous Indian Press polling (18 outlets)
-        now_sec = time.time()
-        if now_sec - _LAST_INDIAN_SCAN_TIME >= INDIAN_SCAN_INTERVAL_SECS:
+        # Skip automated cycle if a manual sync is actively running to avoid overlapping ingestion
+        if _INGEST_RUN_LOCK.acquire(blocking=False):
             try:
-                from nepal_fetcher import fetch_nepal_in_indian_media
-                logger.info("Triggering periodic background Indian Press scan across 18 outlets...")
-                fetch_nepal_in_indian_media(max_workers=4, force_refresh=True)
-                _LAST_INDIAN_SCAN_TIME = time.time()
-                logger.info("Periodic background Indian Press scan completed successfully.")
-            except Exception as e:
-                logger.error(f"Error in background Indian Press scan cycle: {e}")
+                now_sec = time.time()
+                run_indian = (now_sec - _LAST_INDIAN_SCAN_TIME) >= INDIAN_SCAN_INTERVAL_SECS
+                run_x = (now_sec - _LAST_X_SCAN_TIME) >= X_SCAN_INTERVAL_SECS
 
-        # On-demand brief/translation strategy: do not auto-run background summarization/translation on incoming feeds
+                def _run_scheduled_nepali():
+                    return run_all_sources_discovery(parallel_workers=4, force_all=False)
 
-        # Automated continuous X scanning
-        now_sec = time.time()
-        if now_sec - _LAST_X_SCAN_TIME >= X_SCAN_INTERVAL_SECS:
-            try:
-                from nepal_x_scanner import scan_popular_nepal_x_posts
-                logger.info("Triggering periodic background X scan across verified Nepali accounts...")
-                scan_popular_nepal_x_posts(force_refresh=True)
-                _LAST_X_SCAN_TIME = now_sec
-                logger.info("Periodic background X scan completed successfully.")
-            except Exception as e:
-                logger.error(f"Error in background X scan cycle: {e}")
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+                try:
+                    f_np = pool.submit(_run_scheduled_nepali)
+                    f_in = None
+                    f_x = None
+                    if run_indian:
+                        from nepal_fetcher import fetch_nepal_in_indian_media
+                        f_in = pool.submit(fetch_nepal_in_indian_media, 4, 0.55, False, True, False)
+                    if run_x:
+                        from nepal_x_scanner import scan_popular_nepal_x_posts
+                        f_x = pool.submit(scan_popular_nepal_x_posts, True)
+
+                    try:
+                        f_np.result(timeout=65)
+                    except Exception as e:
+                        if "shutdown" in str(e).lower():
+                            return
+                        logger.error(f"Error in monitoring loop Nepali cycle: {e}")
+                    if f_in is not None:
+                        try:
+                            f_in.result(timeout=55)
+                            _LAST_INDIAN_SCAN_TIME = time.time()
+                        except Exception as e:
+                            if "shutdown" in str(e).lower():
+                                return
+                            logger.error(f"Error in background Indian Press scan cycle: {e}")
+                    if f_x is not None:
+                        try:
+                            f_x.result(timeout=55)
+                            _LAST_X_SCAN_TIME = time.time()
+                        except Exception as e:
+                            if "shutdown" in str(e).lower():
+                                return
+                            logger.error(f"Error in background X scan cycle: {e}")
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
+            finally:
+                _INGEST_RUN_LOCK.release()
 
         # Sleep for 60 seconds between cycle evaluations
         _STOP_EVENT.wait(60.0)

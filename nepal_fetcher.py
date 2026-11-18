@@ -33,13 +33,17 @@ from nepal_news_store import (
     get_indian_media_audit_stats
 )
 
-# Default configurable Nepal relevance confidence threshold for Indian Media feed
-DEFAULT_NEPAL_RELEVANCE_THRESHOLD = float(os.getenv("INDIA_MEDIA_RELEVANCE_THRESHOLD", "0.65"))
-BORDERLINE_NEPAL_RELEVANCE_FLOOR = 0.40
+from nepal_config import (
+    NEPAL_TZ,
+    DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
+    BORDERLINE_NEPAL_RELEVANCE_FLOOR,
+    STRUCTURED_CATEGORIES,
+    CATEGORY_ICONS,
+    TOP_NEPAL_NEWS_PORTALS,
+    TOP_INDIAN_MEDIA_SOURCES,
+    parse_to_nepal_time,
+)
 
-
-# Nepal Timezone (UTC +5:45)
-NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
 SSL_CTX = ssl._create_unverified_context()
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -208,23 +212,29 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_en
             to_fetch.append(art)
 
     if to_fetch:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        try:
             future_to_art = {
                 executor.submit(extract_article_full_text, a.get("link", "")): a
                 for a in to_fetch
             }
-            for fut in concurrent.futures.as_completed(future_to_art):
-                a = future_to_art[fut]
-                try:
-                    extracted = fut.result()
-                    existing_fc = (a.get("full_content") or a.get("summary") or "").strip()
-                    if extracted and len(extracted) > len(existing_fc):
-                        a["full_content"] = extracted
-                    elif not a.get("full_content"):
-                        a["full_content"] = existing_fc or a.get("title", "")
-                except Exception:
-                    if not a.get("full_content"):
-                        a["full_content"] = a.get("summary") or a.get("title", "")
+            try:
+                for fut in concurrent.futures.as_completed(future_to_art, timeout=25):
+                    a = future_to_art[fut]
+                    try:
+                        extracted = fut.result(timeout=3)
+                        existing_fc = (a.get("full_content") or a.get("summary") or "").strip()
+                        if extracted and len(extracted) > len(existing_fc):
+                            a["full_content"] = extracted
+                        elif not a.get("full_content"):
+                            a["full_content"] = existing_fc or a.get("title", "")
+                    except Exception:
+                        if not a.get("full_content"):
+                            a["full_content"] = a.get("summary") or a.get("title", "")
+            except concurrent.futures.TimeoutError:
+                pass
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     if summarize_english and articles:
         enrich_articles_with_english_summaries(articles, max_workers=min(max_workers, 20))
@@ -237,102 +247,7 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_en
             pass
     return articles
 
-# The 9 Structured Categories (Geographically and Thematically Organised)
-STRUCTURED_CATEGORIES = [
-    "India Section",
-    "China Section",
-    "Bangladesh Section",
-    "Pakistan Section",
-    "Nepal – Internal",
-    "Nepal – External",
-    "Nepal – Economy",
-    "Nepal – Others",
-    "International News"
-]
-
-CATEGORY_ICONS = {
-    "India Section": "🇮🇳",
-    "China Section": "🇨🇳",
-    "Bangladesh Section": "🇧🇩",
-    "Pakistan Section": "🇵🇰",
-    "Nepal – Internal": "🇳🇵",
-    "Nepal – External": "🌐",
-    "Nepal – Economy": "📈",
-    "Nepal – Others": "📌",
-    "International News": "🌍"
-}
-
-# Curated Top 34 Nepal Online News Portals (Enriched with multi-channel feeds & adaptive intervals)
-TOP_NEPAL_NEWS_PORTALS = [
-    # Top Nepali Mainstream Daily & Digital Portals (22)
-    {"name": "eKantipur", "type": "html", "url": "https://ekantipur.com/", "alt_urls": ["https://ekantipur.com/news", "https://ekantipur.com/national", "https://ekantipur.com/business"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
-    {"name": "OnlineKhabar (NP)", "type": "rss", "url": "https://www.onlinekhabar.com/feed", "alt_urls": ["https://www.onlinekhabar.com/content/news/feed"], "lang": "Nepali", "category": "General News", "priority": "high", "check_interval_mins": 8},
-    {"name": "Setopati", "type": "rss", "url": "https://www.setopati.com/feed", "alt_urls": ["https://www.setopati.com/politics/feed"], "lang": "Nepali", "category": "National", "priority": "high", "check_interval_mins": 8},
-    {"name": "Ratopati", "type": "rss", "url": "https://www.ratopati.com/feed", "alt_urls": ["https://www.ratopati.com/category/politics/feed"], "lang": "Nepali", "category": "Breaking News", "priority": "high", "check_interval_mins": 8},
-    {"name": "Annapurna Post", "type": "rss", "url": "https://annapurnapost.com/rss", "alt_urls": ["https://annapurnapost.com/rss/desh"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
-    {"name": "Nagarik News", "type": "rss", "url": "https://nagariknews.nagariknetwork.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
-    {"name": "Naya Patrika", "type": "html", "url": "https://www.nayapatrikadaily.com/", "alt_urls": ["https://www.nayapatrikadaily.com/rss"], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "NepalKhabar", "type": "rss", "url": "https://nepalkhabar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Daily", "priority": "high", "check_interval_mins": 8},
-    {"name": "Gorkhapatra Online", "type": "rss", "url": "https://gorkhapatraonline.com/rss", "alt_urls": [], "lang": "Nepali", "category": "National / State", "priority": "standard", "check_interval_mins": 18},
-    {"name": "News of Nepal", "type": "rss", "url": "https://newsofnepal.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Nepal Press", "type": "rss", "url": "https://www.nepalpress.com/feed/", "alt_urls": [], "lang": "Nepali", "category": "Digital News", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Baahrakhari", "type": "rss", "url": "https://baahrakhari.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Himal Press", "type": "rss", "url": "https://himalpress.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Politics & In-depth", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Deshsanchar", "type": "rss", "url": "https://deshsanchar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Shilapatra", "type": "rss", "url": "https://shilapatra.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Opinion & Society", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Nepal Live", "type": "rss", "url": "https://nepallive.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Politics", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Nepal Aaja", "type": "html", "url": "https://nepalaaja.com/", "alt_urls": [], "lang": "Nepali", "category": "Digital Media", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Nepal News", "type": "rss", "url": "https://nepalnews.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Image Khabar", "type": "rss", "url": "https://imagekhabar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Media", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Khabarhub (NP)", "type": "rss", "url": "https://khabarhub.com/feed/", "alt_urls": [], "lang": "Nepali", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
-    {"name": "TechPana", "type": "rss", "url": "https://techpana.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Tech & Innovation", "priority": "low", "check_interval_mins": 40},
-    {"name": "ArthaSarokar", "type": "rss", "url": "https://arthasarokar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Economy & Banking", "priority": "low", "check_interval_mins": 40},
-
-    # Top English Mainstream Daily & Digital Portals (12)
-    {"name": "The Kathmandu Post", "type": "rss", "url": "https://kathmandupost.com/rss", "alt_urls": ["https://kathmandupost.com/national/rss", "https://kathmandupost.com/money/rss"], "lang": "English", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
-    {"name": "The Himalayan Times", "type": "html", "url": "https://thehimalayantimes.com/", "alt_urls": ["https://thehimalayantimes.com/nepal"], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "MyRepublica", "type": "rss", "url": "https://myrepublica.nagariknetwork.com/feeds", "alt_urls": [], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "OnlineKhabar (EN)", "type": "rss", "url": "https://english.onlinekhabar.com/feed", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
-    {"name": "The Annapurna Express", "type": "rss", "url": "https://theannapurnaexpress.com/rss", "alt_urls": [], "lang": "English", "category": "Weekly In-depth", "priority": "low", "check_interval_mins": 40},
-    {"name": "Setopati (EN)", "type": "html", "url": "https://en.setopati.com/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Rising Nepal Daily", "type": "rss", "url": "https://risingnepaldaily.com/rss", "alt_urls": [], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "NepalKhabar (EN)", "type": "html", "url": "https://en.nepalkhabar.com/", "alt_urls": ["https://en.nepalkhabar.com/rss"], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Ratopati (EN)", "type": "rss", "url": "https://english.ratopati.com/feed", "alt_urls": [], "lang": "English", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Khabarhub (EN)", "type": "rss", "url": "https://english.khabarhub.com/feed/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Nepali Times", "type": "rss", "url": "https://nepalitimes.com/feed", "alt_urls": [], "lang": "English", "category": "Independent Journalism", "priority": "low", "check_interval_mins": 40},
-    {"name": "Nepal News (EN)", "type": "rss", "url": "https://english.nepalnews.com/feed", "alt_urls": [], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
-]
-
-# Top Prominent Indian Media Outlets covering Nepal (18 Prominent Outlets)
-TOP_INDIAN_MEDIA_SOURCES = [
-    # Premier National English Dailies
-    {"name": "The Indian Express", "type": "topic_html", "url": "https://indianexpress.com/about/nepal/", "lang": "English", "desc": "Premier investigative & political national daily"},
-    {"name": "The Hindu", "type": "rss", "url": "https://www.thehindu.com/news/international/feeder/default.rss", "lang": "English", "desc": "Premier broadsheet for diplomacy & foreign affairs"},
-    {"name": "The Tribune", "type": "topic_html", "url": "https://www.tribuneindia.com/topic/nepal", "lang": "English", "desc": "Northern national daily covering Gorkha regiments & Himalayan borders"},
-
-    # Global TV & Broadcast News Networks
-    {"name": "India Today", "type": "topic_html", "url": "https://www.indiatoday.in/topic/nepal", "lang": "English", "desc": "Premier national broadcast & digital newsroom"},
-    {"name": "ABP Live", "type": "topic_html", "url": "https://news.abplive.com/topic/nepal", "lang": "English", "desc": "Major national broadcast network covering South Asian politics"},
-    {"name": "NDTV", "type": "rss", "url": "https://feeds.feedburner.com/ndtvnews-world-news", "lang": "English", "desc": "Leading national broadcast & digital news network"},
-
-    # Financial & Trade Dailies
-    {"name": "Livemint", "type": "topic_html", "url": "https://www.livemint.com/topic/nepal", "lang": "English", "desc": "Premier business daily covering bilateral trade & energy"},
-    {"name": "Business Standard", "type": "topic_html", "url": "https://www.business-standard.com/topic/nepal", "lang": "English", "desc": "Leading financial daily covering treaties & hydropower"},
-    {"name": "Financial Express", "type": "topic_html", "url": "https://www.financialexpress.com/about/nepal/", "lang": "English", "desc": "Leading financial daily covering bilateral investment & infrastructure"},
-    {"name": "Moneycontrol", "type": "topic_html", "url": "https://www.moneycontrol.com/news/tags/nepal.html", "lang": "English", "desc": "Network18 premier financial portal covering cross-border markets"},
-
-    # Strategic Analysis & Digital Journalism
-    {"name": "Outlook India", "type": "topic_html", "url": "https://www.outlookindia.com/topic/nepal", "lang": "English", "desc": "Premier current affairs & political analysis journal"},
-    {"name": "The Quint", "type": "topic_html", "url": "https://www.thequint.com/topic/nepal", "lang": "English", "desc": "Independent digital journalism & South Asia fact-checking"},
-    {"name": "Swarajya", "type": "topic_html", "url": "https://swarajyamag.com/topic/nepal", "lang": "English", "desc": "Strategic affairs, defense & Himalayan geopolitics analysis"},
-    {"name": "OneIndia", "type": "topic_html", "url": "https://www.oneindia.com/topic/nepal", "lang": "English", "desc": "Major digital news network covering regional developments"},
-
-    # High-Circulation Hindi National & Border Dailies
-    {"name": "Amar Ujala", "type": "topic_html", "url": "https://www.amarujala.com/tags/nepal", "lang": "Hindi", "desc": "Leading Hindi daily covering UP/Uttarakhand-Nepal border"},
-    {"name": "Live Hindustan", "type": "topic_html", "url": "https://www.livehindustan.com/tags/nepal/", "lang": "Hindi", "desc": "Hindustan Times Media premier Hindi daily"},
-    {"name": "Jansatta", "type": "topic_html", "url": "https://www.jansatta.com/about/nepal/", "lang": "Hindi", "desc": "Indian Express Group leading Hindi national daily"},
-    {"name": "Prabhat Khabar", "type": "topic_html", "url": "https://www.prabhatkhabar.com/topic/nepal", "lang": "Hindi", "desc": "Leading Hindi daily covering Bihar-Nepal border region"}
-]
+# Category Taxonomy, Portals & parse_to_nepal_time live in nepal_config.py (imported above for compatibility)
 
 def classify_article_editorial(
     title: str,
@@ -936,59 +851,7 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
 
     return None
 
-def parse_to_nepal_time(raw_date_val, now_npt):
-    """
-    Parses any RSS timestamp, datetime object, or date string and converts it to Nepal Standard Time.
-    Never fabricates 'Just now' if date is unlisted or missing.
-    """
-    if not raw_date_val:
-        fallback_dt = now_npt - datetime.timedelta(days=7)
-        return fallback_dt, "Date unlisted", "Archived"
-
-    try:
-        if isinstance(raw_date_val, datetime.datetime):
-            dt = raw_date_val
-        else:
-            clean_str = re.sub(r"\[IST\]|IST", "+0530", str(raw_date_val))
-            clean_str = re.sub(r"Updated\s*:\s*|Updated On\s*:\s*|Published\s*:\s*|By[^\d]+", "", clean_str)
-            clean_str = clean_str.replace("|", " ")
-            dt = dt_parser.parse(clean_str, fuzzy=True)
-
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=NEPAL_TZ)
-        else:
-            dt = dt.astimezone(NEPAL_TZ)
-        
-        diff = now_npt - dt
-        seconds = diff.total_seconds()
-
-        # Clamp future clock skew to current time
-        if seconds < 0:
-            dt = now_npt
-            diff = datetime.timedelta(seconds=0)
-            seconds = 0
-            rel_time = "Just now"
-        elif seconds < 120:
-            rel_time = "Just now"
-        elif seconds < 3600:
-            mins = int(seconds / 60)
-            rel_time = f"{mins} mins ago"
-        elif seconds < 86400:
-            hours = int(seconds / 3600)
-            mins = int((seconds % 3600) / 60)
-            rel_time = f"{hours}h {mins}m ago" if mins > 0 else f"{hours}h ago"
-        elif seconds < 86400 * 30:
-            days = int(seconds / 86400)
-            rel_time = f"{days}d ago"
-        else:
-            days = int(seconds / 86400)
-            rel_time = f"{days}d ago"
-
-        exact_time = dt.strftime("%b %d, %I:%M %p NPT")
-        return dt, rel_time, exact_time
-    except Exception:
-        fallback_dt = now_npt - datetime.timedelta(days=7)
-        return fallback_dt, "Date unlisted", "Archived"
+# parse_to_nepal_time is imported from nepal_config above for single source of truth.
 
 def fetch_single_portal(portal, now_npt, max_entries: int = 50):
     """
@@ -1193,16 +1056,17 @@ def fetch_single_portal(portal, now_npt, max_entries: int = 50):
 
     return items
 
-def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
+def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False, return_all_stored: bool = True):
     """
     Fetches real-time news items across all 34 Top Nepal Online News Portals in parallel.
     If force_refresh=False and the SQLite store already holds recent articles, returns them
     immediately in <50ms while the background daemon keeps the store continuously synced.
+    Pass return_all_stored=False during background/manual ingestion to skip re-fetching 1500 stored rows.
     """
     now_npt = datetime.datetime.now(NEPAL_TZ)
     all_articles = []
 
-    # Fast path: serve immediately from SQLite store unless explicit refresh is requested
+    # Fast path: serve immediately from store unless explicit refresh is requested
     if not force_refresh:
         try:
             since_dt = now_npt - datetime.timedelta(days=7)
@@ -1217,16 +1081,30 @@ def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False):
         except Exception:
             pass
 
-    # Ensure source registry is synced
+    # Ensure source registry is synced (internally cached with 15-min TTL)
     try:
         register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
     except Exception:
         pass
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    try:
         futures = [executor.submit(fetch_single_portal, p, now_npt) for p in TOP_NEPAL_NEWS_PORTALS]
-        for f in concurrent.futures.as_completed(futures):
-            all_articles.extend(f.result())
+        try:
+            for f in concurrent.futures.as_completed(futures, timeout=45):
+                try:
+                    res = f.result(timeout=5)
+                    if res:
+                        all_articles.extend(res)
+                except Exception:
+                    pass
+        except concurrent.futures.TimeoutError:
+            pass
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    if not return_all_stored:
+        return all_articles
 
     # Reconcile with persistent stored articles from past 7 days to prevent any missed articles
     try:
@@ -1779,12 +1657,14 @@ def fetch_nepal_in_indian_media(
     relevance_threshold: float = DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
     include_borderline: bool = False,
     force_refresh: bool = False,
+    return_all_stored: bool = True,
 ):
     """
     Fetches real-time Nepal news across Top Indian Media Outlets, retains all
     discovered candidate articles (substantive, borderline_review, excluded) in the
-    central SQLite database (`indian_media_articles`), and returns ONLY articles
+    central PostgreSQL database (`indian_media_articles`), and returns ONLY articles
     that meet the substantive Nepal-relevance threshold for the India Media feed.
+    Pass return_all_stored=False during background/manual ingestion to skip re-fetching stored rows.
     """
     now_npt = datetime.datetime.now(NEPAL_TZ)
     if not force_refresh:
@@ -1805,16 +1685,24 @@ def fetch_nepal_in_indian_media(
             pass
 
     raw_candidates = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    try:
         futures = [
             executor.submit(fetch_single_indian_media, s, now_npt, relevance_threshold)
             for s in TOP_INDIAN_MEDIA_SOURCES
         ]
-        for f in concurrent.futures.as_completed(futures):
-            try:
-                raw_candidates.extend(f.result())
-            except Exception:
-                pass
+        try:
+            for f in concurrent.futures.as_completed(futures, timeout=45):
+                try:
+                    res = f.result(timeout=5)
+                    if res:
+                        raw_candidates.extend(res)
+                except Exception:
+                    pass
+        except concurrent.futures.TimeoutError:
+            pass
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
     # Persist all candidate Indian articles (substantive, borderline_review, excluded) in central DB
     if raw_candidates:
@@ -1822,6 +1710,9 @@ def fetch_nepal_in_indian_media(
             ingest_indian_articles_batch(raw_candidates)
         except Exception:
             pass
+
+    if not return_all_stored:
+        return raw_candidates
 
     # Filter strictly by the Nepal-relevance confidence threshold before displaying in feed
     seen_links = set()

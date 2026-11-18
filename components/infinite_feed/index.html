@@ -319,16 +319,40 @@
         window.requestAnimationFrame(checkSentinelInParentViewport);
       }
 
-      // Attach capturing scroll listener on parent document so any Streamlit scroll container triggers it
+      let roRafPending = false;
+      function scheduleFrameHeight() {
+        if (roRafPending) return;
+        roRafPending = true;
+        window.requestAnimationFrame(function () {
+          roRafPending = false;
+          setFrameHeight();
+        });
+      }
+
+      // Attach capturing scroll listener on parent document and clean up on unload to prevent memory leaks
       function bindParentScroll() {
+        let pWin = null;
         try {
-          const pWin = window.parent;
+          pWin = window.parent;
           pWin.addEventListener("scroll", scheduleScrollCheck, { passive: true });
           pWin.addEventListener("resize", scheduleScrollCheck, { passive: true });
           pWin.document.addEventListener("scroll", scheduleScrollCheck, { capture: true, passive: true });
         } catch (e) {
+          pWin = null;
           window.addEventListener("scroll", scheduleScrollCheck, { passive: true });
         }
+        window.addEventListener("pagehide", function () {
+          try {
+            if (pWin) {
+              pWin.removeEventListener("scroll", scheduleScrollCheck);
+              pWin.removeEventListener("resize", scheduleScrollCheck);
+              pWin.document.removeEventListener("scroll", scheduleScrollCheck, { capture: true });
+            } else {
+              window.removeEventListener("scroll", scheduleScrollCheck);
+            }
+            ro.disconnect();
+          } catch (err) {}
+        }, { once: true });
       }
 
       // Delegated click handler for Read in App / Share buttons
@@ -342,9 +366,7 @@
         }
       });
 
-      const ro = new ResizeObserver(function () {
-        setFrameHeight();
-      });
+      const ro = new ResizeObserver(scheduleFrameHeight);
       ro.observe(document.body);
 
       window.addEventListener("message", function (event) {
@@ -352,7 +374,7 @@
         if (!data || data.type !== "streamlit:render") return;
         const args = data.args || {};
 
-        if (args.theme_css && themeMount.innerHTML !== args.theme_css) {
+        if (args.theme_css && !themeInjected) {
           themeMount.innerHTML = args.theme_css;
           themeInjected = true;
         }
@@ -365,27 +387,40 @@
         }
 
         const batches = Array.isArray(args.batches) ? args.batches : [];
-        let maxSeq = -1;
-        for (const b of batches) {
-          if (b && typeof b.seq === "number") {
-            if (b.seq > maxSeq) maxSeq = b.seq;
-            if (!renderedSeqs.has(b.seq)) {
+        const incomingLoaded = Number(args.loaded_count || 0);
+        // Recovery safety guard: if a remounted iframe receives only a delta batch (or empty) when prior batches exist, request full sync
+        if (renderedSeqs.size === 0 && incomingLoaded > 0 && !batches.some((b) => b && b.seq === 0)) {
+          emitValue({ event: "sync_all", ts: Date.now() });
+          return;
+        }
+
+        if (batches.length > 0) {
+          const appendFrag = document.createDocumentFragment();
+          for (const b of batches) {
+            if (b && typeof b.seq === "number" && !renderedSeqs.has(b.seq)) {
               const batchDiv = document.createElement("div");
               batchDiv.className = "feed-batch";
               batchDiv.setAttribute("data-seq", String(b.seq));
               batchDiv.appendChild(sanitizeBatchHtml(b.html));
-              feedRoot.appendChild(batchDiv);
+              appendFrag.appendChild(batchDiv);
               renderedSeqs.add(b.seq);
             }
           }
+          if (appendFrag.childNodes.length > 0) {
+            feedRoot.appendChild(appendFrag);
+          }
         }
 
+        let maxSeq = -1;
+        renderedSeqs.forEach((s) => {
+          if (s > maxSeq) maxSeq = s;
+        });
         nextExpectedSeq = maxSeq + 1;
         hasMore = Boolean(args.has_more);
         currentError = args.error_msg || "";
         inFlight = false;
         lastTotalCount = Number(args.total_count || 0);
-        lastLoadedCount = Number(args.loaded_count || 0);
+        lastLoadedCount = incomingLoaded;
         lastNoun = args.noun || "items";
 
         renderFooter(
@@ -394,7 +429,7 @@
           lastNoun,
           currentError
         );
-        setFrameHeight();
+        scheduleFrameHeight();
         setTimeout(scheduleScrollCheck, 80);
       });
 

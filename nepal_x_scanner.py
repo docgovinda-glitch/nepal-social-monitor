@@ -451,8 +451,28 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
                 return []
         return []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
-        batches = list(ex.map(_fetch_profile_ids, active_accounts))
+    def _run_pool_bounded(fn, items, max_workers: int, timeout_secs: float = 25.0):
+        results = []
+        if not items:
+            return results
+        ex = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        try:
+            futs = [ex.submit(fn, it) for it in items]
+            try:
+                for fut in concurrent.futures.as_completed(futs, timeout=timeout_secs):
+                    try:
+                        val = fut.result(timeout=2)
+                        if val is not None:
+                            results.append(val)
+                    except Exception:
+                        pass
+            except concurrent.futures.TimeoutError:
+                pass
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
+        return results
+
+    batches = _run_pool_bounded(_fetch_profile_ids, active_accounts, max_workers=12, timeout_secs=25.0)
 
     dedup_items: Dict[str, Dict[str, Any]] = {}
     for batch in batches:
@@ -466,10 +486,7 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
         sid, acc = item
         return _enrich_tweet_by_id(sid, known_handle=acc["handle"], known_account=acc)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
-        enriched = [p for p in ex.map(_worker, raw_items) if p]
-
-    return enriched
+    return _run_pool_bounded(_worker, raw_items, max_workers=20, timeout_secs=25.0)
 
 
 def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, Any]]:
@@ -577,8 +594,20 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, An
         except Exception:
             return []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as ex:
-        bing_batches = list(ex.map(_fetch_bing_sid, search_queries))
+    bing_batches = []
+    ex_b = concurrent.futures.ThreadPoolExecutor(max_workers=15)
+    try:
+        futs = [ex_b.submit(_fetch_bing_sid, q) for q in search_queries]
+        try:
+            for fut in concurrent.futures.as_completed(futs, timeout=18.0):
+                try:
+                    bing_batches.append(fut.result(timeout=2) or [])
+                except Exception:
+                    pass
+        except concurrent.futures.TimeoutError:
+            pass
+    finally:
+        ex_b.shutdown(wait=False, cancel_futures=True)
 
     raw_candidates = []
     for b in bing_batches:
@@ -591,8 +620,23 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, An
         sid, t, link, h = item
         return _enrich_tweet_by_id(sid, fallback_title=t, fallback_url=link, known_handle=h)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
-        enriched_bing = list(ex.map(_worker_enrich, raw_candidates))
+    enriched_bing = []
+    if raw_candidates:
+        ex_e = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+        try:
+            futs = [ex_e.submit(_worker_enrich, it) for it in raw_candidates]
+            try:
+                for fut in concurrent.futures.as_completed(futs, timeout=22.0):
+                    try:
+                        val = fut.result(timeout=2)
+                        if val:
+                            enriched_bing.append(val)
+                    except Exception:
+                        pass
+            except concurrent.futures.TimeoutError:
+                pass
+        finally:
+            ex_e.shutdown(wait=False, cancel_futures=True)
 
     for p in enriched_bing:
         if p and p.get("text"):

@@ -11,8 +11,6 @@ Includes:
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
-import pandas as pd
 import datetime
 import hashlib
 import json
@@ -21,119 +19,15 @@ import urllib.parse
 import html
 import re
 import os
+import concurrent.futures
 from typing import Any, Callable, Dict, List
 
-from nepal_fetcher import (
-    fetch_top_nepal_media,
-    fetch_nepal_in_indian_media,
-    evaluate_indian_article_nepal_relevance,
-    parse_to_nepal_time,
-    batch_fetch_full_content,
-    DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
-    BORDERLINE_NEPAL_RELEVANCE_FLOOR,
-    NEPAL_TZ,
-    STRUCTURED_CATEGORIES,
-    CATEGORY_ICONS,
-    TOP_NEPAL_NEWS_PORTALS,
-    TOP_INDIAN_MEDIA_SOURCES,
-)
-from nepal_x_scanner import scan_popular_nepal_x_posts, TOP_NEPAL_X_ACCOUNTS, get_monitored_x_accounts
-from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
-from nepal_summarizer import (
-    _has_devanagari,
-    detect_text_language,
-    generate_on_demand_news_brief,
-    generate_on_demand_x_content,
-    extract_on_demand_full_article,
-)
-from whatsapp_greenapi import (
-    get_destination_group as get_wa_destination_group,
-    send_group_message as send_wa_group_message,
-)
-try:
-    from nepal_news_store import (
-        get_all_source_health,
-        get_system_kpis,
-        set_source_enabled,
-        set_source_interval,
-        get_stored_articles,
-        get_stored_indian_articles,
-        get_stored_counts_by_stream,
-        get_indian_media_audit_stats,
-        batch_upsert_x_accounts,
-        get_all_x_accounts,
-        get_x_account_kpis,
-        set_x_account_enabled,
-        upsert_single_x_account,
-        delete_x_account,
-        verify_x_profile_connectivity,
-        normalize_x_handle,
-        save_x_posts,
-        get_stored_x_posts,
-        get_stored_live_feed_page,
-        get_filtered_feed_count,
-        SEARCH_EXPANSIONS,
-        expand_search_tokens,
-        CATEGORY_ALIASES,
-        PREDEFINED_9_CATEGORIES,
-        CORE_8_CATEGORIES,
-        record_whatsapp_sent,
-        get_whatsapp_sent_map,
-    )
-except ImportError:
-    import importlib
-    import nepal_news_store
-    importlib.reload(nepal_news_store)
-    from nepal_news_store import (
-        get_all_source_health,
-        get_system_kpis,
-        set_source_enabled,
-        set_source_interval,
-        get_stored_articles,
-        get_stored_indian_articles,
-        get_stored_counts_by_stream,
-        get_indian_media_audit_stats,
-        batch_upsert_x_accounts,
-        get_all_x_accounts,
-        get_x_account_kpis,
-        set_x_account_enabled,
-        upsert_single_x_account,
-        delete_x_account,
-        verify_x_profile_connectivity,
-        normalize_x_handle,
-        save_x_posts,
-        get_stored_x_posts,
-        get_stored_live_feed_page,
-        get_filtered_feed_count,
-        SEARCH_EXPANSIONS,
-        expand_search_tokens,
-        CATEGORY_ALIASES,
-        PREDEFINED_9_CATEGORIES,
-        CORE_8_CATEGORIES,
-        record_whatsapp_sent,
-        get_whatsapp_sent_map,
-    )
-from components.infinite_feed import render_infinite_feed_component
-from nepal_news_scheduler import (
-    run_single_source_discovery,
-    run_all_sources_discovery,
-    run_historical_backfill,
-    start_monitoring_daemon
-)
-import importlib
-import apple_theme
-importlib.reload(apple_theme)
-from apple_theme import APPLE_DESIGN_SYSTEM_CSS, AUTH_CSS
-
-# Start background news monitoring daemon if not already running
-try:
-    start_monitoring_daemon()
-except Exception:
-    pass
+from apple_theme import AUTH_CSS
 
 
-# Load environment variables from .env if present
 def load_env():
+    if os.environ.get("_NMM_ENV_LOADED") == "1":
+        return
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
@@ -142,6 +36,8 @@ def load_env():
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
                     os.environ.setdefault(k.strip(), v.strip().strip("'\""))
+    os.environ["_NMM_ENV_LOADED"] = "1"
+
 
 load_env()
 
@@ -153,8 +49,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. Apple-grade design system (tokens + components live in apple_theme.py)
-st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
 st.markdown(
     """<style>
     [data-testid='stSidebar'], [data-testid='stSidebarCollapsedControl'] { display: none !important; }
@@ -168,43 +62,115 @@ st.markdown(
 # ==========================================
 APP_PASSWORD = os.getenv("APP_PASSWORD", "PIC@55")
 
+
 def check_password() -> bool:
     """Returns True if the user entered the correct password or has a persisted session cookie/token."""
-    # 1. Already authenticated in active memory
     if st.session_state.get("authenticated", False):
         return True
 
-    # 2. Check URL query params for persistent token/key
     query_auth = st.query_params.get("auth", "")
     query_key = st.query_params.get("key", "")
     if query_auth == "true" or query_key == APP_PASSWORD:
         st.session_state["authenticated"] = True
         return True
 
-    st.markdown(AUTH_CSS, unsafe_allow_html=True)
-    with st.form("auth_form", clear_on_submit=False):
-        st.markdown("""
-        <div class="auth-header">
-            <div class="auth-header__flag">🇳🇵</div>
-            <h1 class="auth-header__title">Media Monitor</h1>
-            <p class="auth-header__subtitle">News Intelligence Platform</p>
-        </div>
-        """, unsafe_allow_html=True)
-        pwd = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
-        submit = st.form_submit_button("Unlock", width="stretch", type="primary")
-        st.markdown('<div class="auth-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
+    auth_slot = st.empty()
+    with auth_slot.container():
+        st.markdown(AUTH_CSS, unsafe_allow_html=True)
+        with st.form("auth_form", clear_on_submit=False):
+            st.markdown("""
+            <div class="auth-header">
+                <div class="auth-header__flag">🇳🇵</div>
+                <h1 class="auth-header__title">Media Monitor</h1>
+                <p class="auth-header__subtitle">News Intelligence Platform</p>
+            </div>
+            """, unsafe_allow_html=True)
+            pwd = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
+            submit = st.form_submit_button("Unlock", width="stretch", type="primary")
+            st.markdown('<div class="auth-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
 
-    if submit:
-        if pwd.strip() == APP_PASSWORD:
-            st.session_state["authenticated"] = True
-            st.query_params["auth"] = "true"
-            st.rerun()
-        else:
-            st.error("Incorrect password. Please try again.")
+        if submit:
+            if pwd.strip() == APP_PASSWORD:
+                st.session_state["authenticated"] = True
+                st.query_params["auth"] = "true"
+                auth_slot.empty()
+                return True
+            else:
+                st.error("Incorrect password. Please try again.")
 
     st.stop()
 
+
 check_password()
+
+# Deferred UI & fast DB store imports (scrapers/translators/GreenAPI stay lazy-loaded until needed)
+import streamlit.components.v1 as components
+from apple_theme import APPLE_DESIGN_SYSTEM_CSS, FEED_CARD_CSS
+
+st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
+
+from nepal_config import (
+    NEPAL_TZ,
+    DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
+    BORDERLINE_NEPAL_RELEVANCE_FLOOR,
+    STRUCTURED_CATEGORIES,
+    CATEGORY_ICONS,
+    TOP_NEPAL_NEWS_PORTALS,
+    TOP_INDIAN_MEDIA_SOURCES,
+    _has_devanagari,
+    parse_to_nepal_time,
+)
+from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
+from nepal_news_store import (
+    get_all_source_health,
+    get_system_kpis,
+    get_system_health_bundle,
+    get_db_transport_info,
+    set_source_enabled,
+    set_source_interval,
+    get_stored_articles,
+    get_stored_indian_articles,
+    get_stored_counts_by_stream,
+    get_indian_media_audit_stats,
+    get_indian_borderline_bundle,
+    get_login_bootstrap_bundle,
+    get_indian_workspace_bootstrap,
+    get_x_workspace_bootstrap,
+    batch_upsert_x_accounts,
+    get_all_x_accounts,
+    get_x_account_kpis,
+    set_x_account_enabled,
+    upsert_single_x_account,
+    delete_x_account,
+    verify_x_profile_connectivity,
+    normalize_x_handle,
+    save_x_posts,
+    get_stored_x_posts,
+    get_stored_live_feed_page,
+    get_filtered_feed_count,
+    get_feed_page_with_count,
+    get_dashboard_header_state,
+    fetch_analytics_export_bundle,
+    SEARCH_EXPANSIONS,
+    expand_search_tokens,
+    CATEGORY_ALIASES,
+    PREDEFINED_9_CATEGORIES,
+    CORE_8_CATEGORIES,
+    record_whatsapp_sent,
+    get_whatsapp_sent_map,
+)
+from components.infinite_feed import render_infinite_feed_component
+from nepal_news_scheduler import (
+    start_monitoring_daemon,
+    trigger_manual_sync_async,
+    get_manual_sync_status,
+)
+
+# Start background news monitoring daemon only after authentication
+try:
+    start_monitoring_daemon()
+except Exception:
+    pass
 
 # 3. Time Reference (separate actual filtering timestamp from 3-minute cache-bucket anchor)
 actual_now_npt = datetime.datetime.now(NEPAL_TZ)
@@ -216,6 +182,8 @@ default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
 st.session_state.setdefault("last_sync_npt", actual_now_npt.strftime("%I:%M %p").lstrip("0"))
 st.session_state.setdefault("auto_sync_enabled", True)
 st.session_state.setdefault("cp_timeframe_segment", "12h")
+st.session_state.setdefault("tf_epoch", 1)
+st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
 
 # ==========================================
 # 4. TIME WINDOW
@@ -241,6 +209,7 @@ def on_timeframe_preset_change():
         start = _preset_start(preset, datetime.datetime.now(NEPAL_TZ))
         st.session_state["filter_start_date"] = start.date()
         st.session_state["filter_start_time"] = start.time().replace(second=0, microsecond=0)
+    st.session_state["tf_epoch"] = int(st.session_state.get("tf_epoch", 1)) + 1
 
 active_preset = st.session_state.get("cp_timeframe_segment") or "12h"
 if active_preset == "Custom":
@@ -268,6 +237,26 @@ else:
     if filter_end_dt < filter_start_dt:
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
     cache_end_dt = filter_end_dt
+
+if active_preset == "Custom":
+    _custom_key = (
+        str(st.session_state.get("filter_start_date", "")),
+        str(st.session_state.get("filter_start_time", "")),
+        bool(is_to_current),
+        "" if is_to_current else str(st.session_state.get("filter_end_date", "")),
+        "" if is_to_current else str(st.session_state.get("filter_end_time", "")),
+    )
+    if st.session_state.get("_prev_custom_tf") != _custom_key:
+        if "_prev_custom_tf" in st.session_state:
+            st.session_state["tf_epoch"] = int(st.session_state.get("tf_epoch", 1)) + 1
+        st.session_state["_prev_custom_tf"] = _custom_key
+
+_tf_epoch = int(st.session_state.get("tf_epoch", 1))
+_stream_vers = st.session_state.get("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+_v_np = int(_stream_vers.get("nepali", 0))
+_v_in = int(_stream_vers.get("indian", 0))
+_v_x = int(_stream_vers.get("x", 0))
+_v_live = _v_np + _v_in + _v_x
 
 def fmt_short(dt: datetime.datetime) -> str:
     return dt.strftime("%d %b, %I:%M %p").lstrip("0")
@@ -320,6 +309,7 @@ def reset_all_filters():
         "in_fetch_limit": 500,
         "x_fetch_limit": 500,
     })
+    st.session_state["tf_epoch"] = int(st.session_state.get("tf_epoch", 1)) + 1
     st.session_state.pop("feed_sessions", None)
 
 
@@ -365,14 +355,196 @@ def in_window(item: Dict[str, Any], start_dt: datetime.datetime = None, end_dt: 
     e = end_dt if end_dt is not None else (datetime.datetime.now(NEPAL_TZ) if is_to_current else filter_end_dt)
     return s <= pdt_npt <= e
 
-@st.cache_data(ttl=180, show_spinner=False)
-def get_cached_stream_counts(start_dt: datetime.datetime, end_dt: datetime.datetime = None) -> Dict[str, int]:
-    """Retrieves fast aggregated counts across streams without downloading article bodies."""
+@st.cache_data(ttl=120, show_spinner=False)
+def get_cached_header_bundle(start_dt: datetime.datetime, end_dt: datetime.datetime = None, data_version: int = 0) -> Dict[str, Any]:
+    """Retrieves stream counts and WhatsApp sent map in ONE SQL round-trip."""
     eff_end = end_dt if end_dt is not None else datetime.datetime.now(NEPAL_TZ)
     try:
-        return get_stored_counts_by_stream(start_dt=start_dt, end_dt=eff_end)
+        return get_dashboard_header_state(start_dt=start_dt, end_dt=eff_end, include_wa_sent=True)
     except Exception:
-        return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
+        return {"counts": {"nepali_count": 0, "indian_count": 0, "x_count": 0}, "wa_sent_map": {}}
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def get_cached_login_bootstrap(
+    start_iso: str,
+    end_iso: str,
+    live_start_iso: str,
+    live_end_iso: str,
+    live_stream: str,
+    live_cat: str,
+    live_sort: str,
+    search_query: str,
+    data_version: int = 0,
+) -> Dict[str, Any]:
+    """
+    Executes cold-login header state (counts + WA sent map) AND initial Live Feed page + count
+    in ONE single SQL CTE round-trip.
+    """
+    h_start = datetime.datetime.fromisoformat(start_iso)
+    h_end = datetime.datetime.fromisoformat(end_iso) if end_iso else datetime.datetime.now(NEPAL_TZ)
+    l_start = datetime.datetime.fromisoformat(live_start_iso) if live_start_iso else h_start
+    l_end = datetime.datetime.fromisoformat(live_end_iso) if live_end_iso else h_end
+    try:
+        boot = get_login_bootstrap_bundle(
+            header_start_dt=h_start,
+            header_end_dt=h_end,
+            live_start_dt=l_start,
+            live_end_dt=l_end,
+            stream_filter=live_stream,
+            category_filter=live_cat,
+            search_query=search_query,
+            sort_asc=(live_sort == "Oldest First"),
+            limit=PAGE_SIZE,
+        )
+        lp = boot.get("live_page") or {"rows": [], "total_count": 0}
+        now_curr = datetime.datetime.now(NEPAL_TZ)
+        for r in lp.get("rows", []):
+            pdt = r.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, r["relative_time"], r["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+        lp["rows"] = [r for r in lp.get("rows", []) if l_start <= (r.get("published_dt") or l_start) <= l_end]
+        lp["snapshot_start_dt"] = l_start
+        lp["snapshot_end_dt"] = l_end
+        lp["snapshot_ingested_at"] = l_end
+        return {"header": boot.get("header"), "live_page": lp}
+    except Exception:
+        return {
+            "header": {"counts": {"nepali_count": 0, "indian_count": 0, "x_count": 0}, "wa_sent_map": {}},
+            "live_page": None,
+        }
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _get_cached_indian_workspace_bootstrap(
+    start_iso: str,
+    end_iso: str,
+    snap_iso: str,
+    source: str,
+    language: str,
+    search_query: str,
+    threshold_val: float,
+    data_version: int = 0,
+) -> Dict[str, Any]:
+    """Single SQL round-trip bootstrap for Indian Press workspace (page + count + audit + borderline)."""
+    s_dt = datetime.datetime.fromisoformat(start_iso)
+    e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else datetime.datetime.now(NEPAL_TZ)
+    sn_dt = datetime.datetime.fromisoformat(snap_iso) if snap_iso else e_dt
+    try:
+        res = get_indian_workspace_bootstrap(
+            start_dt=s_dt,
+            end_dt=e_dt,
+            snapshot_ingested_at=sn_dt,
+            source=(None if not source or source == ALL_INDIAN_DEFAULT else source),
+            language=(None if not language or language == ALL_LANG_DEFAULT else language),
+            search_query=search_query or None,
+            limit=PAGE_SIZE,
+            relevance_threshold=threshold_val,
+            borderline_floor=BORDERLINE_NEPAL_RELEVANCE_FLOOR,
+            borderline_limit=15,
+        )
+        now_curr = datetime.datetime.now(NEPAL_TZ)
+        cleaned = []
+        for r in res.get("rows", []):
+            pdt = r.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, r["relative_time"], r["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+            if in_window(r, s_dt, e_dt):
+                cleaned.append(r)
+        for b in res.get("borderline_items", []):
+            pdt = b.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, b["relative_time"], b["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+        res["rows"] = cleaned
+        res["snapshot_start_dt"] = s_dt
+        res["snapshot_end_dt"] = e_dt
+        res["snapshot_ingested_at"] = sn_dt
+        return res
+    except Exception:
+        return {
+            "rows": [],
+            "total_count": 0,
+            "audit": {"total": 0, "total_discovered": 0, "substantive": 0, "relevant": 0, "borderline_review": 0, "borderline": 0, "excluded": 0},
+            "borderline_items": [],
+        }
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _get_cached_x_workspace_bootstrap(
+    start_iso: str,
+    end_iso: str,
+    snap_iso: str,
+    category_filter: str,
+    author_type: str,
+    search_query: str,
+    sort_mode: str,
+    data_version: int = 0,
+) -> Dict[str, Any]:
+    """Single SQL round-trip bootstrap for X workspace (KPIs + page + count)."""
+    s_dt = datetime.datetime.fromisoformat(start_iso)
+    e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else datetime.datetime.now(NEPAL_TZ)
+    sn_dt = datetime.datetime.fromisoformat(snap_iso) if snap_iso else e_dt
+    try:
+        res = get_x_workspace_bootstrap(
+            start_dt=s_dt,
+            end_dt=e_dt,
+            snapshot_ingested_at=sn_dt,
+            category_filter=category_filter,
+            author_type=author_type,
+            search_query=search_query or None,
+            sort_mode=sort_mode,
+            limit=PAGE_SIZE,
+        )
+        now_curr = datetime.datetime.now(NEPAL_TZ)
+        cleaned = []
+        for r in res.get("rows", []):
+            pdt = r.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, r["relative_time"], r["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+            if in_window(r, s_dt, e_dt):
+                cleaned.append(r)
+        res["rows"] = cleaned
+        res["snapshot_start_dt"] = s_dt
+        res["snapshot_end_dt"] = e_dt
+        res["snapshot_ingested_at"] = sn_dt
+        return res
+    except Exception:
+        return {
+            "kpis": {"total_discovered": 0, "total_verified": 0, "pending_verification": 0, "active_monitored": 0, "inactive_monitored": 0, "by_category": {}},
+            "rows": [],
+            "total_count": 0,
+        }
+
+
+def get_cached_stream_counts(start_dt: datetime.datetime, end_dt: datetime.datetime = None) -> Dict[str, int]:
+    """Retrieves fast aggregated counts across streams via unified header bundle."""
+    return get_cached_header_bundle(start_dt=start_dt, end_dt=end_dt, data_version=st.session_state.get("data_version", 0)).get("counts", {"nepali_count": 0, "indian_count": 0, "x_count": 0})
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def get_cached_analytics_bundle(start_iso: str, end_iso: str, limit: int = 500, data_version: int = 0) -> Dict[str, List[Dict[str, Any]]]:
+    """Concurrently fetches Nepali, Indian, and X datasets for Analytics & Export."""
+    s_dt = datetime.datetime.fromisoformat(start_iso) if start_iso else None
+    e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else datetime.datetime.now(NEPAL_TZ)
+    try:
+        bundle = fetch_analytics_export_bundle(start_dt=s_dt, end_dt=e_dt, limit=int(limit))
+    except Exception:
+        bundle = {"nepali": [], "indian": [], "x": []}
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    for k in ("nepali", "indian"):
+        cleaned = []
+        for sa in bundle.get(k, []):
+            pdt = sa.get("published_dt")
+            if isinstance(pdt, datetime.datetime):
+                _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+            if in_window(sa, s_dt, e_dt):
+                cleaned.append(sa)
+        cleaned.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
+        bundle[k] = cleaned
+    if s_dt is not None:
+        bundle["x"] = [p for p in bundle.get("x", []) if in_window(p, s_dt, e_dt)]
+    return bundle
+
 
 @st.cache_data(ttl=180, show_spinner=False)
 def get_active_nepal_articles(start_dt: datetime.datetime, end_dt: datetime.datetime = None, limit: int = 500) -> List[Dict[str, Any]]:
@@ -709,6 +881,7 @@ def _generate_unified_item_content(
     is_x: bool,
     on_progress: Optional[Callable[[str, float], None]] = None,
 ) -> Dict[str, Any]:
+    from nepal_summarizer import generate_on_demand_news_brief, generate_on_demand_x_content
     if is_x:
         return generate_on_demand_x_content(item, on_progress=on_progress)
     return generate_on_demand_news_brief(item, on_progress=on_progress)
@@ -716,6 +889,7 @@ def _generate_unified_item_content(
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _get_cached_wa_dest() -> Dict[str, Any]:
+    from whatsapp_greenapi import get_destination_group as get_wa_destination_group
     return get_wa_destination_group()
 
 
@@ -792,6 +966,7 @@ def _show_read_in_app_dialog() -> None:
     st.session_state.setdefault("ondemand_fulltext_view", {})
 
     if st.session_state.pop("pending_read_translate", None) == cache_id:
+        from nepal_summarizer import extract_on_demand_full_article
         with st.status("Translating full article to English…", expanded=True) as tr_status:
             def _tr_prog(msg: str, pct: float) -> None:
                 tr_status.update(label=f"{msg} ({int(pct * 100)}%)")
@@ -806,6 +981,7 @@ def _show_read_in_app_dialog() -> None:
 
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
     if not fulltext_data:
+        from nepal_summarizer import extract_on_demand_full_article
         with st.status("Opening article…", expanded=True) as status:
             def _read_prog(msg: str, pct: float) -> None:
                 status.update(label=f"{msg} ({int(pct * 100)}%)")
@@ -958,6 +1134,7 @@ def _show_share_dialog() -> None:
     st.session_state.setdefault("wa_item_status", {})
 
     if is_x:
+        from nepal_summarizer import detect_text_language
         raw_x_txt = (item.get("text") or item.get("title") or "").strip()
         x_lang = detect_text_language(raw_x_txt)
         content_type_lbl = "Complete X Post" if x_lang == "en" else "X Translation"
@@ -1029,6 +1206,7 @@ def _show_share_dialog() -> None:
         else:
             selected_gid = dest.get("id", "") if dest.get("ok") else ""
             with st.status(f"Sending to {dest_name}…", expanded=True) as send_status:
+                from whatsapp_greenapi import send_group_message as send_wa_group_message
                 send_status.write("Delivering confirmed draft to Green API…")
                 wa_res = send_wa_group_message(
                     chat_id=selected_gid,
@@ -1049,6 +1227,9 @@ def _show_share_dialog() -> None:
                             item_link=item_link,
                         )
                         _get_wa_sent_map.clear()
+                        get_cached_header_bundle.clear()
+                        get_cached_login_bootstrap.clear()
+                        st.session_state.pop("_hdr_state_cache", None)
                     except Exception as log_exc:
                         wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
                     send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
@@ -1473,6 +1654,55 @@ def _build_card_wrapper_html(
     )
 
 
+@st.cache_data(ttl=90, show_spinner=False)
+def _get_cached_feed_page_with_count(
+    workspace: str,
+    start_iso: str,
+    end_iso: str,
+    snap_iso: str,
+    stream_filter: str,
+    category_filter: str,
+    source: str,
+    language: str,
+    author_type: str,
+    search_query: str,
+    sort_mode: str,
+    limit: int = PAGE_SIZE,
+    data_version: int = 0,
+) -> Dict[str, Any]:
+    """Cached 90s initial page + exact filtered total count in ONE SQL round-trip."""
+    s_dt = datetime.datetime.fromisoformat(start_iso) if start_iso else None
+    e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else None
+    sn_dt = datetime.datetime.fromisoformat(snap_iso) if snap_iso else None
+    res = get_feed_page_with_count(
+        workspace=workspace,
+        start_dt=s_dt,
+        end_dt=e_dt,
+        snapshot_ingested_at=sn_dt,
+        stream_filter=stream_filter,
+        category_filter=category_filter,
+        source=(None if not source or source in (ALL_PORTALS_DEFAULT, ALL_INDIAN_DEFAULT) else source),
+        language=(None if not language or language == ALL_LANG_DEFAULT else language),
+        author_type=author_type,
+        search_query=search_query,
+        sort_asc=(sort_mode == "Oldest First"),
+        sort_mode=sort_mode,
+        limit=limit,
+        include_count=True,
+        include_new_count=False,
+    )
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    cleaned: List[Dict[str, Any]] = []
+    for r in res.get("rows", []):
+        pdt = r.get("published_dt")
+        if isinstance(pdt, datetime.datetime):
+            _, r["relative_time"], r["exact_time"] = parse_to_nepal_time(pdt, now_curr)
+        if in_window(r, s_dt, e_dt):
+            cleaned.append(r)
+    res["rows"] = cleaned
+    return res
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def _get_cached_filtered_count(
     workspace: str,
@@ -1485,6 +1715,7 @@ def _get_cached_filtered_count(
     language: str,
     author_type: str,
     search_query: str,
+    data_version: int = 0,
 ) -> Dict[str, int]:
     """Cached 60s filtered total + new-since-snapshot delta count."""
     s_dt = datetime.datetime.fromisoformat(start_iso) if start_iso else None
@@ -1497,8 +1728,8 @@ def _get_cached_filtered_count(
         snapshot_ingested_at=sn_dt,
         stream_filter=stream_filter,
         category_filter=category_filter,
-        source=source,
-        language=language,
+        source=(None if not source or source in (ALL_PORTALS_DEFAULT, ALL_INDIAN_DEFAULT) else source),
+        language=(None if not language or language == ALL_LANG_DEFAULT else language),
         author_type=author_type,
         search_query=search_query,
     )
@@ -1521,66 +1752,39 @@ def _fetch_workspace_keyset_page(
 ) -> List[Dict[str, Any]]:
     """Fetches a single 20-item keyset page from Supabase for the given workspace."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
+    c_dt = None
+    c_rank = None
+    c_id = None
+    c_metric = None
     if workspace == "live":
         c_dt, c_rank, c_id = cursor if cursor else (None, None, None)
-        rows = get_stored_live_feed_page(
-            start_dt=start_dt,
-            end_dt=end_dt,
-            snapshot_ingested_at=snapshot_ingested_at,
-            stream_filter=stream_filter,
-            category_filter=category_filter,
-            search_query=search_query,
-            sort_asc=(sort_mode == "Oldest First"),
-            cursor_dt=c_dt,
-            cursor_rank=c_rank,
-            cursor_id=c_id,
-            limit=limit,
-        )
-    elif workspace == "nepali":
-        c_dt, c_id = cursor if cursor else (None, None)
-        rows = get_stored_articles(
-            start_dt=start_dt,
-            end_dt=end_dt,
-            source=(None if not source or source == ALL_PORTALS_DEFAULT else source),
-            primary_section=category_filter,
-            language=(None if not language or language == ALL_LANG_DEFAULT else language),
-            search_query=search_query,
-            snapshot_ingested_at=snapshot_ingested_at,
-            cursor_dt=c_dt,
-            cursor_id=c_id,
-            limit=limit,
-        )
-    elif workspace == "indian":
-        c_dt, c_id = cursor if cursor else (None, None)
-        rows = get_stored_indian_articles(
-            status_filter="substantive",
-            start_dt=start_dt,
-            end_dt=end_dt,
-            source=(None if not source or source == ALL_INDIAN_DEFAULT else source),
-            language=(None if not language or language == ALL_LANG_DEFAULT else language),
-            category_filter=category_filter,
-            search_query=search_query,
-            snapshot_ingested_at=snapshot_ingested_at,
-            cursor_dt=c_dt,
-            cursor_id=c_id,
-            limit=limit,
-        )
-    else:
+    elif workspace == "x":
         c_metric, c_dt, c_id = cursor if cursor else (None, None, None)
-        rows = get_stored_x_posts(
-            category=category_filter,
-            author_type=author_type,
-            start_dt=start_dt,
-            end_dt=end_dt,
-            search_query=search_query,
-            snapshot_ingested_at=snapshot_ingested_at,
-            cursor_dt=c_dt,
-            cursor_id=c_id,
-            cursor_metric=c_metric,
-            sort_mode=sort_mode,
-            limit=limit,
-        )
+    else:
+        c_dt, c_id = cursor if cursor else (None, None)
 
+    res = get_feed_page_with_count(
+        workspace=workspace,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        snapshot_ingested_at=snapshot_ingested_at,
+        stream_filter=stream_filter,
+        category_filter=category_filter,
+        source=(None if not source or source in (ALL_PORTALS_DEFAULT, ALL_INDIAN_DEFAULT) else source),
+        language=(None if not language or language == ALL_LANG_DEFAULT else language),
+        author_type=author_type,
+        search_query=search_query,
+        sort_asc=(sort_mode == "Oldest First"),
+        sort_mode=sort_mode,
+        cursor_dt=c_dt,
+        cursor_rank=c_rank,
+        cursor_id=c_id,
+        cursor_metric=c_metric,
+        limit=limit,
+        include_count=False,
+        include_new_count=False,
+    )
+    rows = res.get("rows", [])
     for r in rows:
         pdt = r.get("published_dt")
         if isinstance(pdt, datetime.datetime):
@@ -1611,6 +1815,10 @@ def _safe_fragment_rerun() -> None:
         st.rerun()
 
 
+def _floor_60s(dt: datetime.datetime) -> datetime.datetime:
+    return dt.replace(second=0, microsecond=0)
+
+
 def render_infinite_workspace_feed(
     workspace: str,
     renderer: Callable[[Dict[str, Any]], str],
@@ -1627,20 +1835,34 @@ def render_infinite_workspace_feed(
     empty_title: str = "No items found",
     empty_body: str = "Try widening the timeframe or adjusting filters.",
     on_fetch_now: Optional[Callable[[], None]] = None,
+    wa_sent_map: Optional[Dict[str, Dict[str, Any]]] = None,
+    prefetched_init: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, int]:
     """
     Shared incremental infinite-scroll feed engine across Live Feed, Nepali Media, Indian Press, and X.
-    Returns {'total_count': int, 'loaded_count': int, 'new_since_snapshot': int}.
+    Single-pass keyset pagination, incremental delta payloads, and strict timeframe snapshot pinning.
     """
+    data_ver = int(st.session_state.get("data_version", 0))
     sessions = st.session_state.setdefault("feed_sessions", {})
     sess = sessions.get(workspace)
 
+    current_nav_seq = int(st.session_state.get("_nav_visit_seq", 1))
+    need_full_payload = False
+    just_appended_batch: Optional[Dict[str, Any]] = None
+
     if not sess or sess.get("filter_sig") != filter_sig:
-        snap_end = datetime.datetime.now(NEPAL_TZ) if is_to_current else filter_end_dt
-        snap_ing = datetime.datetime.now(NEPAL_TZ)
+        if prefetched_init and prefetched_init.get("snapshot_end_dt"):
+            snap_start = prefetched_init.get("snapshot_start_dt") or filter_start_dt
+            snap_end = prefetched_init["snapshot_end_dt"]
+            snap_ing = prefetched_init.get("snapshot_ingested_at") or snap_end
+        else:
+            snap_start = filter_start_dt
+            snap_end = datetime.datetime.now(NEPAL_TZ) if is_to_current else filter_end_dt
+            snap_ing = datetime.datetime.now(NEPAL_TZ)
         sess = {
             "filter_sig": filter_sig,
             "session_key": f"{workspace}_{filter_sig}_{int(snap_ing.timestamp() * 1000)}",
+            "snapshot_start_dt": snap_start,
             "snapshot_end_dt": snap_end,
             "snapshot_ingested_at": snap_ing,
             "cursor": None,
@@ -1651,12 +1873,17 @@ def render_infinite_workspace_feed(
             "has_more": False,
             "error_msg": "",
             "last_event_ts": 0,
+            "_mounted_nav_seq": -1,
         }
         sessions[workspace] = sess
+        need_full_payload = True
 
-    wa_sent_map = _get_wa_sent_map()
+    if sess.get("_mounted_nav_seq") != current_nav_seq:
+        need_full_payload = True
 
-    def _append_batch(rows: List[Dict[str, Any]], seq_idx: int) -> None:
+    eff_wa_map = wa_sent_map if wa_sent_map is not None else _get_wa_sent_map()
+
+    def _append_batch(rows: List[Dict[str, Any]], seq_idx: int) -> Dict[str, Any]:
         html_parts: List[str] = []
         for r in rows:
             dedup_key = (
@@ -1668,119 +1895,76 @@ def render_infinite_workspace_feed(
             sess["seen_keys"].add(dedup_key)
             uid = f"{workspace}_{seq_idx}_{len(sess['items_by_uid'])}"
             sess["items_by_uid"][uid] = r
-            html_parts.append(_build_card_wrapper_html(r, renderer=renderer, item_uid=uid, wa_sent_map=wa_sent_map))
-        sess["batches"].append({"seq": seq_idx, "html": "".join(html_parts)})
+            html_parts.append(_build_card_wrapper_html(r, renderer=renderer, item_uid=uid, wa_sent_map=eff_wa_map))
+        batch_obj = {"seq": seq_idx, "html": "".join(html_parts)}
+        sess["batches"].append(batch_obj)
+        return batch_obj
 
-    # Initial 20-item fetch
+    # Initial 20-item + exact filtered count fetch in 1 SQL round-trip
     if not sess["batches"] and not sess["error_msg"]:
         try:
-            first_rows = _fetch_workspace_keyset_page(
-                workspace=workspace,
-                start_dt=filter_start_dt,
-                end_dt=sess["snapshot_end_dt"],
-                snapshot_ingested_at=sess["snapshot_ingested_at"],
-                cursor=None,
-                stream_filter=stream_filter,
-                category_filter=category_filter,
-                source=source,
-                language=language,
-                author_type=author_type,
-                search_query=search_query,
-                sort_mode=sort_mode,
-                limit=PAGE_SIZE,
-            )
-            cnt_info = _get_cached_filtered_count(
-                workspace=workspace,
-                start_iso=filter_start_dt.isoformat(),
-                end_iso=sess["snapshot_end_dt"].isoformat(),
-                snap_iso=sess["snapshot_ingested_at"].isoformat(),
-                stream_filter=stream_filter,
-                category_filter=category_filter,
-                source=source,
-                language=language,
-                author_type=author_type,
-                search_query=search_query or "",
-            )
-            sess["total_count"] = cnt_info.get("total_count", len(first_rows))
+            if prefetched_init is not None:
+                init_res = prefetched_init
+            else:
+                init_res = _get_cached_feed_page_with_count(
+                    workspace=workspace,
+                    start_iso=sess["snapshot_start_dt"].isoformat(),
+                    end_iso=sess["snapshot_end_dt"].isoformat(),
+                    snap_iso=sess["snapshot_ingested_at"].isoformat(),
+                    stream_filter=stream_filter,
+                    category_filter=category_filter,
+                    source=source,
+                    language=language,
+                    author_type=author_type,
+                    search_query=search_query or "",
+                    sort_mode=sort_mode,
+                    limit=PAGE_SIZE,
+                    data_version=data_ver,
+                )
+            first_rows = init_res.get("rows", [])
+            tot_cnt = init_res.get("total_count")
+            sess["total_count"] = int(tot_cnt) if tot_cnt is not None else len(first_rows)
             if first_rows:
                 _append_batch(first_rows, 0)
                 sess["cursor"] = _extract_next_cursor(workspace, first_rows, sort_mode)
                 sess["has_more"] = len(first_rows) == PAGE_SIZE and len(sess["items_by_uid"]) < max(sess["total_count"], len(first_rows))
             else:
                 sess["has_more"] = False
+            need_full_payload = True
         except Exception as exc:
             sess["error_msg"] = f"Failed to load {noun}: {type(exc).__name__}"
 
-    # Check for newly ingested stories since snapshot (skip when session is <45s old to avoid redundant initial query)
-    new_since_snap = 0
-    _snap_age_secs = (datetime.datetime.now(NEPAL_TZ) - sess["snapshot_ingested_at"]).total_seconds()
-    if is_to_current and sess["batches"] and _snap_age_secs >= 45:
-        try:
-            delta_info = _get_cached_filtered_count(
-                workspace=workspace,
-                start_iso=filter_start_dt.isoformat(),
-                end_iso=actual_now_npt.isoformat(),
-                snap_iso=sess["snapshot_ingested_at"].isoformat(),
-                stream_filter=stream_filter,
-                category_filter=category_filter,
-                source=source,
-                language=language,
-                author_type=author_type,
-                search_query=search_query or "",
-            )
-            new_since_snap = int(delta_info.get("new_since_snapshot", 0) or 0)
-        except Exception:
-            new_since_snap = 0
-
-    if new_since_snap > 0:
-        b_col1, b_col2 = st.columns([4, 1.2])
-        with b_col1:
-            st.info(f"✨ **{new_since_snap:,}** new {noun} available since you opened this feed.")
-        with b_col2:
-            if st.button("Refresh feed", icon=":material/refresh:", key=f"btn_new_stories_{workspace}", width="stretch"):
-                sessions.pop(workspace, None)
-                _get_cached_filtered_count.clear()
-                _safe_fragment_rerun()
-
-    if not sess["batches"] and not sess["error_msg"]:
-        render_empty_state(empty_icon, empty_title, empty_body)
-        if on_fetch_now is not None:
-            _, mid_col, _ = st.columns([1.5, 2, 1.5])
-            with mid_col:
-                if st.button("Fetch Now", icon=":material/sync:", key=f"btn_fetch_now_{workspace}", width="stretch"):
-                    on_fetch_now()
-                    sessions.pop(workspace, None)
-                    _get_cached_filtered_count.clear()
-                    get_cached_stream_counts.clear()
-                    st.rerun()
-        return {"total_count": 0, "loaded_count": 0, "new_since_snapshot": 0}
-
-    loaded_count = len(sess["items_by_uid"])
-    ev = render_infinite_feed_component(
-        session_key=sess["session_key"],
-        batches=sess["batches"],
-        has_more=sess["has_more"],
-        total_count=max(sess["total_count"], loaded_count),
-        loaded_count=loaded_count,
-        noun=noun,
-        theme_css=APPLE_DESIGN_SYSTEM_CSS,
-        error_msg=sess["error_msg"],
-        key=f"inf_feed_{workspace}",
-    )
-
+    # Read component widget event BEFORE rendering component -> single-pass load_more & action handling!
     _last_ts_map = st.session_state.setdefault("inf_feed_last_ts", {})
     _last_ts = int(_last_ts_map.get(workspace) or 0)
-    if isinstance(ev, dict) and int(ev.get("ts") or 0) > _last_ts:
-        _last_ts_map[workspace] = int(ev.get("ts") or 0)
-        sess["last_event_ts"] = int(ev.get("ts") or 0)
-        ev_type = ev.get("event")
-        if ev_type in ("load_more", "retry") and sess["has_more"]:
+    pre_ev = st.session_state.get(f"inf_feed_{workspace}")
+    handled_ev_type = None
+    modal_action_requested: Optional[Dict[str, Any]] = None
+
+    def _process_component_event(ev_obj: Any, is_pre_pass: bool) -> None:
+        nonlocal need_full_payload, just_appended_batch, handled_ev_type, modal_action_requested, _last_ts
+        if not isinstance(ev_obj, dict):
+            return
+        ev_ts = int(ev_obj.get("ts") or 0)
+        if ev_ts <= _last_ts:
+            return
+        _last_ts_map[workspace] = ev_ts
+        _last_ts = ev_ts
+        sess["last_event_ts"] = ev_ts
+        ev_type = ev_obj.get("event")
+        handled_ev_type = ev_type
+
+        if ev_type == "sync_all":
+            need_full_payload = True
+            if not is_pre_pass:
+                _safe_fragment_rerun()
+        elif ev_type in ("load_more", "retry") and sess["has_more"]:
             next_seq = len(sess["batches"])
-            if int(ev.get("next_seq", -1)) == next_seq:
+            if int(ev_obj.get("next_seq", -1)) == next_seq:
                 try:
                     more_rows = _fetch_workspace_keyset_page(
                         workspace=workspace,
-                        start_dt=filter_start_dt,
+                        start_dt=sess["snapshot_start_dt"],
                         end_dt=sess["snapshot_end_dt"],
                         snapshot_ingested_at=sess["snapshot_ingested_at"],
                         cursor=sess["cursor"],
@@ -1795,23 +1979,25 @@ def render_infinite_workspace_feed(
                     )
                     sess["error_msg"] = ""
                     if more_rows:
-                        _append_batch(more_rows, next_seq)
+                        new_batch = _append_batch(more_rows, next_seq)
+                        just_appended_batch = new_batch
                         sess["cursor"] = _extract_next_cursor(workspace, more_rows, sort_mode)
                         sess["has_more"] = len(more_rows) == PAGE_SIZE and len(sess["items_by_uid"]) < max(sess["total_count"], len(sess["items_by_uid"]))
                     else:
                         sess["has_more"] = False
                 except Exception as exc:
                     sess["error_msg"] = f"Could not load next {noun} ({type(exc).__name__})."
-                _safe_fragment_rerun()
+                if not is_pre_pass:
+                    _safe_fragment_rerun()
         elif ev_type == "action":
-            uid = str(ev.get("item_uid") or "")
+            uid = str(ev_obj.get("item_uid") or "")
             target_item = sess["items_by_uid"].get(uid)
             if target_item:
                 is_indian, is_x = _resolve_item_flags(target_item, renderer)
                 cache_id = _compute_item_uid(target_item, "global")
                 item_link = _safe_http_url(target_item.get("link") or "")
                 st.session_state["active_modal"] = {
-                    "mode": ev.get("action"),
+                    "mode": ev_obj.get("action"),
                     "item": target_item,
                     "is_x": is_x,
                     "is_indian": is_indian,
@@ -1819,10 +2005,113 @@ def render_infinite_workspace_feed(
                     "item_uid": uid,
                     "item_link": item_link,
                 }
-                if ev.get("action") == "read" and not is_x:
-                    _show_read_in_app_dialog()
-                elif ev.get("action") == "share":
-                    _show_share_dialog()
+                modal_action_requested = {"action": ev_obj.get("action"), "is_x": is_x}
+
+    _process_component_event(pre_ev, is_pre_pass=True)
+
+    # Check for newly ingested stories since snapshot (throttled to 60s cache buckets, skipped during active scroll/action)
+    new_since_snap = 0
+    _snap_age_secs = (datetime.datetime.now(NEPAL_TZ) - sess["snapshot_ingested_at"]).total_seconds()
+    if is_to_current and sess["batches"] and _snap_age_secs >= 45 and handled_ev_type not in ("load_more", "retry", "action", "sync_all"):
+        try:
+            delta_now_bucket = _floor_60s(datetime.datetime.now(NEPAL_TZ))
+            delta_info = _get_cached_filtered_count(
+                workspace=workspace,
+                start_iso=sess["snapshot_start_dt"].isoformat(),
+                end_iso=delta_now_bucket.isoformat(),
+                snap_iso=sess["snapshot_ingested_at"].isoformat(),
+                stream_filter=stream_filter,
+                category_filter=category_filter,
+                source=source,
+                language=language,
+                author_type=author_type,
+                search_query=search_query or "",
+                data_version=data_ver,
+            )
+            new_since_snap = int(delta_info.get("new_since_snapshot", 0) or 0)
+        except Exception:
+            new_since_snap = 0
+
+    if new_since_snap > 0:
+        b_col1, b_col2 = st.columns([4, 1.2])
+        with b_col1:
+            st.info(f"✨ **{new_since_snap:,}** new {noun} available since you opened this feed.")
+        with b_col2:
+            if st.button("Refresh feed", icon=":material/refresh:", key=f"btn_new_stories_{workspace}", width="stretch"):
+                sessions.pop(workspace, None)
+                _get_cached_feed_page_with_count.clear()
+                _get_cached_filtered_count.clear()
+                get_cached_header_bundle.clear()
+                get_cached_login_bootstrap.clear()
+                _get_cached_indian_workspace_bootstrap.clear()
+                _get_cached_x_workspace_bootstrap.clear()
+                st.session_state.pop("_hdr_state_cache", None)
+                sv = st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+                for sk in (("nepali", "indian", "x") if workspace == "live" else (workspace,)):
+                    if sk in sv:
+                        sv[sk] = int(sv.get(sk, 0)) + 1
+                st.session_state["data_version"] = data_ver + 1
+                _safe_fragment_rerun()
+
+    if not sess["batches"] and not sess["error_msg"]:
+        render_empty_state(empty_icon, empty_title, empty_body)
+        if on_fetch_now is not None:
+            _, mid_col, _ = st.columns([1.5, 2, 1.5])
+            with mid_col:
+                if st.button("Fetch Now", icon=":material/sync:", key=f"btn_fetch_now_{workspace}", width="stretch"):
+                    on_fetch_now()
+                    sessions.pop(workspace, None)
+                    _get_cached_feed_page_with_count.clear()
+                    _get_cached_filtered_count.clear()
+                    get_cached_header_bundle.clear()
+                    get_cached_login_bootstrap.clear()
+                    _get_cached_indian_workspace_bootstrap.clear()
+                    _get_cached_x_workspace_bootstrap.clear()
+                    st.session_state.pop("_hdr_state_cache", None)
+                    sv = st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+                    for sk in (("nepali", "indian", "x") if workspace == "live" else (workspace,)):
+                        if sk in sv:
+                            sv[sk] = int(sv.get(sk, 0)) + 1
+                    st.session_state["data_version"] = data_ver + 1
+                    st.rerun()
+        return {"total_count": 0, "loaded_count": 0, "new_since_snapshot": 0}
+
+    loaded_count = len(sess["items_by_uid"])
+    if need_full_payload:
+        batches_to_send = sess["batches"]
+        theme_css_to_send = FEED_CARD_CSS
+        sess["_mounted_nav_seq"] = current_nav_seq
+    elif just_appended_batch is not None:
+        batches_to_send = [just_appended_batch]
+        theme_css_to_send = ""
+    else:
+        batches_to_send = []
+        theme_css_to_send = ""
+
+    ev = render_infinite_feed_component(
+        session_key=sess["session_key"],
+        batches=batches_to_send,
+        has_more=sess["has_more"],
+        total_count=max(sess["total_count"], loaded_count),
+        loaded_count=loaded_count,
+        noun=noun,
+        theme_css=theme_css_to_send,
+        error_msg=sess["error_msg"],
+        key=f"inf_feed_{workspace}",
+    )
+
+    if modal_action_requested is not None:
+        if modal_action_requested["action"] == "read" and not modal_action_requested["is_x"]:
+            _show_read_in_app_dialog()
+        elif modal_action_requested["action"] == "share":
+            _show_share_dialog()
+    else:
+        _process_component_event(ev, is_pre_pass=False)
+        if modal_action_requested is not None:
+            if modal_action_requested["action"] == "read" and not modal_action_requested["is_x"]:
+                _show_read_in_app_dialog()
+            elif modal_action_requested["action"] == "share":
+                _show_share_dialog()
 
     return {
         "total_count": max(sess["total_count"], loaded_count),
@@ -1942,8 +2231,97 @@ selected_nav = st.session_state["app_nav_section"]
 if st.query_params.get("nav") != selected_nav:
     st.query_params["nav"] = selected_nav
 
-# Fast stream counts for workspace badges (uses stable cache window)
-stream_counts = get_cached_stream_counts(cache_start_dt, cache_end_dt)
+st.session_state.setdefault("data_version", 0)
+if st.session_state.get("_last_rendered_nav") != selected_nav:
+    st.session_state["_nav_visit_seq"] = int(st.session_state.get("_nav_visit_seq", 0)) + 1
+    st.session_state["_last_rendered_nav"] = selected_nav
+
+st.session_state.setdefault("committed_search_query", "")
+_active_sq = st.session_state.get("committed_search_query", "")
+_data_ver = int(st.session_state.get("data_version", 0))
+
+# Check per-stream incremental sync completion & invalidate ONLY completed stream(s)
+_sync_snap = get_manual_sync_status()
+_seen_stream_seqs = st.session_state.setdefault("_seen_stream_seqs", {"nepali": 0, "indian": 0, "x": 0})
+_snap_stream_seqs = _sync_snap.get("stream_seqs") or {}
+_changed_streams = [
+    s_name for s_name in ("nepali", "indian", "x")
+    if int(_snap_stream_seqs.get(s_name, 0)) > int(_seen_stream_seqs.get(s_name, 0))
+]
+if _changed_streams:
+    _sess_map = st.session_state.get("feed_sessions")
+    for s_name in _changed_streams:
+        _seen_stream_seqs[s_name] = int(_snap_stream_seqs.get(s_name, 0))
+        _stream_vers[s_name] = int(_stream_vers.get(s_name, 0)) + 1
+        if isinstance(_sess_map, dict):
+            _sess_map.pop(s_name, None)
+    if isinstance(_sess_map, dict):
+        _sess_map.pop("live", None)
+    _v_np = int(_stream_vers.get("nepali", 0))
+    _v_in = int(_stream_vers.get("indian", 0))
+    _v_x = int(_stream_vers.get("x", 0))
+    _v_live = _v_np + _v_in + _v_x
+    _data_ver += 1
+    st.session_state["data_version"] = _data_ver
+    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
+    st.session_state.pop("_hdr_state_cache", None)
+    get_cached_header_bundle.clear()
+    get_cached_login_bootstrap.clear()
+    _get_cached_feed_page_with_count.clear()
+    _get_cached_filtered_count.clear()
+    if "nepali" in _changed_streams:
+        get_active_nepal_articles.clear()
+    if "indian" in _changed_streams:
+        get_active_indian_articles.clear()
+        _get_cached_indian_workspace_bootstrap.clear()
+    if "x" in _changed_streams:
+        st.session_state.pop("x_posts", None)
+        get_active_x_posts.clear()
+        _get_cached_x_workspace_bootstrap.clear()
+    get_cached_analytics_bundle.clear()
+
+_seen_sync_seq = int(st.session_state.get("_seen_sync_seq", 0))
+if not _sync_snap.get("running") and int(_sync_snap.get("completed_seq", 0)) > _seen_sync_seq:
+    st.session_state["_seen_sync_seq"] = int(_sync_snap["completed_seq"])
+    if _changed_streams and not _sync_snap.get("errors"):
+        st.toast("Live feeds synced!", icon="🔄")
+
+# Cold login 1-query bootstrap when Live Feed needs initial load; cached header otherwise
+_prefetched_live_init = None
+_prefetched_live_sig = None
+_hdr_cache_key = (cache_start_dt.isoformat(), cache_end_dt.isoformat() if cache_end_dt else "", _data_ver)
+_hdr_cached_entry = st.session_state.get("_hdr_state_cache")
+_live_sess_existing = st.session_state.get("feed_sessions", {}).get("live")
+if selected_nav == "Live Feed" and not _live_sess_existing:
+    _boot_cat = st.session_state.get("comb_cat_filter", CAT_FILTER_ALL_UNFILTERED)
+    _boot_sort = st.session_state.get("comb_sort_mode", "Newest First")
+    _boot = get_cached_login_bootstrap(
+        start_iso=cache_start_dt.isoformat(),
+        end_iso=cache_end_dt.isoformat() if cache_end_dt else "",
+        live_start_iso=filter_start_dt.isoformat(),
+        live_end_iso=filter_end_dt.isoformat(),
+        live_stream="All Sources",
+        live_cat=_boot_cat,
+        live_sort=_boot_sort,
+        search_query=_active_sq or "",
+        data_version=_data_ver,
+    )
+    _hdr_bundle = _boot.get("header") or {"counts": {"nepali_count": 0, "indian_count": 0, "x_count": 0}, "wa_sent_map": {}}
+    st.session_state["_hdr_state_cache"] = {"key": _hdr_cache_key, "ts": time.time(), "data": _hdr_bundle}
+    _prefetched_live_init = _boot.get("live_page")
+    _prefetched_live_sig = f"live|{active_preset}|tf{_tf_epoch}|v{_v_live}|All Sources|{_boot_cat}|{_boot_sort}|{_active_sq or ''}"
+elif (
+    isinstance(_hdr_cached_entry, dict)
+    and _hdr_cached_entry.get("key") == _hdr_cache_key
+    and (time.time() - float(_hdr_cached_entry.get("ts") or 0.0)) < 120.0
+):
+    _hdr_bundle = _hdr_cached_entry["data"]
+else:
+    _hdr_bundle = get_cached_header_bundle(start_dt=cache_start_dt, end_dt=cache_end_dt, data_version=_data_ver)
+    st.session_state["_hdr_state_cache"] = {"key": _hdr_cache_key, "ts": time.time(), "data": _hdr_bundle}
+
+stream_counts = _hdr_bundle.get("counts", {"nepali_count": 0, "indian_count": 0, "x_count": 0})
+_shared_wa_sent_map = _hdr_bundle.get("wa_sent_map")
 total_combined_count = (
     stream_counts.get("nepali_count", 0) +
     stream_counts.get("indian_count", 0) +
@@ -1972,10 +2350,6 @@ def _show_search_dialog() -> None:
         if cleared:
             st.session_state["committed_search_query"] = ""
             st.rerun()
-
-
-st.session_state.setdefault("committed_search_query", "")
-_active_sq = st.session_state.get("committed_search_query", "")
 
 # ==========================================
 # EDITORIAL UNDERLINE TOP NAVBAR (Concept C)
@@ -2068,35 +2442,68 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
         if st.button("", icon=":material/search:", key=f"btn_srch_{ws_suffix}", type=_srch_btn_type, width="stretch", help=_srch_help):
             _show_search_dialog()
     with col_sync:
-        if st.button("", icon=":material/sync:", key=f"btn_sync_{ws_suffix}", width="stretch", help=f"Synced {st.session_state['last_sync_npt']} NPT — click to sync live feeds"):
-            st.session_state["_pending_sync_run"] = True
-            st.rerun()
+        _sync_now = get_manual_sync_status()
+        _is_syncing_now = bool(_sync_now.get("running"))
+        if st.button(
+            "",
+            icon=":material/sync:",
+            key=f"btn_sync_{ws_suffix}",
+            width="stretch",
+            help=("Refreshing live feeds in background…" if _is_syncing_now else f"Synced {st.session_state['last_sync_npt']} NPT — click to sync live feeds"),
+        ):
+            started, _ = trigger_manual_sync_async()
+            if started:
+                st.toast("Refreshing Nepali Media, Indian Press & X in background…", icon="🔄")
+            else:
+                st.toast("Sync already in progress…", icon="⏳")
 
 
-if st.session_state.pop("_pending_sync_run", False):
-    with st.status("Syncing live feeds…", expanded=True) as sync_status:
-        sync_prog = st.progress(0.1, text="Scanning 34 Nepali news portals…")
-        fetch_top_nepal_media(max_workers=25, force_refresh=True)
-        sync_prog.progress(0.5, text="Scanning 18 Indian media sources…")
-        fetch_nepal_in_indian_media(max_workers=18, force_refresh=True)
-        sync_prog.progress(0.8, text="Updating verified X voices…")
-        try:
-            scan_popular_nepal_x_posts(force_refresh=True)
-        except Exception as x_exc:
-            sync_status.write(f"⚠️ X feed skipped: {type(x_exc).__name__}")
-        sync_prog.progress(1.0, text="Refreshing dashboard cache…")
-        get_cached_stream_counts.clear()
-        get_active_nepal_articles.clear()
-        get_active_indian_articles.clear()
-        get_active_x_posts.clear()
-        _get_cached_filtered_count.clear()
-        st.session_state.pop("feed_sessions", None)
-        st.session_state.pop("x_posts", None)
-        st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
-        sync_prog.empty()
-        sync_status.update(label="All feeds synced", state="complete", expanded=False)
-    st.toast("Live feeds synced!", icon="🔄")
-    st.rerun()
+def _format_sync_pipeline_pills(pipes: Dict[str, Dict[str, Any]]) -> str:
+    labels = {"nepali": "🇳🇵 Nepali", "indian": "🇮🇳 Indian", "x": "𝕏"}
+    parts = []
+    for k in ("nepali", "indian", "x"):
+        p = pipes.get(k) or {}
+        st_name = p.get("status", "idle")
+        if st_name == "running":
+            parts.append(f"{labels[k]}: syncing…")
+        elif st_name == "done":
+            parts.append(f"{labels[k]}: ✓ {int(p.get('count', 0))} ({p.get('elapsed_secs', 0)}s)")
+        elif st_name in ("error", "timeout"):
+            parts.append(f"{labels[k]}: ⚠️ {st_name}")
+    return " · ".join(parts)
+
+
+@st.fragment(run_every=3)
+def _render_active_sync_monitor() -> None:
+    snap = get_manual_sync_status()
+    pipes = snap.get("pipelines") or {}
+    snap_seqs = snap.get("stream_seqs") or {}
+    seen_seqs = st.session_state.get("_seen_stream_seqs", {"nepali": 0, "indian": 0, "x": 0})
+    has_new_stream = any(int(snap_seqs.get(k, 0)) > int(seen_seqs.get(k, 0)) for k in ("nepali", "indian", "x"))
+    if has_new_stream:
+        st.rerun()
+    if snap.get("running"):
+        elapsed = int(max(1, time.time() - float(snap.get("started_at") or time.time())))
+        summary = _format_sync_pipeline_pills(pipes) or "Syncing streams concurrently…"
+        st.info(f"🔄 Background sync ({elapsed}s) — {summary}")
+    elif int(snap.get("completed_seq", 0)) > int(st.session_state.get("_seen_sync_seq", 0)):
+        st.rerun()
+
+
+if get_manual_sync_status().get("running"):
+    _render_active_sync_monitor()
+elif _sync_snap.get("errors"):
+    _failed_streams = [k for k in ("nepali", "indian", "x") if k in (_sync_snap.get("errors") or {})]
+    if _failed_streams:
+        _sc1, _sc2 = st.columns([4.2, 1.3], gap="small")
+        with _sc1:
+            st.warning(f"⚠️ Sync finished with partial errors: {_format_sync_pipeline_pills(_sync_snap.get('pipelines') or {})}")
+        with _sc2:
+            if st.button("Retry Failed", icon=":material/refresh:", key="btn_retry_failed_sync", width="stretch"):
+                started, _ = trigger_manual_sync_async(targets=_failed_streams)
+                if started:
+                    st.toast(f"Retrying {', '.join(_failed_streams)}…", icon="🔄")
+                st.rerun()
 
 if _active_sq:
     _sq_c1, _sq_c2 = st.columns([5.0, 1.0], gap="small")
@@ -2143,16 +2550,12 @@ def render_live_feed_section() -> None:
         "live",
     )
 
-    _sig = f"live|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{sel_comb_stream}|{sel_comb_cat}|{comb_sort_mode}|{search_query or ''}"
+    _sig = f"live|{active_preset}|tf{_tf_epoch}|v{_v_live}|{sel_comb_stream}|{sel_comb_cat}|{comb_sort_mode}|{search_query or ''}"
 
     def _fetch_all_now():
-        with st.spinner("Fetching latest stories across all streams…"):
-            fetch_top_nepal_media(max_workers=12, force_refresh=True)
-            fetch_nepal_in_indian_media(max_workers=10, force_refresh=True)
-            try:
-                scan_popular_nepal_x_posts(force_refresh=True)
-            except Exception:
-                pass
+        with st.spinner("Fetching latest stories concurrently across all streams…"):
+            from nepal_news_scheduler import _run_concurrent_ingest_pipelines
+            _run_concurrent_ingest_pipelines(include_nepali=True, include_indian=True, include_x=True, nepali_workers=12, indian_workers=8)
 
     render_infinite_workspace_feed(
         workspace="live",
@@ -2167,6 +2570,8 @@ def render_live_feed_section() -> None:
         empty_title="No combined stories found",
         empty_body="Try widening the timeframe preset or clearing active filters.",
         on_fetch_now=_fetch_all_now,
+        wa_sent_map=_shared_wa_sent_map,
+        prefetched_init=(_prefetched_live_init if _sig == _prefetched_live_sig else None),
     )
 
 
@@ -2201,11 +2606,12 @@ def render_nepali_media_section() -> None:
         "nepali",
     )
 
-    _sig = f"nepali|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{sel_np_portal}|{sel_np_cat}|{sel_np_lang}|{search_query or ''}"
+    _sig = f"nepali|{active_preset}|tf{_tf_epoch}|v{_v_np}|{sel_np_portal}|{sel_np_cat}|{sel_np_lang}|{search_query or ''}"
 
     def _fetch_np_now():
         with st.spinner("Fetching latest Nepali news portals…"):
-            fetch_top_nepal_media(max_workers=15, force_refresh=True)
+            from nepal_fetcher import fetch_top_nepal_media
+            fetch_top_nepal_media(max_workers=15, force_refresh=True, return_all_stored=False)
 
     render_infinite_workspace_feed(
         workspace="nepali",
@@ -2220,6 +2626,7 @@ def render_nepali_media_section() -> None:
         empty_title="No articles found",
         empty_body="Try widening the timeframe or clearing active filters.",
         on_fetch_now=_fetch_np_now,
+        wa_sent_map=_shared_wa_sent_map,
     )
 
 
@@ -2250,11 +2657,25 @@ def render_indian_press_section() -> None:
         "indian",
     )
 
-    _sig = f"indian|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{selected_indian_outlet}|{sel_in_lang}|{search_query or ''}"
+    _sig = f"indian|{active_preset}|tf{_tf_epoch}|v{_v_in}|{selected_indian_outlet}|{sel_in_lang}|{search_query or ''}"
+
+    _ind_boot = _get_cached_indian_workspace_bootstrap(
+        start_iso=filter_start_dt.isoformat(),
+        end_iso=filter_end_dt.isoformat(),
+        snap_iso=filter_end_dt.isoformat(),
+        source=selected_indian_outlet,
+        language=sel_in_lang,
+        search_query=search_query or "",
+        threshold_val=india_rel_threshold,
+        data_version=_v_in,
+    )
+    _existing_ind = st.session_state.get("feed_sessions", {}).get("indian")
+    _ind_prefetched = _ind_boot if (not _existing_ind or _existing_ind.get("filter_sig") != _sig) else None
 
     def _fetch_in_now():
         with st.spinner("Fetching latest Indian press coverage…"):
-            fetch_nepal_in_indian_media(max_workers=12, force_refresh=True)
+            from nepal_fetcher import fetch_nepal_in_indian_media
+            fetch_nepal_in_indian_media(max_workers=12, force_refresh=True, return_all_stored=False)
 
     feed_stats = render_infinite_workspace_feed(
         workspace="indian",
@@ -2268,31 +2689,13 @@ def render_indian_press_section() -> None:
         empty_title="No Indian media coverage found",
         empty_body="Try selecting 'All 18 Indian Outlets' or adjusting the timeframe.",
         on_fetch_now=_fetch_in_now,
+        wa_sent_map=_shared_wa_sent_map,
+        prefetched_init=_ind_prefetched,
     )
 
-    # Flagged Borderline Articles for Editorial Review & Central DB Retention Audit
-    try:
-        ind_audit = get_indian_media_audit_stats()
-        borderline_candidates = get_stored_indian_articles(status_filter=None, min_score=BORDERLINE_NEPAL_RELEVANCE_FLOOR, limit=100)
-        borderline_items = []
-        for bc in borderline_candidates:
-            re_ev = evaluate_indian_article_nepal_relevance(
-                title=bc.get("title", ""),
-                summary=bc.get("summary", ""),
-                full_content=bc.get("full_content", ""),
-                link=bc.get("link", ""),
-                source=bc.get("source", ""),
-                threshold=india_rel_threshold,
-            )
-            if BORDERLINE_NEPAL_RELEVANCE_FLOOR <= re_ev["nepal_relevance_score"] < india_rel_threshold:
-                bc["nepal_relevance_score"] = re_ev["nepal_relevance_score"]
-                bc["relevance_status"] = "borderline_review"
-                bc["relevance_reason"] = re_ev["relevance_reason"]
-                bc["nepal_dimensions"] = re_ev["nepal_dimensions"]
-                borderline_items.append(bc)
-    except Exception:
-        ind_audit = {"total": 0, "substantive": 0, "borderline_review": 0, "excluded": 0}
-        borderline_items = []
+    # Flagged Borderline Articles for Editorial Review & Central DB Retention Audit (populated from same 1-query bundle)
+    ind_audit = _ind_boot.get("audit") or {"total": 0, "substantive": 0, "borderline_review": 0, "excluded": 0}
+    borderline_items = _ind_boot.get("borderline_items") or []
 
     with st.expander(f"⚠️ Flagged Borderline Articles for Editorial Review ({len(borderline_items)})", expanded=False):
         st.caption(
@@ -2340,8 +2743,24 @@ def render_x_section() -> None:
     selected_acc_type = st.session_state.get("x_acc_type_select", ALL_ACC_TYPES)
     sort_mode = st.session_state.get("x_sort_mode_select", "Newest")
 
-    # 1. Fetch DB KPIs and Monitored Accounts
-    x_kpis = get_x_account_kpis()
+    _x_sig = f"x|{active_preset}|tf{_tf_epoch}|v{_v_x}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
+    _existing_x = st.session_state.get("feed_sessions", {}).get("x")
+    _need_x_boot = (not _existing_x or _existing_x.get("filter_sig") != _x_sig)
+    _x_boot = None
+    if _need_x_boot:
+        _x_boot = _get_cached_x_workspace_bootstrap(
+            start_iso=filter_start_dt.isoformat(),
+            end_iso=filter_end_dt.isoformat(),
+            snap_iso=filter_end_dt.isoformat(),
+            category_filter=x_cat_filter,
+            author_type=selected_acc_type,
+            search_query=search_query or "",
+            sort_mode=sort_mode,
+            data_version=_v_x,
+        )
+        x_kpis = _x_boot.get("kpis") or get_x_account_kpis()
+    else:
+        x_kpis = get_x_account_kpis()
     total_acc_count = x_kpis.get("total_discovered", len(VERIFIED_NEPAL_X_DIRECTORY))
     verified_acc_count = x_kpis.get("total_verified", len(VERIFIED_NEPAL_X_DIRECTORY))
     active_acc_count = x_kpis.get("active_monitored", len(VERIFIED_NEPAL_X_DIRECTORY))
@@ -2389,11 +2808,23 @@ def render_x_section() -> None:
             "x",
         )
 
-        _sig = f"x|{active_preset}|{cache_start_dt.isoformat()}|{is_to_current}|{'' if is_to_current else filter_end_dt.isoformat()}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
+        _sig = f"x|{active_preset}|tf{_tf_epoch}|v{_v_x}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
+        if _sig != _x_sig:
+            _x_boot = _get_cached_x_workspace_bootstrap(
+                start_iso=filter_start_dt.isoformat(),
+                end_iso=filter_end_dt.isoformat(),
+                snap_iso=filter_end_dt.isoformat(),
+                category_filter=x_cat_filter,
+                author_type=selected_acc_type,
+                search_query=search_query or "",
+                sort_mode=sort_mode,
+                data_version=_v_x,
+            )
 
         def _fetch_x_now():
             with st.spinner("Scanning verified X accounts…"):
                 try:
+                    from nepal_x_scanner import scan_popular_nepal_x_posts
                     scan_popular_nepal_x_posts(force_refresh=True)
                 except Exception:
                     pass
@@ -2411,6 +2842,8 @@ def render_x_section() -> None:
             empty_title="No X posts found",
             empty_body="Try selecting 'All Account Types' or choosing 'All News'.",
             on_fetch_now=_fetch_x_now,
+            wa_sent_map=_shared_wa_sent_map,
+            prefetched_init=_x_boot,
         )
 
         with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
@@ -2531,6 +2964,7 @@ def render_x_section() -> None:
         with act_c1:
             st.caption(f"Showing **{len(all_dir_accounts)}** of {total_acc_count} researched accounts:")
         with act_c2:
+            import pandas as pd
             export_df = pd.DataFrame([
                 {
                     "handle": a.get("handle"),
@@ -2740,6 +3174,7 @@ def render_x_section() -> None:
                             "Accessible": "✅ Reachable" if ok else "❌ Unreachable",
                             "Details": msg
                         })
+                    import pandas as pd
                     st.dataframe(pd.DataFrame(audit_results), use_container_width=True)
                     st.success(f"Audit completed for {len(audit_results)} profiles!")
 
@@ -2763,9 +3198,15 @@ elif selected_nav == "Analytics & Export":
     with ex_c4:
         kw_filter = st.text_input("Search Keyword", placeholder="e.g. Lipulekh, Budget, @PM_nepal", key="univ_kw_filter")
 
-    articles_src = get_active_nepal_articles(cache_start_dt, cache_end_dt)
-    indian_src = get_active_indian_articles(cache_start_dt, cache_end_dt)
-    x_src = get_active_x_posts(cache_start_dt, cache_end_dt)
+    _ana_bundle = get_cached_analytics_bundle(
+        start_iso=cache_start_dt.isoformat() if cache_start_dt else "",
+        end_iso=cache_end_dt.isoformat() if cache_end_dt else "",
+        limit=500,
+        data_version=_data_ver,
+    )
+    articles_src = _ana_bundle.get("nepali", [])
+    indian_src = _ana_bundle.get("indian", [])
+    x_src = _ana_bundle.get("x", [])
 
     if search_query and search_query.strip():
         filtered_articles = [a for a in articles_src if smart_search_match(a, search_query)]
@@ -2854,6 +3295,7 @@ elif selected_nav == "Analytics & Export":
         }
         for it in filtered_export_items
     ]
+    import pandas as pd
     df_export = pd.DataFrame(rows_data)
 
     sum1, sum2, sum3, sum4 = st.columns(4)
@@ -2898,12 +3340,12 @@ elif selected_nav == "Analytics & Export":
             key=f"univ_editor_{st.session_state['editor_ver_univ']}_{len(df_for_editor)}"
         )
 
-        for _, row in edited_df_univ.iterrows():
-            link = row["Link"]
-            if row["Include?"]:
-                st.session_state["selected_links_univ"].add(link)
+        sel_links = st.session_state["selected_links_univ"]
+        for link, inc in zip(edited_df_univ["Link"], edited_df_univ["Include?"]):
+            if inc:
+                sel_links.add(link)
             else:
-                st.session_state["selected_links_univ"].discard(link)
+                sel_links.discard(link)
 
         selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
 
@@ -2941,6 +3383,7 @@ elif selected_nav == "Analytics & Export":
                     if st.button(f"Generate Executive Word Document ({len(selected_export_items):,} Stories)", icon=":material/description:", key="btn_prep_univ_docx", width="stretch", type="primary"):
                         with st.spinner(f"Compiling NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full body text…"):
                             from executive_docx_exporter import generate_executive_word_digest
+                            from nepal_fetcher import batch_fetch_full_content
                             enriched_docx_items = batch_fetch_full_content(raw_items_for_docx, max_workers=25)
                             st.session_state["docx_bytes_univ"] = generate_executive_word_digest(
                                 articles=enriched_docx_items,
@@ -2970,10 +3413,14 @@ elif selected_nav == "Analytics & Export":
 # ==========================================
 @st.fragment
 def render_system_health_section() -> None:
-    render_page_header("System Health & Diagnostics", "Portal telemetry, discovery latency, and background worker status", show_window=False)
+    _tr = get_db_transport_info()
+    _tr_label = "Supavisor Transaction Pool (port 6543)" if _tr.get("mode") == "supavisor_pool" else "Supabase Management API (fallback)"
+    render_page_header("System Health & Diagnostics", f"Portal telemetry, discovery latency, and DB transport: {_tr_label}", show_window=False)
 
     try:
-        kpis = get_system_kpis()
+        _sys_bundle = get_system_health_bundle()
+        kpis = _sys_bundle.get("kpis") or get_system_kpis()
+        health_data = _sys_bundle.get("health") or []
     except Exception:
         kpis = {
             "total_sources": len(TOP_NEPAL_NEWS_PORTALS),
@@ -2982,11 +3429,12 @@ def render_system_health_section() -> None:
             "degraded": 0,
             "failing": 0,
             "avg_latency_secs": 0.75,
-            "articles_1h": len(filtered_articles),
-            "articles_24h": len(filtered_articles),
-            "articles_7d": len(filtered_articles),
-            "total_stored_articles": len(filtered_articles)
+            "articles_1h": 0,
+            "articles_24h": 0,
+            "articles_7d": 0,
+            "total_stored_articles": 0,
         }
+        health_data = []
 
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric("Total Portals", f"{kpis['total_sources']}")
@@ -3003,6 +3451,7 @@ def render_system_health_section() -> None:
         st.markdown("##### ⚡ Live Ingestion Controls")
         if st.button("Trigger Ingestion (All 34 Portals)", icon=":material/refresh:", width="stretch", key="btn_trigger_all_ingest"):
             with st.spinner("Executing parallel discovery across all 34 Nepali news portals…"):
+                from nepal_news_scheduler import run_all_sources_discovery
                 sync_res = run_all_sources_discovery(parallel_workers=20, force_all=True)
                 st.success(f"✓ Checked {sync_res['total_checked']} portals · Ingested {sync_res['total_ingested']} fresh articles.")
                 time.sleep(1)
@@ -3020,6 +3469,7 @@ def render_system_health_section() -> None:
             if st.button("Start Historical Backfill", icon=":material/history:", width="stretch", key="btn_exec_backfill"):
                 targets = None if "All 34 Portals" in bf_targets else bf_targets
                 with st.spinner(f"Initiating deep backfill for {len(targets) if targets else 34} portals across the past {bf_days} days…"):
+                    from nepal_news_scheduler import run_historical_backfill
                     bf_res = run_historical_backfill(source_names=targets, days_back=bf_days, parallel_workers=10)
                     st.success(f"✓ Backfill Complete! Ingested {bf_res['total_ingested']} historical articles from {bf_res['sources_backfilled']} outlets.")
                     time.sleep(1)
@@ -3037,11 +3487,6 @@ def render_system_health_section() -> None:
         admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang", label_visibility="collapsed")
     with sh_c4:
         admin_tier_filter = st.selectbox("Check Interval", ["All Tiers", "High (8m)", "Standard (18m)", "Low (40m)"], key="sel_admin_tier", label_visibility="collapsed")
-
-    try:
-        health_data = get_all_source_health()
-    except Exception:
-        health_data = []
 
     filtered_health = health_data
     if admin_search_src and admin_search_src.strip():
