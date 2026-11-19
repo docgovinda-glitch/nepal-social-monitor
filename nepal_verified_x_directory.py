@@ -3012,6 +3012,23 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "last_verified_at": "2026-11-19T16:38:00+0545"
     },
     {
+        "name": "TechPana",
+        "handle": "TechPanaNP",
+        "profile_url": "https://x.com/TechPanaNP",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Leading Nepali Technology & Digital Economy Portal",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking technology, AI, telecom, cybersecurity, and digital policy in Nepal.",
+        "verification_status": "verified",
+        "source_url": "https://techpana.com/",
+        "followers": "45K",
+        "avatar_bg": "#0284c7",
+        "initials": "TP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-19T16:50:00+0545"
+    },
+    {
         "name": "Cricket Association of Nepal (CAN)",
         "handle": "CricketNep",
         "profile_url": "https://x.com/CricketNep",

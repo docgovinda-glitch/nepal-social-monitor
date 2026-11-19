@@ -775,6 +775,53 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertIn("विनाबिलबिजक ओसारपसार", extracted_np)
         self.assertNotIn("Unrelated sidebar", extracted_np)
 
+        # 6) TechPana (@TechPanaNP) & The Himalayan Times (@TheHimalayan) x_bridge configs + headline/hashtag parsing
+        tp_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "TechPana")
+        tht_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "The Himalayan Times")
+        self.assertEqual((tp_cfg["type"], tp_cfg["x_handle"]), ("x_bridge", "TechPanaNP"))
+        self.assertEqual((tht_cfg["type"], tht_cfg["x_handle"]), ("x_bridge", "TheHimalayan"))
+
+        tp_art = fetcher.build_x_bridged_article(
+            portal=tp_cfg,
+            tweet_id="2123358930244133185",
+            raw_text="उत्तर कोरियाले आफ्नै एआई च्याटबट सार्वजनिक गरेको छ । ‘एआई सर्भिस सिस्टम १.०’ नाम दिइएको यो च्याटबटले प्रश्नको उत्तर दिन्छ । https://t.co/abc",
+            published_dt_raw="2026-11-19T10:13:13.000Z",
+            now_npt=now_npt,
+            expanded_urls=["https://techpana.com/2026/160072/north-korea-ai-chatbot"],
+        )
+        self.assertIsNotNone(tp_art)
+        self.assertEqual(tp_art["link"], "https://techpana.com/2026/160072/north-korea-ai-chatbot")
+        self.assertTrue(tp_art["title"].endswith("सार्वजनिक गरेको छ।"))
+        self.assertIn("एआई सर्भिस सिस्टम", tp_art["summary"])
+
+        tht_art = fetcher.build_x_bridged_article(
+            portal=tht_cfg,
+            tweet_id="2123369951738429879",
+            raw_text="#Sports\nNSC lifts ANFA suspension and all administrative restrictions\nhttps://t.co/n5hGElHwQC",
+            published_dt_raw="2026-11-19T10:57:01.000Z",
+            now_npt=now_npt,
+            expanded_urls=["https://thehimalayantimes.com/sports/anfa-suspension-lifted"],
+            card_title="NSC lifts ANFA suspension and all administrative restrictions",
+            card_description="The National Sports Council has lifted the suspension and restrictions.",
+        )
+        self.assertIsNotNone(tht_art)
+        self.assertEqual(tht_art["title"], "NSC lifts ANFA suspension and all administrative restrictions")
+        self.assertNotIn("#Sports", tht_art["summary"])
+        self.assertEqual(tht_art["link"], "https://thehimalayantimes.com/sports/anfa-suspension-lifted")
+
+        # 7) NepalKhabar 6-part URL timestamp slug (UTC in RSS feed -> NPT, NPT in social URL -> NPT)
+        nk_now = datetime.datetime(2026, 11, 19, 16, 50, 0, tzinfo=cfg.NEPAL_TZ)
+        nk_rss_u = "https://nepalkhabar.com/sports/291968-2026-11-19-11-2-58"
+        nk_npt_u = "https://nepalkhabar.com/sports/291968-2026-11-19-16-47-58"
+        fetcher.ARTICLE_DATE_CACHE.pop(nk_rss_u, None)
+        fetcher.ARTICLE_DATE_CACHE.pop(nk_npt_u, None)
+        with mock.patch("urllib.request.urlopen") as m_open:
+            dt_from_utc_slug = fetcher.extract_date_from_card_or_url(None, nk_rss_u, nk_now)
+            dt_from_npt_slug = fetcher.extract_date_from_card_or_url(None, nk_npt_u, nk_now)
+            m_open.assert_not_called()
+        self.assertEqual((dt_from_utc_slug.hour, dt_from_utc_slug.minute, dt_from_utc_slug.second), (16, 47, 58))
+        self.assertEqual((dt_from_npt_slug.hour, dt_from_npt_slug.minute, dt_from_npt_slug.second), (16, 47, 58))
+
     def test_english_brief_whatsapp_format_and_reader_headline_translation_copy(self):
         import nepal_summarizer as summ
 

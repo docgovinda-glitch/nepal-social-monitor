@@ -979,7 +979,32 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
 
         curr = curr.parent
 
-    # 2. Check URL date patterns (/YYYY/MM/DD/ or -YYYY-MM-DD-) as date_only fallback
+    # 2a. Check full 6-part intraday URL timestamp slugs (e.g. nepalkhabar.com/.../291968-2026-11-19-11-2-58)
+    m_url_ts = re.search(
+        r"-(202[0-9])-(0?[1-9]|1[0-2])-(0?[1-9]|[12][0-9]|3[01])-(2[0-3]|[01]?\d)-([0-5]?\d)-([0-5]?\d)(?:$|[/?#])",
+        href,
+    )
+    if m_url_ts:
+        try:
+            u_year, u_month, u_day = int(m_url_ts.group(1)), int(m_url_ts.group(2)), int(m_url_ts.group(3))
+            u_hour, u_min, u_sec = int(m_url_ts.group(4)), int(m_url_ts.group(5)), int(m_url_ts.group(6))
+            naive_dt = datetime.datetime(u_year, u_month, u_day, u_hour, u_min, u_sec)
+            # NepalKhabar RSS embeds UTC timestamps in URL slugs while homepage/social links may use NPT
+            if "nepalkhabar.com" in href.lower():
+                cand_utc_as_npt = naive_dt.replace(tzinfo=datetime.timezone.utc).astimezone(NEPAL_TZ)
+                if cand_utc_as_npt <= now_npt + datetime.timedelta(minutes=5):
+                    exact_url_dt = cand_utc_as_npt
+                else:
+                    exact_url_dt = naive_dt.replace(tzinfo=NEPAL_TZ)
+            else:
+                exact_url_dt = naive_dt.replace(tzinfo=NEPAL_TZ)
+            if exact_url_dt <= now_npt + datetime.timedelta(minutes=5):
+                ARTICLE_DATE_CACHE[href] = exact_url_dt
+                return exact_url_dt
+        except Exception:
+            pass
+
+    # 2b. Check URL date patterns (/YYYY/MM/DD/ or -YYYY-MM-DD-) as date_only fallback
     m_url = re.search(r"/(202[0-9])[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12][0-9]|3[01])", href)
     if not m_url:
         m_url = re.search(r"-(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])", href)
@@ -1086,7 +1111,7 @@ def _clean_x_bridge_text(raw_text: str) -> str:
     txt = re.sub(r"(?<!\S)@[A-Za-z0-9_]+", " ", txt)
     # Strip trailing source branding often appended to tweets and card titles
     txt = re.sub(
-        r"\s*[\|\-–—]\s*(?:Annapurna\s*Post|अन्नपूर्ण\s*पोस्ट|Naya\s*Patrika(?:\s*News|\s*Daily)?(?:\.\.\.|…)?|नयाँ\s*पत्रिका(?:\s*दैनिक)?)\s*$",
+        r"\s*[\|\-–—]\s*(?:Annapurna\s*Post|अन्नपूर्ण\s*पोस्ट|Naya\s*Patrika(?:\s*News|\s*Daily)?(?:\.\.\.|…)?|नयाँ\s*पत्रिका(?:\s*दैनिक)?|TechPana|टेकपाना|The\s*Himalayan\s*Times|THT)\s*$",
         "",
         txt,
         flags=re.IGNORECASE,
@@ -1210,10 +1235,15 @@ def build_x_bridged_article(
         title = clean_card_title
     elif clean_tweet:
         first_line = clean_tweet.split("\n", 1)[0].strip()
-        # If first line is a long multi-sentence paragraph, split on first sentence boundary for headline
-        if len(first_line) > 140:
+        # If first line is a multi-sentence paragraph (e.g. TechPana tweets without card titles), split first sentence as headline
+        if len(first_line) > 85:
             m_sent = re.search(r"^(.{20,140}?[।.!?])(?:\s|$)", first_line)
-            title = m_sent.group(1).strip() if m_sent else first_line[:140].rsplit(" ", 1)[0].strip()
+            if m_sent:
+                title = m_sent.group(1).strip()
+            elif len(first_line) > 140:
+                title = first_line[:140].rsplit(" ", 1)[0].strip()
+            else:
+                title = first_line
         else:
             title = first_line
     else:

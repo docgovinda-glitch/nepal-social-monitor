@@ -296,7 +296,7 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
 
 
 # Background Monitoring Worker Thread
-_DAEMON_CODE_VERSION = "2026-11-19-v5"
+_DAEMON_CODE_VERSION = "2026-11-19-v6"
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
