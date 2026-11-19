@@ -387,13 +387,15 @@ class StoreAndPaginationUnitTests(unittest.TestCase):
              mock.patch("nepal_x_scanner._discover_bing_tweet_candidates", return_value=[(sid_new_1, "NepalVoice", "Dup", "https://x.com/NepalVoice/status/" + sid_new_1), (sid_new_2, "OtherUser", "Bing hit", "https://x.com/OtherUser/status/" + sid_new_2)]), \
              mock.patch("nepal_x_scanner._load_existing_x_refresh_map", return_value={}), \
              mock.patch("nepal_x_scanner._enrich_tweet_by_id", side_effect=lambda sid, **kw: {"id": sid, "text": f"Unique tweet {sid}", "published_dt": now_npt}) as m_enrich, \
-             mock.patch("nepal_news_store.save_x_posts", return_value=2) as m_save:
+             mock.patch("nepal_news_store.save_x_posts", return_value=2) as m_save, \
+             mock.patch("nepal_fetcher.bridge_x_portals_to_articles", return_value=0) as m_bridge:
             out_posts = xs.scan_popular_nepal_x_posts(force_refresh=True)
 
         self.assertEqual(len(out_posts), 2)
         self.assertEqual(m_enrich.call_count, 2)
         m_save.assert_called_once()
         self.assertEqual(m_save.call_args.kwargs.get("batch_size"), 250)
+        m_bridge.assert_called_once()
 
     def test_bs_calendar_intraday_timestamp_priority_and_scheduler_utc_normalization(self):
         import nepal_config as cfg
@@ -656,6 +658,153 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             at.run()
             self.assertEqual(len(at.exception), 0)
             self.assertIn("live|Today|", at.session_state["feed_sessions"]["live"]["filter_sig"])
+
+    def test_annapurna_post_x_bridge_card_and_reader_parity(self):
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_summarizer as summ
+
+        ap_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "Annapurna Post")
+        self.assertEqual(ap_cfg["type"], "x_bridge")
+        self.assertEqual(ap_cfg["x_handle"], "Annapurna_Post")
+
+        now_npt = datetime.datetime(2026, 11, 19, 16, 15, 0, tzinfo=cfg.NEPAL_TZ)
+
+        # 1) resolve_tco_url uses HEAD with allow_redirects=False and never probes annapurnapost.com
+        fake_head_resp = mock.MagicMock()
+        fake_head_resp.headers = {"Location": "https://annapurnapost.com/story/511589/"}
+        fetcher.TCO_REDIRECT_CACHE.pop("https://t.co/VtyP9aRDD8", None)
+        with mock.patch("nepal_fetcher.requests.head", return_value=fake_head_resp) as m_head:
+            resolved = fetcher.resolve_tco_url("https://t.co/VtyP9aRDD8")
+        self.assertEqual(resolved, "https://annapurnapost.com/story/511589/")
+        self.assertFalse(m_head.call_args.kwargs.get("allow_redirects"))
+
+        # 2) Bridged article resolves real annapurnapost.com URL, strips links/#/@, classifies & populates summary/full_content
+        art = fetcher.build_x_bridged_article(
+            portal=ap_cfg,
+            tweet_id="2123350203076133335",
+            raw_text="सेयर बजारमा सामान्य सुधार, कारोबार रकम ३ अर्बमा झर्यो #NEPSE @Annapurna_Post https://t.co/VtyP9aRDD8",
+            published_dt_raw="2026-11-19T09:38:33.000Z",
+            now_npt=now_npt,
+            expanded_urls=["https://annapurnapost.com/story/511589/"],
+            card_title="सेयर बजारमा सामान्य सुधार, कारोबार रकम ३ अर्बमा झर्यो",
+            card_description="काठमाडौं : बिहीबार सेयर बजार परिसूचक नेप्सेमा सामान्य सुधार देखिएको छ। ने",
+        )
+        self.assertIsNotNone(art)
+        self.assertEqual(art["source"], "Annapurna Post")
+        self.assertEqual(art["link"], "https://annapurnapost.com/story/511589/")
+        self.assertEqual(art["primary_section"], "Nepal – Economy")
+        self.assertIn("Economy & Finance", art["secondary_tags"])
+        self.assertNotIn("t.co", art["title"])
+        self.assertNotIn("#", art["title"])
+        self.assertNotIn("@", art["title"])
+        self.assertEqual(art["summary"], "काठमाडौं : बिहीबार सेयर बजार परिसूचक नेप्सेमा सामान्य सुधार देखिएको छ।")
+        self.assertEqual((art["published_dt"].hour, art["published_dt"].minute), (15, 23))
+
+        # 3) Direct scraping is skipped for annapurnapost.com and Read modal succeeds cleanly (ok=True)
+        with mock.patch("urllib.request.urlopen") as m_open:
+            self.assertEqual(fetcher.extract_article_full_text("https://annapurnapost.com/story/511589/"), "")
+            m_open.assert_not_called()
+
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None):
+            rd = summ.extract_on_demand_full_article(art, translate_to_english=False)
+        self.assertTrue(rd["ok"])
+        self.assertEqual(rd["source_url"], "https://annapurnapost.com/story/511589/")
+        self.assertIn("नेप्सेमा सामान्य सुधार", rd["original_text"])
+
+        # 4) Tweet without external article link falls back cleanly to X permalink and still opens in Read modal
+        art_no_link = fetcher.build_x_bridged_article(
+            portal=ap_cfg,
+            tweet_id="2123350000000000001",
+            raw_text="संसद बैठक भोलि दिउँसो १ बजेसम्मका लागि स्थगित #NepalParliament",
+            published_dt_raw="2026-11-19T10:00:00.000Z",
+            now_npt=now_npt,
+        )
+        self.assertIsNotNone(art_no_link)
+        self.assertEqual(art_no_link["link"], "https://x.com/Annapurna_Post/status/2123350000000000001")
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
+             mock.patch("nepal_fetcher.extract_article_full_text", return_value=""):
+            rd2 = summ.extract_on_demand_full_article(art_no_link, translate_to_english=False)
+        self.assertTrue(rd2["ok"])
+
+    def test_english_brief_whatsapp_format_and_reader_headline_translation_copy(self):
+        import nepal_summarizer as summ
+
+        # 1) Nepali article -> English Brief contains bold English headline + brief + direct link
+        ne_item = {
+            "source": "eKantipur",
+            "language": "Nepali",
+            "title": "विपद् पुनर्वासको असफल शृंखला : भोटेकोशीमा पनि दोहोरिएला कि सुधारिएला ?",
+            "summary": "विपद्पछि पुनर्वास योजना लगातार असफल हुँदा सर्वसाधारण जोखिमपूर्ण स्थानमा बस्न बाध्य छन्।",
+            "full_content": (
+                "विपद्पछि पुनर्वास योजना लगातार असफल हुँदा सर्वसाधारण जोखिमपूर्ण स्थानमा बस्न बाध्य छन्।\n\n"
+                "सरकारले २०५० सालको बाढी र २०७२ को भूकम्पपछि पनि प्रभावकारी व्यवस्थापन गर्न सकेन।"
+            ),
+            "link": "https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html",
+        }
+
+        def _fake_translate(txt, **kw):
+            if "भोटेकोशी" in txt and "शृंखला" in txt:
+                return "Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?"
+            if "२०५०" in txt:
+                return "The government failed to manage rehabilitation effectively after the 2050 flood and 2072 earthquake."
+            return "Post-disaster rehabilitation plans keep failing, forcing citizens to live in risky areas."
+
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
+             mock.patch("nepal_fetcher.extract_article_full_text", return_value=""), \
+             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_translate):
+            brief_ne = summ.generate_on_demand_news_brief(ne_item)
+
+        self.assertTrue(brief_ne["ok"])
+        self.assertEqual(brief_ne["headline_english"], "Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?")
+        self.assertIn("*Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?*\n\n", brief_ne["formatted_text"])
+        self.assertIn("\n\nRead Original Source: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html", brief_ne["formatted_text"])
+        self.assertEqual(len(brief_ne["formatted_text"].split("\n\n")), 3)
+
+        # 2) English article (Indian Press / English Nepali Media) -> same 3-part WhatsApp format
+        en_item = {
+            "source": "The Hindu",
+            "language": "English",
+            "title": "India and Nepal review cross-border power transmission lines",
+            "summary": "Officials from New Delhi and Kathmandu reviewed bilateral hydropower corridors and grid interconnectivity.",
+            "full_content": (
+                "Officials from New Delhi and Kathmandu reviewed bilateral hydropower corridors and grid interconnectivity "
+                "during the annual energy secretary meeting. Both sides agreed to accelerate the 400 kV transmission link."
+            ),
+            "link": "https://www.thehindu.com/news/international/india-nepal-power.ece",
+        }
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
+             mock.patch("nepal_fetcher.extract_article_full_text", return_value=""):
+            brief_en = summ.generate_on_demand_news_brief(en_item)
+
+        self.assertTrue(brief_en["ok"])
+        self.assertEqual(brief_en["headline_english"], "India and Nepal review cross-border power transmission lines")
+        parts_en = brief_en["formatted_text"].split("\n\n")
+        self.assertEqual(len(parts_en), 3)
+        self.assertEqual(parts_en[0], "*India and Nepal review cross-border power transmission lines*")
+        self.assertTrue(len(parts_en[1]) > 20)
+        self.assertEqual(parts_en[2], "Read Original Source: https://www.thehindu.com/news/international/india-nepal-power.ece")
+
+        # 3) In-App Reader translates headline AND full body, and single-click Copy formats Headline + Body + Link
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
+             mock.patch("nepal_fetcher.extract_article_full_text", return_value=""), \
+             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_translate):
+            rd_tr = summ.extract_on_demand_full_article(ne_item, translate_to_english=True)
+
+        self.assertTrue(rd_tr["ok"])
+        self.assertEqual(rd_tr["original_title"], ne_item["title"])
+        self.assertEqual(rd_tr["translated_title"], "Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?")
+        self.assertIn("Post-disaster rehabilitation plans keep failing", rd_tr["translated_text"])
+        self.assertIn("2050 flood and 2072 earthquake", rd_tr["translated_text"])
+
+        copy_payload = summ.format_reader_copy_payload(
+            headline=rd_tr["translated_title"],
+            full_body=rd_tr["translated_text"],
+            source_url=rd_tr["source_url"],
+        )
+        self.assertTrue(copy_payload.startswith("Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?\n\n"))
+        self.assertIn("2050 flood and 2072 earthquake", copy_payload)
+        self.assertTrue(copy_payload.endswith("\n\nRead Original Source: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html"))
 
 
 if __name__ == "__main__":

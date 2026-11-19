@@ -793,5 +793,11 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, An
             save_x_posts(all_posts, batch_size=250)
         except Exception:
             pass
+        # Bridge official X-sourced media accounts (e.g. @Annapurna_Post) into main articles table
+        try:
+            from nepal_fetcher import bridge_x_portals_to_articles
+            bridge_x_portals_to_articles(x_posts=all_posts)
+        except Exception:
+            pass
 
     return all_posts

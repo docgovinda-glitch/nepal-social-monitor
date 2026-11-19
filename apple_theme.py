@@ -535,6 +535,16 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
         color: var(--tint);
         margin-bottom: 6px;
     }
+    .unified-brief-box__headline {
+        font-size: 0.96rem;
+        font-weight: 700;
+        line-height: 1.38;
+        color: var(--label);
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        word-break: break-word;
+    }
     .unified-brief-box__body {
         font-size: 0.89rem;
         line-height: 1.56;

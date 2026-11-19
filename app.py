@@ -47,7 +47,7 @@ def _ensure_reloaded_daemon_on_code_update() -> None:
     import sys
     import importlib
 
-    target_ver = "2026-11-19-v2"
+    target_ver = "2026-11-19-v4"
     old_sched = sys.modules.get("nepal_news_scheduler")
     if old_sched is not None and getattr(old_sched, "_DAEMON_CODE_VERSION", None) != target_ver:
         try:
@@ -970,15 +970,24 @@ def _render_source_link_html(url: str, inline: bool = False) -> str:
     )
 
 
-def _commit_share_draft(draft: Dict[str, Any], new_text: str) -> None:
-    """Commits edited text to the versioned Share draft without altering original AI output or sending."""
+def _commit_share_draft(draft: Dict[str, Any], new_text: str, new_headline: Optional[str] = None) -> None:
+    """Commits edited headline/body text to the versioned Share draft without altering original AI output or sending."""
     clean = (new_text or "").strip()
-    if clean and clean != (draft.get("saved_content") or "").strip():
-        draft["saved_content"] = clean
+    old_body = (draft.get("saved_content") or "").strip()
+    old_hl = (draft.get("saved_headline") or "").strip()
+    clean_hl = (new_headline if new_headline is not None else old_hl).strip()
+    changed = (clean and clean != old_body) or (new_headline is not None and clean_hl != old_hl)
+    if changed:
+        if clean:
+            draft["saved_content"] = clean
+        if new_headline is not None:
+            draft["saved_headline"] = clean_hl
         draft["version"] = int(draft.get("version") or 1) + 1
         draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
         st.toast(f"Saved draft v{draft['version']}", icon="💾")
     draft["draft_content"] = draft.get("saved_content") or ""
+    if "saved_headline" in draft:
+        draft["draft_headline"] = draft.get("saved_headline") or ""
     draft["is_editing"] = False
     draft["unsaved_send_warn"] = False
     draft["close_guard"] = False
@@ -1006,15 +1015,15 @@ def _show_read_in_app_dialog() -> None:
 
     if st.session_state.pop("pending_read_translate", None) == cache_id:
         from nepal_summarizer import extract_on_demand_full_article
-        with st.status("Translating full article to English…", expanded=True) as tr_status:
+        with st.status("Translating headline & full article to English…", expanded=True) as tr_status:
             def _tr_prog(msg: str, pct: float) -> None:
                 tr_status.update(label=f"{msg} ({int(pct * 100)}%)")
             ft_tr = extract_on_demand_full_article(item, translate_to_english=True, on_progress=_tr_prog)
             st.session_state["ondemand_fulltext"][cache_id] = ft_tr
-            if ft_tr.get("translated_text"):
+            if ft_tr.get("translated_text") or ft_tr.get("translated_title"):
                 st.session_state["ondemand_fulltext_view"][cache_id] = "en"
                 tr_status.update(label="English translation ready", state="complete", expanded=False)
-                st.toast("Full article translated to English", icon="✅")
+                st.toast("Headline & full article translated to English", icon="✅")
             else:
                 tr_status.update(label="Translation unavailable", state="error", expanded=False)
 
@@ -1030,29 +1039,37 @@ def _show_read_in_app_dialog() -> None:
             st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
 
     if fulltext_data and fulltext_data.get("ok"):
+        from nepal_summarizer import format_reader_copy_payload
         ft_lang = fulltext_data.get("lang", "en")
         lang_names = {"ne": "Nepali", "hi": "Hindi", "en": "English"}
         lang_lbl = lang_names.get(ft_lang, "Original")
-        has_tr = bool(fulltext_data.get("translated_text"))
+        has_tr = bool(fulltext_data.get("translated_text") or fulltext_data.get("translated_title"))
         view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
-        shown_text = fulltext_data["translated_text"] if (view_mode == "en" and has_tr) else fulltext_data["original_text"]
-        ft_eyebrow = "English Translation" if (view_mode == "en" and has_tr) else lang_lbl
+        is_en_view = bool(view_mode == "en" and has_tr)
+        shown_text = (
+            fulltext_data["translated_text"]
+            if (is_en_view and fulltext_data.get("translated_text"))
+            else fulltext_data["original_text"]
+        )
+        ft_eyebrow = "English Translation" if is_en_view else lang_lbl
         is_complete = bool(fulltext_data.get("is_complete", True))
         ext_badge = (
             '<span class="extraction-badge extraction-badge--full">✓ Full Article</span>'
             if is_complete
             else '<span class="extraction-badge extraction-badge--partial">⚠ Partial Extraction</span>'
         )
-        raw_title = (item.get("title") or "").strip()
-        reader_title = html.escape(raw_title)
+        raw_title = (fulltext_data.get("original_title") or item.get("title") or "").strip()
+        tr_title = (fulltext_data.get("translated_title") or "").strip()
+        shown_title = tr_title if (is_en_view and tr_title) else raw_title
+        reader_title = html.escape(shown_title)
         reader_src = html.escape((item.get("source") or "").strip())
         reader_time = html.escape((item.get("exact_time") or item.get("relative_time") or "").strip())
         meta_parts = [p for p in (reader_src, reader_time) if p]
         reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
 
-        # Strip redundant leading headline if scraped body starts with the exact title
+        # Strip redundant leading headline if scraped/translated body starts with the exact title
         body_paras = [p.strip() for p in re.split(r"\n\s*\n", (shown_text or "").strip()) if p.strip()]
-        if body_paras and raw_title and body_paras[0] == raw_title and len(body_paras) > 1:
+        if body_paras and len(body_paras) > 1 and body_paras[0] in (raw_title, shown_title):
             body_paras = body_paras[1:]
         body_html = "".join(f'<p class="reader-para">{html.escape(p)}</p>' for p in body_paras)
 
@@ -1072,10 +1089,11 @@ def _show_read_in_app_dialog() -> None:
         if fulltext_data.get("error"):
             st.warning(fulltext_data["error"])
 
-        has_tr_btn = (ft_lang != "en" and not has_tr) or (has_tr and ft_lang != "en")
+        needs_tr = (ft_lang != "en") or _has_devanagari(raw_title) or _has_devanagari(fulltext_data.get("original_text", ""))
+        has_tr_btn = needs_tr or has_tr
         ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
         col_i = 0
-        if ft_lang != "en" and not has_tr:
+        if needs_tr and not has_tr:
             with ft_cols[col_i]:
                 st.button(
                     "Translate to English",
@@ -1086,7 +1104,7 @@ def _show_read_in_app_dialog() -> None:
                     args=(cache_id,),
                 )
             col_i += 1
-        elif has_tr and ft_lang != "en":
+        elif has_tr and needs_tr:
             with ft_cols[col_i]:
                 toggle_lbl = "Original" if view_mode == "en" else "English Translation"
                 st.button(
@@ -1099,7 +1117,12 @@ def _show_read_in_app_dialog() -> None:
                 )
             col_i += 1
         with ft_cols[col_i]:
-            ft_copy_payload = f"{shown_text}\n\nRead Original Source: {ft_src}" if ft_src else shown_text
+            copy_body = "\n\n".join(body_paras) if body_paras else (shown_text or "").strip()
+            ft_copy_payload = format_reader_copy_payload(
+                headline=shown_title,
+                full_body=copy_body,
+                source_url=ft_src,
+            )
             _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
         with ft_cols[col_i + 1]:
             if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}"):
@@ -1129,22 +1152,31 @@ def _on_share_cancel_edit(cache_id: str) -> None:
     d = st.session_state.get("share_drafts", {}).get(cache_id)
     if d:
         d["draft_content"] = d.get("saved_content") or ""
+        if "saved_headline" in d:
+            d["draft_headline"] = d.get("saved_headline") or ""
         d["is_editing"] = False
         d["unsaved_send_warn"] = False
 
 
-def _on_share_save(cache_id: str, ta_key: str = "") -> None:
+def _on_share_save(cache_id: str, ta_key: str = "", hl_key: str = "") -> None:
     d = st.session_state.get("share_drafts", {}).get(cache_id)
     if not d:
         return
     txt = str(st.session_state[ta_key]) if (ta_key and ta_key in st.session_state) else (d.get("draft_content") or "")
-    _commit_share_draft(d, txt)
+    hl_val: Optional[str] = None
+    if hl_key and hl_key in st.session_state:
+        hl_val = str(st.session_state[hl_key])
+    elif "draft_headline" in d:
+        hl_val = str(d.get("draft_headline") or "")
+    _commit_share_draft(d, txt, new_headline=hl_val)
 
 
 def _on_share_discard_unsaved(cache_id: str) -> None:
     d = st.session_state.get("share_drafts", {}).get(cache_id)
     if d:
         d["draft_content"] = d.get("saved_content") or ""
+        if "saved_headline" in d:
+            d["draft_headline"] = d.get("saved_headline") or ""
         d["unsaved_send_warn"] = False
 
 
@@ -1198,10 +1230,14 @@ def _show_share_dialog() -> None:
 
     src_url = generated.get("source_url", "")
     profile_line = (generated.get("profile_line") or "").strip()
+    gen_headline = "" if is_x else (generated.get("headline_english") or item.get("headline_english") or item.get("title") or "").strip()
     draft = st.session_state["share_drafts"].get(cache_id)
     if not draft:
         init_text = (generated.get("content") or "").strip()
         draft = {
+            "original_headline": gen_headline,
+            "saved_headline": gen_headline,
+            "draft_headline": gen_headline,
             "original_content": init_text,
             "saved_content": init_text,
             "draft_content": init_text,
@@ -1214,18 +1250,38 @@ def _show_share_dialog() -> None:
             "unsaved_send_warn": False,
         }
         st.session_state["share_drafts"][cache_id] = draft
+    elif not is_x and "saved_headline" not in draft:
+        draft["original_headline"] = gen_headline
+        draft["saved_headline"] = gen_headline
+        draft["draft_headline"] = gen_headline
 
     ta_key = f"dlg_ta_edit_{item_uid}"
-    if draft.get("is_editing") and ta_key in st.session_state:
-        draft["draft_content"] = str(st.session_state[ta_key] or "")
+    hl_key = f"dlg_hl_edit_{item_uid}"
+    if draft.get("is_editing"):
+        if ta_key in st.session_state:
+            draft["draft_content"] = str(st.session_state[ta_key] or "")
+        if not is_x and hl_key in st.session_state:
+            draft["draft_headline"] = str(st.session_state[hl_key] or "")
 
+    saved_headline = "" if is_x else (draft.get("saved_headline") or "").strip()
+    current_draft_headline = "" if is_x else (draft.get("draft_headline") or "").strip()
     saved_text = (draft.get("saved_content") or "").strip()
     current_draft_text = (draft.get("draft_content") or "").strip()
-    has_unsaved = current_draft_text != saved_text
-    active_text = current_draft_text if has_unsaved else saved_text
+    has_unsaved = (current_draft_text != saved_text) or (not is_x and current_draft_headline != saved_headline)
+    active_headline = current_draft_headline if (not is_x and current_draft_headline != saved_headline) else saved_headline
+    active_text = current_draft_text if current_draft_text != saved_text else saved_text
     eff_profile = (draft.get("profile_line") or profile_line or "").strip()
 
-    def _fmt_payload(body_txt: str) -> str:
+    from nepal_summarizer import format_english_brief_payload
+
+    def _fmt_payload(hl_txt: str, body_txt: str) -> str:
+        if not is_x:
+            return format_english_brief_payload(
+                headline=hl_txt,
+                brief=body_txt,
+                source_url=src_url,
+                whatsapp_bold=True,
+            )
         pts = [body_txt] if body_txt else []
         if eff_profile:
             pts.append(f"_{eff_profile}_")
@@ -1233,8 +1289,8 @@ def _show_share_dialog() -> None:
             pts.append(f"Read Original Source: {src_url}")
         return "\n\n".join(pts)
 
-    saved_formatted = _fmt_payload(saved_text)
-    current_formatted = _fmt_payload(active_text)
+    saved_formatted = _fmt_payload(saved_headline, saved_text)
+    current_formatted = _fmt_payload(active_headline, active_text)
 
     from whatsapp_greenapi import get_share_targets
     _wa_targets = get_share_targets(is_x_post=("X POST" in (content_type_lbl or "").upper()))
@@ -1325,16 +1381,24 @@ def _show_share_dialog() -> None:
         st.info(f"Already sent to **{_sent_grp}**{_sent_when}.")
 
     if draft.get("is_editing"):
+        if not is_x:
+            edited_hl = st.text_input(
+                "Headline (English)",
+                value=draft.get("draft_headline") or "",
+                key=hl_key,
+            )
+            draft["draft_headline"] = edited_hl or ""
+            current_draft_headline = draft["draft_headline"].strip()
         edited_val = st.text_area(
-            f"Edit {content_type_lbl}",
+            "Brief (English)" if not is_x else f"Edit {content_type_lbl}",
             value=draft["draft_content"],
             height=150,
             key=ta_key,
-            label_visibility="collapsed",
+            label_visibility="visible" if not is_x else "collapsed",
         )
         draft["draft_content"] = edited_val or ""
         current_draft_text = draft["draft_content"].strip()
-        has_unsaved = current_draft_text != saved_text
+        has_unsaved = (current_draft_text != saved_text) or (not is_x and current_draft_headline != saved_headline)
         if src_url:
             st.markdown(_render_source_link_html(src_url, inline=True), unsafe_allow_html=True)
         ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
@@ -1346,7 +1410,7 @@ def _show_share_dialog() -> None:
                 key=f"dlg_save_edit_{item_uid}",
                 help="Save draft without sending",
                 on_click=_on_share_save,
-                args=(cache_id, ta_key),
+                args=(cache_id, ta_key, "" if is_x else hl_key),
             )
         with ec2:
             st.button(
@@ -1359,10 +1423,16 @@ def _show_share_dialog() -> None:
             )
         return
 
+    headline_html = (
+        f'<div class="unified-brief-box__headline">{html.escape(active_headline)}</div>'
+        if (not is_x and active_headline)
+        else ""
+    )
     profile_html = f'<div class="unified-brief-box__profile">{html.escape(eff_profile)}</div>' if eff_profile else ""
     src_html = _render_source_link_html(src_url)
     st.markdown(
         f'<div class="unified-brief-box">'
+        f'{headline_html}'
         f'<div class="unified-brief-box__body">{html.escape(active_text)}</div>'
         f'{profile_html}'
         f'{src_html}'
@@ -1375,12 +1445,14 @@ def _show_share_dialog() -> None:
         g1, g2, g3 = st.columns(3, gap="small")
         with g1:
             if st.button("Save & Close", icon=":material/save:", type="primary", key=f"dlg_sc_{item_uid}"):
-                _commit_share_draft(draft, current_draft_text)
+                _commit_share_draft(draft, current_draft_text, new_headline=(None if is_x else current_draft_headline))
                 st.session_state["active_modal"] = None
                 st.rerun()
         with g2:
             if st.button("Discard", icon=":material/delete_outline:", key=f"dlg_dc_{item_uid}"):
                 draft["draft_content"] = draft["saved_content"]
+                if not is_x:
+                    draft["draft_headline"] = draft.get("saved_headline") or ""
                 draft["close_guard"] = False
                 st.session_state["active_modal"] = None
                 st.rerun()
@@ -3539,10 +3611,12 @@ def render_system_health_section() -> None:
     st.write("")
 
     ctrl_col1, ctrl_col2 = st.columns([1.8, 2.2])
+    _n_portals = len(TOP_NEPAL_NEWS_PORTALS)
+    _all_portals_lbl = f"All {_n_portals} Portals"
     with ctrl_col1:
         st.markdown("##### ⚡ Live Ingestion Controls")
-        if st.button("Trigger Ingestion (All 34 Portals)", icon=":material/refresh:", width="stretch", key="btn_trigger_all_ingest"):
-            with st.spinner("Executing parallel discovery across all 34 Nepali news portals…"):
+        if st.button(f"Trigger Ingestion ({_all_portals_lbl})", icon=":material/refresh:", width="stretch", key="btn_trigger_all_ingest"):
+            with st.spinner(f"Executing parallel discovery across all {_n_portals} Nepali news portals…"):
                 from nepal_news_scheduler import run_all_sources_discovery
                 sync_res = run_all_sources_discovery(parallel_workers=20, force_all=True)
                 _invalidate_ui_caches_after_nepali_ingest()
@@ -3556,12 +3630,12 @@ def render_system_health_section() -> None:
         with st.expander("Configure Historical Backfill", expanded=False):
             st.caption("Inspect past days' archives, category pagination, and XML sitemaps:")
             bf_days = st.select_slider("Backfill Time Horizon:", options=[1, 3, 5, 7, 14], value=3, format_func=lambda x: f"Past {x} Days")
-            portal_options = ["All 34 Portals"] + NEPALI_PORTAL_NAMES
-            bf_targets = st.multiselect("Select Target Portals:", portal_options, default=["All 34 Portals"])
+            portal_options = [_all_portals_lbl] + NEPALI_PORTAL_NAMES
+            bf_targets = st.multiselect("Select Target Portals:", portal_options, default=[_all_portals_lbl])
 
             if st.button("Start Historical Backfill", icon=":material/history:", width="stretch", key="btn_exec_backfill"):
-                targets = None if "All 34 Portals" in bf_targets else bf_targets
-                with st.spinner(f"Initiating deep backfill for {len(targets) if targets else 34} portals across the past {bf_days} days…"):
+                targets = None if _all_portals_lbl in bf_targets else bf_targets
+                with st.spinner(f"Initiating deep backfill for {len(targets) if targets else _n_portals} portals across the past {bf_days} days…"):
                     from nepal_news_scheduler import run_historical_backfill
                     bf_res = run_historical_backfill(source_names=targets, days_back=bf_days, parallel_workers=10)
                     _invalidate_ui_caches_after_nepali_ingest()

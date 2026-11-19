@@ -18,7 +18,11 @@ import threading
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional, Tuple
-from nepal_config import format_exc
+from nepal_config import format_exc, TOP_NEPAL_NEWS_PORTALS
+
+
+def _active_portal_names_sql() -> str:
+    return ", ".join(f"'{p['name'].replace(chr(39), chr(39)*2)}'" for p in TOP_NEPAL_NEWS_PORTALS)
 
 try:
     import tomllib
@@ -847,7 +851,8 @@ def record_source_error(source_name: str, error_msg: str, latency_secs: float = 
 
 def _fetch_all_source_health_raw() -> List[Dict[str, Any]]:
     """Returns comprehensive portal health, counts, and status via a single aggregated CTE (uncached)."""
-    sql = """
+    active_sql = _active_portal_names_sql()
+    sql = f"""
     WITH art_stats AS (
         SELECT
             a.source,
@@ -856,6 +861,7 @@ def _fetch_all_source_health_raw() -> List[Dict[str, Any]]:
             COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '7 day') AS count_7d,
             COUNT(*) AS count_total
         FROM articles a
+        WHERE a.source IN ({active_sql})
         GROUP BY a.source
     )
     SELECT
@@ -877,6 +883,7 @@ def _fetch_all_source_health_raw() -> List[Dict[str, Any]]:
     FROM sources s
     LEFT JOIN source_health h ON s.name = h.source_name
     LEFT JOIN art_stats a ON a.source = s.name
+    WHERE s.name IN ({active_sql})
     ORDER BY s.enabled DESC, s.name ASC;
     """
     return query_supabase(sql)
@@ -1013,7 +1020,7 @@ def _build_articles_where(
     search_query: Optional[str] = None,
     snapshot_ingested_at: Optional[datetime.datetime] = None,
 ) -> List[str]:
-    where_clauses = ["1=1"]
+    where_clauses = [f"source IN ({_active_portal_names_sql()})"]
     if start_dt:
         where_clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=False)}'")
     if end_dt:
@@ -1160,12 +1167,15 @@ def set_source_interval(source_name: str, interval_mins: int):
 
 def _fetch_system_kpis_raw() -> Dict[str, Any]:
     """Computes global intelligence KPIs in a single CTE scan directly from Supabase (uncached)."""
-    sql = """
+    active_sql = _active_portal_names_sql()
+    n_cfg = len(TOP_NEPAL_NEWS_PORTALS)
+    sql = f"""
     WITH src_kpis AS (
         SELECT
             COUNT(*) AS total_sources,
             COUNT(*) FILTER (WHERE enabled = 1) AS active_sources
         FROM sources
+        WHERE name IN ({active_sql})
     ),
     hlth_kpis AS (
         SELECT
@@ -1174,6 +1184,7 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
             COUNT(*) FILTER (WHERE status = 'failing') AS failing,
             COALESCE(AVG(discovery_latency_avg_secs), 0.75) AS avg_latency
         FROM source_health
+        WHERE source_name IN ({active_sql})
     ),
     art_kpis AS (
         SELECT
@@ -1182,6 +1193,7 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
             COUNT(*) FILTER (WHERE published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '7 day') AS articles_7d,
             COUNT(*) AS total_stored_articles
         FROM articles
+        WHERE source IN ({active_sql})
     )
     SELECT * FROM src_kpis, hlth_kpis, art_kpis;
     """
@@ -1189,8 +1201,8 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
     if rows:
         r = rows[0]
         return {
-            "total_sources": int(r.get("total_sources") or 34),
-            "active_sources": int(r.get("active_sources") or 34),
+            "total_sources": int(r.get("total_sources") or n_cfg),
+            "active_sources": int(r.get("active_sources") or n_cfg),
             "operational": int(r.get("operational") or 30),
             "degraded": int(r.get("degraded") or 0),
             "failing": int(r.get("failing") or 0),
@@ -1201,7 +1213,7 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
             "total_stored_articles": int(r.get("total_stored_articles") or 0),
         }
     return {
-        "total_sources": 34, "active_sources": 34, "operational": 34, "degraded": 0, "failing": 0,
+        "total_sources": n_cfg, "active_sources": n_cfg, "operational": n_cfg, "degraded": 0, "failing": 0,
         "avg_latency_secs": 0.75, "articles_1h": 0, "articles_24h": 0, "articles_7d": 0, "total_stored_articles": 0,
     }
 
@@ -1491,7 +1503,7 @@ def _build_stream_count_where(
     end_dt: Optional[datetime.datetime] = None,
 ) -> Tuple[str, str, str]:
     """Returns SQL WHERE clauses for (articles, indian_media_articles, x_posts) honoring NPT vs UTC storage."""
-    where_articles = ["1=1"]
+    where_articles = [f"source IN ({_active_portal_names_sql()})"]
     where_indian = ["relevance_status IN ('substantive', 'relevant')"]
     where_x = ["1=1"]
     if start_dt:
@@ -2862,7 +2874,9 @@ def get_indian_borderline_bundle(limit: int = 100, min_score: float = 0.40) -> D
 @_cache_data_if_available(ttl=120)
 def get_system_health_bundle() -> Dict[str, Any]:
     """Fetches global system KPIs AND per-source health table in ONE SQL CTE round-trip."""
-    sql = """
+    active_sql = _active_portal_names_sql()
+    n_cfg = len(TOP_NEPAL_NEWS_PORTALS)
+    sql = f"""
     WITH art_stats AS (
         SELECT
             a.source,
@@ -2871,6 +2885,7 @@ def get_system_health_bundle() -> Dict[str, Any]:
             COUNT(*) FILTER (WHERE a.published_dt >= (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '7 day') AS count_7d,
             COUNT(*) AS count_total
         FROM articles a
+        WHERE a.source IN ({active_sql})
         GROUP BY a.source
     ),
     src_kpis AS (
@@ -2878,6 +2893,7 @@ def get_system_health_bundle() -> Dict[str, Any]:
             COUNT(*) AS total_sources,
             COUNT(*) FILTER (WHERE enabled = 1) AS active_sources
         FROM sources
+        WHERE name IN ({active_sql})
     ),
     hlth_kpis AS (
         SELECT
@@ -2886,6 +2902,7 @@ def get_system_health_bundle() -> Dict[str, Any]:
             COUNT(*) FILTER (WHERE status = 'failing') AS failing,
             COALESCE(AVG(discovery_latency_avg_secs), 0.75) AS avg_latency
         FROM source_health
+        WHERE source_name IN ({active_sql})
     ),
     art_kpis AS (
         SELECT
@@ -2915,6 +2932,7 @@ def get_system_health_bundle() -> Dict[str, Any]:
         FROM sources s
         LEFT JOIN source_health h ON s.name = h.source_name
         LEFT JOIN art_stats a ON a.source = s.name
+        WHERE s.name IN ({active_sql})
         ORDER BY s.enabled DESC, s.name ASC
     )
     SELECT
@@ -2929,8 +2947,8 @@ def get_system_health_bundle() -> Dict[str, Any]:
         return {"kpis": _fetch_system_kpis_raw(), "health": []}
     r = rows[0]
     kpis = {
-        "total_sources": int(r.get("total_sources") or 34),
-        "active_sources": int(r.get("active_sources") or 34),
+        "total_sources": int(r.get("total_sources") or n_cfg),
+        "active_sources": int(r.get("active_sources") or n_cfg),
         "operational": int(r.get("operational") or 30),
         "degraded": int(r.get("degraded") or 0),
         "failing": int(r.get("failing") or 0),

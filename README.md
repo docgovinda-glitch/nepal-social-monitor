@@ -59,7 +59,7 @@ Every article published across Nepal's online news portals is automatically clas
 
 ## 📰 Top 34 Monitored Nepali Media Portals
 - **Nepali (22):** eKantipur, Setopati, Annapurna Post, Naya Patrika, NepalKhabar, Gorkhapatra, News of Nepal, Nepal Aaja, Nepal News, OnlineKhabar, Ratopati, Nagarik News, Nepal Press, Baahrakhari, Himal Press, Deshsanchar, Shilapatra, Nepal Live, Image Khabar, Khabarhub, TechPana, ArthaSarokar.
-- **English (12):** The Kathmandu Post, The Himalayan Times, MyRepublica, The Annapurna Express, Setopati (EN), Rising Nepal, NepalKhabar (EN), Nepal News (EN), OnlineKhabar (EN), Ratopati (EN), Khabarhub (EN), Nepali Times.
+- **English (11):** The Kathmandu Post, The Himalayan Times, MyRepublica, The Annapurna Express, Setopati (EN), Rising Nepal, NepalKhabar (EN), Nepal News (EN), OnlineKhabar (EN), Ratopati (EN), Khabarhub (EN).
 
 ---
 

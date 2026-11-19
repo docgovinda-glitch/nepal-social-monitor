@@ -62,6 +62,21 @@ from nepal_summarizer import (
 FULL_ARTICLE_TEXT_CACHE = {}
 # Published date in-memory cache
 ARTICLE_DATE_CACHE = {}
+# Resolved t.co shortlink cache
+TCO_REDIRECT_CACHE: Dict[str, str] = {}
+# Domains served via official X syndication bridge rather than direct HTML scraping
+_SKIP_DIRECT_SCRAPE_DOMAINS = frozenset({"annapurnapost.com", "www.annapurnapost.com"})
+
+
+def _is_direct_scrape_skipped(url: str) -> bool:
+    if not url:
+        return False
+    try:
+        host = urllib.parse.urlparse(url).netloc.lower().split(":")[0]
+        return host in _SKIP_DIRECT_SCRAPE_DOMAINS
+    except Exception:
+        return False
+
 
 def extract_article_full_text(url: str, timeout: int = 8) -> str:
     """
@@ -70,6 +85,8 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
     so teaser-only RSS or JS portals still yield complete multi-sentence text.
     """
     if not url or not url.startswith("http"):
+        return ""
+    if _is_direct_scrape_skipped(url):
         return ""
     if url in FULL_ARTICLE_TEXT_CACHE and len(FULL_ARTICLE_TEXT_CACHE[url]) > 600:
         return FULL_ARTICLE_TEXT_CACHE[url]
@@ -227,7 +244,7 @@ def batch_fetch_full_content(articles: list, max_workers: int = 25, summarize_en
         )
         if link in FULL_ARTICLE_TEXT_CACHE and len(FULL_ARTICLE_TEXT_CACHE[link]) > max(len(existing_fc), 400):
             art["full_content"] = FULL_ARTICLE_TEXT_CACHE[link]
-        elif link.startswith("http") and needs_body:
+        elif link.startswith("http") and needs_body and not _is_direct_scrape_skipped(link):
             to_fetch.append(art)
 
     if to_fetch:
@@ -981,7 +998,7 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
             pass
 
     # 3. Fetch article page metadata to resolve exact intraday HH:MM before falling back to date_only
-    if href.startswith("http"):
+    if href.startswith("http") and not _is_direct_scrape_skipped(href):
         try:
             req = urllib.request.Request(href, headers=DEFAULT_HEADERS)
             with urllib.request.urlopen(req, context=SSL_CTX, timeout=2.5) as resp:
@@ -1004,6 +1021,488 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
     return None
 
 # parse_to_nepal_time is imported from nepal_config above for single source of truth.
+
+
+def resolve_tco_url(url: str, timeout: float = 4.0) -> str:
+    """
+    Resolves a https://t.co/... shortlink to its real destination URL using a lightweight
+    HEAD (or GET fallback) request with allow_redirects=False so destination sites are never probed.
+    """
+    clean_u = (url or "").strip()
+    if not clean_u:
+        return ""
+    if clean_u in TCO_REDIRECT_CACHE:
+        return TCO_REDIRECT_CACHE[clean_u]
+    try:
+        parsed = urllib.parse.urlparse(clean_u)
+        if parsed.netloc.lower() not in ("t.co", "www.t.co"):
+            return clean_u
+    except Exception:
+        return clean_u
+
+    resolved = clean_u
+    headers = {"User-Agent": "curl/8.7.1", "Accept": "*/*"}
+    try:
+        resp = requests.head(clean_u, headers=headers, allow_redirects=False, timeout=timeout)
+        loc = (resp.headers.get("Location") or resp.headers.get("location") or "").strip()
+        if loc.startswith("http"):
+            resolved = loc
+        else:
+            resp_get = requests.get(clean_u, headers=headers, allow_redirects=False, timeout=timeout)
+            loc2 = (resp_get.headers.get("Location") or resp_get.headers.get("location") or "").strip()
+            if loc2.startswith("http"):
+                resolved = loc2
+            elif resp_get.text:
+                m_meta = re.search(
+                    r'http-equiv=["\']?refresh["\']?[^>]*content=["\'][^"\']*URL=([^"\'>\s]+)',
+                    resp_get.text,
+                    re.IGNORECASE,
+                )
+                m_js = re.search(r'location\.replace\(["\']([^"\']+)["\']\)', resp_get.text)
+                cand = (m_meta.group(1) if m_meta else (m_js.group(1) if m_js else "")).strip()
+                if cand.startswith("http"):
+                    resolved = html.unescape(cand)
+    except Exception:
+        pass
+
+    if resolved and resolved != clean_u:
+        TCO_REDIRECT_CACHE[clean_u] = resolved
+    return resolved
+
+
+def _clean_x_bridge_text(raw_text: str) -> str:
+    """Strips URLs, t.co shortlinks, #hashtags, @mentions, and trailing portal suffixes from X text."""
+    if not raw_text:
+        return ""
+    txt = html.unescape(str(raw_text)).replace("\xa0", " ").replace("\r\n", "\n").replace("\r", "\n")
+    # Strip embedded URLs even when glued immediately after Devanagari punctuation (e.g. छ।https://t.co/...)
+    txt = re.sub(r"https?://\S+", " ", txt)
+    txt = re.sub(r"\bt\.co/\S+", " ", txt, flags=re.IGNORECASE)
+    # Strip hashtags (ASCII and Devanagari/Unicode) and @mentions
+    txt = re.sub(r"(?<!\S)#[^\s#]+", " ", txt)
+    txt = re.sub(r"(?<!\S)@[A-Za-z0-9_]+", " ", txt)
+    # Strip trailing source branding often appended to card titles
+    txt = re.sub(r"\s*[\|\-–—]\s*(?:Annapurna\s*Post|अन्नपूर्ण\s*पोस्ट)\s*$", "", txt, flags=re.IGNORECASE)
+    # Normalize spaces per line and collapse blank lines
+    clean_lines = []
+    for line in txt.split("\n"):
+        norm = re.sub(r"[ \t]+", " ", line).strip()
+        norm = re.sub(r"\s+([।.,!?;:])", r"\1", norm)
+        if norm:
+            clean_lines.append(norm)
+    return "\n".join(clean_lines).strip()
+
+
+def _clean_x_card_description(raw_desc: str) -> str:
+    """Normalizes a Twitter syndication card description and cleanly trims mid-word cutoffs."""
+    cleaned = _clean_x_bridge_text(raw_desc)
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r"\s*:\s*", " : ", cleaned)
+    cleaned = re.sub(r"[ \t]+", " ", cleaned).strip()
+    if not cleaned:
+        return ""
+
+    # Twitter syndication card descriptions are often truncated around ~60-75 chars mid-word.
+    if cleaned[-1] not in ("।", ".", "!", "?", "…"):
+        last_sent = max(cleaned.rfind("।"), cleaned.rfind(". "))
+        if last_sent >= 25:
+            cleaned = cleaned[: last_sent + 1].strip()
+        elif len(cleaned) >= 45 and " " in cleaned:
+            trimmed = cleaned.rsplit(" ", 1)[0].rstrip(" ,;:-–—")
+            if len(trimmed) >= 25:
+                cleaned = f"{trimmed}…"
+    return cleaned
+
+
+def _extract_x_bridge_article_url(
+    raw_text: str,
+    expanded_urls: Optional[List[str]] = None,
+    x_handle: str = "Annapurna_Post",
+    tweet_id: str = "",
+    preferred_domain: str = "annapurnapost.com",
+) -> str:
+    """
+    Resolves the canonical publisher article URL from syndication expanded_urls or t.co links
+    without ever probing the destination domain. Falls back to the X permalink only when
+    no external article link exists.
+    """
+    candidates: List[str] = []
+    for u in (expanded_urls or []):
+        if isinstance(u, str) and u.strip().startswith("http"):
+            candidates.append(u.strip())
+    for m_u in re.findall(r"https?://[^\s<>\"']+", raw_text or ""):
+        clean_m = m_u.rstrip(").,;।")
+        if clean_m and clean_m not in candidates:
+            candidates.append(clean_m)
+
+    resolved_urls: List[str] = []
+    for cand in candidates:
+        host = urllib.parse.urlparse(cand).netloc.lower()
+        target = resolve_tco_url(cand) if host in ("t.co", "www.t.co") else cand
+        if not target or not target.startswith("http"):
+            continue
+        t_host = urllib.parse.urlparse(target).netloc.lower().split(":")[0]
+        if t_host in (
+            "t.co",
+            "www.t.co",
+            "pic.twitter.com",
+            "pbs.twimg.com",
+            "video.twimg.com",
+            "x.com",
+            "www.x.com",
+            "twitter.com",
+            "www.twitter.com",
+        ):
+            continue
+        if target not in resolved_urls:
+            resolved_urls.append(target)
+
+    if preferred_domain:
+        for ru in resolved_urls:
+            if preferred_domain.lower() in urllib.parse.urlparse(ru).netloc.lower():
+                return ru
+    if resolved_urls:
+        return resolved_urls[0]
+    if tweet_id:
+        clean_h = (x_handle or "Annapurna_Post").lstrip("@").strip()
+        return f"https://x.com/{clean_h}/status/{tweet_id}"
+    return ""
+
+
+def build_x_bridged_article(
+    portal: Dict[str, Any],
+    tweet_id: str,
+    raw_text: str,
+    published_dt_raw: Any,
+    now_npt: datetime.datetime,
+    expanded_urls: Optional[List[str]] = None,
+    card_title: str = "",
+    card_description: str = "",
+    x_handle: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Normalizes an official media X post into the exact standard Nepali Media article schema
+    with resolved publisher URL, editorial classification, topic tags, and Reader-safe body text.
+    """
+    handle = (x_handle or portal.get("x_handle") or "Annapurna_Post").lstrip("@").strip()
+    preferred_domain = portal.get("target_domain") or ("annapurnapost.com" if "annapurna" in portal.get("name", "").lower() else "")
+
+    clean_tweet = _clean_x_bridge_text(raw_text)
+    clean_card_title = _clean_x_bridge_text(card_title)
+    clean_card_desc = _clean_x_card_description(card_description)
+
+    if len(clean_card_title) >= 12:
+        title = clean_card_title
+    elif clean_tweet:
+        first_line = clean_tweet.split("\n", 1)[0].strip()
+        # If first line is a long multi-sentence paragraph, split on first sentence boundary for headline
+        if len(first_line) > 140:
+            m_sent = re.search(r"^(.{20,140}?[।.!?])(?:\s|$)", first_line)
+            title = m_sent.group(1).strip() if m_sent else first_line[:140].rsplit(" ", 1)[0].strip()
+        else:
+            title = first_line
+    else:
+        return None
+
+    title = title.strip()
+    if len(title) < 10:
+        return None
+
+    article_url = _extract_x_bridge_article_url(
+        raw_text=raw_text,
+        expanded_urls=expanded_urls,
+        x_handle=handle,
+        tweet_id=str(tweet_id),
+        preferred_domain=preferred_domain,
+    )
+    if not article_url:
+        return None
+
+    norm_link = normalize_canonical_url(article_url)
+    pub_dt, rel_time, exact_time = parse_to_nepal_time(published_dt_raw, now_npt)
+
+    # Build clean distinct summary and full_content so card preview and Read modal both work identically
+    body_paras: List[str] = []
+    norm_title_cmp = " ".join(title.lower().split())
+    norm_tweet_cmp = " ".join(clean_tweet.lower().split())
+    if clean_tweet and norm_tweet_cmp != norm_title_cmp:
+        # Remove exact leading title prefix when tweet repeats headline + extra commentary
+        remainder = clean_tweet
+        if remainder.startswith(title):
+            remainder = remainder[len(title):].lstrip(" \n:-–—|।.")
+        chosen_tweet_body = remainder if len(remainder) >= 20 else clean_tweet
+        if chosen_tweet_body and " ".join(chosen_tweet_body.lower().split()) != norm_title_cmp:
+            body_paras.append(chosen_tweet_body)
+
+    if clean_card_desc and " ".join(clean_card_desc.lower().split()) != norm_title_cmp:
+        # Avoid duplicating card description when tweet body already contains the same opening sentence
+        desc_probe = re.sub(r"^[^:]{2,25}:\s*", "", clean_card_desc)[:30].strip()
+        already_covered = any(desc_probe and desc_probe in p for p in body_paras)
+        if not already_covered:
+            body_paras.append(clean_card_desc)
+
+    if body_paras:
+        summary = body_paras[0]
+        full_content = "\n\n".join(body_paras)
+    else:
+        summary = title
+        if portal.get("lang", "Nepali") == "Nepali":
+            full_content = f"{title}\n\n{portal['name']} बाट प्रकाशित ताजा समाचार अपडेट।"
+        else:
+            full_content = f"{title}\n\nLatest news update published by {portal['name']}."
+
+    cls_res = classify_article_editorial(title, summary, portal["name"], full_content)
+    classified_cat = cls_res["primary_section"]
+    headline_en = title if portal.get("lang") == "English" else ""
+    canonical_id = generate_canonical_id(portal["name"], norm_link, title)
+
+    return {
+        "canonical_id": canonical_id,
+        "source": portal["name"],
+        "language": portal.get("lang", "Nepali"),
+        "portal_category": portal.get("category", "National Daily"),
+        "structured_category": classified_cat,
+        "primary_section": classified_cat,
+        "sections": cls_res["sections"],
+        "secondary_tags": cls_res["secondary_tags"],
+        "classification_confidence": cls_res["confidence"],
+        "low_confidence": cls_res["low_confidence"],
+        "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
+        "title": title,
+        "headline_english": headline_en,
+        "link": article_url,
+        "canonical_url": norm_link,
+        "summary": summary,
+        "full_content": full_content,
+        "published_dt": pub_dt,
+        "relative_time": rel_time,
+        "exact_time": exact_time,
+        "is_viral": False,
+    }
+
+
+def fetch_x_bridged_portal_articles(
+    portal: Dict[str, Any],
+    now_npt: datetime.datetime,
+    max_entries: int = 50,
+    seed_x_posts: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Discovers recent posts for a media portal's official X account (combining live profile
+    discovery, recent Supabase x_posts rows, and optional seed posts from X ingestion),
+    resolves real publisher article URLs via Twitter syndication metadata or t.co HEAD redirects,
+    and returns fully classified Nepali Media article records.
+    """
+    from nepal_x_scanner import (
+        ACCOUNT_BY_HANDLE,
+        _decode_snowflake_dt,
+        _discover_profile_tweet_candidates,
+        _enrich_tweet_by_id,
+        _get_x_http_session,
+    )
+    from nepal_news_store import esc_sql, query_supabase, save_x_posts
+
+    x_handle = (portal.get("x_handle") or "").lstrip("@").strip()
+    if not x_handle:
+        return []
+    handle_low = x_handle.lower()
+    acc = ACCOUNT_BY_HANDLE.get(handle_low) or {
+        "handle": x_handle,
+        "name": portal["name"],
+        "type": "Major Media & Broadcast Journalists",
+        "role": portal.get("category", "National Daily"),
+        "avatar_bg": "#b91c1c",
+        "initials": portal["name"][:2].upper(),
+    }
+
+    # 1. Gather candidate tweet metadata from seed posts, Supabase x_posts (past 14 days), and live profile
+    stored_by_sid: Dict[str, Dict[str, Any]] = {}
+    for sp in (seed_x_posts or []):
+        sp_h = (sp.get("raw_handle") or sp.get("handle") or "").lstrip("@").strip().lower()
+        sp_id = str(sp.get("id") or "").strip()
+        if sp_id and sp_h == handle_low:
+            stored_by_sid[sp_id] = sp
+
+    try:
+        db_rows = query_supabase(
+            "SELECT id, raw_handle, text, title, link, published_dt "
+            f"FROM x_posts WHERE LOWER(raw_handle) = {esc_sql(handle_low)} "
+            "AND published_dt >= NOW() - INTERVAL '14 days' "
+            f"ORDER BY published_dt DESC LIMIT {min(max(int(max_entries), 20), 60)};"
+        )
+        for r in (db_rows or []):
+            sid = str(r.get("id") or "").strip()
+            if sid and sid not in stored_by_sid:
+                stored_by_sid[sid] = r
+    except Exception:
+        pass
+
+    live_sids: List[str] = []
+    try:
+        profile_cands = _discover_profile_tweet_candidates([acc], timeout_secs=8.0) or {}
+        for sid, cand_acc in profile_cands.items():
+            cand_h = (cand_acc.get("handle") or "").lstrip("@").strip().lower() if isinstance(cand_acc, dict) else handle_low
+            if cand_h == handle_low:
+                live_sids.append(str(sid).strip())
+    except Exception:
+        pass
+
+    all_sids = sorted(
+        {s for s in list(stored_by_sid.keys()) + live_sids if s and s.isdigit()},
+        key=int,
+        reverse=True,
+    )[:max_entries]
+    if not all_sids:
+        return []
+
+    # 2. Fetch Twitter syndication payloads in parallel to get exact expanded_url + card title/description
+    def _fetch_syndication_payload(sid: str):
+        try:
+            sess = _get_x_http_session()
+            r = sess.get(
+                f"https://cdn.syndication.twimg.com/tweet-result?id={sid}&token=4",
+                verify=False,
+                timeout=(2.5, 4.5),
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict) and data.get("text"):
+                    return sid, data
+        except Exception:
+            pass
+        return sid, None
+
+    synd_map: Dict[str, Dict[str, Any]] = {}
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(all_sids)))
+    try:
+        futs = [pool.submit(_fetch_syndication_payload, sid) for sid in all_sids]
+        for fut in concurrent.futures.as_completed(futs, timeout=14.0):
+            try:
+                sid, payload = fut.result(timeout=1.0)
+                if payload:
+                    synd_map[sid] = payload
+            except Exception:
+                pass
+    except concurrent.futures.TimeoutError:
+        pass
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    # Opportunistically persist any brand-new live tweets into x_posts so X feed & Media feed stay aligned
+    new_live_sids = [sid for sid in live_sids if sid not in stored_by_sid and sid in synd_map]
+    if new_live_sids:
+        try:
+            x_rows_to_save = []
+            for sid in new_live_sids[:12]:
+                xp = _enrich_tweet_by_id(sid, known_handle=x_handle, known_account=acc)
+                if xp:
+                    x_rows_to_save.append(xp)
+            if x_rows_to_save:
+                save_x_posts(x_rows_to_save, batch_size=50)
+        except Exception:
+            pass
+
+    # 3. Normalize each tweet into the standard Nepali Media article schema
+    bridged_articles: List[Dict[str, Any]] = []
+    seen_urls = set()
+    for sid in all_sids:
+        payload = synd_map.get(sid)
+        stored = stored_by_sid.get(sid)
+
+        raw_text = ""
+        expanded_urls: List[str] = []
+        card_title = ""
+        card_desc = ""
+        pub_raw: Any = None
+
+        if payload:
+            # Verify tweet author matches expected media handle
+            p_user = (payload.get("user") or {}).get("screen_name", "")
+            if p_user and p_user.lower() != handle_low:
+                continue
+            raw_text = str(payload.get("text") or "").strip()
+            note = payload.get("note_tweet")
+            if isinstance(note, dict):
+                long_txt = (
+                    note.get("note_tweet_results", {}).get("result", {}).get("text")
+                    or note.get("text")
+                )
+                if long_txt and len(long_txt) > len(raw_text):
+                    raw_text = str(long_txt).strip()
+            entities = payload.get("entities") if isinstance(payload.get("entities"), dict) else {}
+            for u_obj in (entities.get("urls") or []):
+                if isinstance(u_obj, dict):
+                    eu = (u_obj.get("expanded_url") or u_obj.get("url") or "").strip()
+                    if eu:
+                        expanded_urls.append(eu)
+            card = payload.get("card") if isinstance(payload.get("card"), dict) else {}
+            bv = card.get("binding_values") if isinstance(card.get("binding_values"), dict) else {}
+            card_title = str((bv.get("title") or {}).get("string_value") or "").strip()
+            card_desc = str((bv.get("description") or {}).get("string_value") or "").strip()
+            card_url = str((bv.get("card_url") or {}).get("string_value") or "").strip()
+            if card_url and card_url not in expanded_urls:
+                expanded_urls.append(card_url)
+            pub_raw = payload.get("created_at") or _decode_snowflake_dt(sid)
+        elif stored:
+            raw_text = str(stored.get("text") or stored.get("title") or "").strip()
+            pub_raw = stored.get("published_dt") or _decode_snowflake_dt(sid)
+        else:
+            continue
+
+        # Skip pure replies to other users
+        if raw_text.startswith("@"):
+            continue
+
+        art = build_x_bridged_article(
+            portal=portal,
+            tweet_id=sid,
+            raw_text=raw_text,
+            published_dt_raw=pub_raw,
+            now_npt=now_npt,
+            expanded_urls=expanded_urls,
+            card_title=card_title,
+            card_description=card_desc,
+            x_handle=x_handle,
+        )
+        if not art:
+            continue
+        c_url = art["canonical_url"]
+        if c_url in seen_urls:
+            continue
+        seen_urls.add(c_url)
+        bridged_articles.append(art)
+
+    return bridged_articles
+
+
+def bridge_x_portals_to_articles(x_posts: Optional[List[Dict[str, Any]]] = None) -> int:
+    """
+    Triggers X-to-Nepali-Media bridging for all configured x_bridge portals (e.g. Annapurna Post)
+    right after X ingestion runs, upserting articles and updating source_health.
+    """
+    import time
+    now_npt = datetime.datetime.now(NEPAL_TZ)
+    total_bridged = 0
+    for portal in TOP_NEPAL_NEWS_PORTALS:
+        if portal.get("type") != "x_bridge":
+            continue
+        t0 = time.time()
+        try:
+            bridged = fetch_x_bridged_portal_articles(
+                portal,
+                now_npt,
+                max_entries=40,
+                seed_x_posts=x_posts,
+            )
+            if bridged:
+                latency = round(time.time() - t0, 3)
+                batch_upsert_articles(bridged, portal["name"], latency_secs=latency)
+                total_bridged += len(bridged)
+        except Exception:
+            pass
+    return total_bridged
+
 
 def fetch_single_portal(
     portal,
@@ -1303,21 +1802,33 @@ def fetch_single_portal(
         return _process_html_content(raw_bytes.decode("utf-8", errors="ignore"), endpoint_url, p_info, entry_limit=limit_items)
 
     last_exc: Optional[Exception] = None
+    is_x_bridge = portal.get("type") == "x_bridge"
     try:
-        # 1. Poll primary portal URL
-        try:
-            primary_bytes = _fetch_bytes(portal["url"], 6.0)
-            if portal["type"] == "rss":
-                items.extend(process_rss_content(primary_bytes, portal, entry_limit=max_entries))
-            else:
-                items.extend(_process_html_content(primary_bytes.decode("utf-8", errors="ignore"), portal["url"], portal, entry_limit=max_entries))
-        except Exception as e:
-            last_exc = e
+        # 1. Poll primary portal source (X-bridge syndication or direct RSS/HTML)
+        if is_x_bridge:
+            try:
+                bridged = fetch_x_bridged_portal_articles(portal, now_npt, max_entries=max_entries)
+                for ba in bridged:
+                    norm_u = ba.get("canonical_url") or normalize_canonical_url(ba.get("link", ""))
+                    if norm_u and norm_u not in seen_links:
+                        seen_links.add(norm_u)
+                        items.append(ba)
+            except Exception as e:
+                last_exc = e
+        else:
+            try:
+                primary_bytes = _fetch_bytes(portal["url"], 6.0)
+                if portal["type"] == "rss":
+                    items.extend(process_rss_content(primary_bytes, portal, entry_limit=max_entries))
+                else:
+                    items.extend(_process_html_content(primary_bytes.decode("utf-8", errors="ignore"), portal["url"], portal, entry_limit=max_entries))
+            except Exception as e:
+                last_exc = e
 
         # 2. Poll configured alt_urls (section pages, category feeds, and date-sorted RSS fallbacks)
-        # Do not gate alt_urls solely on `if not items` so section pages (e.g. eKantipur /news, /national, /business,
-        # Nepali Times /here-now, /opinion, /editorial, Kathmandu Post sections) always supplement discovery.
-        if portal.get("alt_urls"):
+        # For x_bridge portals, alt_urls serve strictly as a zero-item fallback when X syndication yields nothing;
+        # for HTML/RSS portals, always supplement discovery across section pages.
+        if portal.get("alt_urls") and (not is_x_bridge or not items):
             per_alt_limit = max_entries if not items else max(20, max_entries // 2)
             total_cap = max_entries + len(portal.get("alt_urls", [])) * 20
             for alt_url in portal.get("alt_urls", []):
@@ -1335,7 +1846,7 @@ def fetch_single_portal(
             raise last_exc
 
         # Store raw discovered items without automatic English brief or translation processing
-        if items:
+        if items and not is_x_bridge:
             try:
                 batch_fetch_full_content(items, max_workers=12, summarize_english=False)
             except Exception:
@@ -1671,7 +2182,7 @@ _NEPALI_EXCLUDED_DOMAINS = (
     "nepalkhabar.com", "khabarhub.com", "nepallive.com", "nepalnews.com",
     "nepalpress.com", "baahrakhari.com", "himalpress.com", "deshsanchar.com",
     "shilapatra.com", "gorkhapatraonline.com", "risingnepaldaily.com",
-    "nayapatrikadaily.com", "nepalitimes.com", "newsofnepal.com",
+    "nayapatrikadaily.com", "newsofnepal.com",
     "imagekhabar.com", "nepalaaja.com", "lokaantar.com", "hamrokura.com",
 )
 

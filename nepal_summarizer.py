@@ -915,6 +915,57 @@ def _emit_progress(on_progress: Optional[Callable[[str, float], None]], msg: str
             pass
 
 
+def format_english_brief_payload(
+    headline: str,
+    brief: str,
+    source_url: str = "",
+    whatsapp_bold: bool = True,
+) -> str:
+    """
+    Formats a 3-part English Brief (Headline, Brief, Link) with clean visual separation
+    for WhatsApp sharing and single-click copy.
+    """
+    hl = re.sub(r"\s+", " ", (headline or "").strip()).strip("*").strip()
+    body = (brief or "").strip()
+    url = (source_url or "").strip()
+
+    parts: List[str] = []
+    if hl:
+        parts.append(f"*{hl}*" if whatsapp_bold else hl)
+    if body and body.strip().lower() != hl.lower():
+        parts.append(body)
+    elif body and not hl:
+        parts.append(body)
+    if url:
+        parts.append(f"Read Original Source: {url}")
+    return "\n\n".join(parts)
+
+
+def format_reader_copy_payload(
+    headline: str,
+    full_body: str,
+    source_url: str = "",
+) -> str:
+    """
+    Formats the complete 3-part In-App Reader copy payload:
+    1. Headline
+    2. Full Body
+    3. Direct Article Link
+    """
+    hl = re.sub(r"\s+", " ", (headline or "").strip())
+    body = (full_body or "").strip()
+    url = (source_url or "").strip()
+
+    parts: List[str] = []
+    if hl:
+        parts.append(hl)
+    if body:
+        parts.append(body)
+    if url:
+        parts.append(f"Read Original Source: {url}")
+    return "\n\n".join(parts)
+
+
 def generate_on_demand_news_brief(
     item: Dict[str, Any],
     on_progress: Optional[Callable[[str, float], None]] = None,
@@ -922,7 +973,7 @@ def generate_on_demand_news_brief(
     """
     On-demand user-initiated English Brief generator for Nepali, Hindi, and English news articles.
     Hydrates full content from DB/URL if needed, translates if non-English, summarizes concisely,
-    and returns unified output + full clickable source URL without altering original item fields.
+    and returns unified 3-part output (English Headline, Brief, Direct URL) without altering original item fields.
     """
     work = dict(item)
     source_url = (work.get("link") or "").strip()
@@ -963,10 +1014,17 @@ def generate_on_demand_news_brief(
     existing_en_title = (work.get("headline_english") or "").strip()
     if existing_en_title and not _has_devanagari(existing_en_title):
         headline_en = normalize_english_proper_nouns(existing_en_title)
-    elif lang_code != "en":
-        headline_en = _translate_ne_to_en(raw_title, source_lang=lang_code, force_translate=True)
+    elif lang_code != "en" or _has_devanagari(raw_title):
+        title_src_lang = detect_text_language(raw_title, declared_lang=work.get("language", ""))
+        headline_en = _translate_ne_to_en(
+            raw_title,
+            source_lang=title_src_lang if title_src_lang != "en" else lang_code,
+            force_translate=True,
+        )
     else:
         headline_en = normalize_english_proper_nouns(raw_title)
+
+    headline_en = re.sub(r"\s+", " ", (headline_en or "").strip())
 
     if _has_devanagari(source_text) or lang_code in ("ne", "hi", "auto"):
         if _has_devanagari(source_text):
@@ -979,10 +1037,11 @@ def generate_on_demand_news_brief(
     else:
         english_body = normalize_english_proper_nouns(source_text)
 
-    if _has_devanagari(english_body):
+    if _has_devanagari(english_body) or (_has_devanagari(raw_title) and _has_devanagari(headline_en)):
         return {
             "ok": False,
             "error": "Translation service temporarily unavailable. Please try again.",
+            "headline_english": "",
             "content": "",
             "source_url": source_url,
             "formatted_text": "",
@@ -1000,11 +1059,17 @@ def generate_on_demand_news_brief(
         brief = headline_en or raw_title
 
     _emit_progress(on_progress, "Ready", 1.0)
-    formatted = f"{brief}\n\nRead Original Source: {source_url}" if source_url else brief
+    final_headline = headline_en or normalize_english_proper_nouns(raw_title)
+    formatted = format_english_brief_payload(
+        headline=final_headline,
+        brief=brief,
+        source_url=source_url,
+        whatsapp_bold=True,
+    )
     return {
         "ok": True,
         "error": "",
-        "headline_english": headline_en,
+        "headline_english": final_headline,
         "content": brief,
         "source_url": source_url,
         "formatted_text": formatted,
@@ -1196,8 +1261,26 @@ def extract_on_demand_full_article(
         is_complete = False
 
     translated_text = ""
+    translated_title = ""
     tr_error = ""
     if translate_to_english:
+        existing_en_title = (work.get("headline_english") or "").strip()
+        if existing_en_title and not _has_devanagari(existing_en_title):
+            translated_title = normalize_english_proper_nouns(existing_en_title)
+        elif raw_title and (lang_code != "en" or _has_devanagari(raw_title)):
+            _emit_progress(on_progress, "Translating headline to English…", 0.18)
+            title_lang = detect_text_language(raw_title, declared_lang=work.get("language", ""))
+            tr_hl = _translate_ne_to_en(
+                raw_title,
+                timeout=10,
+                source_lang=title_lang if title_lang != "en" else lang_code,
+                force_translate=True,
+            )
+            if tr_hl and not (_has_devanagari(raw_title) and _has_devanagari(tr_hl)):
+                translated_title = re.sub(r"\s+", " ", tr_hl).strip()
+        elif raw_title:
+            translated_title = normalize_english_proper_nouns(raw_title)
+
         if lang_code == "en" and not _has_devanagari(original_text):
             translated_text = original_text
         else:
@@ -1205,7 +1288,7 @@ def extract_on_demand_full_article(
             total_p = max(1, len(src_paras))
             tr_paras: List[str] = []
             for idx, p in enumerate(src_paras, start=1):
-                _emit_progress(on_progress, f"Translating paragraph {idx} of {total_p}…", 0.2 + 0.75 * (idx / total_p))
+                _emit_progress(on_progress, f"Translating paragraph {idx} of {total_p}…", 0.22 + 0.73 * (idx / total_p))
                 tr_p = _translate_ne_to_en(p, timeout=10, source_lang=lang_code, force_translate=True)
                 tr_paras.append(tr_p)
             translated_text = "\n\n".join(tr_paras).strip()
@@ -1218,6 +1301,8 @@ def extract_on_demand_full_article(
         "ok": bool(original_text) and extraction_status != "failed",
         "is_complete": is_complete,
         "extraction_status": extraction_status,
+        "original_title": raw_title,
+        "translated_title": translated_title,
         "original_text": original_text,
         "translated_text": translated_text,
         "lang": lang_code,

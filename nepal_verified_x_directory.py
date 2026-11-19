@@ -2978,23 +2978,6 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
-        "name": "Nepali Times",
-        "handle": "nepalitimes",
-        "profile_url": "https://x.com/nepalitimes",
-        "category": "Journalists and Media Professionals",
-        "subcategory": "Newsrooms & Media Curators",
-        "role": "Weekly Independent English Journal",
-        "relevance": "Monitored Nepal Media & News Curators voice tracking current affairs, policy updates, and public discourse.",
-        "verification_status": "verified",
-        "source_url": "https://x.com/nepalitimes",
-        "followers": "350K",
-        "avatar_bg": "#991b1b",
-        "initials": "NT",
-        "enabled": 1,
-        "connection_status": "connected",
-        "last_verified_at": "2026-11-17T12:10:00+0545"
-    },
-    {
         "name": "Annapurna Post",
         "handle": "Annapurna_Post",
         "profile_url": "https://x.com/Annapurna_Post",

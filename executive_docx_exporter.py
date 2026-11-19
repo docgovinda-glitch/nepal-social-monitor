@@ -71,7 +71,6 @@ SOURCE_NAME_MAP = {
     "The Rising Nepal": "The Rising Nepal",
     "The Annapurna Express": "The Annapurna Express",
     "Annapurna Post": "Annapurna Post",
-    "Nepali Times": "Nepali Times",
     "New Business Age": "New Business Age",
     "eKantipur": "eKantipur",
     "Gorkhapatra Online": "Gorkhapatra",

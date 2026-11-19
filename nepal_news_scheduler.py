@@ -296,7 +296,7 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
 
 
 # Background Monitoring Worker Thread
-_DAEMON_CODE_VERSION = "2026-11-19-v2"
+_DAEMON_CODE_VERSION = "2026-11-19-v4"
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
@@ -434,7 +434,9 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
 
     def _on_stream_done(name: str, status: str, count: int, elapsed: float, err: str) -> None:
         if status == "done":
-            _invalidate_store_caches_after_sync(targets=(name,))
+            # X ingestion also bridges @Annapurna_Post into articles, so clear Nepali health caches too
+            inv_targets = ("nepali", "x") if name == "x" else (name,)
+            _invalidate_store_caches_after_sync(targets=inv_targets)
         with _MANUAL_SYNC_LOCK:
             _MANUAL_SYNC_STATE["pipelines"][name] = {
                 "status": status,
@@ -446,6 +448,8 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
                 _MANUAL_SYNC_STATE["results"][name] = int(count)
                 _MANUAL_SYNC_STATE["errors"].pop(name, None)
                 _MANUAL_SYNC_STATE["stream_seqs"][name] = int(_MANUAL_SYNC_STATE["stream_seqs"].get(name, 0)) + 1
+                if name == "x" and int(count) > 0:
+                    _MANUAL_SYNC_STATE["stream_seqs"]["nepali"] = int(_MANUAL_SYNC_STATE["stream_seqs"].get("nepali", 0)) + 1
             else:
                 _MANUAL_SYNC_STATE["errors"][name] = err
 
@@ -578,9 +582,12 @@ def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
                                     or (isinstance(res_val, list) and len(res_val) > 0)
                                 )
                                 if s_key and has_updates:
-                                    _invalidate_store_caches_after_sync(targets=(s_key,))
+                                    inv_targets = ("nepali", "x") if s_key == "x" else (s_key,)
+                                    _invalidate_store_caches_after_sync(targets=inv_targets)
                                     with _MANUAL_SYNC_LOCK:
                                         _MANUAL_SYNC_STATE["stream_seqs"][s_key] = int(_MANUAL_SYNC_STATE["stream_seqs"].get(s_key, 0)) + 1
+                                        if s_key == "x":
+                                            _MANUAL_SYNC_STATE["stream_seqs"]["nepali"] = int(_MANUAL_SYNC_STATE["stream_seqs"].get("nepali", 0)) + 1
                             except concurrent.futures.TimeoutError:
                                 logger.warning(f"Monitoring loop {label} cycle timed out after 90s; continuing.")
                             except Exception as e:
