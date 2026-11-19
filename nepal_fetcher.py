@@ -919,6 +919,7 @@ def fetch_single_portal(
             headline_en = title if p_info.get("lang") == "English" else ""
             canonical_id = generate_canonical_id(p_info["name"], norm_link, title)
 
+            clean_link = norm_link if ("bing.com" in raw_link.lower() and norm_link.startswith("http")) else raw_link
             seen_links.add(norm_link)
             parsed_items.append({
                 "canonical_id": canonical_id,
@@ -934,7 +935,7 @@ def fetch_single_portal(
                 "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
                 "title": title,
                 "headline_english": headline_en,
-                "link": raw_link,
+                "link": clean_link,
                 "canonical_url": norm_link,
                 "summary": clean_summary,
                 "full_content": full_content,
