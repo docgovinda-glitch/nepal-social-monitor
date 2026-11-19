@@ -395,6 +395,103 @@ class StoreAndPaginationUnitTests(unittest.TestCase):
         m_save.assert_called_once()
         self.assertEqual(m_save.call_args.kwargs.get("batch_size"), 250)
 
+    def test_bs_calendar_intraday_timestamp_priority_and_scheduler_utc_normalization(self):
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_news_store as store
+        import nepal_news_scheduler as sched
+        from bs4 import BeautifulSoup
+
+        now_npt = datetime.datetime(2026, 11, 19, 15, 0, 0, tzinfo=cfg.NEPAL_TZ)
+
+        # 1) Accurate BS-to-AD calendar conversion for Mangsir & Kartik 2083
+        self.assertEqual(fetcher._bs_to_ad_date(2083, 8, 3), datetime.date(2026, 11, 19))
+        self.assertEqual(fetcher._bs_to_ad_date(2083, 8, 1), datetime.date(2026, 11, 17))
+        self.assertEqual(fetcher._bs_to_ad_date(2083, 7, 25), datetime.date(2026, 11, 11))
+
+        dt_bs_today, is_do_today = fetcher.parse_snippet_to_datetime_with_meta("३ मंसिर २०८३", now_npt)
+        self.assertTrue(is_do_today)
+        self.assertEqual(dt_bs_today.date(), datetime.date(2026, 11, 19))
+        # Today's date_only item preserves discovery time instead of 00:00:00 or 12:00:00
+        self.assertEqual((dt_bs_today.hour, dt_bs_today.minute), (15, 0))
+
+        dt_bs_past, is_do_past = fetcher.parse_snippet_to_datetime_with_meta("२५ कार्तिक २०८३", now_npt)
+        self.assertTrue(is_do_past)
+        self.assertEqual(dt_bs_past.date(), datetime.date(2026, 11, 11))
+
+        # 2) eKantipur date-only <span>2026-11-19</span> & URL /2026/11/19/ do not short-circuit JSON-LD datePublished
+        ek_card_html = (
+            '<div class="template-taja"><div class="news-section">'
+            '<a href="https://ekantipur.com/business/2026/11/19/power-trade-test.html">'
+            'भारतको ऊर्जा एक्सचेन्जमा ५९४ मेगावाट विद्युत् बेच्न नेपाललाई अनुमति <span>2026-11-19</span>'
+            '</a></div></div>'
+        )
+        ek_article_html = (
+            '<html><head><script type="application/ld+json">'
+            '{"@type":"NewsArticle","datePublished":"2026-11-19 14:41:11"}'
+            '</script></head><body><p>Body</p></body></html>'
+        ).encode("utf-8")
+
+        # 3) Kathmandu Post article HTML prefers Updated at : HH:MM over Published at : date-only and ignores blocktop-date
+        kp_article_html = (
+            '<html><body>'
+            '<div class="blocktop blocktop-date">Thursday, November 19, 2026</div>'
+            '<div class="updated-time">Published at : November 19, 2026</div>'
+            '<div class="updated-time">Updated at : November 19, 2026 12:13</div>'
+            '</body></html>'
+        ).encode("utf-8")
+
+        class _FakeR:
+            def __init__(self, b: bytes):
+                self._b = b
+            def read(self, n=-1):
+                return self._b
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def _fake_uopen(req, context=None, timeout=None):
+            u = req.full_url if hasattr(req, "full_url") else str(req)
+            if "ekantipur.com" in u:
+                return _FakeR(ek_article_html)
+            return _FakeR(kp_article_html)
+
+        soup_ek = BeautifulSoup(ek_card_html, "html.parser")
+        a_ek = soup_ek.find("a")
+        fetcher.ARTICLE_DATE_CACHE.pop("https://ekantipur.com/business/2026/11/19/power-trade-test.html", None)
+        fetcher.ARTICLE_DATE_CACHE.pop("https://kathmandupost.com/sports/2026/11/19/anfa-test", None)
+
+        with mock.patch("urllib.request.urlopen", side_effect=_fake_uopen):
+            dt_ek = fetcher.extract_date_from_card_or_url(
+                a_ek, "https://ekantipur.com/business/2026/11/19/power-trade-test.html", now_npt
+            )
+            dt_kp = fetcher.extract_date_from_card_or_url(
+                None, "https://kathmandupost.com/sports/2026/11/19/anfa-test", now_npt
+            )
+
+        self.assertEqual((dt_ek.year, dt_ek.month, dt_ek.day, dt_ek.hour, dt_ek.minute, dt_ek.second), (2026, 11, 19, 14, 41, 11))
+        self.assertEqual((dt_kp.year, dt_kp.month, dt_kp.day, dt_kp.hour, dt_kp.minute), (2026, 11, 19, 12, 13))
+
+        # 4) parse_to_nepal_time keeps slightly future timestamps (clock skew <= 1d) and only clamps >1d future
+        skew_dt = now_npt + datetime.timedelta(minutes=5)
+        parsed_skew, rel_skew, _ = cfg.parse_to_nepal_time(skew_dt, now_npt)
+        self.assertEqual(parsed_skew, skew_dt)
+        self.assertEqual(rel_skew, "Just now")
+
+        far_future = now_npt + datetime.timedelta(days=3)
+        parsed_far, _, _ = cfg.parse_to_nepal_time(far_future, now_npt)
+        self.assertEqual(parsed_far, now_npt)
+
+        # 5) Scheduler UTC normalization handles both aware datetimes and future-skewed naive strings
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        aware_recent = now_utc - datetime.timedelta(minutes=2)
+        future_skewed_str = (now_utc + datetime.timedelta(hours=5)).strftime("%Y-%m-%d %H:%M:%S+00:00")
+        self.assertEqual(sched._normalize_to_utc_dt(aware_recent), aware_recent)
+        skew_norm = sched._normalize_to_utc_dt(future_skewed_str)
+        self.assertIsNotNone(skew_norm)
+        self.assertLess((now_utc - skew_norm).total_seconds() / 60.0, -1.0)
+
 
 class SupabaseLiveIntegrationTests(unittest.TestCase):
     def test_live_feed_keyset_pagination_and_single_cte_bootstraps(self):

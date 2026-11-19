@@ -597,6 +597,7 @@ def register_portal_sources(portals_list: List[Dict[str, Any]], force: bool = Fa
         INSERT INTO sources (name, type, url, alt_urls, lang, category, priority, check_interval_mins, enabled)
         VALUES {', '.join(values_rows)}
         ON CONFLICT (name) DO UPDATE SET
+            type = EXCLUDED.type,
             url = EXCLUDED.url,
             alt_urls = EXCLUDED.alt_urls,
             lang = EXCLUDED.lang,
@@ -618,8 +619,7 @@ def batch_upsert_articles(
         return {"discovered": 0, "ingested": 0, "duplicates": 0, "updated": 0}
 
     discovered = len(articles)
-    values_list = []
-    
+    deduped: Dict[str, Dict[str, Any]] = {}
     for a in articles:
         title = (a.get("title") or "").strip()
         link = (a.get("link") or "").strip()
@@ -628,15 +628,26 @@ def batch_upsert_articles(
         can_url = normalize_canonical_url(link)
         cid = a.get("canonical_id") or generate_canonical_id(source_name, can_url, title)
         a["canonical_id"] = cid
+        prev = deduped.get(cid)
+        if prev is None or len(str(a.get("full_content") or "")) >= len(str(prev.get("full_content") or "")):
+            deduped[cid] = a
+
+    values_list = []
+    for cid, a in deduped.items():
+        title = (a.get("title") or "").strip()
+        link = (a.get("link") or "").strip()
+        can_url = normalize_canonical_url(link)
 
         pub_dt = a.get("published_dt")
-        pub_str = None
-        if isinstance(pub_dt, (datetime.datetime, datetime.date)):
+        if isinstance(pub_dt, datetime.datetime):
+            pub_dt_npt = pub_dt.astimezone(NEPAL_TZ) if pub_dt.tzinfo else pub_dt
+            pub_str = pub_dt_npt.strftime("%Y-%m-%d %H:%M:%S")
+        elif isinstance(pub_dt, datetime.date):
             pub_str = pub_dt.strftime("%Y-%m-%d %H:%M:%S")
-        elif isinstance(pub_dt, str):
-            pub_str = pub_dt
+        elif isinstance(pub_dt, str) and pub_dt.strip():
+            pub_str = pub_dt.strip()
         else:
-            pub_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            pub_str = datetime.datetime.now(NEPAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
         vals = [
             esc_sql(cid),
@@ -705,15 +716,75 @@ def batch_upsert_articles(
                          )
                     THEN EXCLUDED.headline_english
                     ELSE articles.headline_english
+                END,
+                published_dt = CASE
+                    WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                         AND (
+                             COALESCE(articles.exact_time, '') IN ('', 'Archived')
+                             OR (
+                                 EXTRACT(MINUTE FROM articles.published_dt) = 0
+                                 AND EXTRACT(SECOND FROM articles.published_dt) = 0
+                                 AND EXTRACT(HOUR FROM articles.published_dt) IN (0, 12)
+                                 AND NOT (
+                                     EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)
+                                 )
+                             )
+                             OR EXCLUDED.published_dt > articles.published_dt
+                         )
+                    THEN EXCLUDED.published_dt
+                    ELSE articles.published_dt
+                END,
+                relative_time = CASE
+                    WHEN COALESCE(EXCLUDED.relative_time, '') NOT IN ('', 'Date unlisted')
+                    THEN EXCLUDED.relative_time
+                    ELSE articles.relative_time
+                END,
+                exact_time = CASE
+                    WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                         AND (
+                             COALESCE(articles.exact_time, '') IN ('', 'Archived')
+                             OR (
+                                 EXTRACT(MINUTE FROM articles.published_dt) = 0
+                                 AND EXTRACT(SECOND FROM articles.published_dt) = 0
+                                 AND EXTRACT(HOUR FROM articles.published_dt) IN (0, 12)
+                                 AND NOT (
+                                     EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)
+                                 )
+                             )
+                             OR EXCLUDED.published_dt > articles.published_dt
+                         )
+                    THEN EXCLUDED.exact_time
+                    ELSE articles.exact_time
                 END;
             """
             query_supabase(sql)
 
-    # Update source health
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    latest_art = articles[0] if articles else {}
+    # Update source health with true UTC discovery/ingestion timestamp and max(published_dt) article
+    now_utc_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S+00:00")
+
+    def _art_pub_sort_key(item: Dict[str, Any]) -> datetime.datetime:
+        p = item.get("published_dt")
+        if isinstance(p, datetime.datetime):
+            return p.astimezone(NEPAL_TZ) if p.tzinfo else p.replace(tzinfo=NEPAL_TZ)
+        if isinstance(p, str):
+            parsed = _parse_npt_wallclock_ts(p)
+            if parsed is not None:
+                return parsed
+        return datetime.datetime.min.replace(tzinfo=NEPAL_TZ)
+
+    latest_art = max(articles, key=_art_pub_sort_key) if articles else {}
     latest_pub = latest_art.get("published_dt")
-    latest_pub_str = latest_pub.strftime("%Y-%m-%d %H:%M:%S") if isinstance(latest_pub, (datetime.datetime, datetime.date)) else None
+    if isinstance(latest_pub, datetime.datetime):
+        latest_pub_npt = latest_pub.astimezone(NEPAL_TZ) if latest_pub.tzinfo else latest_pub
+        latest_pub_str = latest_pub_npt.strftime("%Y-%m-%d %H:%M:%S")
+    elif isinstance(latest_pub, datetime.date):
+        latest_pub_str = latest_pub.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        latest_pub_str = None
 
     health_sql = f"""
     INSERT INTO source_health (
@@ -721,7 +792,7 @@ def batch_upsert_articles(
         consecutive_failures, total_discovered, total_ingested, duplicate_count,
         latest_article_pub_dt, latest_article_title, latest_article_link, discovery_latency_avg_secs, last_checkpoint
     ) VALUES (
-        {esc_sql(source_name)}, {esc_sql(now_str)}, {esc_sql(now_str)}, 'operational',
+        {esc_sql(source_name)}, {esc_sql(now_utc_str)}, {esc_sql(now_utc_str)}, 'operational',
         0, {discovered}, {discovered}, 0,
         {esc_sql(latest_pub_str)}, {esc_sql(latest_art.get("title", ""))}, {esc_sql(latest_art.get("link", ""))},
         {latency_secs}, {esc_sql(checkpoint or "")}
@@ -733,9 +804,24 @@ def batch_upsert_articles(
         consecutive_failures = 0,
         total_discovered = source_health.total_discovered + EXCLUDED.total_discovered,
         total_ingested = source_health.total_ingested + EXCLUDED.total_ingested,
-        latest_article_pub_dt = COALESCE(EXCLUDED.latest_article_pub_dt, source_health.latest_article_pub_dt),
-        latest_article_title = COALESCE(EXCLUDED.latest_article_title, source_health.latest_article_title),
-        latest_article_link = COALESCE(EXCLUDED.latest_article_link, source_health.latest_article_link),
+        latest_article_pub_dt = CASE
+            WHEN EXCLUDED.latest_article_pub_dt IS NOT NULL
+                 AND (source_health.latest_article_pub_dt IS NULL OR EXCLUDED.latest_article_pub_dt >= source_health.latest_article_pub_dt)
+            THEN EXCLUDED.latest_article_pub_dt
+            ELSE COALESCE(source_health.latest_article_pub_dt, EXCLUDED.latest_article_pub_dt)
+        END,
+        latest_article_title = CASE
+            WHEN EXCLUDED.latest_article_pub_dt IS NOT NULL
+                 AND (source_health.latest_article_pub_dt IS NULL OR EXCLUDED.latest_article_pub_dt >= source_health.latest_article_pub_dt)
+            THEN COALESCE(EXCLUDED.latest_article_title, source_health.latest_article_title)
+            ELSE COALESCE(source_health.latest_article_title, EXCLUDED.latest_article_title)
+        END,
+        latest_article_link = CASE
+            WHEN EXCLUDED.latest_article_pub_dt IS NOT NULL
+                 AND (source_health.latest_article_pub_dt IS NULL OR EXCLUDED.latest_article_pub_dt >= source_health.latest_article_pub_dt)
+            THEN COALESCE(EXCLUDED.latest_article_link, source_health.latest_article_link)
+            ELSE COALESCE(source_health.latest_article_link, EXCLUDED.latest_article_link)
+        END,
         last_error_message = NULL,
         discovery_latency_avg_secs = (source_health.discovery_latency_avg_secs * 0.7) + ({latency_secs} * 0.3);
     """
@@ -746,10 +832,10 @@ def batch_upsert_articles(
 def record_source_error(source_name: str, error_msg: str, latency_secs: float = 0.0):
     """Records an error for a portal in Supabase source health."""
     safe_err = (error_msg or "").strip() or "Unspecified source error"
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_utc_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S+00:00")
     sql = f"""
     INSERT INTO source_health (source_name, last_discovery_time, status, consecutive_failures, failed_retrievals, last_error_message)
-    VALUES ({esc_sql(source_name)}, {esc_sql(now_str)}, 'degraded', 1, 1, {esc_sql(safe_err)})
+    VALUES ({esc_sql(source_name)}, {esc_sql(now_utc_str)}, 'degraded', 1, 1, {esc_sql(safe_err)})
     ON CONFLICT (source_name) DO UPDATE SET
         last_discovery_time = EXCLUDED.last_discovery_time,
         consecutive_failures = source_health.consecutive_failures + 1,

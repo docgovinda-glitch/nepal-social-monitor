@@ -44,7 +44,7 @@ TOP_NEPAL_NEWS_PORTALS: List[Dict[str, Any]] = [
     {"name": "OnlineKhabar (NP)", "type": "rss", "url": "https://www.onlinekhabar.com/feed", "alt_urls": ["https://www.onlinekhabar.com/content/news/feed"], "lang": "Nepali", "category": "General News", "priority": "high", "check_interval_mins": 8},
     {"name": "Setopati", "type": "rss", "url": "https://www.setopati.com/feed", "alt_urls": ["https://www.setopati.com/politics/feed"], "lang": "Nepali", "category": "National", "priority": "high", "check_interval_mins": 8},
     {"name": "Ratopati", "type": "rss", "url": "https://www.ratopati.com/feed", "alt_urls": ["https://www.ratopati.com/category/politics/feed"], "lang": "Nepali", "category": "Breaking News", "priority": "high", "check_interval_mins": 8},
-    {"name": "Annapurna Post", "type": "html", "url": "https://annapurnapost.com/category/latest-news/", "alt_urls": ["https://annapurnapost.com/rss", "https://www.bing.com/news/search?q=site:annapurnapost.com&format=rss&qft=sortbydate%3d%221%22"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "Annapurna Post", "type": "html", "url": "https://annapurnapost.com/category/latest-news/", "alt_urls": ["https://annapurnapost.com/rss", "https://www.bing.com/news/search?q=site:annapurnapost.com&format=rss&qft=sortbydate%3d%221%22", "https://www.bing.com/news/search?q=site:annapurnapost.com/story&format=rss&qft=sortbydate%3d%221%22", "https://www.bing.com/news/search?q=%22%E0%A4%85%E0%A4%A8%E0%A5%8D%E0%A4%A8%E0%A4%AA%E0%A5%82%E0%A4%B0%E0%A5%8D%E0%A4%A3+%E0%A4%AA%E0%A5%8B%E0%A4%B8%E0%A5%8D%E0%A4%9F%22&format=rss&qft=sortbydate%3d%221%22"], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
     {"name": "Nagarik News", "type": "rss", "url": "https://nagariknews.nagariknetwork.com/feed", "alt_urls": [], "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
     {"name": "Naya Patrika", "type": "html", "url": "https://www.nayapatrikadaily.com/", "alt_urls": ["https://www.nayapatrikadaily.com/rss"], "lang": "Nepali", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
     {"name": "NepalKhabar", "type": "rss", "url": "https://nepalkhabar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Digital Daily", "priority": "high", "check_interval_mins": 8},
@@ -62,7 +62,7 @@ TOP_NEPAL_NEWS_PORTALS: List[Dict[str, Any]] = [
     {"name": "Khabarhub (NP)", "type": "rss", "url": "https://khabarhub.com/feed/", "alt_urls": [], "lang": "Nepali", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
     {"name": "TechPana", "type": "rss", "url": "https://techpana.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Tech & Innovation", "priority": "low", "check_interval_mins": 40},
     {"name": "ArthaSarokar", "type": "rss", "url": "https://arthasarokar.com/feed", "alt_urls": [], "lang": "Nepali", "category": "Economy & Banking", "priority": "low", "check_interval_mins": 40},
-    {"name": "The Kathmandu Post", "type": "rss", "url": "https://kathmandupost.com/rss", "alt_urls": ["https://kathmandupost.com/national/rss", "https://kathmandupost.com/money/rss"], "lang": "English", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
+    {"name": "The Kathmandu Post", "type": "rss", "url": "https://kathmandupost.com/rss", "alt_urls": ["https://kathmandupost.com/national", "https://kathmandupost.com/politics", "https://kathmandupost.com/money", "https://kathmandupost.com/valley"], "lang": "English", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
     {"name": "The Himalayan Times", "type": "html", "url": "https://thehimalayantimes.com/", "alt_urls": ["https://thehimalayantimes.com/nepal"], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
     {"name": "MyRepublica", "type": "rss", "url": "https://myrepublica.nagariknetwork.com/feeds", "alt_urls": [], "lang": "English", "category": "National Daily", "priority": "standard", "check_interval_mins": 18},
     {"name": "OnlineKhabar (EN)", "type": "rss", "url": "https://english.onlinekhabar.com/feed", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
@@ -72,9 +72,13 @@ TOP_NEPAL_NEWS_PORTALS: List[Dict[str, Any]] = [
     {"name": "NepalKhabar (EN)", "type": "html", "url": "https://en.nepalkhabar.com/", "alt_urls": ["https://en.nepalkhabar.com/rss"], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
     {"name": "Ratopati (EN)", "type": "rss", "url": "https://english.ratopati.com/feed", "alt_urls": [], "lang": "English", "category": "Current Affairs", "priority": "standard", "check_interval_mins": 18},
     {"name": "Khabarhub (EN)", "type": "rss", "url": "https://english.khabarhub.com/feed/", "alt_urls": [], "lang": "English", "category": "National", "priority": "standard", "check_interval_mins": 18},
-    {"name": "Nepali Times", "type": "rss", "url": "https://nepalitimes.com/feed", "alt_urls": [], "lang": "English", "category": "Independent Journalism", "priority": "low", "check_interval_mins": 40},
+    {"name": "Nepali Times", "type": "rss", "url": "https://nepalitimes.com/feed", "alt_urls": ["https://nepalitimes.com/here-now", "https://nepalitimes.com/opinion", "https://nepalitimes.com/editorial"], "lang": "English", "category": "Independent Journalism", "priority": "standard", "check_interval_mins": 18},
     {"name": "Nepal News (EN)", "type": "rss", "url": "https://english.nepalnews.com/feed", "alt_urls": [], "lang": "English", "category": "Digital Daily", "priority": "standard", "check_interval_mins": 18},
 ]
+
+ENGLISH_NEPAL_PORTAL_NAMES = frozenset(
+    p["name"] for p in TOP_NEPAL_NEWS_PORTALS if p.get("lang") == "English"
+) | {"Republica", "My Republica", "The Rising Nepal", "Nepal News"}
 
 TOP_INDIAN_MEDIA_SOURCES: List[Dict[str, Any]] = [
     {"name": "The Indian Express", "type": "topic_html", "domain": "indianexpress.com", "url": "https://indianexpress.com/about/nepal/", "lang": "English", "desc": "Premier investigative & political national daily"},
@@ -132,7 +136,8 @@ def parse_to_nepal_time(raw_date_val: Any, now_npt: datetime.datetime):
             dt = dt.astimezone(NEPAL_TZ)
 
         seconds = (now_npt - dt).total_seconds()
-        if seconds < 0:
+        if seconds < -86400:
+            # Reject clearly far-future dates (>1 day ahead of now_npt)
             dt = now_npt
             seconds = 0
             rel_time = "Just now"

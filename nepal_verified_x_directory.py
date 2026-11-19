@@ -2995,6 +2995,23 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "last_verified_at": "2026-11-17T12:10:00+0545"
     },
     {
+        "name": "Annapurna Post",
+        "handle": "Annapurna_Post",
+        "profile_url": "https://x.com/Annapurna_Post",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Leading Nepali National Daily Broadsheet",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking breaking national news, politics, economy, and current affairs.",
+        "verification_status": "verified",
+        "source_url": "https://x.com/Annapurna_Post",
+        "followers": "510K",
+        "avatar_bg": "#b91c1c",
+        "initials": "AP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-19T15:00:00+0545"
+    },
+    {
         "name": "Cricket Association of Nepal (CAN)",
         "handle": "CricketNep",
         "profile_url": "https://x.com/CricketNep",

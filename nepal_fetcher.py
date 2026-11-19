@@ -47,7 +47,10 @@ from nepal_config import (
 
 SSL_CTX = ssl._create_unverified_context()
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "ne-NP,ne;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
 }
 
 from nepal_summarizer import (
@@ -72,9 +75,24 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
         return FULL_ARTICLE_TEXT_CACHE[url]
 
     try:
-        req = urllib.request.Request(url, headers=DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout) as resp:
-            raw_html = resp.read().decode("utf-8", errors="ignore")
+        raw_html = ""
+        try:
+            req = urllib.request.Request(url, headers=DEFAULT_HEADERS)
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout) as resp:
+                raw_html = resp.read().decode("utf-8", errors="ignore")
+        except Exception:
+            parsed_u = urllib.parse.urlparse(url)
+            origin = f"{parsed_u.scheme}://{parsed_u.netloc}/" if parsed_u.scheme and parsed_u.netloc else url
+            r_resp = requests.get(
+                url,
+                headers={**DEFAULT_HEADERS, "Referer": origin},
+                timeout=timeout,
+                verify=False,
+            )
+            if r_resp.ok:
+                raw_html = r_resp.text
+        if not raw_html:
+            return ""
         soup = BeautifulSoup(raw_html, "html.parser")
 
         # Extract JSON-LD articleBody and meta description BEFORE stripping tags
@@ -635,55 +653,88 @@ BS_MONTH_NAMES = [
     'पुस', 'पौष', 'माघ', 'फागुन', 'फाल्गुन', 'चैत', 'चैत्र'
 ]
 
-def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
-    """Extracts a genuine datetime from a short text snippet, relative phrase, or Nepali byline."""
+# Official Bikram Sambat (BS) calendar month lengths and 1 Baisakh Gregorian (AD) anchors
+_BS_YEAR_TABLE: Dict[int, Any] = {
+    2078: (datetime.date(2021, 4, 14), (31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30)),
+    2079: (datetime.date(2022, 4, 14), (31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30)),
+    2080: (datetime.date(2023, 4, 14), (31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30)),
+    2081: (datetime.date(2024, 4, 13), (31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31)),
+    2082: (datetime.date(2025, 4, 14), (31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30)),
+    2083: (datetime.date(2026, 4, 14), (31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30)),
+    2084: (datetime.date(2027, 4, 14), (31, 31, 32, 31, 31, 30, 30, 30, 29, 30, 30, 30)),
+    2085: (datetime.date(2028, 4, 13), (31, 32, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30)),
+}
+
+
+def _bs_to_ad_date(bs_year: int, bs_month: int, bs_day: int) -> datetime.date:
+    """Converts a Bikram Sambat (BS) year, month (1..12), and day (1..32) to an exact Gregorian date."""
+    m_clamped = max(1, min(12, int(bs_month)))
+    d_clamped = max(1, min(32, int(bs_day)))
+    if bs_year in _BS_YEAR_TABLE:
+        anchor_ad, month_lengths = _BS_YEAR_TABLE[bs_year]
+        max_d = month_lengths[m_clamped - 1]
+        offset_days = sum(month_lengths[: m_clamped - 1]) + (min(d_clamped, max_d) - 1)
+        return anchor_ad + datetime.timedelta(days=offset_days)
+    # Fallback relative to 2083 BS table for out-of-range years
+    anchor_2083, lengths_2083 = _BS_YEAR_TABLE[2083]
+    year_offset = int(round((bs_year - 2083) * 365.25))
+    offset_days = year_offset + sum(lengths_2083[: m_clamped - 1]) + (d_clamped - 1)
+    return anchor_2083 + datetime.timedelta(days=offset_days)
+
+
+def parse_snippet_to_datetime_with_meta(raw_text: str, now_npt: datetime.datetime):
+    """
+    Extracts a genuine datetime from a short text snippet, relative phrase, or Nepali byline.
+    Returns (dt_or_None, is_date_only: bool) where is_date_only=True indicates the snippet lacked
+    an explicit intraday time (HH:MM) and should not short-circuit richer article metadata.
+    """
     if not raw_text:
-        return None
+        return None, False
     txt = raw_text.strip()
-    
+
     # 1. Normalize Devanagari numerals to ASCII digits
     norm_txt = txt.translate(NEP_DEVANAGARI_DIGITS)
 
     # 2. Match Nepali relative date phrases (e.g., २ घण्टा अघि, १५ मिनेट अघि, ३ दिन अघि)
     m_nep_rel = re.search(r'(\d+)\s*(?:घण्टा|घन्टा|hr|hours?)\s*अघि', norm_txt)
     if m_nep_rel:
-        return now_npt - datetime.timedelta(hours=int(m_nep_rel.group(1)))
+        return now_npt - datetime.timedelta(hours=int(m_nep_rel.group(1))), False
     m_nep_min = re.search(r'(\d+)\s*(?:मिनेट|min|minutes?)\s*अघि', norm_txt)
     if m_nep_min:
-        return now_npt - datetime.timedelta(minutes=int(m_nep_min.group(1)))
+        return now_npt - datetime.timedelta(minutes=int(m_nep_min.group(1))), False
     m_nep_day = re.search(r'(\d+)\s*(?:दिन|days?)\s*अघि', norm_txt)
     if m_nep_day:
-        return now_npt - datetime.timedelta(days=int(m_nep_day.group(1)))
+        return now_npt - datetime.timedelta(days=int(m_nep_day.group(1))), False
     m_nep_week = re.search(r'(\d+)\s*(?:हप्ता|साता|weeks?)\s*अघि', norm_txt)
     if m_nep_week:
-        return now_npt - datetime.timedelta(days=int(m_nep_week.group(1)) * 7)
+        return now_npt - datetime.timedelta(days=int(m_nep_week.group(1)) * 7), False
     m_nep_month = re.search(r'(\d+)\s*(?:महिना|months?)\s*अघि', norm_txt)
     if m_nep_month:
-        return now_npt - datetime.timedelta(days=int(m_nep_month.group(1)) * 30)
+        return now_npt - datetime.timedelta(days=int(m_nep_month.group(1)) * 30), False
     m_nep_year = re.search(r'(\d+)\s*(?:वर्ष|बर्ष|years?)\s*अघि', norm_txt)
     if m_nep_year:
-        return now_npt - datetime.timedelta(days=int(m_nep_year.group(1)) * 365)
+        return now_npt - datetime.timedelta(days=int(m_nep_year.group(1)) * 365), False
     m_nep_sec = re.search(r'(\d+)\s*(?:सेकेन्ड|सेकेण्ड|sec|seconds?)\s*अघि', norm_txt)
     if m_nep_sec:
-        return now_npt - datetime.timedelta(seconds=int(m_nep_sec.group(1)))
+        return now_npt - datetime.timedelta(seconds=int(m_nep_sec.group(1))), False
     if re.search(r'\bहिजो\b', norm_txt):
-        return now_npt - datetime.timedelta(days=1)
+        return now_npt - datetime.timedelta(days=1), True
     if re.search(r'\bअस्ति\b', norm_txt):
-        return now_npt - datetime.timedelta(days=2)
+        return now_npt - datetime.timedelta(days=2), True
 
     # 3. Match English relative date phrases
     rel = REL_DATE_REGEX.search(norm_txt)
     if rel:
         v = int(rel.group(1))
         u = rel.group(2).lower()
-        if "sec" in u: return now_npt - datetime.timedelta(seconds=v)
-        if "min" in u: return now_npt - datetime.timedelta(minutes=v)
-        if "hr" in u or "hour" in u: return now_npt - datetime.timedelta(hours=v)
-        if "day" in u: return now_npt - datetime.timedelta(days=v)
-        if "week" in u: return now_npt - datetime.timedelta(days=v * 7)
-        if "month" in u: return now_npt - datetime.timedelta(days=v * 30)
+        if "sec" in u: return now_npt - datetime.timedelta(seconds=v), False
+        if "min" in u: return now_npt - datetime.timedelta(minutes=v), False
+        if "hr" in u or "hour" in u: return now_npt - datetime.timedelta(hours=v), False
+        if "day" in u: return now_npt - datetime.timedelta(days=v), False
+        if "week" in u: return now_npt - datetime.timedelta(days=v * 7), False
+        if "month" in u: return now_npt - datetime.timedelta(days=v * 30), False
 
-    # 4. Match Nepali Bikram Sambat dates (e.g. कात्तिक २४, २०८३ or २४ कार्तिक २०८३)
+    # 4. Match Nepali Bikram Sambat dates (e.g. कात्तिक २४, २०८३ or ३ मंसिर २०८३)
     bs_month_idx_map = {
         'बैशाख': 1, 'वैशाख': 1, 'जेठ': 2, 'असार': 3, 'साउन': 4, 'श्रावण': 4, 'भदौ': 5, 'भाद्र': 5,
         'असोज': 6, 'आश्विन': 6, 'कार्तिक': 7, 'कात्तिक': 7, 'मंसिर': 8,
@@ -691,26 +742,29 @@ def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
     }
     for m_name, m_idx in bs_month_idx_map.items():
         if m_name in norm_txt:
-            m_bs = re.search(rf'(?:{m_name}\s+(\d{{1,2}})|(\d{{1,2}})\s+{m_name},?)(?:,?\s*(20\d{{2}}))?(?:[^\d]+(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?)?', norm_txt)
+            m_bs = re.search(rf'(?:{m_name}\s+(\d{{1,2}})|(\d{{1,2}})\s+{m_name},?)(?:,?\s*(20\d{{2}}))?(?:[^\d:]+(\d{{1,2}}):(\d{{2}})(?::(\d{{2}}))?)?', norm_txt)
             if m_bs:
                 day_val = int(m_bs.group(1) or m_bs.group(2))
                 bs_year = int(m_bs.group(3)) if m_bs.group(3) else 2083
-                hr = int(m_bs.group(4)) if m_bs.group(4) else 12
-                mn = int(m_bs.group(5)) if m_bs.group(5) else 0
-                sc = int(m_bs.group(6)) if m_bs.group(6) else 0
-                # Reference anchor: 25 Kartik 2083 BS = Nov 11, 2026
-                year_diff_days = (2083 - bs_year) * 365
-                month_diff_days = (7 - m_idx) * 30
-                day_diff = year_diff_days + month_diff_days + (25 - day_val)
-                if day_diff >= 0:
-                    cand_dt = now_npt - datetime.timedelta(days=day_diff)
-                    return cand_dt.replace(hour=hr, minute=mn, second=sc, microsecond=0)
+                ad_date = _bs_to_ad_date(bs_year, m_idx, day_val)
+                has_explicit_time = bool(m_bs.group(4) and m_bs.group(5))
+                if has_explicit_time:
+                    hr, mn, sc = int(m_bs.group(4)), int(m_bs.group(5)), int(m_bs.group(6) or 0)
+                elif ad_date == now_npt.date():
+                    hr, mn, sc = now_npt.hour, now_npt.minute, now_npt.second
                 else:
-                    return now_npt.replace(hour=hr, minute=mn, second=sc, microsecond=0)
+                    hr, mn, sc = 12, 0, 0
+                cand_dt = datetime.datetime(ad_date.year, ad_date.month, ad_date.day, hr, mn, sc, tzinfo=NEPAL_TZ)
+                return cand_dt, (not has_explicit_time)
 
     # 5. Clean common formatting artifacts
     clean_txt = re.sub(r"\[IST\]|IST", "+0530", norm_txt)
-    clean_txt = re.sub(r"Updated\s*:\s*|Updated On\s*:\s*|Published\s*:\s*|Published Date\s*:\s*|By[^\d]+", "", clean_txt)
+    clean_txt = re.sub(
+        r"Updated(?:\s+On|\s+at)?\s*:\s*|Published(?:\s+Date|\s+On|\s+at)?\s*:\s*|By[^\d]+",
+        "",
+        clean_txt,
+        flags=re.I,
+    )
     clean_txt = re.sub(r"^[A-Za-z]+(?=\d{2}\s+[A-Za-z]{3}\s+\d{4})", "", clean_txt)
     clean_txt = re.sub(r"([A-Za-z]{3})\.", r"\1", clean_txt)
     clean_txt = clean_txt.replace("p.m.", "PM").replace("a.m.", "AM").replace("|", " ")
@@ -720,24 +774,141 @@ def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
         m = rgx.search(clean_txt)
         if m:
             try:
-                dt = dt_parser.parse(m.group(0), fuzzy=True)
-                return dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+                matched_str = m.group(0)
+                has_explicit_time = bool(re.search(r"\b\d{1,2}:\d{2}\b", matched_str))
+                dt = dt_parser.parse(matched_str, fuzzy=True)
+                dt = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+                if not has_explicit_time:
+                    if dt.date() == now_npt.date():
+                        dt = dt.replace(hour=now_npt.hour, minute=now_npt.minute, second=now_npt.second, microsecond=0)
+                    else:
+                        dt = dt.replace(hour=12, minute=0, second=0, microsecond=0)
+                return dt, (not has_explicit_time)
             except Exception:
                 pass
-    return None
+    return None, False
+
+
+def parse_snippet_to_datetime(raw_text: str, now_npt: datetime.datetime):
+    """Extracts a genuine datetime from a short text snippet, relative phrase, or Nepali byline."""
+    dt, _ = parse_snippet_to_datetime_with_meta(raw_text, now_npt)
+    return dt
+
+
+def _extract_intraday_dt_from_article_html(chunk: str, now_npt: datetime.datetime) -> Tuple[Optional[datetime.datetime], bool]:
+    """
+    Parses article HTML for publication/update timestamps, prioritizing timestamps with
+    an explicit intraday time (HH:MM) over date-only strings and ignoring masthead dates.
+    Returns (best_dt, is_date_only).
+    """
+    if not chunk:
+        return None, True
+
+    fallback_date_only: Optional[datetime.datetime] = None
+
+    # 1. Check <meta> and JSON-LD datePublished / dateCreated / published_time / dateModified
+    meta_candidates: List[str] = []
+    for m_meta in re.finditer(
+        r"<meta[^>]+(?:article:published_time|article:modified_time|og:updated_time|datePublished|publish-date|published_time)[^>]+content=[\"\x27]([^\x27\"]+)[\"\x27]",
+        chunk,
+        re.I,
+    ):
+        meta_candidates.append(m_meta.group(1).strip())
+    for m_ld in re.finditer(
+        r"\"(?:datePublished|dateCreated|published_time|dateModified)\"\s*:\s*\"([^\"]+)\"",
+        chunk,
+    ):
+        meta_candidates.append(m_ld.group(1).strip())
+
+    for cand in meta_candidates:
+        try:
+            has_time = bool(re.search(r"(?:T|\s)\d{1,2}:\d{2}", cand))
+            dt = dt_parser.parse(cand, fuzzy=True)
+            dt = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
+            if has_time:
+                return dt, False
+            if fallback_date_only is None:
+                if dt.date() == now_npt.date():
+                    dt = dt.replace(hour=now_npt.hour, minute=now_npt.minute, second=now_npt.second, microsecond=0)
+                else:
+                    dt = dt.replace(hour=12, minute=0, second=0, microsecond=0)
+                fallback_date_only = dt
+        except Exception:
+            pass
+
+    # 2. Check explicit "Updated at :" / "Published at :" / "Published Date :" labels (e.g. The Kathmandu Post)
+    # Prefer Updated at when it carries HH:MM and Published at is date-only
+    for pat in (
+        r'Updated(?:\s+at|\s+On)?\s*:\s*(?:</?[a-z0-9][^>]*>\s*)*([A-Za-z0-9\s,\.:/\-]{6,50})',
+        r'Published(?:\s+at|\s+Date|\s+On)?\s*:\s*(?:</?[a-z0-9][^>]*>\s*)*([A-Za-z0-9\s,\.:/\-]{6,50})',
+    ):
+        for m_lbl in re.finditer(pat, chunk, re.I):
+            dt, is_do = parse_snippet_to_datetime_with_meta(m_lbl.group(1).strip(), now_npt)
+            if dt is not None:
+                if not is_do:
+                    return dt, False
+                if fallback_date_only is None:
+                    fallback_date_only = dt
+
+    # 3. Check specific article timestamp classes (including updated-time, excluding epaper/blocktop-date)
+    for m_cls in re.finditer(
+        r'class=["\x27][^"\x27]*(?:news-detail-time-text|published-date|pub-date|article-date|updated-time|post-date|post__meta-date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<\r\n]{4,90})',
+        chunk,
+        re.I,
+    ):
+        full_match_low = m_cls.group(0).lower()
+        if any(bad in full_match_low for bad in ("epaper", "blocktop", "current-date", "masthead")):
+            continue
+        dt, is_do = parse_snippet_to_datetime_with_meta(m_cls.group(1).strip(), now_npt)
+        if dt is not None:
+            if not is_do:
+                return dt, False
+            if fallback_date_only is None:
+                fallback_date_only = dt
+
+    # 4. Check <time> tag datetime attribute or inner text
+    for m_time in re.finditer(r'<time([^>]*)>(?:<[^>]+>)*\s*([^<]{0,90})\s*</time>', chunk, re.I):
+        attrs_str, inner_str = m_time.group(1) or "", (m_time.group(2) or "").strip()
+        if "Intl.DateTimeFormat" in inner_str or "blocktop" in attrs_str.lower():
+            continue
+        m_dt_attr = re.search(r'datetime=["\x27]([^"\x27]+)["\x27]', attrs_str, re.I)
+        for t_cand in ([m_dt_attr.group(1)] if m_dt_attr else []) + ([inner_str] if inner_str else []):
+            dt, is_do = parse_snippet_to_datetime_with_meta(t_cand, now_npt)
+            if dt is not None:
+                if not is_do:
+                    return dt, False
+                if fallback_date_only is None:
+                    fallback_date_only = dt
+
+    # 5. Strip masthead blocktop-date elements and scan chunk[:25000] only for snippets with explicit HH:MM
+    clean_chunk = re.sub(r'<div[^>]+blocktop-date[^>]*>.*?</div>', ' ', chunk[:25000], flags=re.I | re.S)
+    for rgx in DATE_SNIPPET_REGEXES:
+        for m_chunk in rgx.finditer(clean_chunk):
+            dt, is_do = parse_snippet_to_datetime_with_meta(m_chunk.group(0), now_npt)
+            if dt is not None:
+                if not is_do:
+                    return dt, False
+                if fallback_date_only is None:
+                    fallback_date_only = dt
+
+    return fallback_date_only, True
+
 
 def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
     """
-    Extracts real publication datetime for an HTML article card:
+    Extracts real publication datetime for an HTML article card or RSS item link:
     1. Memory cache check.
-    2. Parent DOM container inspection (up to 6 levels: <time>, date classes, timestamps).
-    3. URL path pattern extraction (/YYYY/MM/DD/ or -YYYY-MM-DD-).
-    4. Fast article page <meta> tag retrieval (og:article:published_time, datePublished).
+    2. Parent DOM container inspection (only short-circuits when an explicit intraday time HH:MM is present).
+    3. URL path pattern extraction (/YYYY/MM/DD/ or -YYYY-MM-DD-) as date-only fallback.
+    4. Article page metadata retrieval (JSON-LD datePublished, <meta>, Updated at : / Published at :)
+       prioritized over date-only card/URL guesses for recent articles.
     """
     if not href:
         return None
     if href in ARTICLE_DATE_CACHE:
         return ARTICLE_DATE_CACHE[href]
+
+    fallback_date_only: Optional[datetime.datetime] = None
 
     # 1. Inspect DOM ancestors
     curr = a_tag.parent if a_tag else None
@@ -745,110 +916,90 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
         if not curr or curr.name in ["body", "html", "header", "nav"]:
             break
         curr_classes = " ".join(curr.get("class") or []).lower()
-        if any(bad in curr_classes for bad in ["navbar", "search-overlay", "header", "masthead", "topbar", "footer"]):
+        if any(bad in curr_classes for bad in ["navbar", "search-overlay", "header", "masthead", "topbar", "footer", "blocktop"]):
             break
         time_tag = curr.find("time")
         if time_tag:
-            dt = parse_snippet_to_datetime(time_tag.get("datetime") or time_tag.get_text(strip=True), now_npt)
+            dt, is_do = parse_snippet_to_datetime_with_meta(
+                time_tag.get("datetime") or time_tag.get_text(strip=True), now_npt
+            )
             if dt:
-                ARTICLE_DATE_CACHE[href] = dt
-                return dt
+                if not is_do:
+                    ARTICLE_DATE_CACHE[href] = dt
+                    return dt
+                if fallback_date_only is None:
+                    fallback_date_only = dt
 
         date_elems = curr.find_all(class_=re.compile(r"date|time|meta|updated|publish|oi-article-country|byline", re.I))
         for de in date_elems:
             de_cls = " ".join(de.get("class") or []).lower()
-            if any(bad in de_cls for bad in ["navbar", "header", "epaper", "current-date", "today"]):
+            if any(bad in de_cls for bad in ["navbar", "header", "epaper", "current-date", "today", "blocktop"]):
                 continue
-            dt = parse_snippet_to_datetime(de.get_text(" ", strip=True), now_npt)
+            dt, is_do = parse_snippet_to_datetime_with_meta(de.get_text(" ", strip=True), now_npt)
             if dt:
-                ARTICLE_DATE_CACHE[href] = dt
-                return dt
+                if not is_do:
+                    ARTICLE_DATE_CACHE[href] = dt
+                    return dt
+                if fallback_date_only is None:
+                    fallback_date_only = dt
 
         for el in curr.find_all(["p", "span", "small"]):
             el_cls = " ".join(el.get("class") or []).lower()
-            if any(bad in el_cls for bad in ["navbar", "header", "epaper", "current-date"]):
+            if any(bad in el_cls for bad in ["navbar", "header", "epaper", "current-date", "blocktop"]):
                 continue
             t = el.get_text(" ", strip=True)
             if t and len(t) < 80:
-                dt = parse_snippet_to_datetime(t, now_npt)
+                dt, is_do = parse_snippet_to_datetime_with_meta(t, now_npt)
                 if dt:
-                    ARTICLE_DATE_CACHE[href] = dt
-                    return dt
+                    if not is_do:
+                        ARTICLE_DATE_CACHE[href] = dt
+                        return dt
+                    if fallback_date_only is None:
+                        fallback_date_only = dt
 
         curr = curr.parent
 
-    # 2. Check URL patterns
+    # 2. Check URL date patterns (/YYYY/MM/DD/ or -YYYY-MM-DD-) as date_only fallback
     m_url = re.search(r"/(202[0-9])[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12][0-9]|3[01])", href)
+    if not m_url:
+        m_url = re.search(r"-(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])", href)
     if m_url:
-        dt = datetime.datetime(int(m_url.group(1)), int(m_url.group(2)), int(m_url.group(3)), 12, 0, tzinfo=NEPAL_TZ)
-        ARTICLE_DATE_CACHE[href] = dt
-        return dt
+        try:
+            u_year, u_month, u_day = int(m_url.group(1)), int(m_url.group(2)), int(m_url.group(3))
+            u_date = datetime.date(u_year, u_month, u_day)
+            if u_date == now_npt.date():
+                u_dt = datetime.datetime(u_year, u_month, u_day, now_npt.hour, now_npt.minute, now_npt.second, tzinfo=NEPAL_TZ)
+            else:
+                u_dt = datetime.datetime(u_year, u_month, u_day, 12, 0, 0, tzinfo=NEPAL_TZ)
+            # For archive URLs older than 2 days, skip live HTTP check and return date-only noon
+            if (now_npt.date() - u_date).days > 2:
+                ARTICLE_DATE_CACHE[href] = u_dt
+                return u_dt
+            if fallback_date_only is None or u_date == now_npt.date():
+                fallback_date_only = u_dt
+        except Exception:
+            pass
 
-    m_url2 = re.search(r"-(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])", href)
-    if m_url2:
-        dt = datetime.datetime(int(m_url2.group(1)), int(m_url2.group(2)), int(m_url2.group(3)), 12, 0, tzinfo=NEPAL_TZ)
-        ARTICLE_DATE_CACHE[href] = dt
-        return dt
-
-    # 3. Lightweight meta tag check for article pages if URL is HTTP
+    # 3. Fetch article page metadata to resolve exact intraday HH:MM before falling back to date_only
     if href.startswith("http"):
         try:
             req = urllib.request.Request(href, headers=DEFAULT_HEADERS)
             with urllib.request.urlopen(req, context=SSL_CTX, timeout=2.5) as resp:
                 chunk = resp.read(120000).decode("utf-8", errors="ignore")
-            m_meta = re.search(r"<meta[^>]+(?:article:published_time|datePublished|publish-date|published_time)[^>]+content=[\"\x27]([^\x27\"]+)[\"\x27]", chunk, re.I)
-            if not m_meta:
-                m_meta = re.search(r"\"(?:datePublished|dateCreated|published_time)\"\s*:\s*\"([^\"]+)\"", chunk)
-            if m_meta:
-                dt = dt_parser.parse(m_meta.group(1), fuzzy=True)
-                dt = dt.astimezone(NEPAL_TZ) if dt.tzinfo else dt.replace(tzinfo=NEPAL_TZ)
-                ARTICLE_DATE_CACHE[href] = dt
-                return dt
-
-            # Explicit check for specific article publication time classes first (avoid header/epaper dates)
-            m_news_time = re.search(r'class=["\x27][^"\x27]*(?:news-detail-time-text|published-date|pub-date|article-date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<\r\n]{4,80})', chunk, re.I)
-            if m_news_time and "epaper" not in m_news_time.group(0).lower():
-                dt = parse_snippet_to_datetime(m_news_time.group(1).strip(), now_npt)
-                if dt:
-                    ARTICLE_DATE_CACHE[href] = dt
-                    return dt
-
-            # Explicit check for "Published: Nov. 11, 2026, 2:28 p.m." or "Published Date: 2026-11-06 19:10:51"
-            m_pub_txt = re.search(r'Published(?:\s*Date)?\s*:\s*</b>\s*([A-Za-z0-9\s,\.:/\-]{6,45})', chunk, re.I)
-            if not m_pub_txt:
-                m_pub_txt = re.search(r'Published(?:\s*Date)?\s*:\s*([A-Za-z0-9\s,\.:/\-]{6,45})', chunk, re.I)
-            if m_pub_txt:
-                dt = parse_snippet_to_datetime(m_pub_txt.group(1).strip(), now_npt)
-                if dt:
-                    ARTICLE_DATE_CACHE[href] = dt
-                    return dt
-
-            # Check class elements for post-date / post__meta-date / date (excluding epaper-date)
-            m_pub_box = re.search(r'class=["\x27][^"\x27]*(?:post-date|post__meta-date|date)[^"\x27]*["\x27][^>]*>(?:<[^>]+>)*\s*([^<]{5,80})', chunk, re.I)
-            if m_pub_box and "epaper" not in m_pub_box.group(0).lower():
-                dt = parse_snippet_to_datetime(m_pub_box.group(1).strip(), now_npt)
-                if dt:
-                    ARTICLE_DATE_CACHE[href] = dt
-                    return dt
-
-            # Check <time> tag inner text
-            m_time = re.search(r'<time[^>]*>(?:<[^>]+>)*\s*([^<]{5,80})\s*</time>', chunk, re.I)
-            if m_time and not "Intl.DateTimeFormat" in m_time.group(1):
-                dt = parse_snippet_to_datetime(m_time.group(1).strip(), now_npt)
-                if dt:
-                    ARTICLE_DATE_CACHE[href] = dt
-                    return dt
-
-            # Also check standard snippet regexes across chunk
-            for rgx in DATE_SNIPPET_REGEXES:
-                m_chunk = rgx.search(chunk[:25000])
-                if m_chunk:
-                    dt = parse_snippet_to_datetime(m_chunk.group(0), now_npt)
-                    if dt:
-                        ARTICLE_DATE_CACHE[href] = dt
-                        return dt
+            page_dt, page_is_do = _extract_intraday_dt_from_article_html(chunk, now_npt)
+            if page_dt is not None and not page_is_do:
+                ARTICLE_DATE_CACHE[href] = page_dt
+                return page_dt
+            if page_dt is not None and fallback_date_only is None:
+                fallback_date_only = page_dt
         except Exception:
             pass
+
+    if fallback_date_only is not None:
+        # Only cache date-only fallback permanently if it's from a past day; allow today's date-only to upgrade later
+        if fallback_date_only.date() < now_npt.date():
+            ARTICLE_DATE_CACHE[href] = fallback_date_only
+        return fallback_date_only
 
     return None
 
@@ -871,10 +1022,10 @@ def fetch_single_portal(
     items = []
     seen_links = set()
 
-    def process_rss_content(content_bytes, p_info):
+    def process_rss_content(content_bytes, p_info, entry_limit: int = max_entries):
         parsed_items = []
         feed = feedparser.parse(content_bytes)
-        for entry in feed.entries[:max_entries]:
+        for entry in feed.entries[:entry_limit]:
             title = entry.get("title", "").strip()
             raw_link = entry.get("link", "#")
             norm_link = normalize_canonical_url(raw_link)
@@ -946,37 +1097,130 @@ def fetch_single_portal(
             })
         return parsed_items
 
-    def _process_html_content(html_raw: str, base_url: str, p_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    _NON_ARTICLE_EXACT_PATHS = {
+        "", "/npl", "/airquality", "/calendar", "/follow", "/here-now", "/opinion",
+        "/editorial", "/multimedia", "/archive", "/about", "/contact", "/advertise",
+        "/weather", "/forex", "/horoscope", "/rashifal", "/epaper", "/unicode",
+        "/date-converter", "/login", "/register", "/search", "/news", "/national",
+        "/business", "/politics", "/world", "/sports", "/valley", "/money", "/feature",
+        "/art-culture", "/columns", "/cricket", "/health", "/lifestyle", "/literature",
+    }
+
+    def _clean_anchor_title_and_summary(a_el) -> Tuple[str, str]:
+        """
+        Extracts clean headline text and standfirst summary from an <a> node without mutating
+        the live DOM tree, stripping embedded date-only spans (e.g. <span>2026-11-19</span>)
+        and UI badge elements so dates never pollute article titles or canonical_id hashes.
+        """
+        a_clone = BeautifulSoup(str(a_el), "html.parser")
+        for noisy_child in a_clone.find_all(["svg", "script", "style", "time", "button"]):
+            noisy_child.decompose()
+        for span_el in a_clone.find_all(["span", "small", "div"]):
+            s_cls = " ".join(span_el.get("class") or []).lower()
+            s_txt = span_el.get_text(" ", strip=True)
+            if any(b in s_cls for b in ("prem-icon", "badge", "date", "time", "cat-label", "tag-label")):
+                span_el.decompose()
+            elif s_txt and re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}$", s_txt.strip()):
+                span_el.decompose()
+
+        heading_el = a_clone.find(["h1", "h2", "h3", "h4", "h5"])
+        p_in = a_clone.find("p")
+        card_summary = ""
+        if heading_el and heading_el.get_text(strip=True):
+            raw_title = " ".join(heading_el.get_text(" ", strip=True).split())
+            if p_in and p_in.get_text(strip=True):
+                card_summary = " ".join(p_in.get_text(" ", strip=True).split())
+        elif p_in and p_in.get_text(strip=True):
+            p_txt = " ".join(p_in.get_text(" ", strip=True).split())
+            full_txt = " ".join(a_clone.get_text(" ", strip=True).split())
+            raw_title = full_txt.replace(p_txt, "").strip() or full_txt
+            card_summary = p_txt if p_txt != raw_title else ""
+        else:
+            raw_title = " ".join(a_clone.get_text(" ", strip=True).split())
+
+        # Strip trailing bare YYYY-MM-DD / YYYY/MM/DD date tokens appended inside latest-news links
+        clean_title = re.sub(r"\s+\b202[0-9][-/](?:0[1-9]|1[0-2])[-/](?:0[1-9]|[12][0-9]|3[01])\b\s*$", "", raw_title).strip()
+        return clean_title, card_summary
+
+    def _candidate_freshness_key(cand_tuple) -> Tuple[int, int, int]:
+        """Prioritizes today's and recent article URLs ahead of older archive features before max_entries slicing."""
+        a_el, _txt, _sum, href_val, _norm, dom_idx = cand_tuple
+        m_u = re.search(r"/(202[0-9])[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12][0-9]|3[01])", href_val)
+        if not m_u:
+            m_u = re.search(r"-(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])", href_val)
+        if m_u:
+            try:
+                u_date = datetime.date(int(m_u.group(1)), int(m_u.group(2)), int(m_u.group(3)))
+                day_age = (now_npt.date() - u_date).days
+                if day_age <= 0:
+                    return (0, 0, dom_idx)
+                if day_age == 1:
+                    return (1, 1, dom_idx)
+                return (3, max(2, day_age), dom_idx)
+            except Exception:
+                pass
+        anc_cls = " ".join(" ".join(p.get("class") or []) for p in a_el.parents if hasattr(p, "get")).lower()
+        if any(k in anc_cls for k in ("template-taja", "latest", "breaking", "taja")):
+            return (0, 0, dom_idx)
+        return (2, 0, dom_idx)
+
+    def _process_html_content(
+        html_raw: str,
+        base_url: str,
+        p_info: Dict[str, Any],
+        entry_limit: int = max_entries,
+    ) -> List[Dict[str, Any]]:
         parsed_html: List[Dict[str, Any]] = []
         soup = BeautifulSoup(html_raw, "html.parser")
         seen_titles = set()
-        for a in soup.find_all("a", href=True):
-            txt = " ".join(a.get_text(" ", strip=True).split())
+        local_seen_links = set(seen_links)
+        candidates = []
+
+        for dom_idx, a in enumerate(soup.find_all("a", href=True)):
             href = a["href"].strip()
-            if len(txt) >= 20 and txt not in seen_titles:
-                anc_tags = {p.name for p in a.parents if hasattr(p, "name")}
-                if "nav" in anc_tags or "header" in anc_tags or "footer" in anc_tags:
-                    continue
-                anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
-                if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll", "navbar", "nav-menu", "main-menu", "header-menu", "footer"]):
-                    continue
-                if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/", "/morearticles/", "/page/", "/hong-kong-home", "/entertainment"]):
-                    continue
-                if any(k in txt.lower() for k in ["privacy", "terms", "contact us", "about us", "advertise", "epaper", "login", "more articles", "see more"]):
-                    continue
-                if href.startswith("/"):
-                    href = base_url.rstrip("/") + href
-                elif not href.startswith("http"):
-                    continue
+            anc_tags = {p.name for p in a.parents if hasattr(p, "name")}
+            if "nav" in anc_tags or "header" in anc_tags or "footer" in anc_tags:
+                continue
+            anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
+            if any(skip_cls in anc_classes for skip_cls in ["search-overlay", "trending-scroll", "navbar", "nav-menu", "main-menu", "header-menu", "footer", "blocktop"]):
+                continue
+            if any(skip_p in href.lower() for skip_p in ["/author/", "/tag/", "/category/", "/topic/", "/morearticles/", "/page/", "/hong-kong-home", "/entertainment"]):
+                continue
+            if href.startswith("/"):
+                parsed_base = urllib.parse.urlparse(base_url)
+                origin = f"{parsed_base.scheme}://{parsed_base.netloc}" if parsed_base.scheme and parsed_base.netloc else base_url.rstrip("/")
+                href = origin.rstrip("/") + href
+            elif not href.startswith("http"):
+                continue
 
-                norm_link = normalize_canonical_url(href)
-                if norm_link in seen_links:
-                    continue
+            parsed_path = urllib.parse.urlparse(href).path.rstrip("/").lower()
+            if parsed_path in _NON_ARTICLE_EXACT_PATHS:
+                continue
 
-                seen_titles.add(txt)
-                seen_links.add(norm_link)
+            txt, card_summary = _clean_anchor_title_and_summary(a)
+            if len(txt) < 20 or txt in seen_titles:
+                continue
+            if any(k in txt.lower() for k in [
+                "privacy", "terms", "contact us", "about us", "advertise", "epaper",
+                "login", "more articles", "see more", "preferred source on google",
+                "view calendar", "air quality in kathmandu",
+            ]):
+                continue
 
-                art_summary = txt
+            norm_link = normalize_canonical_url(href)
+            if not norm_link or norm_link in local_seen_links:
+                continue
+
+            seen_titles.add(txt)
+            local_seen_links.add(norm_link)
+            candidates.append((a, txt, card_summary, href, norm_link, dom_idx))
+
+        candidates.sort(key=_candidate_freshness_key)
+
+        for a, txt, card_summary, href, norm_link, _dom_idx in candidates[:entry_limit]:
+            seen_links.add(norm_link)
+            art_summary = card_summary if (card_summary and len(card_summary) > 15 and card_summary != txt) else txt
+            if art_summary == txt:
                 curr = a.parent
                 for _ in range(3):
                     if not curr:
@@ -990,85 +1234,101 @@ def fetch_single_portal(
                         break
                     curr = curr.parent
 
-                parsed_dt = extract_date_from_card_or_url(a, href, now_npt)
-                art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
-                cls_res = classify_article_editorial(txt, art_summary, p_info["name"], art_summary)
-                classified_cat = cls_res["primary_section"]
-                headline_en = txt if p_info.get("lang") == "English" else ""
-                canonical_id = generate_canonical_id(p_info["name"], norm_link, txt)
+            parsed_dt = extract_date_from_card_or_url(a, href, now_npt)
+            art_dt, rel_time, exact_time = parse_to_nepal_time(parsed_dt, now_npt)
+            cls_res = classify_article_editorial(txt, art_summary, p_info["name"], art_summary)
+            classified_cat = cls_res["primary_section"]
+            headline_en = txt if p_info.get("lang") == "English" else ""
+            canonical_id = generate_canonical_id(p_info["name"], norm_link, txt)
 
-                parsed_html.append({
-                    "canonical_id": canonical_id,
-                    "source": p_info["name"],
-                    "language": p_info.get("lang", "Nepali"),
-                    "portal_category": p_info.get("category", "General News"),
-                    "structured_category": classified_cat,
-                    "primary_section": classified_cat,
-                    "sections": cls_res["sections"],
-                    "secondary_tags": cls_res["secondary_tags"],
-                    "classification_confidence": cls_res["confidence"],
-                    "low_confidence": cls_res["low_confidence"],
-                    "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
-                    "title": txt,
-                    "headline_english": headline_en,
-                    "link": href,
-                    "canonical_url": norm_link,
-                    "summary": art_summary,
-                    "full_content": art_summary,
-                    "published_dt": art_dt,
-                    "relative_time": rel_time,
-                    "exact_time": exact_time,
-                    "is_viral": False
-                })
-                if len(items) + len(parsed_html) >= max_entries:
-                    break
+            parsed_html.append({
+                "canonical_id": canonical_id,
+                "source": p_info["name"],
+                "language": p_info.get("lang", "Nepali"),
+                "portal_category": p_info.get("category", "General News"),
+                "structured_category": classified_cat,
+                "primary_section": classified_cat,
+                "sections": cls_res["sections"],
+                "secondary_tags": cls_res["secondary_tags"],
+                "classification_confidence": cls_res["confidence"],
+                "low_confidence": cls_res["low_confidence"],
+                "category_icon": CATEGORY_ICONS.get(classified_cat, "📌"),
+                "title": txt,
+                "headline_english": headline_en,
+                "link": href,
+                "canonical_url": norm_link,
+                "summary": art_summary,
+                "full_content": art_summary,
+                "published_dt": art_dt,
+                "relative_time": rel_time,
+                "exact_time": exact_time,
+                "is_viral": False
+            })
         return parsed_html
 
     def _fetch_bytes(target_url: str, timeout_secs: float) -> bytes:
-        req = urllib.request.Request(target_url, headers=DEFAULT_HEADERS)
-        with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout_secs) as response:
-            return response.read()
+        try:
+            req = urllib.request.Request(target_url, headers=DEFAULT_HEADERS)
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout_secs) as response:
+                return response.read()
+        except Exception as primary_err:
+            # Retry once with requests session + Referer header before propagating error
+            try:
+                parsed_u = urllib.parse.urlparse(target_url)
+                origin = f"{parsed_u.scheme}://{parsed_u.netloc}/" if parsed_u.scheme and parsed_u.netloc else target_url
+                r_resp = requests.get(
+                    target_url,
+                    headers={**DEFAULT_HEADERS, "Referer": origin},
+                    timeout=timeout_secs,
+                    verify=False,
+                )
+                if r_resp.ok and r_resp.content:
+                    return r_resp.content
+            except Exception:
+                pass
+            raise primary_err
+
+    def _ingest_endpoint_bytes(raw_bytes: bytes, endpoint_url: str, p_info: Dict[str, Any], limit_items: int) -> List[Dict[str, Any]]:
+        head_low = raw_bytes[:1024].lstrip().lower()
+        is_html_doc = head_low.startswith(b"<!doctype html") or head_low.startswith(b"<html") or (b"<html" in head_low and b"<rss" not in head_low and b"<feed" not in head_low)
+        if not is_html_doc and (
+            b"<rss" in head_low
+            or b"<feed" in head_low
+            or b"<item" in head_low
+            or b"<?xml" in head_low
+            or endpoint_url.rstrip("/").endswith(("/rss", "/feed", "/feeds"))
+            or "format=rss" in endpoint_url.lower()
+        ):
+            return process_rss_content(raw_bytes, p_info, entry_limit=limit_items)
+        return _process_html_content(raw_bytes.decode("utf-8", errors="ignore"), endpoint_url, p_info, entry_limit=limit_items)
 
     last_exc: Optional[Exception] = None
     try:
-        if portal["type"] == "rss":
-            try:
-                items.extend(process_rss_content(_fetch_bytes(portal["url"], 6.0), portal))
-            except Exception as e:
-                last_exc = e
+        # 1. Poll primary portal URL
+        try:
+            primary_bytes = _fetch_bytes(portal["url"], 6.0)
+            if portal["type"] == "rss":
+                items.extend(process_rss_content(primary_bytes, portal, entry_limit=max_entries))
+            else:
+                items.extend(_process_html_content(primary_bytes.decode("utf-8", errors="ignore"), portal["url"], portal, entry_limit=max_entries))
+        except Exception as e:
+            last_exc = e
 
-            # If primary feed failed or yielded few articles, check configured alt_urls (category/fallback feeds)
-            if len(items) < 8 and portal.get("alt_urls"):
-                for alt_url in portal.get("alt_urls", []):
-                    if len(items) >= max_entries:
-                        break
-                    try:
-                        items.extend(process_rss_content(_fetch_bytes(alt_url, 4.0), portal))
-                    except Exception as e:
-                        if last_exc is None:
-                            last_exc = e
-        else:
-            # HTML discovery mode with automatic RSS/alt_url fallback when primary HTML is blocked/empty
-            try:
-                html_bytes = _fetch_bytes(portal["url"], 6.0)
-                items.extend(_process_html_content(html_bytes.decode("utf-8", errors="ignore"), portal["url"], portal))
-            except Exception as e:
-                last_exc = e
-
-            if not items and portal.get("alt_urls"):
-                for alt_url in portal.get("alt_urls", []):
-                    if len(items) >= max_entries:
-                        break
-                    try:
-                        alt_bytes = _fetch_bytes(alt_url, 4.0)
-                        head_low = alt_bytes[:512].lstrip().lower()
-                        if b"<rss" in head_low or b"<feed" in head_low or alt_url.rstrip("/").endswith(("/rss", "/feed")):
-                            items.extend(process_rss_content(alt_bytes, portal))
-                        else:
-                            items.extend(_process_html_content(alt_bytes.decode("utf-8", errors="ignore"), alt_url, portal))
-                    except Exception as e:
-                        if last_exc is None:
-                            last_exc = e
+        # 2. Poll configured alt_urls (section pages, category feeds, and date-sorted RSS fallbacks)
+        # Do not gate alt_urls solely on `if not items` so section pages (e.g. eKantipur /news, /national, /business,
+        # Nepali Times /here-now, /opinion, /editorial, Kathmandu Post sections) always supplement discovery.
+        if portal.get("alt_urls"):
+            per_alt_limit = max_entries if not items else max(20, max_entries // 2)
+            total_cap = max_entries + len(portal.get("alt_urls", [])) * 20
+            for alt_url in portal.get("alt_urls", []):
+                if len(items) >= total_cap:
+                    break
+                try:
+                    alt_bytes = _fetch_bytes(alt_url, 4.5)
+                    items.extend(_ingest_endpoint_bytes(alt_bytes, alt_url, portal, limit_items=per_alt_limit))
+                except Exception as e:
+                    if last_exc is None:
+                        last_exc = e
 
         # If every candidate URL errored and nothing was parsed, surface real failure instead of silent empty
         if not items and last_exc is not None:

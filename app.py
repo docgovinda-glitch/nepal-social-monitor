@@ -117,11 +117,13 @@ from nepal_config import (
     CATEGORY_ICONS,
     TOP_NEPAL_NEWS_PORTALS,
     TOP_INDIAN_MEDIA_SOURCES,
+    ENGLISH_NEPAL_PORTAL_NAMES,
     _has_devanagari,
     parse_to_nepal_time,
 )
 from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
 from nepal_news_store import (
+    register_portal_sources,
     get_all_source_health,
     get_system_kpis,
     get_system_health_bundle,
@@ -3252,7 +3254,7 @@ elif selected_nav == "Analytics & Export":
             "content": a.get("full_content") or a.get("summary", ""),
             "category": a.get("structured_category", "Others"),
             "source": a.get("source", "Nepali Media"),
-            "language": a.get("language") or ("English" if a.get("source") in ("The Kathmandu Post", "The Himalayan Times", "Republica", "Nepal News") else "Nepali"),
+            "language": a.get("language") or ("English" if a.get("source") in ENGLISH_NEPAL_PORTAL_NAMES else "Nepali"),
             "timestamp": a.get("exact_time") or a.get("relative_time", ""),
             "published_dt": a.get("published_dt"),
             "link": a.get("link", ""),
@@ -3437,6 +3439,32 @@ elif selected_nav == "Analytics & Export":
 # ==========================================
 # SECTION 5: Health & Diagnostics
 # ==========================================
+def _invalidate_ui_caches_after_nepali_ingest() -> None:
+    """Clears health, feed, and session snapshot caches after manual System Health ingestion/backfill."""
+    for fn in (
+        get_system_health_bundle,
+        get_all_source_health,
+        get_system_kpis,
+        _get_cached_feed_page_with_count,
+        _get_cached_filtered_count,
+        get_cached_header_bundle,
+        get_cached_login_bootstrap,
+        get_cached_analytics_bundle,
+        get_active_nepal_articles,
+    ):
+        if hasattr(fn, "clear"):
+            fn.clear()
+    st.session_state.pop("_hdr_state_cache", None)
+    sess_map = st.session_state.get("feed_sessions")
+    if isinstance(sess_map, dict):
+        sess_map.pop("nepali", None)
+        sess_map.pop("live", None)
+    sv = st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+    sv["nepali"] = int(sv.get("nepali", 0)) + 1
+    st.session_state["data_version"] = int(st.session_state.get("data_version", 0)) + 1
+    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
+
+
 @st.fragment
 def render_system_health_section() -> None:
     _tr = get_db_transport_info()
@@ -3444,6 +3472,7 @@ def render_system_health_section() -> None:
     render_page_header("System Health & Diagnostics", f"Portal telemetry, discovery latency, and DB transport: {_tr_label}", show_window=False)
 
     try:
+        register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
         _sys_bundle = get_system_health_bundle()
         kpis = _sys_bundle.get("kpis") or get_system_kpis()
         health_data = _sys_bundle.get("health") or []
@@ -3479,6 +3508,7 @@ def render_system_health_section() -> None:
             with st.spinner("Executing parallel discovery across all 34 Nepali news portals…"):
                 from nepal_news_scheduler import run_all_sources_discovery
                 sync_res = run_all_sources_discovery(parallel_workers=20, force_all=True)
+                _invalidate_ui_caches_after_nepali_ingest()
                 st.success(f"✓ Checked {sync_res['total_checked']} portals · Ingested {sync_res['total_ingested']} fresh articles.")
                 time.sleep(1)
                 st.rerun()
@@ -3497,6 +3527,7 @@ def render_system_health_section() -> None:
                 with st.spinner(f"Initiating deep backfill for {len(targets) if targets else 34} portals across the past {bf_days} days…"):
                     from nepal_news_scheduler import run_historical_backfill
                     bf_res = run_historical_backfill(source_names=targets, days_back=bf_days, parallel_workers=10)
+                    _invalidate_ui_caches_after_nepali_ingest()
                     st.success(f"✓ Backfill Complete! Ingested {bf_res['total_ingested']} historical articles from {bf_res['sources_backfilled']} outlets.")
                     time.sleep(1)
                     st.rerun()
@@ -3600,9 +3631,11 @@ def render_system_health_section() -> None:
         with sc1:
             if st.button(f"Refresh {s_name}", icon=":material/refresh:", key=f"btn_ref_src_{s_name}_{s_idx}", width="stretch"):
                 with st.spinner(f"Ingesting latest feeds from {s_name}…"):
+                    from nepal_news_scheduler import run_single_source_discovery
                     portal_cfg = next((p for p in TOP_NEPAL_NEWS_PORTALS if p["name"] == s_name), None)
                     if portal_cfg:
                         run_single_source_discovery(portal_cfg, max_articles=40)
+                        _invalidate_ui_caches_after_nepali_ingest()
                         st.success(f"✓ Refreshed {s_name}!")
                         time.sleep(0.5)
                         st.rerun()

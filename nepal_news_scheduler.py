@@ -96,6 +96,30 @@ def run_single_source_discovery(source_config: Dict[str, Any], max_articles: int
             "latency_secs": latency
         }
 
+def _normalize_to_utc_dt(raw_val: Any) -> Optional[datetime.datetime]:
+    """Normalizes a datetime object or SQL/ISO timestamp string to timezone-aware UTC."""
+    if isinstance(raw_val, datetime.datetime):
+        if raw_val.tzinfo is not None:
+            return raw_val.astimezone(datetime.timezone.utc)
+        return raw_val.replace(tzinfo=datetime.timezone.utc)
+    if isinstance(raw_val, str):
+        s = raw_val.strip()
+        if not s:
+            return None
+        try:
+            norm = s.replace("Z", "+00:00")
+            if len(norm) >= 3 and norm[-3] in ("+", "-") and norm[-2:].isdigit():
+                norm = f"{norm}:00"
+            dt = datetime.datetime.fromisoformat(norm)
+            return dt.astimezone(datetime.timezone.utc) if dt.tzinfo is not None else dt.replace(tzinfo=datetime.timezone.utc)
+        except Exception:
+            try:
+                return datetime.datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
+            except Exception:
+                return None
+    return None
+
+
 def run_all_sources_discovery(
     parallel_workers: int = 15,
     force_all: bool = False,
@@ -108,9 +132,15 @@ def run_all_sources_discovery(
     import concurrent.futures
     from nepal_fetcher import TOP_NEPAL_NEWS_PORTALS
 
+    if len(TOP_NEPAL_NEWS_PORTALS) >= 10:
+        try:
+            register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
+        except Exception:
+            pass
+
     portal_map = {p["name"]: p for p in TOP_NEPAL_NEWS_PORTALS}
     health_rows = get_all_source_health()
-    now = datetime.datetime.now()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
 
     portals_to_run = []
     for h in health_rows:
@@ -125,7 +155,7 @@ def run_all_sources_discovery(
             portals_to_run.append(portal_cfg)
             continue
 
-        # Check interval
+        # Check interval using timezone-aware UTC timestamps (self-healing future NPT/UTC clock skew)
         interval_mins = h.get("check_interval_mins", 15)
         last_disc = h.get("last_discovery_time")
         if not last_disc:
@@ -133,12 +163,12 @@ def run_all_sources_discovery(
             continue
 
         try:
-            if isinstance(last_disc, str):
-                last_dt = datetime.datetime.strptime(last_disc[:19], "%Y-%m-%d %H:%M:%S")
-            else:
-                last_dt = last_disc
-            elapsed = (now - last_dt).total_seconds() / 60.0
-            if elapsed >= interval_mins:
+            last_dt_utc = _normalize_to_utc_dt(last_disc)
+            if last_dt_utc is None:
+                portals_to_run.append(portal_cfg)
+                continue
+            elapsed = (now_utc - last_dt_utc).total_seconds() / 60.0
+            if elapsed >= interval_mins or elapsed < -1.0:
                 portals_to_run.append(portal_cfg)
         except Exception:
             portals_to_run.append(portal_cfg)
@@ -485,6 +515,11 @@ def _monitoring_daemon_loop():
     # Delay first cycle so initial UI queries get uncontested bandwidth
     if _STOP_EVENT.wait(15.0):
         return
+    try:
+        from nepal_config import TOP_NEPAL_NEWS_PORTALS
+        register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
+    except Exception:
+        pass
     while not _STOP_EVENT.is_set():
         # Skip automated cycle if a manual sync is actively running to avoid overlapping ingestion
         if _INGEST_RUN_LOCK.acquire(blocking=False):
@@ -526,14 +561,24 @@ def _monitoring_daemon_loop():
                         fut_meta[pool.submit(scan_popular_nepal_x_posts, True)] = ("X", _mark_x)
 
                     done_futs = set()
+                    stream_key_map = {"Nepali": "nepali", "Indian Press": "indian", "X": "x"}
                     try:
                         for fut in concurrent.futures.as_completed(fut_meta, timeout=90.0):
                             done_futs.add(fut)
                             label, on_done = fut_meta[fut]
                             try:
-                                fut.result(timeout=0.5)
+                                res_val = fut.result(timeout=0.5)
                                 if on_done is not None:
                                     on_done()
+                                s_key = stream_key_map.get(label)
+                                has_updates = (
+                                    (isinstance(res_val, dict) and int(res_val.get("total_ingested", 0) or 0) > 0)
+                                    or (isinstance(res_val, list) and len(res_val) > 0)
+                                )
+                                if s_key and has_updates:
+                                    _invalidate_store_caches_after_sync(targets=(s_key,))
+                                    with _MANUAL_SYNC_LOCK:
+                                        _MANUAL_SYNC_STATE["stream_seqs"][s_key] = int(_MANUAL_SYNC_STATE["stream_seqs"].get(s_key, 0)) + 1
                             except concurrent.futures.TimeoutError:
                                 logger.warning(f"Monitoring loop {label} cycle timed out after 90s; continuing.")
                             except Exception as e:
