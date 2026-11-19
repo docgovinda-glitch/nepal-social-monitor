@@ -296,7 +296,7 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
 
 
 # Background Monitoring Worker Thread
-_DAEMON_CODE_VERSION = "2026-11-19-v6"
+_DAEMON_CODE_VERSION = "2026-11-19-v7"
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
@@ -339,7 +339,7 @@ def _run_concurrent_ingest_pipelines(
     include_indian: bool = True,
     include_x: bool = True,
     nepali_workers: int = 12,
-    indian_workers: int = 8,
+    indian_workers: int = 16,
     pipeline_timeout_secs: float = 90.0,
     on_pipeline_done: Optional[Any] = None,
 ) -> Tuple[Dict[str, int], Dict[str, str]]:
@@ -460,7 +460,7 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             include_indian=("indian" in target_set),
             include_x=("x" in target_set),
             nepali_workers=12,
-            indian_workers=12,
+            indian_workers=16,
             pipeline_timeout_secs=90.0,
             on_pipeline_done=_on_stream_done,
         )
@@ -552,7 +552,7 @@ def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
                         fut_meta[
                             pool.submit(
                                 fetch_nepal_in_indian_media,
-                                10,
+                                16,
                                 DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
                                 False,
                                 True,

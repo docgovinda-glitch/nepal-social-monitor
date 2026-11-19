@@ -7,6 +7,8 @@ High-performance news & social media fetcher for Nepal.
 """
 
 import os
+import time
+import logging
 import datetime
 import zoneinfo
 import urllib.request
@@ -30,8 +32,14 @@ from nepal_news_store import (
     register_portal_sources,
     ingest_indian_articles_batch,
     get_stored_indian_articles,
-    get_indian_media_audit_stats
+    get_indian_media_audit_stats,
+    get_existing_indian_hydrated_ids,
+    record_indian_source_health,
 )
+
+logger = logging.getLogger("nepal_fetcher")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 from nepal_config import (
     NEPAL_TZ,
@@ -64,6 +72,8 @@ FULL_ARTICLE_TEXT_CACHE = {}
 ARTICLE_DATE_CACHE = {}
 # Resolved t.co shortlink cache
 TCO_REDIRECT_CACHE: Dict[str, str] = {}
+# Resolved Google News RSS article redirect cache
+GNEWS_URL_CACHE: Dict[str, str] = {}
 # Domains served via official X syndication bridge rather than direct HTML scraping
 _SKIP_DIRECT_SCRAPE_DOMAINS = frozenset({"annapurnapost.com", "www.annapurnapost.com"})
 
@@ -914,7 +924,7 @@ def _extract_intraday_dt_from_article_html(chunk: str, now_npt: datetime.datetim
     return fallback_date_only, True
 
 
-def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
+def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime, allow_http_fetch: bool = True):
     """
     Extracts real publication datetime for an HTML article card or RSS item link:
     1. Memory cache check.
@@ -1026,7 +1036,7 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime):
             pass
 
     # 3. Fetch article page metadata to resolve exact intraday HH:MM before falling back to date_only
-    if href.startswith("http") and not _is_direct_scrape_skipped(href):
+    if allow_http_fetch and href.startswith("http") and not _is_direct_scrape_skipped(href):
         try:
             req = urllib.request.Request(href, headers=DEFAULT_HEADERS)
             with urllib.request.urlopen(req, context=SSL_CTX, timeout=2.5) as resp:
@@ -1994,20 +2004,28 @@ _NAV_BOILERPLATE_RE = re.compile(
 )
 
 _NEPAL_CORE_SUBJECT_RE = re.compile(
-    r'(\bnepal\b|\bnepali\b|\bnepalese\b|\bkathmandu\b|\bpAPokhara\b|\bpokhara\b|\bbirgunj\b|\bbiratnagar\b|'
+    r'(\bnepal\b|\bnepali\b|\bnepalese\b|\bkathmandu\b|\bpokhara\b|\bbirgunj\b|\bbiratnagar\b|'
     r'\bjanakpur\b|\bjanakpurdham\b|\blumbini\b|\bchitwan\b|\bbhairahawa\b|\bdhangadhi\b|\bnepalgunj\b|\bmadhesh\b|'
-    r'\brautahat\b|\bayodhya-janakpur\b|\bsingha durbar\b|\bsheetal niwas\b|\bbaluwatar\b|'
+    r'\bterai\b|\btarai\b|\brautahat\b|\bayodhya-janakpur\b|\bsingha durbar\b|\bsheetal niwas\b|\bbaluwatar\b|'
     r'\bkp sharma oli\b|\bk\.?\s*p\.?\s*oli\b|\boli\b|\bprachanda\b|\bpushpa kamal dahal\b|'
     r'\bsher bahadur deuba\b|\bdeuba\b|\bbalen shah\b|\bbalen\b|\bbalendra shah\b|\bbalendra\b|'
-    r'\brabi lamichhane\b|\bgagan thapa\b|\bram chandra paudel\b|\barzu rana\b|'
+    r'\bsushila karki\b|\brabi lamichhane\b|\bgagan thapa\b|\bram chandra paudel\b|\barzu rana\b|'
     r'\bindo-nepal\b|\bnepal-india\b|\bkalapani\b|\blipulekh\b|\blimpiyadhura\b|\bsusta\b|'
+    r'\bgorkha\b|\bgurkha\b|\bannapurna\b|\bmustang\b|\bbhotekoshi\b|\brasuwagadhi\b|\btatopani\b|'
+    r'\bnepal premier league\b|\bnpl\b|\btribhuvan\b|'
     r'\bpashupatinath\b|\bmuktinath\b|\bsagarmatha\b|\beverest\b|\bkoshi\b|\bgandak\b|\bmahakali\b|'
     r'\bpancheshwar\b|\barun-?3\b|\barun iii\b|\bupper karnali\b|\bwest seti\b|'
-    r'नेपाल|नेपाली|नेपाल-भारत|भारत-नेपाल|काठमांडू|काठमाण्डू|काठमाण्डौ|काठमाडौँ|'
-    r'पोखरा|बीरगंज|वीरगन्ज|विराटनगर|जनकपुर|जनकपुरधाम|लुम्बिनी|लुंबिनी|मधेस|मधेश|रौतहट|धनगढी|भैरहवा|नेपालगंज|'
-    r'ओली|केपी ओली|प्रचंड|प्रचण्ड|देउवा|बालेन|बालेन्द्र|बालेंद्र|नेपाली कांग्रेस|माओवादी|एमाले|'
+    r'नेपाल|नेपाली|नेपाल-भारत|भारत-नेपाल|नेपाल सीमा|काठमांडू|काठमाण्डू|काठमाण्डौ|काठमाडौँ|'
+    r'पोखरा|बीरगंज|वीरगन्ज|विराटनगर|जनकपुर|जनकपुरधाम|लुम्बिनी|लुंबिनी|मधेस|मधेश|तराई|रौतहट|धनगढी|भैरहवा|नेपालगंज|'
+    r'ओली|केपी ओली|प्रचंड|प्रचण्ड|देउवा|बालेन|बालेन्द्र|बालेंद्र|सुशीला कार्की|नेपाली कांग्रेस|माओवादी|एमाले|'
+    r'गोरखा|एवरेस्ट|अन्नपूर्णा|भोटेकोशी|रसुवागढी|तातोपानी|मुस्ताङ|त्रिभुवन|'
     r'कालापानी|लिपुलेख|लिम्पियाधुरा|कोशी|सप्तकोशी|गंडक|महाकाली|पशुपतिनाथ|मुक्तिनाथ|सोनौली|रक्सौल|जोगबनी|रुपईडीहा|बनबसा)',
     re.IGNORECASE
+)
+
+_NEPAL_URL_SLUG_RE = re.compile(
+    r'(?<![a-z0-9])(nepal|kathmandu|kalapani|lipulekh|oli|prachanda|pokhara|madhesh|gorkha|gurkha|koshi|balen|balendra)(?![a-z0-9])',
+    re.IGNORECASE,
 )
 
 _NEPAL_PILLAR_PATTERNS = {
@@ -2112,7 +2130,10 @@ def evaluate_indian_article_nepal_relevance(
 
     if clean_link:
         parsed_path = urllib.parse.urlparse(clean_link).path.rstrip("/")
-        if parsed_path.endswith(("/topic/nepal", "/tags/nepal", "/about/nepal", "/topic/india-nepal-relations", "/nepal")):
+        if (
+            parsed_path.endswith(("/topic/nepal", "/tags/nepal", "/about/nepal", "/topic/india-nepal-relations", "/nepal"))
+            or re.search(r"/(?:tag|tags|topic|topics|about)/[^/]+$", parsed_path)
+        ):
             return {
                 "nepal_relevance_score": 0.0,
                 "relevance_status": "excluded",
@@ -2121,11 +2142,11 @@ def evaluate_indian_article_nepal_relevance(
                 "is_substantive": False,
             }
 
-    # Step 2: Check core Nepal anchors across Headline, Body, and URL slug
+    # Step 2: Check core Nepal anchors across Headline, Body, and URL slug (strict slug boundaries)
     title_matches = _NEPAL_CORE_SUBJECT_RE.findall(clean_title)
     body_text_only = clean_body if clean_body != clean_title else ""
     body_matches = _NEPAL_CORE_SUBJECT_RE.findall(body_text_only)
-    url_has_nepal = bool(re.search(r'(nepal|kathmandu|kalapani|lipulekh|oli|prachanda|pokhara|madhesh|gorkha|koshi)', clean_link))
+    url_has_nepal = bool(_NEPAL_URL_SLUG_RE.search(clean_link))
 
     total_nepal_anchors = len(title_matches) + len(body_matches) + (1 if url_has_nepal else 0)
     if total_nepal_anchors == 0:
@@ -2192,12 +2213,10 @@ def evaluate_indian_article_nepal_relevance(
         score -= 0.18
         reasons.append("Penalized: broad regional list without dedicated Nepal focus")
 
-    if _PURE_INDIAN_DOMESTIC_NOISE_RE.search(combined_text):
-        if len(title_matches) == 0:
-            score -= 0.35
-            reasons.append("Penalized: domestic Indian entertainment/sports/finance noise")
-        else:
-            score -= 0.15
+    # Skip domestic noise penalties whenever a Nepal core subject is explicitly anchored in the headline
+    if len(title_matches) == 0 and _PURE_INDIAN_DOMESTIC_NOISE_RE.search(combined_text):
+        score -= 0.35
+        reasons.append("Penalized: domestic Indian entertainment/sports/finance noise")
 
     # Check if an Indian domestic story merely mentions "border" or a state (Bihar/UP) with a fleeting Nepal mention
     if len(title_matches) == 0 and len(body_matches) <= 1 and not url_has_nepal:
@@ -2308,17 +2327,312 @@ def _build_indian_article_record(
     }
 
 
-def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT_NEPAL_RELEVANCE_THRESHOLD):
+def resolve_google_news_url(url: str, timeout: float = 4.5) -> str:
+    """
+    Resolves a news.google.com/rss/articles/... redirect URL to its canonical publisher article URL
+    via fast base64 protobuf decode (v1 tokens) or Google News batchexecute (v2 AU_yqL tokens),
+    caching results in GNEWS_URL_CACHE. Falls back cleanly to the input URL if unresolved.
+    """
+    import base64
+
+    clean_u = (url or "").strip()
+    if not clean_u:
+        return ""
+    if clean_u in GNEWS_URL_CACHE:
+        return GNEWS_URL_CACHE[clean_u]
+    try:
+        parsed = urllib.parse.urlparse(clean_u)
+        if "news.google.com" not in parsed.netloc.lower() or "/articles/" not in parsed.path:
+            return clean_u
+    except Exception:
+        return clean_u
+
+    m_id = re.search(r"/articles/([^?/#]+)", clean_u)
+    if not m_id:
+        return clean_u
+    art_id = m_id.group(1)
+
+    resolved = clean_u
+    # 1. Fast local decode for legacy base64-embedded URLs (zero network cost)
+    try:
+        padded = art_id + "=" * (-len(art_id) % 4)
+        raw_b = base64.urlsafe_b64decode(padded)
+        raw_s = raw_b.decode("latin-1", errors="ignore")
+        if "AU_yqL" not in raw_s:
+            m_http = re.search(r"(https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+)", raw_s)
+            if m_http and "news.google.com" not in m_http.group(1).lower():
+                resolved = m_http.group(1).rstrip("\x00\x01\x02")
+    except Exception:
+        pass
+
+    # 2. Decode Google News v2 tokens via article splash metadata + batchexecute
+    if resolved == clean_u:
+        try:
+            r_page = requests.get(
+                f"https://news.google.com/articles/{art_id}",
+                headers=DEFAULT_HEADERS,
+                timeout=timeout,
+            )
+            if r_page.status_code == 200 and r_page.text:
+                m_sg = re.search(r'data-n-a-sg="([^"]+)"', r_page.text)
+                m_ts = re.search(r'data-n-a-ts="([^"]+)"', r_page.text)
+                if m_sg and m_ts:
+                    payload = [[
+                        "Fbv4je",
+                        json.dumps([
+                            "garturlreq",
+                            [
+                                ["X", "X", ["X", "X"], None, None, 1, 1, "IN:en", None, 1, None, None, None, None, None, 0, 1],
+                                "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
+                            ],
+                            art_id,
+                            int(m_ts.group(1)),
+                            m_sg.group(1),
+                        ]),
+                        None,
+                        "generic",
+                    ]]
+                    r_b = requests.post(
+                        "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                        data={"f.req": json.dumps([payload])},
+                        headers={
+                            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                            "User-Agent": DEFAULT_HEADERS["User-Agent"],
+                        },
+                        timeout=timeout,
+                    )
+                    if r_b.status_code == 200 and r_b.text:
+                        m_u = re.search(r'"garturlres","(https?://[^"\\]+)', r_b.text.replace('\\"', '"'))
+                        if m_u and "news.google.com" not in m_u.group(1).lower():
+                            resolved = m_u.group(1)
+        except Exception as exc:
+            logger.debug(f"Google News URL decode skipped for {art_id[:16]}: {format_exc(exc, 120)}")
+
+    if resolved and resolved != clean_u:
+        GNEWS_URL_CACHE[clean_u] = resolved
+    return resolved
+
+
+def _indian_anchor_date_sort_key(cand_tuple, now_npt: datetime.datetime):
+    """Prioritizes fresher dated article URLs ahead of evergreen/pinned links before capping topic_html."""
+    _a, _txt, _snip, href_val, dom_idx = cand_tuple
+    m_u = re.search(r"/(202[0-9])[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12][0-9]|3[01])", href_val)
+    if not m_u:
+        m_u = re.search(r"-(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])", href_val)
+    if m_u:
+        try:
+            u_date = datetime.date(int(m_u.group(1)), int(m_u.group(2)), int(m_u.group(3)))
+            day_age = max(0, (now_npt.date() - u_date).days)
+            return (0 if day_age <= 3 else (1 if day_age <= 14 else 3), day_age, dom_idx)
+        except Exception:
+            pass
+    return (2, 0, dom_idx)
+
+
+def _fetch_batched_google_news_indian_media(
+    sources: List[Dict[str, Any]],
+    now_npt: datetime.datetime,
+    relevance_threshold: float = DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
+    existing_title_keys: Optional[set] = None,
+    batch_size: int = 5,
+    max_decode_urls: int = 60,
+) -> List[Dict[str, Any]]:
+    """
+    Executes locale-aware batched Google News RSS sweeps (4-6 domains per OR query, when:3d)
+    across English and Hindi Indian outlets, attributes each story to its source via <source>,
+    skips titles already captured by Bing/HTML, and resolves net-new Google News redirect URLs in parallel.
+    """
+    if not sources:
+        return []
+
+    by_domain: Dict[str, Dict[str, Any]] = {}
+    by_name_low: Dict[str, Dict[str, Any]] = {}
+    en_sources: List[Dict[str, Any]] = []
+    hi_sources: List[Dict[str, Any]] = []
+
+    for s in sources:
+        dom = (s.get("domain") or urllib.parse.urlparse(s.get("url", "")).netloc.lower().lstrip("www.")).strip().lower()
+        if not dom:
+            continue
+        by_domain[dom] = s
+        by_name_low[s["name"].strip().lower()] = s
+        if s.get("lang") == "Hindi":
+            hi_sources.append(s)
+        else:
+            en_sources.append(s)
+
+    def _attribute_source(entry_src: Any, raw_title: str, batch_srcs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        href = ""
+        stitle = ""
+        if isinstance(entry_src, dict):
+            href = (entry_src.get("href") or "").strip().lower()
+            stitle = (entry_src.get("title") or "").strip().lower()
+        if href:
+            host = urllib.parse.urlparse(href).netloc.lower().lstrip("www.")
+            for dom, scfg in by_domain.items():
+                if host == dom or host.endswith(f".{dom}"):
+                    return scfg
+        if stitle:
+            if stitle in by_name_low:
+                return by_name_low[stitle]
+            for scfg in batch_srcs:
+                sn = scfg["name"].lower()
+                if sn in stitle or stitle in sn:
+                    return scfg
+        if " - " in raw_title:
+            tail = raw_title.rsplit(" - ", 1)[-1].strip().lower()
+            for scfg in batch_srcs:
+                if scfg["name"].lower() in tail or tail in scfg["name"].lower():
+                    return scfg
+        return None
+
+    queries: List[tuple] = []
+    for lang_is_hi, src_list in ((False, en_sources), (True, hi_sources)):
+        for i in range(0, len(src_list), batch_size):
+            chunk = src_list[i : i + batch_size]
+            dom_expr = " OR ".join(f"site:{c['domain']}" for c in chunk if c.get("domain"))
+            if not dom_expr:
+                continue
+            if lang_is_hi:
+                q = f"({dom_expr}) (intitle:नेपाल OR intitle:काठमांडू OR intitle:बालेन OR intitle:गोरखा) when:3d"
+                u = f"https://news.google.com/rss/search?q={urllib.parse.quote(q)}&hl=hi&gl=IN&ceid=IN:hi"
+            else:
+                q = f"({dom_expr}) (intitle:Nepal OR intitle:Kathmandu OR intitle:Balen OR intitle:Balendra OR intitle:Gorkha) when:3d"
+                u = f"https://news.google.com/rss/search?q={urllib.parse.quote(q)}&hl=en-IN&gl=IN&ceid=IN:en"
+            queries.append((u, chunk))
+
+    def _fetch_gnews_batch(url_and_chunk):
+        g_url, chunk = url_and_chunk
+        try:
+            req = urllib.request.Request(g_url, headers=DEFAULT_HEADERS)
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=7.0) as resp:
+                feed = feedparser.parse(resp.read())
+            return chunk, list(feed.entries or [])
+        except Exception as exc:
+            doms = ",".join(c.get("domain", "") for c in chunk[:3])
+            logger.warning(f"Google News RSS batch failed ({doms}...): {format_exc(exc, 160)}")
+            return chunk, []
+
+    raw_hits: List[tuple] = []
+    seen_local_keys = set(existing_title_keys or set())
+
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=min(8, max(1, len(queries))))
+    try:
+        futs = [pool.submit(_fetch_gnews_batch, q_item) for q_item in queries]
+        for fut in concurrent.futures.as_completed(futs, timeout=18.0):
+            try:
+                chunk, entries = fut.result(timeout=2.0)
+                for e in entries:
+                    raw_t = (e.get("title") or "").strip()
+                    clean_t = re.sub(r"\s*[-–|]\s*[^-–|]+$", "", raw_t).strip() or raw_t
+                    if len(clean_t) < 18 or _NAV_BOILERPLATE_RE.search(clean_t):
+                        continue
+                    src_cfg = _attribute_source(e.get("source"), raw_t, chunk)
+                    if not src_cfg:
+                        continue
+                    t_key = (src_cfg["name"], _norm_title_key(clean_t))
+                    if t_key in seen_local_keys:
+                        continue
+                    # Pre-screen headline relevance before spending a Google News URL decode request
+                    pre_eval = evaluate_indian_article_nepal_relevance(
+                        title=clean_t,
+                        summary=clean_t,
+                        full_content=clean_t,
+                        link="",
+                        source=src_cfg["name"],
+                        threshold=relevance_threshold,
+                    )
+                    if pre_eval["relevance_status"] == "excluded" and "Navigation/boilerplate" in pre_eval["relevance_reason"]:
+                        continue
+                    pub_raw = e.get("published", "") or e.get("updated", "")
+                    pub_dt, rel_time, exact_time = parse_to_nepal_time(pub_raw, now_npt)
+                    # Enforce 7-day freshness guard (Google News occasionally slips older archive hits into when:3d)
+                    if (now_npt - pub_dt).total_seconds() > 7 * 86400:
+                        continue
+                    seen_local_keys.add(t_key)
+                    raw_hits.append((pub_dt, rel_time, exact_time, src_cfg, clean_t, e.get("link", ""), pre_eval))
+            except Exception as exc:
+                logger.warning(f"Google News RSS batch parse error: {format_exc(exc, 160)}")
+    except concurrent.futures.TimeoutError:
+        logger.warning("Batched Google News RSS discovery reached 18s timeout; proceeding with collected hits.")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    if not raw_hits:
+        return []
+
+    # Sort newest-first and decode Google News redirect URLs in parallel for top net-new hits
+    raw_hits.sort(key=lambda x: x[0], reverse=True)
+    to_decode = raw_hits[:max_decode_urls]
+    resolved_map: Dict[str, str] = {}
+    dec_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+    try:
+        fut_to_raw = {dec_pool.submit(resolve_google_news_url, hit[5], 4.0): hit[5] for hit in to_decode}
+        for fut in concurrent.futures.as_completed(fut_to_raw, timeout=14.0):
+            raw_lk = fut_to_raw[fut]
+            try:
+                resolved_map[raw_lk] = fut.result(timeout=1.0) or raw_lk
+            except Exception:
+                resolved_map[raw_lk] = raw_lk
+    except concurrent.futures.TimeoutError:
+        logger.warning("Google News URL resolution hit 14s budget; keeping unresolved links as fallback.")
+    finally:
+        dec_pool.shutdown(wait=False, cancel_futures=True)
+
+    records: List[Dict[str, Any]] = []
+    seen_norm_urls = set()
+    for pub_dt, rel_time, exact_time, src_cfg, clean_t, raw_lk, _pre_eval in to_decode:
+        final_url = resolved_map.get(raw_lk, raw_lk)
+        if not final_url.startswith("http") or _is_excluded_nepali_domain(final_url):
+            continue
+        norm_u = normalize_canonical_url(final_url) or final_url
+        if norm_u in seen_norm_urls:
+            continue
+        rel_eval = evaluate_indian_article_nepal_relevance(
+            title=clean_t,
+            summary=clean_t,
+            full_content=clean_t,
+            link=final_url,
+            source=src_cfg["name"],
+            threshold=relevance_threshold,
+        )
+        if "Index/tag landing" in rel_eval["relevance_reason"] or "Navigation/boilerplate" in rel_eval["relevance_reason"]:
+            continue
+        seen_norm_urls.add(norm_u)
+        rec = _build_indian_article_record(
+            src=src_cfg,
+            raw_title=clean_t,
+            summary_text=clean_t,
+            link_url=final_url,
+            pub_dt=pub_dt,
+            rel_time=rel_time,
+            exact_time=exact_time,
+            rel_eval=rel_eval,
+        )
+        rec["_precision_search"] = True
+        records.append(rec)
+    return records
+
+
+def fetch_single_indian_media(
+    src,
+    now_npt,
+    relevance_threshold: float = DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
+    hydrate_bodies: bool = True,
+    metrics_out: Optional[Dict[str, Any]] = None,
+):
     """
     Fetches candidate articles from prominent Indian media outlets and applies
     contextual Nepal-relevance classification to each candidate.
-    Pairs direct RSS/HTML topic scraping with date-sorted Bing News RSS discovery so
-    stale CMS tag pages never hide breaking last-24h India-Nepal coverage.
+    Always pairs precision intitle: Bing News RSS discovery with live topic_html/RSS
+    scraping (without blocking on synchronous per-link HTTP date fetches).
     """
+    t0 = time.time()
     items: List[Dict[str, Any]] = []
     seen_titles = set()
     seen_urls = set()
     excluded_kept = 0
+    errors_seen: List[str] = []
 
     def _try_append_candidate(
         raw_title: str,
@@ -2327,6 +2641,7 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
         pub_raw: Any,
         allow_excluded: bool = True,
         dom_tag: Any = None,
+        is_precision_search: bool = False,
     ) -> Optional[str]:
         nonlocal excluded_kept
         clean_title = re.sub(r'\s+', ' ', (raw_title or "").strip())
@@ -2354,13 +2669,16 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
         )
         if rel_eval["relevance_status"] == "excluded":
             if (
-                not allow_excluded
-                or excluded_kept >= 4
-                or "Navigation/boilerplate" in rel_eval["relevance_reason"]
+                "Navigation/boilerplate" in rel_eval["relevance_reason"]
                 or "Index/tag landing" in rel_eval["relevance_reason"]
             ):
                 return None
-            excluded_kept += 1
+            # Do not drop precision intitle: items with empty RSS descriptions behind excluded_kept >= 4 before hydration
+            has_empty_rss_desc = is_precision_search and (not clean_sum or clean_sum == clean_title)
+            if not has_empty_rss_desc:
+                if not allow_excluded or excluded_kept >= 4:
+                    return None
+                excluded_kept += 1
 
         seen_titles.add(title_key)
         if norm_url:
@@ -2368,47 +2686,64 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
 
         eff_pub_raw = pub_raw
         if not eff_pub_raw and link_url.startswith("http"):
-            eff_pub_raw = extract_date_from_card_or_url(dom_tag, link_url, now_npt)
+            # Never make synchronous per-link HTTP date fetches inside topic_html loops
+            eff_pub_raw = extract_date_from_card_or_url(dom_tag, link_url, now_npt, allow_http_fetch=False)
         pub_dt, rel_time, exact_time = parse_to_nepal_time(eff_pub_raw, now_npt)
 
-        items.append(
-            _build_indian_article_record(
-                src=src,
-                raw_title=clean_title,
-                summary_text=summary_text,
-                link_url=link_url,
-                pub_dt=pub_dt,
-                rel_time=rel_time,
-                exact_time=exact_time,
-                rel_eval=rel_eval,
-            )
+        rec = _build_indian_article_record(
+            src=src,
+            raw_title=clean_title,
+            summary_text=summary_text,
+            link_url=link_url,
+            pub_dt=pub_dt,
+            rel_time=rel_time,
+            exact_time=exact_time,
+            rel_eval=rel_eval,
         )
+        if is_precision_search:
+            rec["_precision_search"] = True
+        items.append(rec)
         return rel_eval["relevance_status"]
 
-    def _ingest_rss_feed(rss_url: str, max_entries: int = 60, allow_excluded: bool = True, is_bing: bool = False):
+    def _ingest_rss_feed(
+        rss_url: str,
+        max_entries: int = 60,
+        allow_excluded: bool = True,
+        is_bing: bool = False,
+        is_precision_search: bool = False,
+    ) -> int:
         req = urllib.request.Request(rss_url, headers=DEFAULT_HEADERS)
         with urllib.request.urlopen(req, context=SSL_CTX, timeout=7.0) as resp:
             feed = feedparser.parse(resp.read())
+        added = 0
         for e in feed.entries[:max_entries]:
             raw_t = (e.get("title") or "").strip()
             strip_pat = r"\s*[-–|]\s*[^-–|]+$" if is_bing else r"\s*-\s*[^-]+$"
             clean_t = re.sub(strip_pat, "", raw_t).strip() or raw_t
-            _try_append_candidate(
+            st = _try_append_candidate(
                 raw_title=clean_t,
                 summary_raw=e.get("summary", "") or e.get("description", ""),
                 raw_link=e.get("link", "#"),
                 pub_raw=e.get("published", "") or e.get("updated", ""),
                 allow_excluded=allow_excluded,
+                is_precision_search=is_precision_search,
             )
+            if st is not None:
+                added += 1
+        return added
 
-    src_type = src.get("type", "topic_html")
+    src_type = src.get("type", "search_rss")
+    is_search_first = src_type in ("bing_rss", "search_rss")
+
     if src_type == "rss":
         for rss_u in [src["url"]] + list(src.get("alt_urls") or []):
             try:
                 _ingest_rss_feed(rss_u, max_entries=60, allow_excluded=True, is_bing=False)
-            except Exception:
-                pass
-    elif src_type != "bing_rss":
+            except Exception as exc:
+                err_s = format_exc(exc, 180)
+                errors_seen.append(err_s)
+                logger.warning(f"Indian RSS failed [{src['name']}] ({rss_u}): {err_s}")
+    elif not is_search_first:
         try:
             req = urllib.request.Request(src["url"], headers=DEFAULT_HEADERS)
             with urllib.request.urlopen(req, context=SSL_CTX, timeout=7.0) as resp:
@@ -2417,7 +2752,9 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
             for nav_tag in soup(["script", "style", "noscript", "header", "footer", "nav", "aside"]):
                 nav_tag.decompose()
 
-            for a in soup.find_all("a", href=True):
+            # Collect & sort candidates by URL freshness before applying the substantive >= 20 cap
+            raw_anchors = []
+            for dom_idx, a in enumerate(soup.find_all("a", href=True)):
                 anc_classes = " ".join(" ".join(p.get("class") or []) for p in a.parents if hasattr(p, "get")).lower()
                 if any(bad in anc_classes for bad in ("sidebar", "trending", "popular", "most-read", "widget", "navbar", "footer")):
                     continue
@@ -2444,43 +2781,60 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
                         if p_tag:
                             card_snippet = p_tag.get_text(" ", strip=True)
 
-                _try_append_candidate(
+                href_val = _unwrap_bing_link(a["href"], src["url"])
+                raw_anchors.append((a, txt, card_snippet, href_val, dom_idx))
+
+            raw_anchors.sort(key=lambda c: _indian_anchor_date_sort_key(c, now_npt))
+            subst_count = 0
+            for a, txt, card_snippet, href_val, _dom_idx in raw_anchors:
+                st = _try_append_candidate(
                     raw_title=txt,
                     summary_raw=card_snippet,
-                    raw_link=a["href"],
+                    raw_link=href_val,
                     pub_raw=None,
                     allow_excluded=True,
                     dom_tag=a,
                 )
-                if sum(1 for x in items if x["relevance_status"] == "substantive") >= 20:
-                    break
-        except Exception:
-            pass
+                if st == "substantive":
+                    subst_count += 1
+                    if subst_count >= 20:
+                        break
+        except Exception as exc:
+            err_s = format_exc(exc, 180)
+            errors_seen.append(err_s)
+            logger.warning(f"Indian topic_html failed [{src['name']}] ({src['url']}): {err_s}")
 
-    # Always run date-sorted Bing News RSS when source is bing_rss OR primary scrape lacks fresh 72h stories
-    recent_cutoff = now_npt - datetime.timedelta(hours=72)
-    fresh_subst_72h = sum(
-        1
-        for x in items
-        if x.get("relevance_status") == "substantive"
-        and isinstance(x.get("published_dt"), datetime.datetime)
-        and x["published_dt"] >= recent_cutoff
-    )
-    if src_type == "bing_rss" or fresh_subst_72h < 5:
-        try:
-            dom = src.get("domain") or urllib.parse.urlparse(src["url"]).netloc.lower().lstrip("www.")
-            is_hi = src.get("lang") == "Hindi"
-            q = f'site:{dom} (नेपाल OR काठमांडू OR बालेन OR बालेंद्र)' if is_hi else f'site:{dom} (Nepal OR Kathmandu OR "Balendra Shah" OR "Balen Shah")'
-            mkt = "hi-IN" if is_hi else "en-IN"
-            bing_url = f"https://www.bing.com/news/search?q={urllib.parse.quote(q)}&qft=sortbydate%3d%221%22&format=rss&mkt={mkt}"
-            _ingest_rss_feed(bing_url, max_entries=15, allow_excluded=False, is_bing=True)
-        except Exception:
-            pass
+    # Always run precision intitle: Bing News RSS unconditionally (removes stale 72h gate).
+    # Note: bare `site:{dom} intitle:Nepal` preserves Bing's intitle: precision (parenthesized OR breaks Bing intitle:).
+    dom = (src.get("domain") or urllib.parse.urlparse(src["url"]).netloc.lower().lstrip("www.")).strip()
+    is_hi = src.get("lang") == "Hindi"
+    mkt = "hi-IN" if is_hi else "en-IN"
+    primary_kw = "नेपाल" if is_hi else "Nepal"
+    secondary_kw = "काठमांडू" if is_hi else "Kathmandu"
+    bing_added = 0
+    try:
+        q_prim = f"site:{dom} intitle:{primary_kw}"
+        bing_url = f"https://www.bing.com/news/search?q={urllib.parse.quote(q_prim)}&qft=sortbydate%3d%221%22&format=rss&mkt={mkt}"
+        bing_added += _ingest_rss_feed(bing_url, max_entries=15, allow_excluded=False, is_bing=True, is_precision_search=True)
+    except Exception as exc:
+        err_s = format_exc(exc, 180)
+        errors_seen.append(err_s)
+        logger.warning(f"Indian Bing intitle RSS failed [{src['name']}]: {err_s}")
 
-    if items:
+    if is_search_first and bing_added < 4:
         try:
-            # Fetch full article text for substantive/borderline items, then re-score borderline items with body context
-            relevant_items = [x for x in items if x.get("relevance_status") != "excluded"]
+            q_sec = f"site:{dom} intitle:{secondary_kw}"
+            bing_url_2 = f"https://www.bing.com/news/search?q={urllib.parse.quote(q_sec)}&qft=sortbydate%3d%221%22&format=rss&mkt={mkt}"
+            _ingest_rss_feed(bing_url_2, max_entries=10, allow_excluded=False, is_bing=True, is_precision_search=True)
+        except Exception as exc:
+            logger.debug(f"Indian Bing secondary intitle RSS failed [{src['name']}]: {format_exc(exc, 140)}")
+
+    if hydrate_bodies and items:
+        try:
+            relevant_items = [
+                x for x in items
+                if x.get("relevance_status") != "excluded" or x.get("_precision_search")
+            ]
             if relevant_items:
                 batch_fetch_full_content(relevant_items[:18], max_workers=10, summarize_english=False)
                 for x in relevant_items[:18]:
@@ -2496,24 +2850,38 @@ def fetch_single_indian_media(src, now_npt, relevance_threshold: float = DEFAULT
                         )
                         if re_eval["nepal_relevance_score"] > float(x.get("nepal_relevance_score", 0.0)):
                             _apply_indian_eval(x, re_eval)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"Indian body hydration error [{src['name']}]: {format_exc(exc, 160)}")
+
+    if metrics_out is not None:
+        metrics_out.update({
+            "source_name": src["name"],
+            "source_type": src_type,
+            "domain": dom,
+            "language": src.get("lang", "English"),
+            "discovered": len(items),
+            "substantive": sum(1 for x in items if x.get("relevance_status") == "substantive"),
+            "borderline": sum(1 for x in items if x.get("relevance_status") == "borderline_review"),
+            "excluded": sum(1 for x in items if x.get("relevance_status") == "excluded"),
+            "latency_secs": round(time.time() - t0, 3),
+            "error": "; ".join(errors_seen)[:300],
+        })
     return items
 
 
 def fetch_nepal_in_indian_media(
-    max_workers: int = 18,
+    max_workers: int = 16,
     relevance_threshold: float = DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
     include_borderline: bool = False,
     force_refresh: bool = False,
     return_all_stored: bool = True,
 ):
     """
-    Fetches real-time Nepal news across Top Indian Media Outlets, retains all
-    discovered candidate articles (substantive, borderline_review, excluded) in the
-    central PostgreSQL database (`indian_media_articles`), and returns ONLY articles
-    that meet the substantive Nepal-relevance threshold for the India Media feed.
-    Pass return_all_stored=False during background/manual ingestion to skip re-fetching stored rows.
+    Fetches real-time Nepal news across Top Indian Media Outlets using decoupled fast discovery:
+      1. Concurrent per-outlet precision intitle: Bing RSS (+ live topic_html) with max_workers=16.
+      2. Batched locale-aware Google News RSS sweeps (when:3d, 5 domains/query) with URL decoding.
+      3. Selective full-text hydration ONLY for net-new canonical_ids not already hydrated in Supabase.
+      4. Persists all candidates to `indian_media_articles` and per-outlet telemetry to `indian_source_health`.
     """
     now_npt = datetime.datetime.now(NEPAL_TZ)
     if not force_refresh:
@@ -2530,35 +2898,154 @@ def fetch_nepal_in_indian_media(
                         _, sa["relative_time"], sa["exact_time"] = parse_to_nepal_time(pdt, now_npt)
                 stored_ind.sort(key=lambda x: x["published_dt"] if isinstance(x["published_dt"], datetime.datetime) else now_npt, reverse=True)
                 return stored_ind
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"Stored Indian articles fast-path failed: {format_exc(exc, 160)}")
 
-    raw_candidates = []
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    eff_workers = max(16, int(max_workers or 16))
+    raw_candidates: List[Dict[str, Any]] = []
+    metrics_by_source: Dict[str, Dict[str, Any]] = {
+        s["name"]: {
+            "source_name": s["name"],
+            "source_type": s.get("type", "search_rss"),
+            "domain": s.get("domain", ""),
+            "language": s.get("lang", "English"),
+            "discovered": 0,
+            "substantive": 0,
+            "borderline": 0,
+            "excluded": 0,
+            "latency_secs": 0.0,
+            "error": "",
+        }
+        for s in TOP_INDIAN_MEDIA_SOURCES
+    }
+
+    # Phase 1: Fast concurrent per-outlet discovery (no full-body scraping yet!)
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=eff_workers)
     try:
-        futures = [
-            executor.submit(fetch_single_indian_media, s, now_npt, relevance_threshold)
-            for s in TOP_INDIAN_MEDIA_SOURCES
-        ]
+        future_to_src = {}
+        for s in TOP_INDIAN_MEDIA_SOURCES:
+            m_slot = metrics_by_source[s["name"]]
+            future_to_src[
+                executor.submit(
+                    fetch_single_indian_media,
+                    s,
+                    now_npt,
+                    relevance_threshold,
+                    False,  # hydrate_bodies=False: decoupled selective hydration runs in Phase 3
+                    m_slot,
+                )
+            ] = s["name"]
         try:
-            for f in concurrent.futures.as_completed(futures, timeout=45):
+            for f in concurrent.futures.as_completed(future_to_src, timeout=30.0):
+                sname = future_to_src[f]
                 try:
-                    res = f.result(timeout=5)
+                    res = f.result(timeout=3.0)
                     if res:
                         raw_candidates.extend(res)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    err_s = format_exc(exc, 200)
+                    metrics_by_source[sname]["error"] = err_s
+                    logger.warning(f"Indian outlet worker failed [{sname}]: {err_s}")
         except concurrent.futures.TimeoutError:
-            pass
+            timed_out = [name for fut, name in future_to_src.items() if not fut.done()]
+            for tname in timed_out:
+                metrics_by_source[tname]["error"] = "Timed out after 30s"
+            if timed_out:
+                logger.warning(f"Indian per-outlet discovery timed out on {len(timed_out)} outlet(s): {', '.join(timed_out[:6])}")
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+    # Phase 2: Batched locale-aware Google News RSS sweeps (when:3d) for net-new discoveries
+    existing_title_keys = {
+        (a.get("source", ""), _norm_title_key(a.get("title", "")))
+        for a in raw_candidates
+        if a.get("title")
+    }
+    try:
+        gnews_items = _fetch_batched_google_news_indian_media(
+            TOP_INDIAN_MEDIA_SOURCES,
+            now_npt=now_npt,
+            relevance_threshold=relevance_threshold,
+            existing_title_keys=existing_title_keys,
+            batch_size=5,
+            max_decode_urls=60,
+        )
+        seen_norm_urls = {normalize_canonical_url(a.get("link", "")) for a in raw_candidates if a.get("link")}
+        for ga in gnews_items:
+            nu = normalize_canonical_url(ga.get("link", ""))
+            if nu and nu in seen_norm_urls:
+                continue
+            if nu:
+                seen_norm_urls.add(nu)
+            raw_candidates.append(ga)
+            ms = metrics_by_source.get(ga.get("source", ""))
+            if ms is not None:
+                ms["discovered"] += 1
+                st = ga.get("relevance_status")
+                if st == "substantive":
+                    ms["substantive"] += 1
+                elif st == "borderline_review":
+                    ms["borderline"] += 1
+                else:
+                    ms["excluded"] += 1
+    except Exception as exc:
+        logger.warning(f"Batched Google News Indian sweep failed: {format_exc(exc, 180)}")
+
+    # Phase 3: Selective full-text hydration ONLY for net-new (not yet hydrated) substantive/borderline items
+    if raw_candidates:
+        try:
+            cand_for_hydrate = [
+                a for a in raw_candidates
+                if a.get("relevance_status") != "excluded" or a.get("_precision_search")
+            ]
+            already_hydrated = get_existing_indian_hydrated_ids(
+                [a.get("canonical_id", "") for a in cand_for_hydrate]
+            )
+            net_new_to_hydrate = [
+                a for a in cand_for_hydrate
+                if a.get("canonical_id") not in already_hydrated
+                and "news.google.com" not in (a.get("link") or "").lower()
+            ]
+            # Prioritize newest items first, cap per cycle to stay fast
+            net_new_to_hydrate.sort(
+                key=lambda x: x["published_dt"] if isinstance(x.get("published_dt"), datetime.datetime) else now_npt,
+                reverse=True,
+            )
+            hydrate_batch = net_new_to_hydrate[:40]
+            if hydrate_batch:
+                batch_fetch_full_content(hydrate_batch, max_workers=12, summarize_english=False)
+                for x in hydrate_batch:
+                    fc = (x.get("full_content") or "").strip()
+                    if len(fc) > 120:
+                        re_eval = evaluate_indian_article_nepal_relevance(
+                            title=x.get("title", ""),
+                            summary=x.get("summary", ""),
+                            full_content=fc,
+                            link=x.get("link", ""),
+                            source=x.get("source", ""),
+                            threshold=relevance_threshold,
+                        )
+                        if re_eval["nepal_relevance_score"] > float(x.get("nepal_relevance_score", 0.0)):
+                            _apply_indian_eval(x, re_eval)
+        except Exception as exc:
+            logger.warning(f"Indian selective hydration failed: {format_exc(exc, 180)}")
+
+    # Strip internal scratch flag before persisting
+    for a in raw_candidates:
+        a.pop("_precision_search", None)
 
     # Persist all candidate Indian articles (substantive, borderline_review, excluded) in central DB
     if raw_candidates:
         try:
             ingest_indian_articles_batch(raw_candidates)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"ingest_indian_articles_batch failed: {format_exc(exc, 180)}")
+
+    # Record per-outlet Indian discovery health telemetry (UTC-aware)
+    try:
+        record_indian_source_health(list(metrics_by_source.values()))
+    except Exception as exc:
+        logger.warning(f"record_indian_source_health failed: {format_exc(exc, 180)}")
 
     if not return_all_stored:
         return raw_candidates
@@ -2577,7 +3064,7 @@ def fetch_nepal_in_indian_media(
             seen_links.add(norm_url)
             filtered_feed.append(art)
 
-    # Reconcile with stored substantive Indian articles in SQLite so previously discovered valid stories persist
+    # Reconcile with stored substantive Indian articles in Supabase so previously discovered valid stories persist
     try:
         stored_substantive = get_stored_indian_articles(
             status_filter=None if include_borderline else "substantive",
@@ -2585,7 +3072,6 @@ def fetch_nepal_in_indian_media(
             limit=250,
         )
         for sa in stored_substantive:
-            # Re-verify with current classifier in case older DB rows predate strict rules
             re_eval = evaluate_indian_article_nepal_relevance(
                 title=sa.get("title", ""),
                 summary=sa.get("summary", ""),
@@ -2603,8 +3089,8 @@ def fetch_nepal_in_indian_media(
             if norm_url not in seen_links:
                 seen_links.add(norm_url)
                 filtered_feed.append(sa)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(f"Indian feed DB reconciliation failed: {format_exc(exc, 180)}")
 
     filtered_feed.sort(
         key=lambda x: x["published_dt"] if isinstance(x.get("published_dt"), datetime.datetime) else now_npt,

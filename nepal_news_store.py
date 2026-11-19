@@ -1322,8 +1322,20 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
                     ELSE indian_media_articles.headline_english
                 END,
                 published_dt = CASE
-                    WHEN COALESCE(indian_media_articles.exact_time, '') IN ('', 'Archived')
-                         AND COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                    WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                         AND (
+                             COALESCE(indian_media_articles.exact_time, '') IN ('', 'Archived')
+                             OR (
+                                 EXTRACT(MINUTE FROM indian_media_articles.published_dt) = 0
+                                 AND EXTRACT(SECOND FROM indian_media_articles.published_dt) = 0
+                                 AND EXTRACT(HOUR FROM indian_media_articles.published_dt) IN (0, 12)
+                                 AND NOT (
+                                     EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)
+                                 )
+                             )
+                         )
                     THEN EXCLUDED.published_dt
                     ELSE indian_media_articles.published_dt
                 END,
@@ -1334,6 +1346,19 @@ def batch_upsert_indian_articles(articles: List[Dict[str, Any]]):
                 END,
                 exact_time = CASE
                     WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
+                         AND (
+                             COALESCE(indian_media_articles.exact_time, '') IN ('', 'Archived')
+                             OR (
+                                 EXTRACT(MINUTE FROM indian_media_articles.published_dt) = 0
+                                 AND EXTRACT(SECOND FROM indian_media_articles.published_dt) = 0
+                                 AND EXTRACT(HOUR FROM indian_media_articles.published_dt) IN (0, 12)
+                                 AND NOT (
+                                     EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0
+                                     AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)
+                                 )
+                             )
+                         )
                     THEN EXCLUDED.exact_time
                     ELSE indian_media_articles.exact_time
                 END,
@@ -1427,6 +1452,164 @@ def ingest_indian_articles_batch(
     """Ingests Indian media articles into Supabase."""
     batch_upsert_indian_articles(articles)
     return {"discovered": len(articles), "ingested": len(articles), "duplicates": 0, "relevant": len(articles)}
+
+
+def get_existing_indian_hydrated_ids(canonical_ids: List[str]) -> set:
+    """
+    Returns the subset of canonical_ids already persisted in indian_media_articles with
+    hydrated full_content (>= 350 chars) so ingestion skips redundant publisher scrapes.
+    """
+    clean_ids = [str(c).strip() for c in (canonical_ids or []) if str(c).strip()]
+    if not clean_ids:
+        return set()
+    found: set = set()
+    chunk_size = 150
+    for i in range(0, len(clean_ids), chunk_size):
+        chunk = clean_ids[i : i + chunk_size]
+        in_list = ", ".join(esc_sql(c) for c in chunk)
+        rows = query_supabase(
+            "SELECT canonical_id FROM indian_media_articles "
+            f"WHERE canonical_id IN ({in_list}) AND LENGTH(COALESCE(full_content, '')) >= 350;"
+        )
+        for r in (rows or []):
+            cid = str(r.get("canonical_id") or "").strip()
+            if cid:
+                found.add(cid)
+    return found
+
+
+_INDIAN_HEALTH_TABLE_READY = False
+_INDIAN_HEALTH_LOCK = threading.Lock()
+
+
+def _ensure_indian_source_health_table() -> None:
+    global _INDIAN_HEALTH_TABLE_READY
+    if _INDIAN_HEALTH_TABLE_READY:
+        return
+    with _INDIAN_HEALTH_LOCK:
+        if _INDIAN_HEALTH_TABLE_READY:
+            return
+        query_supabase(
+            """
+            CREATE TABLE IF NOT EXISTS indian_source_health (
+                source_name TEXT PRIMARY KEY,
+                source_type TEXT DEFAULT 'search_rss',
+                domain TEXT DEFAULT '',
+                language TEXT DEFAULT 'English',
+                status TEXT DEFAULT 'operational',
+                last_discovery_time TIMESTAMPTZ,
+                discovered_count INTEGER DEFAULT 0,
+                substantive_count INTEGER DEFAULT 0,
+                borderline_count INTEGER DEFAULT 0,
+                excluded_count INTEGER DEFAULT 0,
+                latency_secs REAL DEFAULT 0.0,
+                consecutive_failures INTEGER DEFAULT 0,
+                last_error_message TEXT,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            """
+        )
+        _INDIAN_HEALTH_TABLE_READY = True
+
+
+def record_indian_source_health(metrics_list: List[Dict[str, Any]]) -> int:
+    """
+    Upserts per-outlet Indian Media discovery telemetry (yields, status, latency, errors)
+    using timezone-aware UTC timestamps so dead/failing Indian outlets are observable.
+    """
+    if not metrics_list:
+        return 0
+    _ensure_indian_source_health_table()
+    now_utc_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    val_rows = []
+    for m in metrics_list:
+        sname = (m.get("source_name") or "").strip()
+        if not sname:
+            continue
+        stype = (m.get("source_type") or "search_rss").strip()
+        dom = (m.get("domain") or "").strip()
+        lang = (m.get("language") or "English").strip()
+        err_msg = (m.get("error") or "").strip()
+        disc = int(m.get("discovered") or 0)
+        subst = int(m.get("substantive") or 0)
+        bord = int(m.get("borderline") or 0)
+        excl = int(m.get("excluded") or 0)
+        lat = round(float(m.get("latency_secs") or 0.0), 3)
+        failed = bool(err_msg and disc == 0)
+        status = "failing" if failed else ("degraded" if err_msg else "operational")
+        err_sql = esc_sql(err_msg[:300]) if err_msg else "NULL"
+        fail_inc = 1 if failed else 0
+        val_rows.append(
+            f"({esc_sql(sname)}, {esc_sql(stype)}, {esc_sql(dom)}, {esc_sql(lang)}, {esc_sql(status)}, "
+            f"{esc_sql(now_utc_iso)}, {disc}, {subst}, {bord}, {excl}, {lat}, {fail_inc}, {err_sql}, NOW())"
+        )
+    if not val_rows:
+        return 0
+    sql = f"""
+    INSERT INTO indian_source_health (
+        source_name, source_type, domain, language, status,
+        last_discovery_time, discovered_count, substantive_count,
+        borderline_count, excluded_count, latency_secs,
+        consecutive_failures, last_error_message, updated_at
+    ) VALUES {", ".join(val_rows)}
+    ON CONFLICT (source_name) DO UPDATE SET
+        source_type = EXCLUDED.source_type,
+        domain = EXCLUDED.domain,
+        language = EXCLUDED.language,
+        status = EXCLUDED.status,
+        last_discovery_time = EXCLUDED.last_discovery_time,
+        discovered_count = EXCLUDED.discovered_count,
+        substantive_count = EXCLUDED.substantive_count,
+        borderline_count = EXCLUDED.borderline_count,
+        excluded_count = EXCLUDED.excluded_count,
+        latency_secs = EXCLUDED.latency_secs,
+        consecutive_failures = CASE
+            WHEN EXCLUDED.status = 'failing' THEN indian_source_health.consecutive_failures + 1
+            ELSE 0
+        END,
+        last_error_message = EXCLUDED.last_error_message,
+        updated_at = NOW();
+    """
+    query_supabase(sql)
+    return len(val_rows)
+
+
+def get_all_indian_source_health() -> List[Dict[str, Any]]:
+    """Returns per-outlet Indian Media health joined with live 24h and 7d substantive article counts."""
+    _ensure_indian_source_health_table()
+    sql = """
+    WITH stats AS (
+        SELECT
+            source,
+            COUNT(*) FILTER (WHERE relevance_status IN ('substantive', 'relevant') AND published_dt >= NOW() - INTERVAL '24 hours') AS rel_24h,
+            COUNT(*) FILTER (WHERE relevance_status IN ('substantive', 'relevant') AND published_dt >= NOW() - INTERVAL '7 days') AS rel_7d,
+            MAX(published_dt) FILTER (WHERE relevance_status IN ('substantive', 'relevant')) AS latest_article_pub_dt
+        FROM indian_media_articles
+        WHERE published_dt >= NOW() - INTERVAL '14 days'
+        GROUP BY source
+    )
+    SELECT
+        h.source_name,
+        h.source_type,
+        h.domain,
+        h.language,
+        h.status,
+        h.last_discovery_time,
+        h.discovered_count,
+        h.substantive_count,
+        h.borderline_count,
+        h.excluded_count,
+        h.latency_secs,
+        h.consecutive_failures,
+        h.last_error_message,
+        COALESCE(s.rel_24h, 0) AS rel_24h,
+        COALESCE(s.rel_7d, 0) AS rel_7d,
+        s.latest_article_pub_dt
+    FROM indian_source_health h
+    LEFT JOIN stats s ON s.source = h.source_name
+    ORDER BY h.consecutive_failures DESC, COALESCE(s.rel_7d, 0) DESC, h.source_name ASC;
+    """
+    return query_supabase(sql) or []
 
 def get_indian_media_audit_stats() -> Dict[str, int]:
     """Returns volume stats for Indian media articles in Supabase."""

@@ -901,6 +901,114 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertIn("2050 flood and 2072 earthquake", copy_payload)
         self.assertTrue(copy_payload.endswith("\n\nRead Original Source: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html"))
 
+    def test_indian_media_classifier_boundaries_entities_and_placeholder_ts_repair(self):
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_news_store as store
+
+        # 1) url_has_nepal strict slug boundaries: police / politics / foolish must NOT match 'oli'
+        ev_police = fetcher.evaluate_indian_article_nepal_relevance(
+            title="UP Police bust cyber fraud network across Lucknow",
+            summary="Uttar Pradesh police arrested one suspect in a cyber fraud case.",
+            link="https://timesofindia.indiatimes.com/city/lucknow/sonbhadra-police-bust-cyber-fraud",
+            source="The Times of India",
+        )
+        self.assertEqual(ev_police["relevance_status"], "excluded")
+        self.assertEqual(ev_police["nepal_relevance_score"], 0.0)
+
+        ev_foolish = fetcher.evaluate_indian_article_nepal_relevance(
+            title="Musk says he feels pretty foolish for failed U.S. election spending",
+            summary="Billionaire reflects on campaign spending in U.S. politics.",
+            link="https://www.thehindu.com/news/international/musk-feels-pretty-foolish-politics/article123.ece",
+            source="The Hindu",
+        )
+        self.assertEqual(ev_foolish["relevance_status"], "excluded")
+        self.assertEqual(ev_foolish["nepal_relevance_score"], 0.0)
+
+        ev_oli_slug = fetcher.evaluate_indian_article_nepal_relevance(
+            title="Bilateral talks review cross-border energy trade and transit",
+            summary="Senior officials met on regional connectivity and power trade.",
+            link="https://www.thehindu.com/news/international/kp-oli-india-energy-talks/article999.ece",
+            source="The Hindu",
+        )
+        self.assertGreater(ev_oli_slug["nepal_relevance_score"], 0.0)
+        self.assertIn("Nepal in article URL slug", ev_oli_slug["relevance_reason"])
+
+        # 2) Expanded _NEPAL_CORE_SUBJECT_RE (Gorkha, Pokhara, Hindi cricket with Nepal in headline)
+        ev_gorkha = fetcher.evaluate_indian_article_nepal_relevance(
+            title="Agnipath Debate: 6-Year Tenure, Gorkha Recruitment & India's Military Preparedness",
+            summary="Defence experts discuss Gorkha rifles recruitment and bilateral defence ties.",
+            link="https://www.indiatoday.in/india/story/agnipath-gorkha-recruitment",
+            source="India Today",
+        )
+        self.assertEqual(ev_gorkha["relevance_status"], "substantive")
+        self.assertGreaterEqual(ev_gorkha["nepal_relevance_score"], 0.65)
+
+        ev_pokhara = fetcher.evaluate_indian_article_nepal_relevance(
+            title="Pokhara international airport talks advance with regional aviation ministry",
+            summary="Bilateral aviation connectivity and air route expansion discussed.",
+            link="https://www.theprint.in/diplomacy/pokhara-airport-talks/",
+            source="The Print",
+        )
+        self.assertEqual(ev_pokhara["relevance_status"], "substantive")
+
+        ev_hi_cricket = fetcher.evaluate_indian_article_nepal_relevance(
+            title="Rising Stars Asia Cup: नेपाल के खिलाफ ऐसी हो सकती है भारत की क्रिकेट टीम",
+            summary="एशिया कप में नेपाल के खिलाफ भारत के मुकाबले को लेकर तैयारी तेज।",
+            link="https://navbharattimes.indiatimes.com/sports/cricket/india-vs-nepal-asia-cup",
+            source="Navbharat Times",
+        )
+        self.assertEqual(ev_hi_cricket["relevance_status"], "substantive")
+        self.assertNotIn("Penalized: domestic Indian", ev_hi_cricket["relevance_reason"])
+
+        # 3) Tag landing pages are cleanly rejected
+        ev_tag = fetcher.evaluate_indian_article_nepal_relevance(
+            title="Nepal Foreign Students News and Updates",
+            summary="Latest news on Nepal foreign students.",
+            link="https://education.economictimes.indiatimes.com/tag/nepal+foreign+students",
+            source="The Economic Times",
+        )
+        self.assertEqual(ev_tag["relevance_status"], "excluded")
+        self.assertIn("Index/tag landing", ev_tag["relevance_reason"])
+
+        # 4) New high-yield Indian wires are registered in TOP_INDIAN_MEDIA_SOURCES
+        ind_names = {s["name"] for s in cfg.TOP_INDIAN_MEDIA_SOURCES}
+        for req_name in ("ANI News", "PTI", "The Print", "The Wire", "WION", "Firstpost", "Deccan Herald", "News18", "Aaj Tak", "Dainik Bhaskar"):
+            self.assertIn(req_name, ind_names)
+
+        # 5) batch_upsert_indian_articles upgrades 00:00:00 / 12:00:00 placeholder published_dt on conflict
+        captured_sql = []
+        with mock.patch("nepal_news_store.query_supabase", side_effect=lambda sql, params=None: captured_sql.append(sql) or []):
+            store.batch_upsert_indian_articles([{
+                "source": "India Today",
+                "title": "India and Nepal review border connectivity projects",
+                "link": "https://www.indiatoday.in/world/story/india-nepal-border-1",
+                "summary": "Officials reviewed cross-border projects.",
+                "full_content": "Officials reviewed cross-border projects between India and Nepal.",
+                "published_dt": datetime.datetime(2026, 11, 19, 14, 35, 0, tzinfo=cfg.NEPAL_TZ),
+                "relative_time": "10 mins ago",
+                "exact_time": "Nov 19, 02:35 PM NPT",
+                "nepal_relevance_score": 0.85,
+                "relevance_status": "substantive",
+            }])
+        self.assertTrue(captured_sql)
+        self.assertIn("EXTRACT(HOUR FROM indian_media_articles.published_dt) IN (0, 12)", captured_sql[0])
+        self.assertIn("EXTRACT(MINUTE FROM indian_media_articles.published_dt) = 0", captured_sql[0])
+
+        # 6) record_indian_source_health persists UTC-aware timestamps & status
+        health_sql = []
+        store._INDIAN_HEALTH_TABLE_READY = True
+        with mock.patch("nepal_news_store.query_supabase", side_effect=lambda sql, params=None: health_sql.append(sql) or []):
+            cnt = store.record_indian_source_health([
+                {"source_name": "ANI News", "source_type": "search_rss", "domain": "aninews.in", "language": "English", "discovered": 8, "substantive": 7, "borderline": 1, "excluded": 0, "latency_secs": 1.2, "error": ""},
+                {"source_name": "Broken Outlet", "source_type": "topic_html", "domain": "broken.in", "language": "English", "discovered": 0, "substantive": 0, "borderline": 0, "excluded": 0, "latency_secs": 2.0, "error": "HTTPError: 403"},
+            ])
+        self.assertEqual(cnt, 2)
+        self.assertIn("INSERT INTO indian_source_health", health_sql[0])
+        self.assertIn("'operational'", health_sql[0])
+        self.assertIn("'failing'", health_sql[0])
+        self.assertIn("+00:00", health_sql[0])
+
 
 if __name__ == "__main__":
     unittest.main()
