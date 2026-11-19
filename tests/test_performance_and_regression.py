@@ -727,6 +727,54 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             rd2 = summ.extract_on_demand_full_article(art_no_link, translate_to_english=False)
         self.assertTrue(rd2["ok"])
 
+        # 5) Naya Patrika x_bridge (@NAYA_PATRIKA): resolves nayapatrikadaily.com, strips '| Naya Patrika News',
+        #    keeps direct full-text scraping enabled via .content__para, and yields clean Read/Brief parity
+        np_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "Naya Patrika")
+        self.assertEqual(np_cfg["type"], "x_bridge")
+        self.assertEqual(np_cfg["x_handle"], "NAYA_PATRIKA")
+        self.assertEqual(np_cfg["target_domain"], "nayapatrikadaily.com")
+        self.assertFalse(fetcher._is_direct_scrape_skipped("https://nayapatrikadaily.com/news/208805/permission-to-sell-594-mw-electricity-to/"))
+
+        np_art = fetcher.build_x_bridged_article(
+            portal=np_cfg,
+            tweet_id="2123361663248457903",
+            raw_text="कीर्तिपुरबाट ११ लाखको काजु बरामद | Naya Patrika News https://t.co/BlCAjoG9DP",
+            published_dt_raw="2026-11-19T10:24:05.000Z",
+            now_npt=now_npt,
+            expanded_urls=["https://nayapatrikadaily.com/news/208803/cashew-smuggling/"],
+            card_title="कीर्तिपुरबाट ११ लाखको काजु बरामद | Naya Patrika News",
+            card_description="काठमाडौं/ बिना बिलबिजक ओसारपसार भइरहेको ११ लाख ५९ हजार २०० रुपैयाँ बराबरको काजु बरामद।",
+        )
+        self.assertIsNotNone(np_art)
+        self.assertEqual(np_art["source"], "Naya Patrika")
+        self.assertEqual(np_art["title"], "कीर्तिपुरबाट ११ लाखको काजु बरामद")
+        self.assertEqual(np_art["link"], "https://nayapatrikadaily.com/news/208803/cashew-smuggling/")
+        self.assertEqual((np_art["published_dt"].hour, np_art["published_dt"].minute), (16, 9))
+
+        # Verify .content__para is prioritized ahead of unrelated sidebar <article> cards
+        fake_np_html = (
+            "<html><body>"
+            "<article><p>Unrelated sidebar trending snippet that must not win over main body container.</p></article>"
+            "<div class='detail__page-content'><div class='content__para'>"
+            "<p>काठमाडौं । विनाबिलबिजक ओसारपसार भइरहेको ११ लाख ५९ हजार दुई सय रुपैयाँबराबरको काजु कीर्तिपुरबाट बरामद भएको छ।</p>"
+            "<p>सशस्त्र प्रहरीले बिहीबार बिहान चोभारस्थित सुक्खा बन्दरगाहको बाटो हुँदै ल्याउँदै गरेको अवस्थामा बरामद गरेको हो।</p>"
+            "</div></div></body></html>"
+        ).encode("utf-8")
+
+        class _NPResp:
+            def read(self):
+                return fake_np_html
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        fetcher.FULL_ARTICLE_TEXT_CACHE.pop(np_art["link"], None)
+        with mock.patch("urllib.request.urlopen", return_value=_NPResp()):
+            extracted_np = fetcher.extract_article_full_text(np_art["link"], timeout=5)
+        self.assertIn("विनाबिलबिजक ओसारपसार", extracted_np)
+        self.assertNotIn("Unrelated sidebar", extracted_np)
+
     def test_english_brief_whatsapp_format_and_reader_headline_translation_copy(self):
         import nepal_summarizer as summ
 

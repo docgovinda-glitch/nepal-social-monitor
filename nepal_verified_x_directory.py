@@ -2995,6 +2995,23 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "last_verified_at": "2026-11-19T15:00:00+0545"
     },
     {
+        "name": "Naya Patrika",
+        "handle": "NAYA_PATRIKA",
+        "profile_url": "https://x.com/NAYA_PATRIKA",
+        "category": "Journalists and Media Professionals",
+        "subcategory": "Newsrooms & Media Curators",
+        "role": "Leading Nepali National Daily Broadsheet",
+        "relevance": "Monitored Nepal Media & News Curators voice tracking breaking national news, investigative journalism, economy, and current affairs.",
+        "verification_status": "verified",
+        "source_url": "https://www.nayapatrikadaily.com/",
+        "followers": "420K",
+        "avatar_bg": "#1d4ed8",
+        "initials": "NP",
+        "enabled": 1,
+        "connection_status": "connected",
+        "last_verified_at": "2026-11-19T16:38:00+0545"
+    },
+    {
         "name": "Cricket Association of Nepal (CAN)",
         "handle": "CricketNep",
         "profile_url": "https://x.com/CricketNep",

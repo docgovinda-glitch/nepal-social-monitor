@@ -154,13 +154,15 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
             if not any(c in str(tag.get("class", [])) for c in ["left-side", "content", "main", "col-"]):
                 tag.decompose()
 
-        content_containers = soup.select(
+        specific_containers = soup.select(
+            ".content__para, .detail__page-content, "
             ".ok18-single-post-content-wrap, .editor-box, .detail-box, .story-content, .article-content, "
             ".entry-content, .post-content, .news-content, .detail-content, .story__content, "
             ".article__body, .news_detail, .full-content, .content-body, #content-body, "
             ".main-content, .story-section, .story-details, .news_description, .entry-content-wrap, "
-            ".post-detail, .story-with-main-sec, article"
+            ".post-detail, .story-with-main-sec"
         )
+        content_containers = specific_containers if specific_containers else soup.select("article")
         
         paras = []
         if content_containers:
@@ -173,8 +175,9 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
                 if len(" ".join(paras)) >= 400:
                     break
 
-        # Fallback to all paragraphs in the document
-        if len(" ".join(paras)) < 250:
+        # Fallback to all paragraphs only when no specific article container yielded substantive body text
+        min_container_len = 100 if specific_containers else 250
+        if len(" ".join(paras)) < min_container_len:
             paras = []
             for p in soup.find_all("p"):
                 txt = p.get_text(" ", strip=True)
@@ -1081,8 +1084,13 @@ def _clean_x_bridge_text(raw_text: str) -> str:
     # Strip hashtags (ASCII and Devanagari/Unicode) and @mentions
     txt = re.sub(r"(?<!\S)#[^\s#]+", " ", txt)
     txt = re.sub(r"(?<!\S)@[A-Za-z0-9_]+", " ", txt)
-    # Strip trailing source branding often appended to card titles
-    txt = re.sub(r"\s*[\|\-–—]\s*(?:Annapurna\s*Post|अन्नपूर्ण\s*पोस्ट)\s*$", "", txt, flags=re.IGNORECASE)
+    # Strip trailing source branding often appended to tweets and card titles
+    txt = re.sub(
+        r"\s*[\|\-–—]\s*(?:Annapurna\s*Post|अन्नपूर्ण\s*पोस्ट|Naya\s*Patrika(?:\s*News|\s*Daily)?(?:\.\.\.|…)?|नयाँ\s*पत्रिका(?:\s*दैनिक)?)\s*$",
+        "",
+        txt,
+        flags=re.IGNORECASE,
+    )
     # Normalize spaces per line and collapse blank lines
     clean_lines = []
     for line in txt.split("\n"):
@@ -1185,8 +1193,14 @@ def build_x_bridged_article(
     Normalizes an official media X post into the exact standard Nepali Media article schema
     with resolved publisher URL, editorial classification, topic tags, and Reader-safe body text.
     """
-    handle = (x_handle or portal.get("x_handle") or "Annapurna_Post").lstrip("@").strip()
-    preferred_domain = portal.get("target_domain") or ("annapurnapost.com" if "annapurna" in portal.get("name", "").lower() else "")
+    handle = (x_handle or portal.get("x_handle") or "").lstrip("@").strip()
+    preferred_domain = (portal.get("target_domain") or "").strip().lower()
+    if not preferred_domain:
+        pname_low = portal.get("name", "").lower()
+        if "annapurna" in pname_low:
+            preferred_domain = "annapurnapost.com"
+        elif "naya patrika" in pname_low:
+            preferred_domain = "nayapatrikadaily.com"
 
     clean_tweet = _clean_x_bridge_text(raw_text)
     clean_card_title = _clean_x_bridge_text(card_title)
@@ -1230,7 +1244,7 @@ def build_x_bridged_article(
         # Remove exact leading title prefix when tweet repeats headline + extra commentary
         remainder = clean_tweet
         if remainder.startswith(title):
-            remainder = remainder[len(title):].lstrip(" \n:-–—|।.")
+            remainder = remainder[len(title):].lstrip(" \n,:;-–—|।.")
         chosen_tweet_body = remainder if len(remainder) >= 20 else clean_tweet
         if chosen_tweet_body and " ".join(chosen_tweet_body.lower().split()) != norm_title_cmp:
             body_paras.append(chosen_tweet_body)
@@ -1496,6 +1510,10 @@ def bridge_x_portals_to_articles(x_posts: Optional[List[Dict[str, Any]]] = None)
                 seed_x_posts=x_posts,
             )
             if bridged:
+                try:
+                    batch_fetch_full_content(bridged, max_workers=8, summarize_english=False)
+                except Exception:
+                    pass
                 latency = round(time.time() - t0, 3)
                 batch_upsert_articles(bridged, portal["name"], latency_secs=latency)
                 total_bridged += len(bridged)
@@ -1845,8 +1863,8 @@ def fetch_single_portal(
         if not items and last_exc is not None:
             raise last_exc
 
-        # Store raw discovered items without automatic English brief or translation processing
-        if items and not is_x_bridge:
+        # Hydrate full article body (batch_fetch_full_content automatically skips _SKIP_DIRECT_SCRAPE_DOMAINS)
+        if items:
             try:
                 batch_fetch_full_content(items, max_workers=12, summarize_english=False)
             except Exception:

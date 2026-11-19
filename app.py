@@ -47,7 +47,7 @@ def _ensure_reloaded_daemon_on_code_update() -> None:
     import sys
     import importlib
 
-    target_ver = "2026-11-19-v4"
+    target_ver = "2026-11-19-v5"
     old_sched = sys.modules.get("nepal_news_scheduler")
     if old_sched is not None and getattr(old_sched, "_DAEMON_CODE_VERSION", None) != target_ver:
         try:
