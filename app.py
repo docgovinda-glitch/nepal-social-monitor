@@ -1197,14 +1197,24 @@ def _show_share_dialog() -> None:
     saved_formatted = _fmt_payload(saved_text)
     current_formatted = _fmt_payload(active_text)
 
-    dest = _get_cached_wa_dest()
-    dest_name = dest.get("name", "Media Monitor") if dest.get("ok") else "Media Monitor"
+    from whatsapp_greenapi import get_share_targets
+    _wa_targets = get_share_targets(is_x_post=("X POST" in (content_type_lbl or "").upper()))
+    _wa_grp_key = f"dlg_wa_grp_{item_uid}"
+    if len(_wa_targets) == 1:
+        selected_gid = _wa_targets[0]["id"]
+        dest_name = _wa_targets[0]["name"]
+    else:
+        _target_by_name = {t["name"]: t["id"] for t in _wa_targets}
+        _default_grp = st.session_state.get(_wa_grp_key)
+        if _default_grp not in _target_by_name:
+            _default_grp = _wa_targets[0]["name"]
+        dest_name = _default_grp
+        selected_gid = _target_by_name[dest_name]
 
     if st.session_state.pop("pending_share_send", None) == cache_id:
         if has_unsaved:
             draft["unsaved_send_warn"] = True
         else:
-            selected_gid = dest.get("id", "") if dest.get("ok") else ""
             with st.status(f"Sending to {dest_name}…", expanded=True) as send_status:
                 from whatsapp_greenapi import send_group_message as send_wa_group_message
                 send_status.write("Delivering confirmed draft to Green API…")
@@ -1217,7 +1227,7 @@ def _show_share_dialog() -> None:
                 wa_res["group_name"] = dest_name
                 st.session_state["wa_item_status"][cache_id] = wa_res
                 if wa_res.get("ok") and wa_res.get("accepted"):
-                    send_status.write("Recording delivery in Media Monitor log…")
+                    send_status.write("Recording delivery in WhatsApp log…")
                     try:
                         record_whatsapp_sent(
                             item_key=cache_id,
@@ -1233,7 +1243,10 @@ def _show_share_dialog() -> None:
                     except Exception as log_exc:
                         wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
                     send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
+                    st.session_state["active_modal"] = None
+                    st.session_state.pop("feed_sessions", None)
                     st.toast(f"Sent to {dest_name}!", icon="✅")
+                    st.rerun()
                 else:
                     send_status.update(label="Delivery not completed", state="error", expanded=False)
 
@@ -1252,7 +1265,7 @@ def _show_share_dialog() -> None:
     )
     sent_pill = ""
     if persisted_sent:
-        gname_esc = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+        gname_esc = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
         ts_str = _format_wa_sent_time(persisted_sent.get("sent_at"))
         msg_id_esc = html.escape(str(persisted_sent.get("id_message") or ""))
         ts_txt = f" · {html.escape(ts_str)}" if ts_str else ""
@@ -1266,6 +1279,11 @@ def _show_share_dialog() -> None:
         f'</div>',
         unsafe_allow_html=True,
     )
+    if persisted_sent:
+        _sent_grp = str(persisted_sent.get("group_name") or "WhatsApp")
+        _sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
+        _sent_when = f" at {_sent_ts}" if _sent_ts else ""
+        st.info(f"Already sent to **{_sent_grp}**{_sent_when}.")
 
     if draft.get("is_editing"):
         edited_val = st.text_area(
@@ -1357,6 +1375,14 @@ def _show_share_dialog() -> None:
                 on_click=_on_share_discard_unsaved,
                 args=(cache_id,),
             )
+
+    if len(_wa_targets) > 1:
+        dest_name = st.radio(
+            "Destination WhatsApp Group",
+            options=[t["name"] for t in _wa_targets],
+            horizontal=True,
+            key=_wa_grp_key,
+        )
 
     c_copy, c_edit, c_save, c_cls, c_send = st.columns(5, gap="small")
     with c_copy:
@@ -1450,7 +1476,7 @@ def render_feed_item_with_actions(
 
         persisted_sent = _get_wa_sent_map().get(cache_id)
         if persisted_sent:
-            sent_gname = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+            sent_gname = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
             sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
             sent_id = html.escape(str(persisted_sent.get("id_message") or ""))
             ts_part = f" · {html.escape(sent_ts)}" if sent_ts else ""
@@ -1496,7 +1522,7 @@ def render_feed_item_with_actions(
                 icon=":material/share:",
                 type="primary",
                 key=f"btn_gen_{item_uid}",
-                help="Generate English Brief / Translation to review, copy, or share to Media Monitor",
+                help="Generate English Brief / Translation to review, copy, or share to WhatsApp",
             ):
                 st.session_state["active_modal"] = {
                     "mode": "share",
@@ -1608,7 +1634,7 @@ def _build_card_wrapper_html(
     wa_html = ""
     persisted_sent = wa_sent_map.get(cache_id)
     if persisted_sent:
-        sent_gname = html.escape(str(persisted_sent.get("group_name") or "Media Monitor"))
+        sent_gname = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
         sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
         sent_id = html.escape(str(persisted_sent.get("id_message") or ""))
         ts_part = f" · {html.escape(sent_ts)}" if sent_ts else ""
@@ -1640,7 +1666,7 @@ def _build_card_wrapper_html(
         )
     btns.append(
         f'<button type="button" class="feed-btn feed-btn--primary" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
-        f'aria-label="Share brief" title="Generate English Brief / Translation to review, copy, or share to Media Monitor">'
+        f'aria-label="Share brief" title="Generate English Brief / Translation to review, copy, or share to Social Media Monitoring">'
         f'Share</button>'
     )
     return (

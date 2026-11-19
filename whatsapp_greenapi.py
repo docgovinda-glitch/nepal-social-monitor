@@ -50,20 +50,36 @@ def is_sending_active(session_approved: bool = True) -> bool:
     return bool(session_approved and is_configured())
 
 
+SOCIAL_MEDIA_GROUP: Dict[str, str] = {
+    "id": "120363412139269937@g.us",
+    "name": "Social Media Monitoring",
+}
+
+NEWS_SHARE_GROUPS: List[Dict[str, str]] = [
+    {"id": "120363428884458826@g.us", "name": "India Related News in Nepali Media"},
+    {"id": "9779823609230-1539002455@g.us", "name": "Core group of PIC Wing"},
+]
+
+
+def get_share_targets(is_x_post: bool = False) -> List[Dict[str, str]]:
+    """Returns the allowed WhatsApp destination group(s) for X posts vs news items."""
+    return [dict(SOCIAL_MEDIA_GROUP)] if is_x_post else [dict(g) for g in NEWS_SHARE_GROUPS]
+
+
 def get_destination_group(timeout: int = 10) -> Dict[str, Any]:
     """
-    Resolves the configured destination WhatsApp group (Media Monitor) from GREEN_API_CHAT_ID
-    and retrieves its live group name via Green API getChats without hardcoding group IDs.
+    Resolves the configured destination WhatsApp group from GREEN_API_CHAT_ID
+    and retrieves its live group name via Green API getChats.
     """
     env_cid = get_env_suggested_chat_id().strip()
     if not env_cid:
-        return {"ok": False, "id": "", "name": "", "error": "GREEN_API_CHAT_ID is not configured."}
+        return {"ok": True, **NEWS_SHARE_GROUPS[0], "error": ""}
     grps = list_whatsapp_groups(timeout=timeout)
     if grps.get("ok"):
         for g in grps.get("groups", []):
             if g["id"] == env_cid:
                 return {"ok": True, "id": g["id"], "name": g["name"], "error": ""}
-    return {"ok": True, "id": env_cid, "name": "Media Monitor", "error": ""}
+    return {"ok": True, "id": env_cid, "name": NEWS_SHARE_GROUPS[0]["name"], "error": ""}
 
 
 def get_instance_status(timeout: int = 8) -> Dict[str, Any]:

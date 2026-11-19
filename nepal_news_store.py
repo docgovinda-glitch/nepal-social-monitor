@@ -2921,7 +2921,7 @@ def ensure_whatsapp_sent_log_table() -> None:
     CREATE TABLE IF NOT EXISTS whatsapp_sent_log (
         item_key TEXT PRIMARY KEY,
         group_id TEXT DEFAULT '',
-        group_name TEXT DEFAULT 'Media Monitor',
+        group_name TEXT DEFAULT 'WhatsApp',
         id_message TEXT DEFAULT '',
         item_link TEXT DEFAULT '',
         sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -2946,7 +2946,7 @@ def record_whatsapp_sent(
     VALUES (
         {esc_sql(item_key)},
         {esc_sql(group_id or '')},
-        {esc_sql(group_name or 'Media Monitor')},
+        {esc_sql(group_name or 'WhatsApp')},
         {esc_sql(id_message or '')},
         {esc_sql(item_link or '')},
         NOW()
