@@ -19,6 +19,7 @@ Each post is dynamically analyzed and organized into one of the 8 Structured Cat
 import json
 import os
 import time
+import threading
 import datetime
 import zoneinfo
 import re
@@ -27,9 +28,10 @@ import urllib.request
 import urllib.parse
 import concurrent.futures
 import requests
+from requests.adapters import HTTPAdapter
 import feedparser
 import urllib3
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -38,6 +40,32 @@ DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 SSL_CTX = ssl._create_unverified_context()
+_X_HTTP_LOCAL = threading.local()
+
+
+def _get_x_http_session() -> requests.Session:
+    """Returns a thread-local keep-alive HTTP session for X/Twitter and Bing RSS requests."""
+    sess = getattr(_X_HTTP_LOCAL, "session", None)
+    if sess is None:
+        sess = requests.Session()
+        adapter = HTTPAdapter(pool_connections=32, pool_maxsize=32)
+        sess.mount("https://", adapter)
+        sess.mount("http://", adapter)
+        sess.headers.update(DEFAULT_HEADERS)
+        _X_HTTP_LOCAL.session = sess
+    return sess
+
+
+def _decode_snowflake_dt(sid: str) -> Optional[datetime.datetime]:
+    """Decodes an authentic Twitter/X Snowflake status ID into a Nepal-timezone datetime."""
+    s = str(sid).strip()
+    if s.isdigit() and int(s) > 10_000_000_000_000:
+        try:
+            snowflake_ms = (int(s) >> 22) + 1288834974657
+            return datetime.datetime.fromtimestamp(snowflake_ms / 1000.0, tz=datetime.timezone.utc).astimezone(NEPAL_TZ)
+        except Exception:
+            return None
+    return None
 
 # =====================================================================
 # Unified List of Verified Monitored Nepali Accounts Frequently Posting
@@ -212,7 +240,7 @@ def _enrich_tweet_by_id(
     tweet_json = None
     url = f"https://cdn.syndication.twimg.com/tweet-result?id={sid}&token=4"
     try:
-        r = requests.get(url, verify=False, timeout=4)
+        r = _get_x_http_session().get(url, verify=False, timeout=(2.5, 4.0))
         if r.status_code == 200:
             tweet_json = r.json()
     except Exception:
@@ -280,12 +308,8 @@ def _enrich_tweet_by_id(
             pass
 
     # If created_at is missing, decode the tweet Snowflake ID for authentic creation timestamp
-    if not pub_dt and str(sid).isdigit() and int(sid) > 10000000000000:
-        try:
-            snowflake_ms = (int(sid) >> 22) + 1288834974657
-            pub_dt = datetime.datetime.fromtimestamp(snowflake_ms / 1000.0, tz=datetime.timezone.utc).astimezone(NEPAL_TZ)
-        except Exception:
-            pass
+    if not pub_dt:
+        pub_dt = _decode_snowflake_dt(sid)
 
     if not pub_dt:
         pub_dt = now_npt
@@ -403,16 +427,83 @@ def _enrich_tweet_by_id(
     }
 
 
-def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
-    """
-    Directly harvests and enriches fresh, real-time live tweets across all
-    verified Nepali accounts in the monitored list. Each post is dynamically
-    classified and organized into the 8 sections based on content.
-    """
-    active_accounts = get_monitored_x_accounts(enabled_only=True)
-    if not active_accounts:
-        active_accounts = TOP_NEPAL_X_ACCOUNTS
+_BING_SEARCH_QUERIES: List[str] = [
+    "site:x.com Nepal", "site:x.com Nepali", "site:x.com Kathmandu", "site:x.com Pokhara",
+    "site:x.com Biratnagar", "site:x.com Lalitpur", "site:x.com Bhaktapur",
+    'site:x.com "Nepal Cricket"', 'site:x.com "Nepal Police"',
+    'site:x.com "Balen Shah"', 'site:x.com "KP Oli"', 'site:x.com "Prachanda"',
+    'site:x.com "Rabi Lamichhane"', 'site:x.com "Nepal Rastra Bank"',
+    'site:x.com "India Nepal"', 'site:x.com "China Nepal"',
+    'site:x.com "Bangladesh Nepal"', 'site:x.com "Pakistan Nepal"',
+    'site:x.com "Nepal" "India"', 'site:x.com "Nepal" "India" border',
+    'site:x.com "Nepal" "India" electricity', 'site:x.com "Nepal" "India" cricket',
+    'site:x.com "Nepal" "Modi"', 'site:x.com "Nepal" "Kalapani"',
+    'site:x.com "Nepal" "Lipulekh"', 'site:x.com "Nepal" "Susta"',
+    'site:x.com "नेपाल" "भारत"', 'site:x.com "कालापानी"',
+    'site:x.com "लिपुलेक"', 'site:x.com "नाकाबन्दी"', 'site:x.com "नेपाल-भारत"',
+    'site:x.com "Nepal" "China"', 'site:x.com "Nepal" "China" BRI',
+    'site:x.com "Nepal" "China" border', 'site:x.com "Nepal" "China" Pokhara',
+    'site:x.com "Nepal" "China" railway', 'site:x.com "Nepal" "Kerung"',
+    'site:x.com "Nepal" "Tatopani"', 'site:x.com "Nepal" "China" loan',
+    'site:x.com "Nepal" "China" grant', 'site:x.com "नेपाल" "चीन"',
+    'site:x.com "नेपाल" "बिआरआई"', 'site:x.com "केरुङ नाका"',
+    'site:x.com "तातोपानी नाका"', 'site:x.com "पोखरा विमानस्थल" चीन',
+    'site:x.com "Nepal" "Pakistan"', 'site:x.com "Nepal" "Pakistan" cricket',
+    'site:x.com "Nepal" "Pakistan" SAARC', 'site:x.com "Nepal" "Pakistan" scholarship',
+    'site:x.com "नेपाल" "पाकिस्तान"', 'site:x.com "नेपाल-पाकिस्तान"',
+    'site:x.com "सार्क" "पाकिस्तान"',
+    'site:x.com "Nepal" "Bangladesh"', 'site:x.com "Nepal" "Bangladesh" electricity',
+    'site:x.com "Nepal" "Bangladesh" power', 'site:x.com "Nepal" "Bangladesh" Hasina',
+    'site:x.com "Nepal" "Bangladesh" Yunus', 'site:x.com "Nepal" "Bangladesh" SAFF',
+    'site:x.com "Nepal" "Bangladesh" football', 'site:x.com "नेपाल" "बंगलादेश"',
+    'site:x.com "नेपाल" "बङ्गलादेश"', 'site:x.com "बंगलादेश" "बिजुली"',
+    'site:x.com "बंगलादेश" "विद्यार्थी"', 'site:x.com "हसिना" "नेपाल"',
+    'site:x.com "युनुस" "नेपाल"',
+    'site:x.com "Nepal" "United States"', 'site:x.com "Nepal" "MCC"', 'site:x.com "Nepal" "USAID"',
+    'site:x.com "Nepal" "US Embassy"', 'site:x.com "Nepal" "EU"', 'site:x.com "Nepal" "European Union"',
+    'site:x.com "Nepal" "EU blacklist"', 'site:x.com "Nepal" "UK"', 'site:x.com "Nepal" "British Embassy"',
+    'site:x.com "Nepal" "United Nations"', 'site:x.com "Nepal" "peacekeeping"', 'site:x.com "Nepal" "UNGA"',
+    'site:x.com "Nepal" "SAARC"', 'site:x.com "Nepal" "BIMSTEC"', 'site:x.com "नेपाल" "सार्क"',
+    'site:x.com "नेपाल" "बिम्सटेक"', 'site:x.com "नेपाल" "एमसीसी"', 'site:x.com "नेपाल" "शान्ति सेना"',
+    'site:x.com "हवाई कालोसूची"',
+    'site:x.com "CPN UML"', 'site:x.com "नेकपा एमाले"', 'site:x.com "एमाले"',
+    'site:x.com "Bhim Rawal"', 'site:x.com "Shankar Pokhrel"', 'site:x.com "जबज"',
+    'site:x.com "अनेरास्ववियु"', 'site:x.com "युवा संघ"',
+    'site:x.com "Madhesh"', 'site:x.com "मधेश"', 'site:x.com "मधेस"',
+    'site:x.com "Janakpur"', 'site:x.com "Birgunj"', 'site:x.com "उखु किसान"',
+    'site:x.com "जसपा"', 'site:x.com "जनमत पार्टी"',
+    "site:x.com #Nepal", "site:x.com #NepalCricket", "site:x.com #Kathmandu",
+]
 
+
+def _run_pool_bounded(fn, items, max_workers: int, timeout_secs: float = 20.0) -> List[Any]:
+    """Runs fn over items concurrently under a hard wall-clock budget."""
+    results: List[Any] = []
+    if not items:
+        return results
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        futs = [ex.submit(fn, it) for it in items]
+        try:
+            for fut in concurrent.futures.as_completed(futs, timeout=timeout_secs):
+                try:
+                    val = fut.result()
+                    if val is not None:
+                        results.append(val)
+                except Exception:
+                    pass
+        except concurrent.futures.TimeoutError:
+            pass
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
+    return results
+
+
+def _discover_profile_tweet_candidates(
+    active_accounts: List[Dict[str, Any]],
+    timeout_secs: float = 16.0,
+) -> Dict[str, Dict[str, Any]]:
+    """Scrapes recent tweet IDs from verified Nepali account profiles via keep-alive HTTP."""
     active_by_handle = {
         a["handle"].lower().lstrip("@"): a
         for a in active_accounts
@@ -422,9 +513,10 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
     def _fetch_profile_ids(acc: Dict[str, Any]):
         h = acc["handle"].lstrip("@")
         h_low = h.lower()
+        sess = _get_x_http_session()
         for attempt in range(2):
             try:
-                r = requests.get(f"https://x.com/{h}", headers=DEFAULT_HEADERS, timeout=6)
+                r = sess.get(f"https://x.com/{h}", timeout=(3.0, 5.0))
                 own_ids = re.findall(rf"/{re.escape(h)}/status/(\d{{18,20}})", r.text, re.IGNORECASE)
                 pairs = re.findall(r"([A-Za-z0-9_]+)/status/(\d{18,20})", r.text)
 
@@ -451,135 +543,24 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
                 return []
         return []
 
-    def _run_pool_bounded(fn, items, max_workers: int, timeout_secs: float = 25.0):
-        results = []
-        if not items:
-            return results
-        ex = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
-        try:
-            futs = [ex.submit(fn, it) for it in items]
-            try:
-                for fut in concurrent.futures.as_completed(futs, timeout=timeout_secs):
-                    try:
-                        val = fut.result(timeout=2)
-                        if val is not None:
-                            results.append(val)
-                    except Exception:
-                        pass
-            except concurrent.futures.TimeoutError:
-                pass
-        finally:
-            ex.shutdown(wait=False, cancel_futures=True)
-        return results
-
-    batches = _run_pool_bounded(_fetch_profile_ids, active_accounts, max_workers=12, timeout_secs=25.0)
-
+    batches = _run_pool_bounded(_fetch_profile_ids, active_accounts, max_workers=20, timeout_secs=timeout_secs)
     dedup_items: Dict[str, Dict[str, Any]] = {}
     for batch in batches:
         for sid, target_acc in batch:
             if sid not in dedup_items:
                 dedup_items[sid] = target_acc
-
-    raw_items = list(dedup_items.items())
-
-    def _worker(item):
-        sid, acc = item
-        return _enrich_tweet_by_id(sid, known_handle=acc["handle"], known_account=acc)
-
-    return _run_pool_bounded(_worker, raw_items, max_workers=20, timeout_secs=25.0)
+    return dedup_items
 
 
-def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, Any]]:
-    """
-    Comprehensive Daily X & Social Media Intelligence Scanner.
-    Combines:
-      1. Direct status harvesting from verified Nepali accounts (primary).
-      2. Authenticated status discovery via Bing News RSS across 20+ Nepal queries.
-    Strictly zero mock data. All posts are 100% genuine tweets sorted newest first.
-    """
-    # 1. Check Supabase cloud database if not explicit force refresh
-    if not force_refresh:
-        try:
-            from nepal_news_store import get_stored_x_posts
-            db_posts = get_stored_x_posts(limit=1500)
-            if db_posts and len(db_posts) >= 40:
-                return db_posts
-        except Exception:
-            pass
-
-    now_npt = datetime.datetime.now(NEPAL_TZ)
-    all_posts = []
-    seen_ids = set()
-    seen_texts = set()
-
-    # ==========================================
-    # PRIMARY SOURCE: Direct Status Harvesting from Monitored Nepali Accounts
-    # ==========================================
-    account_tweets = harvest_tweets_from_nepali_accounts()
-    for p in account_tweets:
-        sid = p.get("id")
-        norm = p.get("text", "")[:40].lower()
-        if sid and sid not in seen_ids and norm not in seen_texts:
-            seen_ids.add(sid)
-            seen_texts.add(norm)
-            all_posts.append(p)
-
-    # ==========================================
-    # SECONDARY SOURCE: Bing News RSS Status Discovery (for viral mentions)
-    # ==========================================
-    search_queries = [
-        "site:x.com Nepal", "site:x.com Nepali", "site:x.com Kathmandu", "site:x.com Pokhara",
-        "site:x.com Biratnagar", "site:x.com Lalitpur", "site:x.com Bhaktapur",
-        'site:x.com "Nepal Cricket"', 'site:x.com "Nepal Police"',
-        'site:x.com "Balen Shah"', 'site:x.com "KP Oli"', 'site:x.com "Prachanda"',
-        'site:x.com "Rabi Lamichhane"', 'site:x.com "Nepal Rastra Bank"',
-        'site:x.com "India Nepal"', 'site:x.com "China Nepal"',
-        'site:x.com "Bangladesh Nepal"', 'site:x.com "Pakistan Nepal"',
-        'site:x.com "Nepal" "India"', 'site:x.com "Nepal" "India" border',
-        'site:x.com "Nepal" "India" electricity', 'site:x.com "Nepal" "India" cricket',
-        'site:x.com "Nepal" "Modi"', 'site:x.com "Nepal" "Kalapani"',
-        'site:x.com "Nepal" "Lipulekh"', 'site:x.com "Nepal" "Susta"',
-        'site:x.com "नेपाल" "भारत"', 'site:x.com "कालापानी"',
-        'site:x.com "लिपुलेक"', 'site:x.com "नाकाबन्दी"', 'site:x.com "नेपाल-भारत"',
-        'site:x.com "Nepal" "China"', 'site:x.com "Nepal" "China" BRI',
-        'site:x.com "Nepal" "China" border', 'site:x.com "Nepal" "China" Pokhara',
-        'site:x.com "Nepal" "China" railway', 'site:x.com "Nepal" "Kerung"',
-        'site:x.com "Nepal" "Tatopani"', 'site:x.com "Nepal" "China" loan',
-        'site:x.com "Nepal" "China" grant', 'site:x.com "नेपाल" "चीन"',
-        'site:x.com "नेपाल" "बिआरआई"', 'site:x.com "केरुङ नाका"',
-        'site:x.com "तातोपानी नाका"', 'site:x.com "पोखरा विमानस्थल" चीन',
-        'site:x.com "Nepal" "Pakistan"', 'site:x.com "Nepal" "Pakistan" cricket',
-        'site:x.com "Nepal" "Pakistan" SAARC', 'site:x.com "Nepal" "Pakistan" scholarship',
-        'site:x.com "नेपाल" "पाकिस्तान"', 'site:x.com "नेपाल-पाकिस्तान"',
-        'site:x.com "सार्क" "पाकिस्तान"',
-        'site:x.com "Nepal" "Bangladesh"', 'site:x.com "Nepal" "Bangladesh" electricity',
-        'site:x.com "Nepal" "Bangladesh" power', 'site:x.com "Nepal" "Bangladesh" Hasina',
-        'site:x.com "Nepal" "Bangladesh" Yunus', 'site:x.com "Nepal" "Bangladesh" SAFF',
-        'site:x.com "Nepal" "Bangladesh" football', 'site:x.com "नेपाल" "बंगलादेश"',
-        'site:x.com "नेपाल" "बङ्गलादेश"', 'site:x.com "बंगलादेश" "बिजुली"',
-        'site:x.com "बंगलादेश" "विद्यार्थी"', 'site:x.com "हसिना" "नेपाल"',
-        'site:x.com "युनुस" "नेपाल"',
-        'site:x.com "Nepal" "United States"', 'site:x.com "Nepal" "MCC"', 'site:x.com "Nepal" "USAID"',
-        'site:x.com "Nepal" "US Embassy"', 'site:x.com "Nepal" "EU"', 'site:x.com "Nepal" "European Union"',
-        'site:x.com "Nepal" "EU blacklist"', 'site:x.com "Nepal" "UK"', 'site:x.com "Nepal" "British Embassy"',
-        'site:x.com "Nepal" "United Nations"', 'site:x.com "Nepal" "peacekeeping"', 'site:x.com "Nepal" "UNGA"',
-        'site:x.com "Nepal" "SAARC"', 'site:x.com "Nepal" "BIMSTEC"', 'site:x.com "नेपाल" "सार्क"',
-        'site:x.com "नेपाल" "बिम्सटेक"', 'site:x.com "नेपाल" "एमसीसी"', 'site:x.com "नेपाल" "शान्ति सेना"',
-        'site:x.com "हवाई कालोसूची"',
-        'site:x.com "CPN UML"', 'site:x.com "नेकपा एमाले"', 'site:x.com "एमाले"',
-        'site:x.com "Bhim Rawal"', 'site:x.com "Shankar Pokhrel"', 'site:x.com "जबज"',
-        'site:x.com "अनेरास्ववियु"', 'site:x.com "युवा संघ"',
-        'site:x.com "Madhesh"', 'site:x.com "मधेश"', 'site:x.com "मधेस"',
-        'site:x.com "Janakpur"', 'site:x.com "Birgunj"', 'site:x.com "उखु किसान"',
-        'site:x.com "जसपा"', 'site:x.com "जनमत पार्टी"',
-        "site:x.com #Nepal", "site:x.com #NepalCricket", "site:x.com #Kathmandu"
-    ]
-
-    def _fetch_bing_sid(q):
+def _discover_bing_tweet_candidates(timeout_secs: float = 12.0) -> List[Tuple[str, str, str, str]]:
+    """Discovers viral Nepal X status IDs via Bing News RSS using keep-alive connections."""
+    def _fetch_bing_sid(q: str):
         url = f"https://www.bing.com/news/search?q={urllib.parse.quote(q)}&format=rss"
         try:
-            req = urllib.request.Request(url, headers=DEFAULT_HEADERS)
-            f = feedparser.parse(urllib.request.urlopen(req, context=SSL_CTX, timeout=4))
+            resp = _get_x_http_session().get(url, verify=False, timeout=(3.0, 4.0))
+            if resp.status_code != 200:
+                return []
+            f = feedparser.parse(resp.content)
             res = []
             for it in f.entries:
                 link = it.link
@@ -594,65 +575,223 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, An
         except Exception:
             return []
 
-    bing_batches = []
-    ex_b = concurrent.futures.ThreadPoolExecutor(max_workers=15)
-    try:
-        futs = [ex_b.submit(_fetch_bing_sid, q) for q in search_queries]
-        try:
-            for fut in concurrent.futures.as_completed(futs, timeout=18.0):
-                try:
-                    bing_batches.append(fut.result(timeout=2) or [])
-                except Exception:
-                    pass
-        except concurrent.futures.TimeoutError:
-            pass
-    finally:
-        ex_b.shutdown(wait=False, cancel_futures=True)
+    batches = _run_pool_bounded(_fetch_bing_sid, _BING_SEARCH_QUERIES, max_workers=20, timeout_secs=timeout_secs)
+    out: List[Tuple[str, str, str, str]] = []
+    for b in batches:
+        if b:
+            out.extend(b)
+    return out
 
-    raw_candidates = []
-    for b in bing_batches:
-        for sid, h, t, l in b:
-            if sid not in seen_ids:
-                seen_ids.add(sid)
-                raw_candidates.append((sid, t, l, h))
 
-    def _worker_enrich(item):
-        sid, t, link, h = item
-        return _enrich_tweet_by_id(sid, fallback_title=t, fallback_url=link, known_handle=h)
+def _select_tweet_ids_to_enrich(
+    candidate_sids: List[str],
+    existing_map: Optional[Dict[str, Any]] = None,
+    now_npt: Optional[datetime.datetime] = None,
+    refresh_window_hours: float = 48.0,
+    min_recheck_secs: float = 300.0,
+    active_topup_hours: float = 24.0,
+    active_topup_cap: int = 60,
+    max_enrich: int = 350,
+) -> List[str]:
+    """
+    Sorts candidate tweet IDs newest-first via Snowflake ID and skips >48h already-stored
+    or freshly-synced tweets so syndication enrichment stays fast and prioritizes breaking posts.
+    """
+    if not candidate_sids:
+        return []
 
-    enriched_bing = []
-    if raw_candidates:
-        ex_e = concurrent.futures.ThreadPoolExecutor(max_workers=20)
-        try:
-            futs = [ex_e.submit(_worker_enrich, it) for it in raw_candidates]
+    ref_now = now_npt or datetime.datetime.now(NEPAL_TZ)
+    known = existing_map or {}
+
+    unique_sids = sorted(
+        {str(s).strip() for s in candidate_sids if str(s).strip()},
+        key=lambda s: int(s) if s.isdigit() else 0,
+        reverse=True,
+    )
+
+    brand_new: List[str] = []
+    stale_recent: List[str] = []
+    active_topup: List[str] = []
+    old_new: List[str] = []
+
+    for sid in unique_sids:
+        sf_dt = _decode_snowflake_dt(sid)
+        age_hours = max(0.0, (ref_now - sf_dt).total_seconds() / 3600.0) if sf_dt else 0.0
+
+        if sid not in known:
+            if sf_dt and age_hours > 336.0:
+                old_new.append(sid)
+            else:
+                brand_new.append(sid)
+            continue
+
+        if age_hours > refresh_window_hours:
+            continue
+
+        upd_raw = known.get(sid)
+        upd_dt: Optional[datetime.datetime] = None
+        if isinstance(upd_raw, datetime.datetime):
+            upd_dt = upd_raw.replace(tzinfo=datetime.timezone.utc) if upd_raw.tzinfo is None else upd_raw
+            upd_dt = upd_dt.astimezone(NEPAL_TZ)
+        elif isinstance(upd_raw, str) and upd_raw.strip():
             try:
-                for fut in concurrent.futures.as_completed(futs, timeout=22.0):
-                    try:
-                        val = fut.result(timeout=2)
-                        if val:
-                            enriched_bing.append(val)
-                    except Exception:
-                        pass
-            except concurrent.futures.TimeoutError:
-                pass
-        finally:
-            ex_e.shutdown(wait=False, cancel_futures=True)
+                from dateutil import parser as dt_parser
+                parsed = dt_parser.parse(upd_raw)
+                upd_dt = (parsed.replace(tzinfo=datetime.timezone.utc) if parsed.tzinfo is None else parsed).astimezone(NEPAL_TZ)
+            except Exception:
+                upd_dt = None
 
-    for p in enriched_bing:
-        if p and p.get("text"):
-            norm = p["text"][:40].lower()
-            if norm not in seen_texts:
-                seen_texts.add(norm)
-                all_posts.append(p)
+        upd_age_secs = (ref_now - upd_dt).total_seconds() if upd_dt else float("inf")
+        if upd_age_secs >= min_recheck_secs:
+            stale_recent.append(sid)
+        elif age_hours <= active_topup_hours:
+            active_topup.append(sid)
+
+    selected = brand_new + stale_recent
+    if len(selected) < 40 and active_topup:
+        needed = max(0, min(active_topup_cap, 60) - len(selected))
+        selected.extend(active_topup[:needed])
+    if len(selected) < 60 and old_new:
+        selected.extend(old_new[: max(0, 60 - len(selected))])
+
+    return selected[:max_enrich]
+
+
+def _load_existing_x_refresh_map(candidate_sids: List[str]) -> Dict[str, Optional[datetime.datetime]]:
+    try:
+        from nepal_news_store import get_x_post_refresh_map
+        return get_x_post_refresh_map(candidate_sids)
+    except Exception:
+        return {}
+
+
+def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
+    """
+    Directly harvests and enriches fresh, real-time live tweets across all
+    verified Nepali accounts in the monitored list. Each post is dynamically
+    classified and organized into the 8 sections based on content.
+    """
+    active_accounts = get_monitored_x_accounts(enabled_only=True)
+    if not active_accounts:
+        active_accounts = TOP_NEPAL_X_ACCOUNTS
+
+    dedup_items = _discover_profile_tweet_candidates(active_accounts, timeout_secs=16.0)
+    if not dedup_items:
+        return []
+
+    now_npt = datetime.datetime.now(NEPAL_TZ)
+    existing_map = _load_existing_x_refresh_map(list(dedup_items.keys()))
+    target_sids = _select_tweet_ids_to_enrich(list(dedup_items.keys()), existing_map=existing_map, now_npt=now_npt)
+    raw_items = [(sid, dedup_items[sid]) for sid in target_sids if sid in dedup_items]
+
+    def _worker(item):
+        sid, acc = item
+        return _enrich_tweet_by_id(sid, known_handle=acc["handle"], known_account=acc)
+
+    return _run_pool_bounded(_worker, raw_items, max_workers=24, timeout_secs=20.0)
+
+
+def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, Any]]:
+    """
+    Comprehensive Daily X & Social Media Intelligence Scanner.
+    Combines:
+      1. Direct status harvesting from verified Nepali accounts (primary).
+      2. Authenticated status discovery via Bing News RSS across Nepal queries (concurrent).
+    Strictly zero mock data. All posts are 100% genuine tweets sorted newest first.
+    """
+    # 1. Check Supabase cloud database if not explicit force refresh
+    if not force_refresh:
+        try:
+            from nepal_news_store import get_stored_x_posts
+            db_posts = get_stored_x_posts(limit=1500)
+            if db_posts and len(db_posts) >= 40:
+                return db_posts
+        except Exception:
+            pass
+
+    now_npt = datetime.datetime.now(NEPAL_TZ)
+    active_accounts = get_monitored_x_accounts(enabled_only=True)
+    if not active_accounts:
+        active_accounts = TOP_NEPAL_X_ACCOUNTS
+
+    # Run account profile harvesting and Bing RSS discovery concurrently
+    profile_candidates: Dict[str, Dict[str, Any]] = {}
+    bing_candidates: List[Tuple[str, str, str, str]] = []
+    disc_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    try:
+        f_profiles = disc_pool.submit(_discover_profile_tweet_candidates, active_accounts, 18.0)
+        f_bing = disc_pool.submit(_discover_bing_tweet_candidates, 12.0)
+        try:
+            profile_candidates = f_profiles.result(timeout=26.0) or {}
+        except Exception:
+            profile_candidates = {}
+        try:
+            bing_candidates = f_bing.result(timeout=20.0) or []
+        except Exception:
+            bing_candidates = []
+    finally:
+        disc_pool.shutdown(wait=False, cancel_futures=True)
+
+    # Merge candidates with monitored account metadata taking precedence over Bing fallback
+    merged_meta: Dict[str, Dict[str, Any]] = {}
+    for sid, acc in profile_candidates.items():
+        merged_meta[sid] = {
+            "sid": sid,
+            "known_handle": acc["handle"],
+            "known_account": acc,
+            "fallback_title": "",
+            "fallback_url": "",
+        }
+    for sid, h, title, link in bing_candidates:
+        if sid not in merged_meta:
+            merged_meta[sid] = {
+                "sid": sid,
+                "known_handle": h,
+                "known_account": None,
+                "fallback_title": title,
+                "fallback_url": link,
+            }
+
+    if not merged_meta:
+        return []
+
+    existing_map = _load_existing_x_refresh_map(list(merged_meta.keys()))
+    target_sids = _select_tweet_ids_to_enrich(list(merged_meta.keys()), existing_map=existing_map, now_npt=now_npt)
+    enrich_items = [merged_meta[sid] for sid in target_sids if sid in merged_meta]
+
+    def _worker_enrich(meta: Dict[str, Any]):
+        return _enrich_tweet_by_id(
+            meta["sid"],
+            fallback_title=meta["fallback_title"],
+            fallback_url=meta["fallback_url"],
+            known_handle=meta["known_handle"],
+            known_account=meta["known_account"],
+        )
+
+    enriched = _run_pool_bounded(_worker_enrich, enrich_items, max_workers=24, timeout_secs=20.0)
+
+    all_posts: List[Dict[str, Any]] = []
+    seen_ids = set()
+    seen_texts = set()
+    for p in enriched:
+        if not p or not p.get("text"):
+            continue
+        sid = p.get("id")
+        norm = p["text"][:40].lower()
+        if sid and sid not in seen_ids and norm not in seen_texts:
+            seen_ids.add(sid)
+            seen_texts.add(norm)
+            all_posts.append(p)
 
     # Sort strictly descending by newest publication time
     all_posts.sort(key=lambda x: x["published_dt"], reverse=True)
 
     # Push freshly harvested posts directly into Supabase Cloud PostgreSQL x_posts table
-    try:
-        from nepal_news_store import save_x_posts
-        save_x_posts(all_posts)
-    except Exception:
-        pass
+    if all_posts:
+        try:
+            from nepal_news_store import save_x_posts
+            save_x_posts(all_posts, batch_size=250)
+        except Exception:
+            pass
 
     return all_posts

@@ -1776,24 +1776,54 @@ def verify_x_profile_connectivity(handle: str) -> Tuple[bool, str]:
 # X POSTS STORAGE & RETRIEVAL (SUPABASE POSTGRESQL)
 # ==============================================================================
 
-def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 50) -> int:
+def get_x_post_refresh_map(post_ids: List[str]) -> Dict[str, Optional[datetime.datetime]]:
+    """
+    Returns {post_id: updated_at} for the given tweet IDs already stored in x_posts.
+    Enables the X scanner to skip redundant re-enrichment of older/recently-synced tweets.
+    """
+    clean_ids = [str(pid).strip() for pid in (post_ids or []) if str(pid).strip()]
+    if not clean_ids:
+        return {}
+    out: Dict[str, Optional[datetime.datetime]] = {}
+    for i in range(0, len(clean_ids), 1000):
+        chunk = clean_ids[i:i + 1000]
+        in_sql = ", ".join(esc_sql(pid) for pid in chunk)
+        rows = query_supabase(f"SELECT id, updated_at FROM x_posts WHERE id IN ({in_sql});")
+        for r in rows or []:
+            pid = str(r.get("id") or "").strip()
+            if pid:
+                out[pid] = r.get("updated_at")
+    return out
+
+
+def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
     """
     Batches upsert operations for X posts into the Supabase PostgreSQL 'x_posts' table.
-    Enforces conflict resolution on unique post id.
+    Deduplicates by post id before chunking and enforces conflict resolution on unique post id.
     """
     if not posts:
         return 0
 
+    deduped_posts: List[Dict[str, Any]] = []
+    seen_pids = set()
+    for p in posts:
+        pid = str(p.get("id", "")).strip()
+        if not pid or pid in seen_pids:
+            continue
+        seen_pids.add(pid)
+        deduped_posts.append(p)
+
+    if not deduped_posts:
+        return 0
+
     inserted = 0
-    total = len(posts)
+    total = len(deduped_posts)
 
     for i in range(0, total, batch_size):
-        chunk = posts[i:i + batch_size]
+        chunk = deduped_posts[i:i + batch_size]
         val_rows = []
         for p in chunk:
             pid = str(p.get("id", "")).strip()
-            if not pid:
-                continue
             handle = p.get("handle", "")
             raw_handle = p.get("raw_handle") or handle.lstrip("@")
             author_name = p.get("author_name", raw_handle)
@@ -1831,26 +1861,34 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 50) -> int:
             continue
 
         sql = f"""
-        INSERT INTO x_posts (
-            id, handle, raw_handle, author_name, author_type, role, verified,
-            avatar_bg, initials, title, text, headline_english, structured_category,
-            likes, retweets, replies, impressions, engagement_score, published_dt,
-            relative_time, exact_time, link, sentiment, is_real_api, ingested_at, updated_at
-        ) VALUES
-        {", ".join(val_rows)}
-        ON CONFLICT (id) DO UPDATE SET
-            likes = EXCLUDED.likes,
-            retweets = EXCLUDED.retweets,
-            replies = EXCLUDED.replies,
-            impressions = EXCLUDED.impressions,
-            engagement_score = EXCLUDED.engagement_score,
-            structured_category = EXCLUDED.structured_category,
-            sentiment = EXCLUDED.sentiment,
-            updated_at = NOW()
-        RETURNING id;
+        WITH upserted AS (
+            INSERT INTO x_posts (
+                id, handle, raw_handle, author_name, author_type, role, verified,
+                avatar_bg, initials, title, text, headline_english, structured_category,
+                likes, retweets, replies, impressions, engagement_score, published_dt,
+                relative_time, exact_time, link, sentiment, is_real_api, ingested_at, updated_at
+            ) VALUES
+            {", ".join(val_rows)}
+            ON CONFLICT (id) DO UPDATE SET
+                likes = EXCLUDED.likes,
+                retweets = EXCLUDED.retweets,
+                replies = EXCLUDED.replies,
+                impressions = EXCLUDED.impressions,
+                engagement_score = EXCLUDED.engagement_score,
+                structured_category = EXCLUDED.structured_category,
+                sentiment = EXCLUDED.sentiment,
+                updated_at = NOW()
+            RETURNING 1
+        )
+        SELECT COUNT(*) AS cnt FROM upserted;
         """
         res = query_supabase(sql)
-        inserted += len(res) if res else len(val_rows)
+        if res and isinstance(res[0], dict) and "cnt" in res[0]:
+            inserted += int(res[0]["cnt"] or 0)
+        elif res:
+            inserted += len(res)
+        else:
+            inserted += len(val_rows)
 
     logger.info(f"save_x_posts: Pushed {inserted}/{total} posts into Supabase x_posts table.")
     return inserted

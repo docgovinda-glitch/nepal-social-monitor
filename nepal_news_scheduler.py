@@ -309,7 +309,7 @@ def _run_concurrent_ingest_pipelines(
     include_x: bool = True,
     nepali_workers: int = 12,
     indian_workers: int = 8,
-    pipeline_timeout_secs: float = 65.0,
+    pipeline_timeout_secs: float = 90.0,
     on_pipeline_done: Optional[Any] = None,
 ) -> Tuple[Dict[str, int], Dict[str, str]]:
     """
@@ -426,7 +426,7 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             include_x=("x" in target_set),
             nepali_workers=12,
             indian_workers=12,
-            pipeline_timeout_secs=65.0,
+            pipeline_timeout_secs=90.0,
             on_pipeline_done=_on_stream_done,
         )
     except Exception as exc:
@@ -527,7 +527,7 @@ def _monitoring_daemon_loop():
 
                     done_futs = set()
                     try:
-                        for fut in concurrent.futures.as_completed(fut_meta, timeout=65.0):
+                        for fut in concurrent.futures.as_completed(fut_meta, timeout=90.0):
                             done_futs.add(fut)
                             label, on_done = fut_meta[fut]
                             try:
@@ -535,7 +535,7 @@ def _monitoring_daemon_loop():
                                 if on_done is not None:
                                     on_done()
                             except concurrent.futures.TimeoutError:
-                                logger.warning(f"Monitoring loop {label} cycle timed out after 65s; continuing.")
+                                logger.warning(f"Monitoring loop {label} cycle timed out after 90s; continuing.")
                             except Exception as e:
                                 err_msg = format_exc(e)
                                 if "shutdown" in err_msg.lower():
@@ -544,7 +544,7 @@ def _monitoring_daemon_loop():
                     except concurrent.futures.TimeoutError:
                         for fut, (label, _cb) in fut_meta.items():
                             if fut not in done_futs:
-                                logger.warning(f"Monitoring loop {label} cycle timed out after 65s; continuing.")
+                                logger.warning(f"Monitoring loop {label} cycle timed out after 90s; continuing.")
                 finally:
                     pool.shutdown(wait=False, cancel_futures=True)
             finally:

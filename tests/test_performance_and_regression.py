@@ -314,6 +314,87 @@ class StoreAndPaginationUnitTests(unittest.TestCase):
         self.assertEqual(by_link["https://www.moneycontrol.com/news/nepal-borderline-1"]["relevance_status"], "substantive")
         self.assertFalse(any("onlinekhabar.com" in lk for lk in by_link), "Nepali portal must be excluded from Indian Press")
 
+    def test_x_scanner_snowflake_selection_concurrent_discovery_and_batched_upsert(self):
+        import nepal_news_store as store
+        import nepal_x_scanner as xs
+
+        now_npt = datetime.datetime(2026, 11, 19, 9, 45, 0, tzinfo=xs.NEPAL_TZ)
+
+        def _make_snowflake(hours_ago: float, seq: int = 1) -> str:
+            dt = now_npt - datetime.timedelta(hours=hours_ago)
+            ms = int(dt.astimezone(datetime.timezone.utc).timestamp() * 1000) - 1288834974657
+            return str((ms << 22) | seq)
+
+        sid_new_1 = _make_snowflake(1.0, 1)
+        sid_new_2 = _make_snowflake(3.0, 2)
+        sid_stale_recent = _make_snowflake(6.0, 3)
+        sid_fresh_recent = _make_snowflake(10.0, 4)
+        sid_old_stored = _make_snowflake(96.0, 5)
+
+        existing_map = {
+            sid_stale_recent: (now_npt - datetime.timedelta(minutes=20)).astimezone(datetime.timezone.utc),
+            sid_fresh_recent: (now_npt - datetime.timedelta(seconds=30)).astimezone(datetime.timezone.utc),
+            sid_old_stored: (now_npt - datetime.timedelta(days=2)).astimezone(datetime.timezone.utc),
+        }
+
+        # When 40+ new/stale items exist, freshly synced and >48h stored tweets are skipped
+        bulk_new = [_make_snowflake(0.5, 100 + i) for i in range(45)]
+        selected_bulk = xs._select_tweet_ids_to_enrich(
+            [sid_old_stored, sid_fresh_recent, sid_stale_recent, sid_new_2, sid_new_1] + bulk_new,
+            existing_map=existing_map,
+            now_npt=now_npt,
+        )
+        self.assertIn(sid_new_1, selected_bulk)
+        self.assertIn(sid_new_2, selected_bulk)
+        self.assertIn(sid_stale_recent, selected_bulk)
+        self.assertNotIn(sid_fresh_recent, selected_bulk)
+        self.assertNotIn(sid_old_stored, selected_bulk)
+        # Newest-first Snowflake ordering within brand_new
+        self.assertLess(selected_bulk.index(sid_new_1), selected_bulk.index(sid_new_2))
+
+        # When every recent tweet was just updated, active <=24h top-up prevents empty sync return
+        selected_topup = xs._select_tweet_ids_to_enrich(
+            [sid_old_stored, sid_fresh_recent],
+            existing_map=existing_map,
+            now_npt=now_npt,
+        )
+        self.assertEqual(selected_topup, [sid_fresh_recent])
+
+        # save_x_posts deduplicates duplicate IDs before SQL upsert and parses cnt scalar
+        seen_sql = []
+
+        def _fake_query(sql, params=None):
+            seen_sql.append(sql)
+            return [{"cnt": 2}]
+
+        sample_posts = [
+            {"id": sid_new_1, "handle": "@a", "text": "Post one", "published_dt": now_npt},
+            {"id": sid_new_1, "handle": "@a", "text": "Post one dup", "published_dt": now_npt},
+            {"id": sid_new_2, "handle": "@b", "text": "Post two", "published_dt": now_npt - datetime.timedelta(hours=1)},
+        ]
+        with mock.patch("nepal_news_store.query_supabase", side_effect=_fake_query):
+            up_cnt = store.save_x_posts(sample_posts)
+        self.assertEqual(up_cnt, 2)
+        self.assertEqual(len(seen_sql), 1)
+        self.assertIn("Post one", seen_sql[0])
+        self.assertNotIn("Post one dup", seen_sql[0])
+        self.assertIn("Post two", seen_sql[0])
+
+        # scan_popular_nepal_x_posts merges profile + Bing concurrently and saves once with batch_size=250
+        prof_acc = {"handle": "NepalVoice", "name": "Nepal Voice", "role": "Media", "avatar_bg": "#111", "initials": "NV"}
+        with mock.patch("nepal_x_scanner.get_monitored_x_accounts", return_value=[prof_acc]), \
+             mock.patch("nepal_x_scanner._discover_profile_tweet_candidates", return_value={sid_new_1: prof_acc}), \
+             mock.patch("nepal_x_scanner._discover_bing_tweet_candidates", return_value=[(sid_new_1, "NepalVoice", "Dup", "https://x.com/NepalVoice/status/" + sid_new_1), (sid_new_2, "OtherUser", "Bing hit", "https://x.com/OtherUser/status/" + sid_new_2)]), \
+             mock.patch("nepal_x_scanner._load_existing_x_refresh_map", return_value={}), \
+             mock.patch("nepal_x_scanner._enrich_tweet_by_id", side_effect=lambda sid, **kw: {"id": sid, "text": f"Unique tweet {sid}", "published_dt": now_npt}) as m_enrich, \
+             mock.patch("nepal_news_store.save_x_posts", return_value=2) as m_save:
+            out_posts = xs.scan_popular_nepal_x_posts(force_refresh=True)
+
+        self.assertEqual(len(out_posts), 2)
+        self.assertEqual(m_enrich.call_count, 2)
+        m_save.assert_called_once()
+        self.assertEqual(m_save.call_args.kwargs.get("batch_size"), 250)
+
 
 class SupabaseLiveIntegrationTests(unittest.TestCase):
     def test_live_feed_keyset_pagination_and_single_cte_bootstraps(self):
