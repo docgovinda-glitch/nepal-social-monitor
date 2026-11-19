@@ -41,6 +41,43 @@ def load_env():
 
 load_env()
 
+
+def _ensure_reloaded_daemon_on_code_update() -> None:
+    """Automatically stops stale @st.cache_resource daemon threads and reloads submodules on hot git deploys."""
+    import sys
+    import importlib
+
+    target_ver = "2026-11-19-v2"
+    old_sched = sys.modules.get("nepal_news_scheduler")
+    if old_sched is not None and getattr(old_sched, "_DAEMON_CODE_VERSION", None) != target_ver:
+        try:
+            old_stop = getattr(old_sched, "_STOP_EVENT", None)
+            if old_stop is not None and hasattr(old_stop, "set"):
+                old_stop.set()
+            old_start = getattr(old_sched, "start_monitoring_daemon", None)
+            if old_start is not None and hasattr(old_start, "clear"):
+                old_start.clear()
+            for mod_name in (
+                "nepal_config",
+                "nepal_verified_x_directory",
+                "nepal_news_store",
+                "nepal_summarizer",
+                "nepal_fetcher",
+                "nepal_x_scanner",
+                "nepal_news_scheduler",
+            ):
+                mod = sys.modules.get(mod_name)
+                if mod is not None:
+                    importlib.reload(mod)
+            new_sched = sys.modules.get("nepal_news_scheduler")
+            if new_sched is not None and hasattr(new_sched, "start_monitoring_daemon"):
+                new_sched.start_monitoring_daemon()
+        except Exception:
+            pass
+
+
+_ensure_reloaded_daemon_on_code_update()
+
 # 1. Page Configuration
 st.set_page_config(
     page_title="Nepal Media & Geo-Political Intelligence Dashboard",

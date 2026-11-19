@@ -296,6 +296,7 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
 
 
 # Background Monitoring Worker Thread
+_DAEMON_CODE_VERSION = "2026-11-19-v2"
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
@@ -508,19 +509,20 @@ def trigger_manual_sync_async(targets: Optional[List[str]] = None) -> Tuple[bool
     return True, snap
 
 
-def _monitoring_daemon_loop():
+def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
     """Background continuous loop that checks and ingests Nepali portals, Indian press, and X posts."""
     global _LAST_X_SCAN_TIME, _LAST_INDIAN_SCAN_TIME
+    ev = stop_ev if stop_ev is not None else _STOP_EVENT
     logger.info("Continuous News Monitoring Daemon started in background (15s startup delay).")
     # Delay first cycle so initial UI queries get uncontested bandwidth
-    if _STOP_EVENT.wait(15.0):
+    if ev.wait(15.0):
         return
     try:
         from nepal_config import TOP_NEPAL_NEWS_PORTALS
         register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
     except Exception:
         pass
-    while not _STOP_EVENT.is_set():
+    while not ev.is_set():
         # Skip automated cycle if a manual sync is actively running to avoid overlapping ingestion
         if _INGEST_RUN_LOCK.acquire(blocking=False):
             try:
@@ -596,18 +598,23 @@ def _monitoring_daemon_loop():
                 _INGEST_RUN_LOCK.release()
 
         # Sleep for 60 seconds between cycle evaluations
-        _STOP_EVENT.wait(60.0)
+        ev.wait(60.0)
 
 @_cache_resource_if_available
-def start_monitoring_daemon():
+def start_monitoring_daemon(code_version: str = _DAEMON_CODE_VERSION):
     """Starts the continuous news monitoring worker in a background daemon thread."""
-    global _MONITOR_THREAD
-    if _MONITOR_THREAD and _MONITOR_THREAD.is_alive():
+    global _MONITOR_THREAD, _STOP_EVENT
+    if _MONITOR_THREAD and _MONITOR_THREAD.is_alive() and not _STOP_EVENT.is_set():
         return _MONITOR_THREAD
-    _STOP_EVENT.clear()
-    _MONITOR_THREAD = threading.Thread(target=_monitoring_daemon_loop, name="NepalNewsMonitorDaemon", daemon=True)
+    _STOP_EVENT = threading.Event()
+    _MONITOR_THREAD = threading.Thread(
+        target=_monitoring_daemon_loop,
+        args=(_STOP_EVENT,),
+        name="NepalNewsMonitorDaemon",
+        daemon=True,
+    )
     _MONITOR_THREAD.start()
-    logger.info("Launched NepalNewsMonitorDaemon thread.")
+    logger.info(f"Launched NepalNewsMonitorDaemon thread ({code_version}).")
     return _MONITOR_THREAD
 
 
