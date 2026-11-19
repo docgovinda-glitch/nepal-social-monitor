@@ -162,6 +162,7 @@ from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_
 from nepal_news_store import (
     register_portal_sources,
     get_all_source_health,
+    get_all_indian_source_health,
     get_system_kpis,
     get_system_health_bundle,
     get_db_transport_info,
@@ -452,6 +453,14 @@ def get_cached_login_bootstrap(
             "header": {"counts": {"nepali_count": 0, "indian_count": 0, "x_count": 0}, "wa_sent_map": {}},
             "live_page": None,
         }
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _get_cached_indian_source_health() -> List[Dict[str, Any]]:
+    try:
+        return get_all_indian_source_health() or []
+    except Exception:
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -2411,6 +2420,7 @@ if _changed_streams:
     if "indian" in _changed_streams:
         get_active_indian_articles.clear()
         _get_cached_indian_workspace_bootstrap.clear()
+        _get_cached_indian_source_health.clear()
     if "x" in _changed_streams:
         st.session_state.pop("x_posts", None)
         get_active_x_posts.clear()
@@ -3548,6 +3558,31 @@ elif selected_nav == "Analytics & Export":
 # ==========================================
 # SECTION 5: Health & Diagnostics
 # ==========================================
+def _invalidate_ui_caches_after_indian_ingest() -> None:
+    """Clears Indian Press health, feed, and session snapshot caches after manual Indian Press sync."""
+    for fn in (
+        _get_cached_indian_source_health,
+        _get_cached_indian_workspace_bootstrap,
+        get_active_indian_articles,
+        _get_cached_feed_page_with_count,
+        _get_cached_filtered_count,
+        get_cached_header_bundle,
+        get_cached_login_bootstrap,
+        get_cached_analytics_bundle,
+    ):
+        if hasattr(fn, "clear"):
+            fn.clear()
+    st.session_state.pop("_hdr_state_cache", None)
+    sess_map = st.session_state.get("feed_sessions")
+    if isinstance(sess_map, dict):
+        sess_map.pop("indian", None)
+        sess_map.pop("live", None)
+    sv = st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+    sv["indian"] = int(sv.get("indian", 0)) + 1
+    st.session_state["data_version"] = int(st.session_state.get("data_version", 0)) + 1
+    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
+
+
 def _invalidate_ui_caches_after_nepali_ingest() -> None:
     """Clears health, feed, and session snapshot caches after manual System Health ingestion/backfill."""
     for fn in (
@@ -3644,7 +3679,90 @@ def render_system_health_section() -> None:
                     st.rerun()
 
     st.write("")
-    st.markdown("##### 📋 Monitored Media Source Registry")
+    st.markdown(f"##### 🇮🇳 Indian Press Source Health ({len(TOP_INDIAN_MEDIA_SOURCES)} Outlets)")
+    ind_health_rows = _get_cached_indian_source_health()
+    ind_by_name = {r.get("source_name"): r for r in ind_health_rows if r.get("source_name")}
+    ind_merged = []
+    for scfg in TOP_INDIAN_MEDIA_SOURCES:
+        sname = scfg["name"]
+        rec = ind_by_name.get(sname) or {}
+        st_val = rec.get("status") or "pending"
+        last_disc_raw = rec.get("last_discovery_time")
+        last_disc_str = ""
+        if isinstance(last_disc_raw, datetime.datetime):
+            dt_npt = last_disc_raw.astimezone(NEPAL_TZ) if last_disc_raw.tzinfo else last_disc_raw.replace(tzinfo=datetime.timezone.utc).astimezone(NEPAL_TZ)
+            last_disc_str = dt_npt.strftime("%b %d, %I:%M %p")
+        elif last_disc_raw:
+            last_disc_str = str(last_disc_raw)[:19]
+        latest_pub_raw = rec.get("latest_article_pub_dt")
+        latest_pub_str = str(latest_pub_raw)[:16] if latest_pub_raw else "—"
+        status_icon = {"operational": "🟢 Operational", "degraded": "🟡 Degraded", "failing": "🔴 Failing"}.get(st_val, "⚪ Pending")
+        ind_merged.append({
+            "Outlet": sname,
+            "Status": status_icon,
+            "_status": st_val,
+            "Type": str(rec.get("source_type") or scfg.get("type", "search_rss")).upper(),
+            "Language": scfg.get("lang", "English"),
+            "24h": int(rec.get("rel_24h") or 0),
+            "7d": int(rec.get("rel_7d") or 0),
+            "Last Run": f"{int(rec.get('substantive_count') or 0)}/{int(rec.get('discovered_count') or 0)}",
+            "Latency (s)": round(float(rec.get("latency_secs") or 0.0), 2),
+            "Latest Story": latest_pub_str,
+            "Last Polled (NPT)": last_disc_str or "Pending",
+            "Error": (rec.get("last_error_message") or "")[:90],
+        })
+
+    ind_op = sum(1 for r in ind_merged if r["_status"] == "operational")
+    ind_fail = sum(1 for r in ind_merged if r["_status"] == "failing")
+    ind_24h_tot = sum(r["24h"] for r in ind_merged)
+    ind_7d_tot = sum(r["7d"] for r in ind_merged)
+
+    ik1, ik2, ik3, ik4, ik_btn = st.columns([1, 1.1, 1, 1, 1.4], gap="small")
+    ik1.metric("Indian Outlets", f"{len(ind_merged)}")
+    ik2.metric("Operational", f"{ind_op}", delta="All Healthy" if ind_fail == 0 and ind_op > 0 else (f"-{ind_fail} failing" if ind_fail else "Pending"))
+    ik3.metric("Substantive (24h)", f"{ind_24h_tot}")
+    ik4.metric("Substantive (7d)", f"{ind_7d_tot}")
+    with ik_btn:
+        st.write("")
+        if st.button(f"Refresh Indian ({len(TOP_INDIAN_MEDIA_SOURCES)})", icon=":material/refresh:", width="stretch", key="btn_trigger_indian_health"):
+            with st.spinner(f"Running precision discovery across {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets…"):
+                from nepal_fetcher import fetch_nepal_in_indian_media
+                ind_cands = fetch_nepal_in_indian_media(max_workers=16, force_refresh=True, return_all_stored=False)
+                _invalidate_ui_caches_after_indian_ingest()
+                subst_cnt = sum(1 for c in (ind_cands or []) if c.get("relevance_status") == "substantive")
+                st.success(f"✓ Scanned {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets · {subst_cnt} substantive stories.")
+                time.sleep(0.8)
+                st.rerun()
+
+    ih_c1, ih_c2, ih_c3 = st.columns([1.6, 1.2, 1.2], gap="small")
+    with ih_c1:
+        ind_srch = st.text_input("Filter Indian outlet", placeholder="Filter Indian outlet…", key="inp_ind_health_srch", label_visibility="collapsed")
+    with ih_c2:
+        ind_st_f = st.selectbox("Indian Status", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_ind_health_st", label_visibility="collapsed")
+    with ih_c3:
+        ind_lang_f = st.selectbox("Indian Language", [ALL_LANG_DEFAULT, "English Only", "Hindi Only"], key="sel_ind_health_lang", label_visibility="collapsed")
+
+    ind_view = ind_merged
+    if ind_srch and ind_srch.strip():
+        qs = ind_srch.strip().lower()
+        ind_view = [r for r in ind_view if qs in r["Outlet"].lower()]
+    if ind_st_f == "Operational Only":
+        ind_view = [r for r in ind_view if r["_status"] == "operational"]
+    elif ind_st_f == "Degraded Only":
+        ind_view = [r for r in ind_view if r["_status"] == "degraded"]
+    elif ind_st_f == "Failing Only":
+        ind_view = [r for r in ind_view if r["_status"] == "failing"]
+    if ind_lang_f == "English Only":
+        ind_view = [r for r in ind_view if r["Language"] == "English"]
+    elif ind_lang_f == "Hindi Only":
+        ind_view = [r for r in ind_view if r["Language"] == "Hindi"]
+
+    ind_view_sorted = sorted(ind_view, key=lambda r: (0 if r["_status"] == "failing" else (1 if r["_status"] == "degraded" else 2), -r["7d"], -r["24h"], r["Outlet"]))
+    ind_table_rows = [{k: v for k, v in r.items() if not k.startswith("_")} for r in ind_view_sorted]
+    st.dataframe(ind_table_rows, width="stretch", hide_index=True, height=320)
+
+    st.write("")
+    st.markdown("##### 📋 Monitored Nepali Media Source Registry")
 
     sh_c1, sh_c2, sh_c3, sh_c4 = st.columns([1.4, 1.2, 1.1, 1.1], gap="small")
     with sh_c1:
