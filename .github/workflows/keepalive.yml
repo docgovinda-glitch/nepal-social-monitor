@@ -18,5 +18,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Sending keepalive enable request for news_monitor.yml..."
-          gh api --method POST "/repos/${{ github.repository }}/actions/workflows/news_monitor.yml/enable" || true
+          gh api --method PUT "/repos/${{ github.repository }}/actions/workflows/news_monitor.yml/enable"
           echo "Successfully refreshed news_monitor.yml workflow active state."
