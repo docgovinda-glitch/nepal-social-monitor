@@ -891,7 +891,7 @@ def render_apple_combined_item_card(item: Dict[str, Any]) -> str:
 def render_page_header(title: str, subtitle: str = "", show_window: bool = False) -> None:
     """Large-title page header used by every workspace for a consistent hierarchy."""
     sub = f'<p class="page-header__subtitle">{subtitle}</p>' if subtitle else ""
-    meta = f'<div class="page-header__meta"><span class="pill pill--tint">🕒 {html.escape(window_label)}</span></div>' if show_window else ""
+    meta = f'<div class="page-header__meta"><span class="pill pill--tint">{_ico("clock", 12)} {html.escape(window_label)}</span></div>' if show_window else ""
     st.markdown(
         f'<div class="page-header"><div><h2 class="page-header__title">{html.escape(title)}</h2>{sub}</div>{meta}</div>',
         unsafe_allow_html=True,
@@ -3883,6 +3883,7 @@ def render_x_section() -> None:
     x_subview = st.segmented_control(
         "X Monitoring Navigation",
         options=x_tab_options,
+        format_func=lambda o: ":material/rss_feed: Live" if o == "Live Feed" else (":material/admin_panel_settings: Admin" if o == "Admin" else f":material/groups: {o.split('(')[-1].rstrip(')')}"),
         key="x_subview_active_tab",
         label_visibility="collapsed"
     ) or "Live Feed"
@@ -4302,17 +4303,17 @@ if selected_nav == "X":
     render_x_section()
 
 elif selected_nav == "Analytics & Export":
-    render_page_header("Analytics & Export", "Consolidated intelligence dataset & executive document generation")
+    render_page_header("Export")
 
     ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
     with ex_c1:
-        sel_stream = st.selectbox("Feed Source", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter")
+        sel_stream = st.selectbox("Feed Source", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter", label_visibility="collapsed")
     with ex_c2:
-        sel_cat = st.selectbox("News Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter")
+        sel_cat = st.selectbox("News Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter", label_visibility="collapsed")
     with ex_c3:
-        sel_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter")
+        sel_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter", label_visibility="collapsed")
     with ex_c4:
-        kw_filter = st.text_input("Search Keyword", placeholder="e.g. Lipulekh, Budget, @PM_nepal", key="univ_kw_filter")
+        kw_filter = st.text_input("Search Keyword", placeholder="Keyword or @handle", key="univ_kw_filter", icon=":material/search:", label_visibility="collapsed")
 
     _ana_bundle = get_cached_analytics_bundle(
         start_iso=cache_start_dt.isoformat() if cache_start_dt else "",
@@ -4415,10 +4416,10 @@ elif selected_nav == "Analytics & Export":
     df_export = pd.DataFrame(rows_data)
 
     sum1, sum2, sum3, sum4 = st.columns(4)
-    sum1.metric("Total Matches", f"{len(df_export):,}")
-    sum2.metric("Nepali Media", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Nepali Media'):,}")
-    sum3.metric("Indian Press", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Indian Press'):,}")
-    sum4.metric("X Posts", f"{sum(1 for x in filtered_export_items if x['stream'] == 'X (Twitter)'):,}")
+    sum1.metric("Matches", f"{len(df_export):,}")
+    sum2.metric("Nepal", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Nepali Media'):,}")
+    sum3.metric("India", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Indian Press'):,}")
+    sum4.metric("X", f"{sum(1 for x in filtered_export_items if x['stream'] == 'X (Twitter)'):,}")
 
     current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}_{len(filtered_export_items)}"
     st.session_state.setdefault("editor_ver_univ", 0)
@@ -4437,14 +4438,14 @@ elif selected_nav == "Analytics & Export":
         df_for_editor.insert(0, "Include?", [link in st.session_state["selected_links_univ"] for link in df_for_editor["Link"]])
 
         col_config_univ = {
-            "Include?": st.column_config.CheckboxColumn("Include?", default=True),
+            "Include?": st.column_config.CheckboxColumn("✓", default=True, width="small"),
             "Stream": st.column_config.TextColumn("Stream", width="small"),
-            "Headline / Text": st.column_config.TextColumn("Headline / Post Text", width="large"),
+            "Headline / Text": st.column_config.TextColumn("Headline", width="large"),
             "Category": st.column_config.TextColumn("Category", width="small"),
-            "Source / Author": st.column_config.TextColumn("Source / Author", width="medium"),
+            "Source / Author": st.column_config.TextColumn("Source", width="medium"),
             "Language": st.column_config.TextColumn("Language", width="small"),
-            "Published Date & Time": st.column_config.TextColumn("Date & Time Stamp", width="medium"),
-            "Link": st.column_config.LinkColumn("Source Link", display_text="Open ↗", width="small")
+            "Published Date & Time": st.column_config.TextColumn("Time", width="medium"),
+            "Link": st.column_config.LinkColumn("Source Link", display_text="Open", width="small")
         }
 
         edited_df_univ = st.data_editor(
@@ -4470,7 +4471,8 @@ elif selected_nav == "Analytics & Export":
         with c_csv:
             csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
             st.download_button(
-                label=f"Download CSV ({len(df_export):,} Records)",
+                label=f"CSV · {len(df_export):,}",
+                help="Download all records as CSV",
                 icon=":material/download:",
                 data=csv_bytes,
                 file_name=f"nepal_intelligence_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
@@ -4496,7 +4498,7 @@ elif selected_nav == "Analytics & Export":
                 univ_hash = hash((tuple(x["link"] for x in selected_export_items), digest_dt.strftime("%Y-%m-%d")))
 
                 if st.session_state.get("docx_ready_hash_univ") != univ_hash:
-                    if st.button(f"Generate Executive Word Document ({len(selected_export_items):,} Stories)", icon=":material/description:", key="btn_prep_univ_docx", width="stretch", type="primary"):
+                    if st.button(f"Word digest · {len(selected_export_items):,}", help="Build the executive Word document", icon=":material/description:", key="btn_prep_univ_docx", width="stretch", type="primary"):
                         with st.spinner(f"Compiling NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full body text…"):
                             from executive_docx_exporter import generate_executive_word_digest
                             from nepal_fetcher import batch_fetch_full_content
@@ -4510,7 +4512,8 @@ elif selected_nav == "Analytics & Export":
                         st.rerun()
                 else:
                     st.download_button(
-                        label=f"Download {digest_filename}",
+                        label="Word digest",
+                        help=digest_filename,
                         icon=":material/download:",
                         data=st.session_state["docx_bytes_univ"],
                         file_name=digest_filename,
@@ -4519,7 +4522,7 @@ elif selected_nav == "Analytics & Export":
                         type="primary"
                     )
             else:
-                st.warning("No items selected. Select items in the table above to generate the Word document.")
+                st.caption(":material/info: Select rows to build the Word digest.")
     else:
         render_empty_state("📊", "No export records", "Try adjusting the search keyword or selecting 'All Streams'.")
 
@@ -4582,7 +4585,7 @@ def _invalidate_ui_caches_after_nepali_ingest() -> None:
 def render_system_health_section() -> None:
     _tr = get_db_transport_info()
     _tr_label = "Supavisor Transaction Pool (port 6543)" if _tr.get("mode") == "supavisor_pool" else "Supabase Management API (fallback)"
-    render_page_header("System Health & Diagnostics", f"Portal telemetry, discovery latency, and DB transport: {_tr_label}", show_window=False)
+    render_page_header("Health", f"{_tr_label}", show_window=False)
 
     try:
         register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
@@ -4621,15 +4624,15 @@ def render_system_health_section() -> None:
     elif _stale_cnt > 0:
         _op_delta = f"{_stale_cnt} stale (>24h)"
     else:
-        _op_delta = "100% Healthy"
+        _op_delta = "Healthy"
 
     k1, k2, k3, k4, k5, k6 = st.columns(6)
-    k1.metric("Total Portals", f"{kpis['total_sources']}")
-    k2.metric("Operational", f"{kpis['operational']}", delta=_op_delta)
-    k3.metric("Last 1 Hour", f"{kpis['articles_1h']:,}")
-    k4.metric("Last 24 Hours", f"{kpis['articles_24h']:,}")
-    k5.metric("Total Stored", f"{kpis['total_stored_articles']:,}")
-    k6.metric("Avg Latency", f"{kpis['avg_latency_secs']}s")
+    k1.metric("Portals", f"{kpis['total_sources']}")
+    k2.metric("Online", f"{kpis['operational']}", delta=_op_delta)
+    k3.metric("1h", f"{kpis['articles_1h']:,}")
+    k4.metric("24h", f"{kpis['articles_24h']:,}")
+    k5.metric("Stored", f"{kpis['total_stored_articles']:,}")
+    k6.metric("Latency", f"{kpis['avg_latency_secs']}s")
 
     if stale_portals:
         _stale_names = ", ".join(
@@ -4717,10 +4720,10 @@ def render_system_health_section() -> None:
     ind_7d_tot = sum(r["7d"] for r in ind_merged)
 
     ik1, ik2, ik3, ik4, ik_btn = st.columns([1, 1.1, 1, 1, 1.4], gap="small")
-    ik1.metric("Indian Outlets", f"{len(ind_merged)}")
-    ik2.metric("Operational", f"{ind_op}", delta="All Healthy" if ind_fail == 0 and ind_op > 0 else (f"-{ind_fail} failing" if ind_fail else "Pending"))
-    ik3.metric("Substantive (24h)", f"{ind_24h_tot}")
-    ik4.metric("Substantive (7d)", f"{ind_7d_tot}")
+    ik1.metric("Outlets", f"{len(ind_merged)}")
+    ik2.metric("Online", f"{ind_op}", delta="All Healthy" if ind_fail == 0 and ind_op > 0 else (f"-{ind_fail} failing" if ind_fail else "Pending"))
+    ik3.metric("24h", f"{ind_24h_tot}")
+    ik4.metric("7d", f"{ind_7d_tot}")
     with ik_btn:
         st.write("")
         if st.button("Refresh", icon=":material/refresh:", help=f"Re-scan {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets", width="stretch", key="btn_trigger_indian_health"):
@@ -4849,6 +4852,7 @@ def render_system_health_section() -> None:
         latest_pub = src.get("latest_article_pub_dt") or ""
         boost_pill_html = f'<span class="pill">{_ico("bolt", 11)} @{html.escape(s_boost_h)}</span>' if s_boost_h else ""
 
+        _hc_url = html.escape(src.get("url", ""), quote=True)
         st.markdown(f"""
         <div class="health-card {card_accent}">
             <div class="health-card__head">
@@ -4860,23 +4864,19 @@ def render_system_health_section() -> None:
                     {boost_pill_html}
                     <span class="pill">{_ico("globe", 11)} {s_lang}</span>
                 </div>
-                <div class="health-card__meta">
-                    Last Polled: <b>{html.escape(str(last_disc)[:19])}</b> · Latency: <b>{lat}s</b>
-                </div>
+                <div class="health-card__meta" title="Last polled · latency">{_ico("clock", 11)} {html.escape(str(last_disc)[:16])} · {lat}s</div>
             </div>
-            <div class="health-card__stats">
-                <div>Discovered: <b>{c_1h}</b> in 1h · <b>{c_24h}</b> in 24h · <b>{c_7d}</b> in 7d (<b>{c_tot:,}</b> Total Stored)</div>
-                <div>Endpoint: <a href="{html.escape(src.get('url', ''))}" target="_blank" rel="noopener noreferrer">{html.escape(src.get('url', ''))[:45]}… ↗</a></div>
-            </div>
+            <div class="health-card__stats"><b>{c_1h}</b> 1h · <b>{c_24h}</b> 24h · <b>{c_7d}</b> 7d · <b>{c_tot:,}</b> stored</div>
             <div class="health-card__latest">
-                <div class="health-card__eyebrow">Latest Discovered Story ({html.escape(str(latest_pub)[:19])}):</div>
-                <div><a href="{html.escape(latest_link)}" target="_blank" rel="noopener noreferrer">• {html.escape(latest_title[:110])} ↗</a></div>
+                <a href="{html.escape(latest_link)}" target="_blank" rel="noopener noreferrer" title="{html.escape(str(latest_pub)[:19])}">{html.escape(latest_title[:110])}</a>
+                <a class="hc-link" href="{_hc_url}" target="_blank" rel="noopener noreferrer" title="Open source endpoint" aria-label="Open source endpoint"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
         sc1, sc2, sc3, sc4 = st.columns([1.5, 1.5, 1.5, 1.5])
         with sc1:
+            st.markdown('<div class="hc-actions-anchor"></div>', unsafe_allow_html=True)
             if st.button("Refresh", icon=":material/refresh:", help=f"Refresh {s_name}", key=f"btn_ref_src_{s_name}_{s_idx}", width="stretch"):
                 with st.spinner(f"Ingesting latest feeds from {s_name}…"):
                     from nepal_news_scheduler import run_single_source_discovery
@@ -4906,10 +4906,10 @@ def render_system_health_section() -> None:
                 st.rerun()
         with sc4:
             if src.get("last_error_message"):
-                with st.expander("View Error Log", expanded=False):
+                with st.expander(":material/error: Log", expanded=False):
                     st.error(src.get("last_error_message"))
             else:
-                st.caption("✓ Zero active errors")
+                st.caption(":material/check_circle: No errors")
 
     with st.expander(":material/troubleshoot: Diagnostics", expanded=False):
         low_coverage_sources = [
@@ -4925,18 +4925,18 @@ def render_system_health_section() -> None:
             if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and h.get("count_7d", 0) > 0 and h.get("status") not in ["failing", "degraded", "stale"]
         ]
         if stale_diag_sources:
-            st.warning(f"⏰ **Stale 200 OK Alert:** {len(stale_diag_sources)} enabled high/standard portal(s) have `latest_article_pub_dt` older than 24h:")
+            st.warning(f"**Stale:** {len(stale_diag_sources)} enabled high/standard portal(s) have `latest_article_pub_dt` older than 24h:")
             for sds in stale_diag_sources:
                 st.write(f"- **{sds['name']}** ({sds['priority']} · {sds['type']}): Latest `{str(sds.get('latest_article_pub_dt') or '—')[:19]}` · Endpoint: `{sds['url']}`")
         if low_coverage_sources:
-            st.warning(f"⚠️ **Low Discovery Alert:** {len(low_coverage_sources)} enabled portals have produced 0 articles and require endpoint review:")
+            st.warning(f"**Low discovery:** {len(low_coverage_sources)} enabled portals have produced 0 articles and require endpoint review:")
             for lcs in low_coverage_sources:
                 st.write(f"- **{lcs['name']}** ({lcs['type']} · {lcs['lang']}): Status `{lcs['status']}` · Endpoint: `{lcs['url']}`")
         if not low_coverage_sources and not stale_diag_sources:
-            st.success("🎉 All active media portal feeds and web scrapers are healthy with zero degraded or stale endpoints!")
+            st.success("All feeds healthy.", icon=":material/check_circle:")
 
         if quiet_sources:
-            st.info(f"ℹ️ **Quiet / Periodic Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")
+            st.info(f"**Quiet:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")
 
 
 if selected_nav == "System Health":

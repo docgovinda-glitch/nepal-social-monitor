@@ -2823,3 +2823,42 @@ _APPLE_POLISH_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _APPLE_POLISH_CSS)
 FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _APPLE_POLISH_CSS)
+
+
+_WORKSPACE_POLISH_CSS = """
+    /* ===== Workspaces: Export, Health, X, Directory ===== */
+    .page-header { margin: 0 0 8px 0; }
+    .page-header__title { font-size: 1.35rem !important; letter-spacing: -0.02em !important; }
+    .page-header__subtitle { font-size: 0.76rem; color: var(--label-3); margin-top: 2px; }
+
+    .health-card { padding: 11px 14px 10px 16px; margin-bottom: 6px; }
+    .health-card__head { margin-bottom: 4px; }
+    .health-card__name { font-size: 0.95rem; }
+    .health-card__meta { display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; color: var(--label-3); }
+    .health-card__stats { gap: 6px; font-size: 0.78rem; color: var(--label-3); margin: 4px 0; }
+    .health-card__latest { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-top: 4px; font-size: 0.8rem; background: var(--fill); }
+    .health-card__latest > a:first-child { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--label-2); text-decoration: none; }
+    .health-card__latest .hc-link { flex-shrink: 0; display: inline-flex; color: var(--label-3); }
+    .hc-actions-anchor { display: none; }
+
+    @media (max-width: 640px) {
+        /* Metric rows: two per line instead of one tall stack */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] [data-testid="stMetric"]) { flex-wrap: wrap !important; gap: 8px !important; }
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] [data-testid="stMetric"]) > div[data-testid="stColumn"] { flex: 1 1 calc(50% - 8px) !important; min-width: 0 !important; width: auto !important; }
+        /* 6-KPI rows (Health): three per line */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(6)):has([data-testid="stMetric"]) > div[data-testid="stColumn"] { flex: 1 1 calc(33.33% - 8px) !important; }
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(6)):has([data-testid="stMetric"]) div[data-testid="stMetricValue"],
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(6)):has([data-testid="stMetric"]) div[data-testid="stMetricValue"] * { font-size: 1.05rem !important; }
+        div[data-testid="stElementContainer"]:has(> .hc-actions-anchor), div[data-testid="stElementContainer"]:has(.hc-actions-anchor) { display: none !important; }
+        div[data-testid="stMetric"] { padding: 10px 12px !important; }
+        div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * { font-size: 1.25rem !important; }
+
+        /* Per-source actions: one icon row */
+        div[data-testid="stHorizontalBlock"]:has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor) { flex-wrap: nowrap !important; gap: 6px !important; align-items: center !important; }
+        div[data-testid="stHorizontalBlock"]:has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor) > div[data-testid="stColumn"] { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }
+        div[data-testid="stHorizontalBlock"]:has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor) .stButton > button [data-testid="stMarkdownContainer"] { display: none !important; }
+        div[data-testid="stHorizontalBlock"]:has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor) .stButton > button { padding: 0 !important; }
+        div[data-testid="stHorizontalBlock"]:has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor):has(.hc-actions-anchor) div[data-testid="stExpander"] summary { padding: 6px 8px; }
+    }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _WORKSPACE_POLISH_CSS)
