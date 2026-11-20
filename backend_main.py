@@ -1,7 +1,7 @@
 """
-hf_main.py
-Headless entrypoint for Hugging Face Docker Space backend.
-Runs FastAPI on port 7860 for health checks and orchestrates the
+backend_main.py
+Headless entrypoint for nepal-media-monitor backend worker on Oracle Cloud (ARM64 Docker).
+Runs FastAPI on port 8000 for health checks and orchestrates the
 24/7 news monitoring daemon in a supervised background loop.
 """
 
@@ -21,7 +21,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("hf_backend")
+logger = logging.getLogger("backend_worker")
 
 _START_TIME = time.time()
 _SUPERVISOR_STOP_EVENT = threading.Event()
@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Nepal Media Monitor Backend",
-    version="2026.11-split",
+    version="2026.11-arm64",
     lifespan=lifespan,
 )
 
@@ -112,5 +112,5 @@ def health_endpoint() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", "7860"))
-    uvicorn.run("hf_main:app", host="0.0.0.0", port=port, log_level="info")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("backend_main:app", host="0.0.0.0", port=port, log_level="info")

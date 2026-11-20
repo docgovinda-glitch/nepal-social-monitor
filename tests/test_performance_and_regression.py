@@ -1574,11 +1574,11 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         summ.record_translation_success()
         self.assertFalse(summ.is_circuit_breaker_open())
 
-    def test_hf_main_health_and_root_endpoints(self):
+    def test_backend_main_health_and_root_endpoints(self):
         from fastapi.testclient import TestClient
-        import hf_main
+        import backend_main
 
-        with TestClient(hf_main.app) as client:
+        with TestClient(backend_main.app) as client:
             resp_root = client.get("/")
             self.assertEqual(resp_root.status_code, 200)
             self.assertEqual(resp_root.json()["status"], "running")
