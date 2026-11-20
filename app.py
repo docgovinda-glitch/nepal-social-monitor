@@ -720,7 +720,7 @@ def category_slug(cat: str) -> str:
 def get_badge_html(cat: str) -> str:
     cat = canonical_category(cat)
     icon = CATEGORY_ICONS.get(cat, "📌")
-    return f'<span class="cat-badge cat-badge--{category_slug(cat)}">{icon} {html.escape(cat)}</span>'
+    return f'<span class="cat-badge cat-badge--{category_slug(cat)}"><span class="cat-ico">{icon}</span> {html.escape(cat)}</span>'
 
 def compact_number(n: int) -> str:
     return f"{n / 1000:.1f}K" if n >= 1000 else str(n)
@@ -739,7 +739,11 @@ def _render_article_tags_html(item: Dict[str, Any], is_indian: bool = False) -> 
         sec_tags = [d for d in (item.get("nepal_dimensions") or []) if d not in sec_tags] + sec_tags
     if not sec_tags:
         return ""
-    chips = "".join(f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in sec_tags[:3])
+    shown = sec_tags[:3]
+    chips = "".join(f'<span class="sec-tag-chip">#{html.escape(str(t))}</span>' for t in shown)
+    if len(shown) > 1:
+        hidden = ", ".join(f"#{html.escape(str(t))}" for t in shown[1:])
+        chips += f'<span class="sec-tag-chip sec-tag-more" title="{hidden}">+{len(shown) - 1}</span>'
     return f'<div class="chip-row">{chips}</div>'
 
 
@@ -759,7 +763,7 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
     else:
         accent = category_slug(cat)
         source_tag = f'<span class="portal-tag">{source_name}</span>'
-        review_flag = '<span class="conf-review-badge" title="Classification confidence below 0.60 — pending editorial verification">Needs review</span>' if item.get("low_confidence") else ""
+        review_flag = '<span class="conf-review-badge" title="Needs review — classification confidence below 0.60, pending editorial verification">⚠<span class="rv-word"> Review</span></span>' if item.get("low_confidence") else ""
 
     sec_tags_html = _render_article_tags_html(item, is_indian=is_indian) if show_tags else ""
 
@@ -789,7 +793,7 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
     stripe_class = "feed-card-stripe--india" if is_indian else "feed-card-stripe--nepal"
 
     return (
-        f'<div style="position: relative;">'
+        f'<div class="feed-card-inner">'
         f'<div class="feed-card-stripe {stripe_class}"></div>'
         f'<article class="apple-news-card accent--{accent}">'
         f'<header class="apple-card-meta">{source_tag}{get_badge_html(cat)}{review_flag}'
@@ -832,7 +836,7 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True) -> str
 
     # PHASE 1: Add card type color stripe for X posts
     return (
-        f'<div style="position: relative;">'
+        f'<div class="feed-card-inner">'
         f'<div class="feed-card-stripe feed-card-stripe--x"></div>'
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
@@ -920,6 +924,7 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
                 box-sizing: border-box;
             }}
             .cp-btn:hover {{ background: #F8FAFC; border-color: rgba(15, 23, 42, 0.24); }}
+            @media (max-width: 110px) {{ .cp-btn span {{ display: none; }} }}
             .cp-btn.copied {{
                 background: #DCFCE7;
                 color: #15803D;
@@ -1587,7 +1592,7 @@ def _show_read_in_app_dialog() -> None:
 
         if is_english_mode:
             cols = st.columns(
-                [1.2, 1.1, 1.1, 1.1, 1.1, 2.3] if has_tr_btn else [1.1, 1.1, 1.1, 1.1, 2.3],
+                [1.25, 0.8, 0.95, 1.1, 1.1, 2.6] if has_tr_btn else [0.8, 0.95, 1.1, 1.1, 2.6],
                 vertical_alignment="center",
                 gap="small",
             )
@@ -2395,7 +2400,7 @@ def _build_card_wrapper_html(
         btns.append(
             f'<a class="feed-btn" href="{html.escape(item_link, quote=True)}" target="_blank" rel="noopener noreferrer" '
             f'aria-label="Open original source" title="Open original publisher article">'
-            f'Original ↗</a>'
+            f'<span class="feed-btn__label">Original</span><span aria-hidden="true">↗</span></a>'
         )
     btns.append(
         f'<button type="button" class="feed-btn feed-btn--primary" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
@@ -3226,21 +3231,22 @@ def _render_sync_status_bar() -> None:
         if status == "running":
             cls, content = "sync-status-pill--running", '<span class="sync-spinner"></span> Syncing…'
         elif status == "done":
-            cls, content = "sync-status-pill--done", f'✓ {int(pipe.get("count", 0))} new'
+            cls, content = "sync-status-pill--done", f'✓ {int(pipe.get("count", 0))}'
         elif status in ("error", "timeout"):
             cls, content = "sync-status-pill--error", f"⚠️ {html.escape(str(status))}"
         elif running:
-            cls, content = "sync-status-pill--waiting", "Queued…"
+            cls, content = "sync-status-pill--waiting", "Queued"
         elif finished_at:
-            cls, content = "sync-status-pill--idle", "Up to date"
+            cls, content = "sync-status-pill--idle", "✓ Ready"
         else:
-            cls, content = "sync-status-pill--idle", "No sync yet"
-        pills_html.append(f'<div class="sync-status-pill {cls}">{emoji} {label}: {content}</div>')
+            cls, content = "sync-status-pill--idle", "Idle"
+        pills_html.append(f'<div class="sync-status-pill {cls}" title="{label}">{emoji}<span class="sp-name">{label}:</span> {content}</div>')
 
     if running:
-        fresh = "Refreshing live feeds…"
+        fresh = '<span class="fresh-long">Refreshing live feeds…</span><span class="fresh-short">Syncing</span>'
     elif finished_at:
-        fresh = f"Updated {_format_sync_age(finished_at)}"
+        age = _format_sync_age(finished_at)
+        fresh = f'<span class="fresh-long">Updated {age}</span><span class="fresh-short">{age}</span>'
     else:
         fresh = "Freshness unknown"
     pills_html.append(f'<div class="sync-fresh-chip">🕒 {fresh}</div>')

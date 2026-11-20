@@ -528,6 +528,7 @@ _PHASE1_ENHANCEMENTS_CSS = """
     }
     :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor) {
         position: relative !important;
+        overflow: hidden !important;
     }
 
     /* 1.4: Mobile Navigation Improvements */
@@ -2615,3 +2616,116 @@ AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE2_ENHANCEMENTS_CSS + _PHASE3
 
 __all__ = ["APPLE_DESIGN_SYSTEM_CSS", "FEED_CARD_CSS", "AUTH_CSS"]
 
+
+
+_COMPACT_UX_CSS = """
+    /* ===== Compact UX: fewer rows, no overlap, minimal scrolling ===== */
+    .feed-card-inner { display: block; }
+    .feed-card-stripe { border-radius: 0; z-index: 1; }
+    .sec-tag-more { display: none; background: #EEF2F7; font-weight: 650; }
+    .sync-fresh-chip .fresh-short { display: none; }
+
+    /* Dialog action strip (5+ columns): tighter buttons, Send label may wrap instead of truncating */
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) .stButton > button { padding: 0 8px !important; }
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button {
+        height: auto !important; min-height: 38px !important; padding: 4px 10px !important; line-height: 1.2 !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button p { white-space: normal !important; }
+
+    @media (max-width: 640px) {
+        /* Card header: always one row; long source names truncate instead of wrapping */
+        .apple-card-meta { flex-wrap: nowrap; gap: 5px; margin-bottom: 7px; }
+        .apple-card-meta > * { flex-shrink: 0; }
+        .apple-card-meta .portal-tag, .apple-card-meta .indian-portal-tag {
+            display: block; flex-shrink: 1; min-width: 0; max-width: 44%;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .apple-card-meta .cat-badge { flex-shrink: 1; min-width: 0; max-width: 40%; overflow: hidden; }
+        .apple-card-meta .pill, .apple-card-meta .portal-tag, .apple-card-meta .indian-portal-tag,
+        .apple-card-meta .cat-badge, .apple-card-meta .conf-review-badge { padding: 2px 7px; font-size: 0.68rem; }
+        .apple-card-meta .time-badge { margin-left: auto; font-size: 0.7rem; }
+        .apple-card-meta .cat-ico, .apple-card-meta .conf-review-badge .rv-word { display: none; }
+        .apple-card-title { margin-bottom: 4px !important; }
+        .apple-card-summary { -webkit-line-clamp: 2 !important; }
+
+        /* Footer: one row = first tag + "+N" on the left, compact actions on the right */
+        .feed-card-wrap { padding: 12px 14px 10px 17px !important; }
+        .feed-card-wrap .feed-card-footer { margin-top: 8px; padding-top: 8px; gap: 8px; }
+        .feed-card-wrap .feed-card-footer:has(.chip-row) { flex-wrap: nowrap; }
+        .feed-card-wrap .feed-card-footer .chip-row { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+        .feed-card-wrap .chip-row .sec-tag-chip { padding: 2px 7px; font-size: 0.68rem; white-space: nowrap; flex-shrink: 0; }
+        .feed-card-wrap .chip-row:has(.sec-tag-more) .sec-tag-chip:not(.sec-tag-more):nth-child(n+2) { display: none; }
+        .feed-card-wrap .chip-row .sec-tag-chip:first-child { flex-shrink: 1; min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; }
+        .feed-card-wrap .sec-tag-more { display: inline-flex; }
+        .feed-card-wrap .feed-card-actions { flex-wrap: nowrap; flex-shrink: 0; gap: 5px; }
+        .feed-card-wrap .feed-btn { height: 34px; min-block-size: 34px; min-inline-size: 36px; padding: 0 11px; }
+        .feed-card-wrap .feed-btn__label { display: none; }
+
+        /* Sync bar: one compact row */
+        .sync-status-bar { padding: 6px 9px; gap: 5px; margin: 2px 0 8px 0; justify-content: flex-start; }
+        .sync-status-pill { padding: 3px 8px; font-size: 0.68rem; gap: 3px; }
+        .sync-status-pill .sp-name { display: none; }
+        .sync-fresh-chip { font-size: 0.68rem; }
+        .sync-fresh-chip .fresh-long { display: none; }
+        .sync-fresh-chip .fresh-short { display: inline; }
+
+        /* Dialogs: keep action buttons side by side (Streamlit stacks columns on phones) */
+        div[data-testid="stDialog"] [data-testid="stDialogContent"] { padding: 14px 12px !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: 6px !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+            flex: 1 1 0 !important; min-width: 0 !important; width: auto !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:first-child {
+            flex: 2.75 1 0 !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:last-child {
+            flex: 1.15 1 0 !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:nth-child(2) {
+            flex: 0.75 1 0 !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton > button {
+            height: 38px !important; min-height: 38px !important; padding: 0 5px !important;
+            font-size: 0.78rem !important; gap: 4px !important; white-space: nowrap !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton > button p { white-space: nowrap !important; }
+        /* 5+ columns (edit/copy/save/close strip + Send): strip on one row, Send full width below */
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) { flex-wrap: wrap !important; row-gap: 8px !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child {
+            flex: 1 1 100% !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:not(:last-child) .stButton > button [data-testid="stMarkdownContainer"] { display: none !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button { height: 44px !important; min-height: 44px !important; font-size: 0.86rem !important; white-space: normal !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button p { white-space: normal !important; }
+
+        /* overflow:hidden on the dialog shell would trap sticky children; clip keeps rounded corners without scroll containment */
+        div[data-testid="stDialog"] div:has(> [role="dialog"]) { overflow: clip !important; }
+        /* Action bar stays reachable while reading long text (sticky must sit on the layout wrapper) */
+        div[data-testid="stDialog"] div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .stButton),
+        div[data-testid="stDialog"] div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] iframe) {
+            position: sticky; bottom: 0; z-index: 6; background: #FFFFFF;
+            padding: 8px 0 10px 0; margin-top: 4px;
+            border-top: 1px solid rgba(15, 23, 42, 0.07);
+        }
+
+        /* Reader: one scroll area, tighter padding */
+        .fulltext-reader-box { padding: 12px 13px; margin: 4px 0 8px 0; border-radius: 12px; }
+        .fulltext-reader-box__title { font-size: 1.05rem; }
+        .fulltext-reader-box__body { max-height: none !important; overflow: visible !important; padding-right: 0; margin-bottom: 8px; font-size: 0.92rem; line-height: 1.66; }
+        .reader-para { margin-bottom: 9px; }
+
+        /* Destination selector: wrap instead of clipping the second group */
+        div[data-testid="stDialog"] div[data-testid="stButtonGroup"] { overflow: visible !important; }
+        div[data-testid="stDialog"] div[data-testid="stButtonGroup"] [role="radiogroup"] { flex-wrap: wrap !important; row-gap: 4px !important; }
+        div[data-testid="stDialog"] div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] { flex: 1 1 auto !important; white-space: normal !important; font-size: 0.78rem !important; }
+    }
+"""
+
+
+def _append_css(block: str, extra: str) -> str:
+    head, sep, tail = block.rpartition("</style>")
+    return head + extra + "\n" + sep + tail
+
+
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _COMPACT_UX_CSS)
+FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _COMPACT_UX_CSS)
