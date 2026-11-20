@@ -2656,13 +2656,13 @@ _COMPACT_UX_CSS = """
             flex: 1 1 0 !important; min-width: 0 !important; width: auto !important;
         }
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:first-child {
-            flex: 2.75 1 0 !important;
+            flex: 1.7 1 0 !important;
         }
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:last-child {
-            flex: 1.15 1 0 !important;
+            flex: 1 1 0 !important;
         }
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:nth-child(2) {
-            flex: 0.75 1 0 !important;
+            flex: 1 1 0 !important;
         }
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton button {
             height: 38px !important; min-height: 38px !important; padding: 0 5px !important;

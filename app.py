@@ -1793,8 +1793,10 @@ def _show_read_in_app_dialog() -> None:
             if needs_tr and not has_tr:
                 with ft_cols[col_i]:
                     st.button(
-                        "Translate to English",
+                        "Translate",
+                        help="Translate to English",
                         icon=":material/translate:",
+                        width="stretch",
                         type="primary",
                         key=f"dlg_ft_tr_{item_uid}",
                         on_click=_on_req_read_translate,
@@ -1804,8 +1806,10 @@ def _show_read_in_app_dialog() -> None:
             elif has_tr and needs_tr:
                 with ft_cols[col_i]:
                     st.button(
-                        "English Translation",
+                        "English",
+                        help="Show English translation",
                         icon=":material/swap_horiz:",
+                        width="stretch",
                         type="primary",
                         key=f"dlg_ft_tog_{item_uid}",
                         on_click=_on_toggle_read_view,
@@ -1815,7 +1819,7 @@ def _show_read_in_app_dialog() -> None:
             with ft_cols[col_i]:
                 _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
             with ft_cols[col_i + 1]:
-                if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}"):
+                if st.button("", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close", width="stretch"):
                     st.session_state["active_modal"] = None
                     st.rerun()
     else:
