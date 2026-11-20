@@ -2604,7 +2604,8 @@ _COMPACT_UX_CSS = """
             display: block; flex-shrink: 1; min-width: 0; max-width: 44%;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .apple-card-meta .cat-badge { flex-shrink: 1; min-width: 0; max-width: 40%; overflow: hidden; }
+        .apple-card-meta .cat-badge { flex-shrink: 1; min-width: 0; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .apple-card-meta .indian-portal-tag { max-width: 36%; }
         .apple-card-meta .pill, .apple-card-meta .portal-tag, .apple-card-meta .indian-portal-tag,
         .apple-card-meta .cat-badge, .apple-card-meta .conf-review-badge { padding: 2px 7px; font-size: 0.68rem; }
         .apple-card-meta .time-badge { margin-left: auto; font-size: 0.7rem; }
@@ -2970,6 +2971,11 @@ _DARK_CSS_BODY = """
     [data-testid="stPopover"] > button:hover, .stButton > button[kind="secondary"]:hover, div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stLinkButton"] > a:hover { background: rgba(255, 255, 255, 0.16) !important; }
     .stButton > button[kind="primary"], div[data-testid="stDialog"] .stButton > button[kind="primary"] { background: #0A84FF !important; color: #FFFFFF !important; }
     .stButton > button[kind="primary"] * { color: #FFFFFF !important; }
+    .stButton:not(#a) > button:not(#a):not([kind="primary"]), [data-testid="stPopover"]:not(#a) > button:not(#a), [data-testid="stPopover"]:not(#a) > div > button:not(#a),
+    div[data-testid="stHorizontalBlock"]:not(#a) .stButton > button:not([kind="primary"]), div[data-testid="stHorizontalBlock"]:not(#a) [data-testid="stPopover"] button {
+        background: rgba(255, 255, 255, 0.10) !important; color: #F5F5F7 !important; border-color: transparent !important;
+    }
+    .stButton:not(#a) > button:not(#a):not([kind="primary"]) *, [data-testid="stPopover"]:not(#a) button * { color: #F5F5F7 !important; }
     .stButton > button[disabled] { opacity: 0.45 !important; }
     div[data-testid="stToggle"] label, div[data-testid="stCheckbox"] label { color: #F5F5F7 !important; }
 

@@ -790,9 +790,9 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
         pct = int(round(float(item.get("nepal_relevance_score", 0.75)) * 100))
         reason = html.escape(str(item.get("relevance_reason", "Substantive Nepal connection")))
         if item.get("relevance_status") == "borderline_review":
-            review_flag = f'<span class="conf-review-badge" title="{reason}">Borderline · {pct}% relevance</span>'
+            review_flag = f'<span class="conf-review-badge" title="Nepal relevance {pct}% · {reason}">⚠ {pct}%</span>'
         else:
-            review_flag = f'<span class="pill pill--success" title="{reason}">{pct}% Nepal relevance</span>'
+            review_flag = f'<span class="pill pill--success" title="Nepal relevance · {reason}">{pct}%</span>'
     else:
         accent = category_slug(cat)
         source_tag = f'<span class="portal-tag">{source_name}</span>'
