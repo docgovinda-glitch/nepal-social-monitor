@@ -936,7 +936,7 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
     if _THEME_MODE == "dark":
         _cp_dark_css = _cp_dark
     elif _THEME_MODE == "auto":
-        _cp_dark_css = "@media (prefers-color-scheme: dark) { " + _cp_dark + " }"
+        _cp_dark_css = ".dk " + _cp_dark.replace("} .", "} .dk .")
     else:
         _cp_dark_css = ""
     default_html = svg_icon if icon_only else f'{svg_icon}<span>Copy</span>'
@@ -980,6 +980,7 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
         <body>
             <button id="{btn_id}" class="cp-btn" type="button" title="Copy content and source" aria-label="Copy content and source" onclick="copyUnified()">{default_html}</button>
             <script>
+            try {{ if (window.parent.matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dk"); }} catch (e) {{}}
             const TEXT = {js_payload};
             const DEFAULT_HTML = {json.dumps(default_html)};
             const COPIED_HTML = {json.dumps(copied_html)};

@@ -378,7 +378,10 @@
         const args = data.args || {};
 
         if (args.theme_css && args.theme_css !== lastThemeCss) {
-          themeMount.innerHTML = args.theme_css;
+          let osDark = false;
+          try { osDark = window.parent.matchMedia("(prefers-color-scheme: dark)").matches; }
+          catch (e) { osDark = window.matchMedia("(prefers-color-scheme: dark)").matches; }
+          themeMount.innerHTML = args.theme_css.split("@media (prefers-color-scheme: dark) {").join(osDark ? "@media all {" : "@media not all {");
           lastThemeCss = args.theme_css;
         }
 
