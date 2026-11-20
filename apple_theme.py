@@ -2764,7 +2764,7 @@ _APPLE_POLISH_CSS = """
     }
     div[data-testid="stSelectbox"] div:has(> input):hover,
     div[data-baseweb="select"] > div:first-child:hover { background-color: var(--fill-hover) !important; border-color: transparent !important; }
-    [data-testid="stPopover"] > button, [data-testid="stPopover"] > div > button,
+    [data-testid="stPopover"] > button, [data-testid="stPopover"] > div > button, [data-testid="stPopover"] > div > div > button,
     .stButton button[kind="secondary"], div[data-testid="stDownloadButton"] > button, div[data-testid="stLinkButton"] > a {
         background: var(--fill) !important; border: 1px solid transparent !important; box-shadow: none !important;
         border-radius: 10px !important; min-height: 36px !important; height: 36px !important; color: var(--label) !important;
@@ -2775,7 +2775,7 @@ _APPLE_POLISH_CSS = """
     }
     .stButton button[kind="primary"] { background: #0066CC !important; border: none !important; box-shadow: none !important; border-radius: 10px !important; }
     .stButton button[kind="primary"]:hover { background: #0071E3 !important; }
-    .stButton > button:focus-visible, [data-testid="stPopover"] button:focus-visible { outline: 2px solid rgba(0, 102, 204, 0.5) !important; outline-offset: 2px !important; }
+    .stButton > button:focus-visible, [data-testid="stPopover"] > button, [data-testid="stPopover"] > div > button, [data-testid="stPopover"] > div > div > button:focus-visible { outline: 2px solid rgba(0, 102, 204, 0.5) !important; outline-offset: 2px !important; }
 
     /* Cards, metrics, expanders: white surface, hairline, light shadow */
     div[data-testid="stMetric"], div[data-testid="stExpander"], div[data-testid="stForm"], .health-card, .acct-card-rich {
@@ -3222,3 +3222,16 @@ _NAV_ICONS_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _NAV_ICONS_CSS)
 AUTH_CSS = _append_css(AUTH_CSS, _NAV_ICONS_CSS)
+
+
+_TOOLBAR_CSS = """
+    /* ===== Icon bar: search | filters | time | sync in one row ===== */
+    div[data-testid="stElementContainer"]:has(.tb-anchor) { display: none !important; }
+    @media (max-width: 640px) {
+        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) { flex-direction: row !important; flex-wrap: nowrap !important; gap: 8px !important; align-items: center !important; }
+        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"] { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; max-width: none !important; }
+        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(5) { display: none !important; }
+    }
+    div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { padding: 0 8px !important; min-width: 0 !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TOOLBAR_CSS)

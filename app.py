@@ -3236,7 +3236,7 @@ _ws_counts = {
 }
 
 _WS_TAB_META = {
-    "Live Feed": (":material/newspaper:", "Live"),
+    "Live Feed": (":material/newspaper:", "All"),
     "Nepali Media": (":material/landscape:", "Nepal"),
     "Indian Press": (":material/public:", "India"),
     "X": (":material/tag:", "X"),
@@ -3346,10 +3346,6 @@ def _render_sync_status_bar() -> None:
     just_finished = bool(float(snap.get("finished_at") or 0)) and (time.time() - float(snap.get("finished_at") or 0)) <= 180
     needs_detail = running or any((pipes.get(k) or {}).get("status") in ("error", "timeout") for k in ("nepali", "indian", "x")) or just_finished
     if not needs_detail and finished_at:
-        st.markdown(
-            f'<div class="sync-status-bar sync-status-bar--calm"><span class="dot-ok"></span> Up to date · {_format_sync_age(finished_at)}</div>',
-            unsafe_allow_html=True,
-        )
         return
 
     pills_html = []
@@ -3419,17 +3415,9 @@ def _render_new_data_banner() -> None:
     seen = float(st.session_state.setdefault("_seen_ingest_epoch", epoch))
     if epoch <= seen + 1:
         return
-    c1, c2 = st.columns([4.2, 1.5], vertical_alignment="center", gap="small")
-    with c1:
-        st.markdown(
-            '<div class="search-sidebar" style="margin:4px 0;"><div class="search-sidebar__label">'
-            f'New stories available · updated {_format_sync_age(epoch)}</div></div>',
-            unsafe_allow_html=True,
-        )
-    with c2:
-        if st.button("Load new", icon=":material/refresh:", key="btn_load_new_data", type="primary", width="stretch"):
-            _apply_fresh_data_refresh(epoch)
-            st.rerun()
+    if st.button("New stories", icon=":material/arrow_upward:", key="btn_load_new_data", type="primary", width="stretch", help=f"Updated {_format_sync_age(epoch)}"):
+        _apply_fresh_data_refresh(epoch)
+        st.rerun()
 
 
 _render_new_data_banner()
@@ -3733,25 +3721,32 @@ search_query = st.session_state.get("committed_search_query", "")
 # ==========================================
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
+def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any]) -> Any:
+    """One row of four icon buttons: search | filters | time range | sync. Returns the filters popover for the caller to fill."""
+    c = st.columns([1, 1, 1, 1, 3], gap="small")
+    with c[1]:
+        st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
+        n_active = sum(1 for k, d in defaults.items() if st.session_state.get(k, d) != d)
+        pop = st.popover(f":material/tune: {n_active}" if n_active else ":material/tune:", help="Filters", width="stretch")
+    _render_row2_utilities(c[2], c[0], c[3], ws_suffix)
+    return pop
+
+
 @st.fragment
 def render_live_feed_section() -> None:
     st.session_state.setdefault("comb_cat_filter", CAT_FILTER_ALL_UNFILTERED)
     st.session_state.setdefault("comb_sort_mode", "Newest First")
     sel_comb_stream = "All Sources"
 
-    # Row 2: Pill Filter Chips + Utility Controls [ 🕒 12h ▾ | 🔍 | 🔄 ]
-    lf_c1, lf_c2, lf_t, lf_s, lf_r = st.columns([2.2, 1.65, 1.1, 0.48, 0.48], gap="small")
-    with lf_c1:
-        sel_comb_cat = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter", label_visibility="collapsed")
-    with lf_c2:
+    _lf_pop = _toolbar_columns("lf", {"comb_cat_filter": CAT_FILTER_ALL_UNFILTERED, "comb_sort_mode": "Newest First"})
+    with _lf_pop:
+        sel_comb_cat = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="comb_cat_filter")
         comb_sort_mode = st.selectbox(
             "Sort",
             ["Newest First", "Oldest First"],
             format_func=lambda s: f"⇅ {s}",
             key="comb_sort_mode",
-            label_visibility="collapsed",
         )
-    _render_row2_utilities(lf_t, lf_s, lf_r, "lf")
 
     _live_active = []
     if sel_comb_cat != CAT_FILTER_ALL_UNFILTERED:
@@ -3798,14 +3793,11 @@ if selected_nav == "Live Feed":
 # ==========================================
 @st.fragment
 def render_nepali_media_section() -> None:
-    np_c1, np_c2, np_c3, np_t, np_s, np_r = st.columns([1.45, 1.45, 1.05, 1.05, 0.48, 0.48], gap="small")
-    with np_c1:
-        sel_np_portal = st.selectbox("News Portal", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter", label_visibility="collapsed")
-    with np_c2:
-        sel_np_cat = st.selectbox("News Category", CATEGORY_FILTER_OPTIONS, key="np_cat_filter", label_visibility="collapsed")
-    with np_c3:
-        sel_np_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter", label_visibility="collapsed")
-    _render_row2_utilities(np_t, np_s, np_r, "np")
+    _np_pop = _toolbar_columns("np", {"np_portal_filter": ALL_PORTALS_DEFAULT, "np_cat_filter": CAT_FILTER_ALL_UNFILTERED, "np_lang_filter": ALL_LANG_DEFAULT})
+    with _np_pop:
+        sel_np_portal = st.selectbox("Portal", [ALL_PORTALS_DEFAULT] + NEPALI_PORTAL_NAMES, key="np_portal_filter")
+        sel_np_cat = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="np_cat_filter")
+        sel_np_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="np_lang_filter")
 
     _np_active = []
     if sel_np_portal != ALL_PORTALS_DEFAULT:
@@ -3853,12 +3845,10 @@ if selected_nav == "Nepali Media":
 # ==========================================
 @st.fragment
 def render_indian_press_section() -> None:
-    in_c1, in_c2, in_t, in_s, in_r = st.columns([2.25, 1.6, 1.1, 0.48, 0.48], gap="small")
-    with in_c1:
-        selected_indian_outlet = st.selectbox("News Outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter", label_visibility="collapsed")
-    with in_c2:
-        sel_in_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter", label_visibility="collapsed")
-    _render_row2_utilities(in_t, in_s, in_r, "in")
+    _in_pop = _toolbar_columns("in", {"in_outlet_filter": ALL_INDIAN_DEFAULT, "in_lang_filter": ALL_LANG_DEFAULT})
+    with _in_pop:
+        selected_indian_outlet = st.selectbox("Outlet", [ALL_INDIAN_DEFAULT] + INDIAN_OUTLET_NAMES, key="in_outlet_filter")
+        sel_in_lang = st.selectbox("Language", [ALL_LANG_DEFAULT, "English", "Hindi"], key="in_lang_filter")
 
     _in_active = []
     if selected_indian_outlet != ALL_INDIAN_DEFAULT:
@@ -3996,23 +3986,15 @@ def render_x_section() -> None:
     # SUBVIEW 1: LIVE FEED
     # -------------------------------------------------------------
     if x_subview == "Live Feed":
-        xc1, xc2, xc3, x_t, x_s, x_r = st.columns([1.45, 1.45, 1.05, 1.05, 0.48, 0.48], gap="small")
-        with xc1:
-            x_cat_filter = st.selectbox("Post Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select", label_visibility="collapsed")
-        with xc2:
-            x_acc_types = [ALL_ACC_TYPES] + [
-                c for c in CANONICAL_X_CATEGORIES
-                if c not in ("Media Houses and News Outlets", "Media Houses & News Outlets")
-            ]
-            selected_acc_type = st.selectbox(
-                "Account Type",
-                x_acc_types,
-                key="x_acc_type_select",
-                label_visibility="collapsed",
-            )
-        with xc3:
-            sort_mode = st.selectbox("Sort Order", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select", label_visibility="collapsed")
-        _render_row2_utilities(x_t, x_s, x_r, "x")
+        x_acc_types = [ALL_ACC_TYPES] + [
+            c for c in CANONICAL_X_CATEGORIES
+            if c not in ("Media Houses and News Outlets", "Media Houses & News Outlets")
+        ]
+        _x_pop = _toolbar_columns("x", {"x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"})
+        with _x_pop:
+            x_cat_filter = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
+            selected_acc_type = st.selectbox("Account type", x_acc_types, key="x_acc_type_select")
+            sort_mode = st.selectbox("Sort", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
 
         _x_active = []
         if x_cat_filter != CAT_FILTER_ALL_UNFILTERED:
