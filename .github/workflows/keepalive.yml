@@ -1,0 +1,22 @@
+name: Keepalive News Monitor Workflow
+
+on:
+  schedule:
+    # Runs at 03:14 UTC on the 1st of every month to prevent 60-day inactivity disable
+    - cron: '14 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-enable News Monitor Workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Sending keepalive enable request for news_monitor.yml..."
+          gh api --method POST "/repos/${{ github.repository }}/actions/workflows/news_monitor.yml/enable" || true
+          echo "Successfully refreshed news_monitor.yml workflow active state."
