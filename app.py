@@ -3172,6 +3172,42 @@ with _nav_tabs:
         width="stretch",
     )
 
+
+@st.fragment(run_every=2)
+def _render_sync_status_bar() -> None:
+    """PHASE 1: Inline sync status bar with real-time stream updates."""
+    _sync_snap = get_manual_sync_status()
+    pipes = _sync_snap.get("pipes", {})
+
+    # Build status pills for each stream
+    pills_html = []
+    for stream_key, stream_label, stream_emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
+        pipe = pipes.get(stream_key, {})
+        status = pipe.get("status", "idle")
+        count = int(pipe.get("count", 0))
+        elapsed = pipe.get("elapsed_secs", 0)
+
+        if status == "running":
+            status_class = "sync-status-pill--running"
+            content = f'<span class="sync-spinner"></span> Syncing…'
+        elif status == "done":
+            status_class = "sync-status-pill--done"
+            content = f'✓ {count} ({elapsed}s)'
+        elif status in ("error", "timeout"):
+            status_class = "sync-status-pill--error"
+            content = f'⚠️ {status}'
+        else:
+            status_class = "sync-status-pill--idle"
+            content = "Pending"
+
+        pills_html.append(f'<div class="sync-status-pill {status_class}">{stream_emoji} {stream_label}: {content}</div>')
+
+    st.markdown(
+        f'<div class="sync-status-bar">{"".join(pills_html)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 # PHASE 1: Render inline sync status bar
 _render_sync_status_bar()
 
@@ -3314,41 +3350,6 @@ def _render_phase2_search_sidebar() -> None:
             f'</div>',
             unsafe_allow_html=True,
         )
-
-
-@st.fragment(run_every=2)
-def _render_sync_status_bar() -> None:
-    """PHASE 1: Inline sync status bar with real-time stream updates."""
-    _sync_snap = get_manual_sync_status()
-    pipes = _sync_snap.get("pipes", {})
-
-    # Build status pills for each stream
-    pills_html = []
-    for stream_key, stream_label, stream_emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
-        pipe = pipes.get(stream_key, {})
-        status = pipe.get("status", "idle")
-        count = int(pipe.get("count", 0))
-        elapsed = pipe.get("elapsed_secs", 0)
-
-        if status == "running":
-            status_class = "sync-status-pill--running"
-            content = f'<span class="sync-spinner"></span> Syncing…'
-        elif status == "done":
-            status_class = "sync-status-pill--done"
-            content = f'✓ {count} ({elapsed}s)'
-        elif status in ("error", "timeout"):
-            status_class = "sync-status-pill--error"
-            content = f'⚠️ {status}'
-        else:
-            status_class = "sync-status-pill--idle"
-            content = "Pending"
-
-        pills_html.append(f'<div class="sync-status-pill {status_class}">{stream_emoji} {stream_label}: {content}</div>')
-
-    st.markdown(
-        f'<div class="sync-status-bar">{"".join(pills_html)}</div>',
-        unsafe_allow_html=True,
-    )
 
 
 def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffix: str) -> None:
