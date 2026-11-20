@@ -45,6 +45,187 @@ _DESIGN_TOKENS_CSS = """
     }
 """
 
+_PHASE2_ENHANCEMENTS_CSS = """
+    /* ═══════════════════════════════════════════════════════════
+       PHASE 2: SEARCH SIDEBAR, DRAWERS, SKELETONS, DARK MODE
+       ═══════════════════════════════════════════════════════════ */
+
+    /* 2.1: Persistent Search Sidebar */
+    .search-sidebar {
+        display: flex; flex-direction: column; gap: 12px;
+        padding: 14px; margin-bottom: 16px;
+        background: linear-gradient(180deg, #FAFBFD 0%, #F5F7FA 100%);
+        border: 1px solid rgba(0, 102, 204, 0.08);
+        border-radius: 14px;
+        animation: slide-down 0.3s var(--ease) forwards;
+    }
+    @keyframes slide-down {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .search-sidebar__label {
+        font-size: 0.72rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--label-3); margin-bottom: 4px;
+    }
+    .search-sidebar__filters {
+        display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .filter-pill-removable {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 10px; border-radius: 20px;
+        background: var(--tint-soft); color: var(--tint);
+        font-size: 0.72rem; font-weight: 600;
+        border: 1px solid rgba(0, 102, 204, 0.2);
+    }
+    .filter-pill-removable button {
+        background: none; border: none; color: var(--tint);
+        cursor: pointer; padding: 0; font-size: 1rem;
+        line-height: 1; opacity: 0.7; transition: opacity 0.15s ease;
+    }
+    .filter-pill-removable button:hover {
+        opacity: 1;
+    }
+
+    /* 2.2: Right-Side Modal Drawer (> 768px) */
+    @media (min-width: 1024px) {
+        .modal-drawer {
+            position: fixed; right: 0; top: 60px; bottom: 0;
+            width: 720px; background: var(--surface);
+            border-left: 1px solid var(--separator);
+            box-shadow: -4px 0 12px rgba(0, 0, 0, 0.08);
+            z-index: 999; overflow-y: auto;
+            animation: drawer-enter 0.3s var(--ease) forwards;
+        }
+        @keyframes drawer-enter {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .modal-drawer__header {
+            position: sticky; top: 0; z-index: 10;
+            padding: 16px 20px; border-bottom: 1px solid var(--separator);
+            background: var(--surface); display: flex;
+            align-items: center; justify-content: space-between;
+            gap: 10px;
+        }
+        .modal-drawer__title {
+            font-size: 1rem; font-weight: 700; color: var(--label);
+        }
+        .modal-drawer__close {
+            width: 32px; height: 32px; border: none;
+            background: var(--surface-muted); border-radius: 8px;
+            cursor: pointer; color: var(--label-2);
+            font-size: 1.1rem; transition: all 0.15s ease;
+        }
+        .modal-drawer__close:hover {
+            background: var(--tint-soft); color: var(--tint);
+        }
+        .modal-drawer__content {
+            padding: 20px;
+        }
+    }
+
+    /* 2.3: Loading Skeleton Animation */
+    @keyframes shimmer {
+        0% { background-position: -1000px 0; }
+        100% { background-position: 1000px 0; }
+    }
+    .skeleton {
+        background: linear-gradient(
+            90deg,
+            var(--surface-muted) 25%,
+            #FFFFFF 50%,
+            var(--surface-muted) 75%
+        );
+        background-size: 1000px 100%;
+        animation: shimmer 2s infinite;
+        border-radius: 8px;
+    }
+    .skeleton-card {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: 14px;
+        padding: 16px; margin-bottom: 12px;
+    }
+    .skeleton-line {
+        height: 12px; border-radius: 6px; margin-bottom: 10px;
+        background: linear-gradient(90deg, var(--surface-muted) 25%, #FFFFFF 50%, var(--surface-muted) 75%);
+        background-size: 1000px 100%;
+        animation: shimmer 2s infinite;
+    }
+    .skeleton-line:last-child {
+        margin-bottom: 0;
+    }
+    .skeleton-line--title {
+        height: 18px; width: 85%;
+    }
+    .skeleton-line--text {
+        height: 12px; width: 100%;
+    }
+    .skeleton-line--text:last-of-type {
+        width: 90%;
+    }
+
+    /* 2.4: Dark Mode Support */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #0F172A;
+            --surface: #1A202C;
+            --surface-muted: #2D3748;
+            --label: #F7FAFC;
+            --label-2: #CBD5E0;
+            --label-3: #A0AEC0;
+            --separator: rgba(255, 255, 255, 0.08);
+            --separator-strong: rgba(255, 255, 255, 0.14);
+            --tint-soft: rgba(99, 179, 237, 0.15);
+        }
+    }
+    body[data-theme="dark"] {
+        --bg: #0F172A;
+        --surface: #1A202C;
+        --surface-muted: #2D3748;
+        --label: #F7FAFC;
+        --label-2: #CBD5E0;
+        --label-3: #A0AEC0;
+        --separator: rgba(255, 255, 255, 0.08);
+        --separator-strong: rgba(255, 255, 255, 0.14);
+        --tint-soft: rgba(99, 179, 237, 0.15);
+    }
+    body[data-theme="light"] {
+        --bg: #F8FAFC;
+        --surface: #FFFFFF;
+        --surface-muted: #F1F5F9;
+        --label: #0F172A;
+        --label-2: #334155;
+        --label-3: #475569;
+        --separator: rgba(15, 23, 42, 0.08);
+        --separator-strong: rgba(15, 23, 42, 0.14);
+    }
+
+    /* 2.5: Export Preview Card */
+    .export-preview-card {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin: 12px 0;
+    }
+    .export-preview-row {
+        display: flex; justify-content: space-between;
+        align-items: center; gap: 12px;
+        padding: 10px 0; border-bottom: 1px solid var(--separator);
+    }
+    .export-preview-row:last-child {
+        border-bottom: none;
+    }
+    .export-preview-label {
+        font-size: 0.84rem; font-weight: 500; color: var(--label-2);
+    }
+    .export-preview-value {
+        font-size: 0.95rem; font-weight: 650; color: var(--label);
+    }
+"""
+
 _PHASE1_ENHANCEMENTS_CSS = """
     /* ═══════════════════════════════════════════════════════════
        PHASE 1: TAB STYLING, SYNC STATUS, CARD STRIPES, MOBILE NAV
@@ -256,9 +437,9 @@ _PILL_AND_FEED_CARD_CSS = """
     }
 """
 
-FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PHASE1_ENHANCEMENTS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
+FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PHASE1_ENHANCEMENTS_CSS}\n{_PHASE2_ENHANCEMENTS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
 
-APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENTS_CSS + """
+APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENTS_CSS + _PHASE2_ENHANCEMENTS_CSS + """
 
     /* ==========================================================
        2. FOUNDATION
@@ -2069,7 +2250,7 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENT
 </style>
 """
 
-AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
+AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE2_ENHANCEMENTS_CSS + """
     /* ── Reset & Base ─────────────────────────────────── */
     html, body, .stMarkdown, p, label, h1, h2, button, input {
         font-family: var(--font) !important;
