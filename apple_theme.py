@@ -45,6 +45,205 @@ _DESIGN_TOKENS_CSS = """
     }
 """
 
+_PHASE3_ENHANCEMENTS_CSS = """
+    /* ═══════════════════════════════════════════════════════════
+       PHASE 3: ADMIN DASHBOARD, HELP SYSTEM, ACTIVITY LOG, i18n
+       ═══════════════════════════════════════════════════════════ */
+
+    /* 3.1: Admin Dashboard Cards */
+    .admin-section {
+        display: flex; flex-direction: column; gap: 16px;
+        padding: 16px; background: linear-gradient(180deg, #FAFBFD 0%, #F5F7FA 100%);
+        border-radius: 14px; margin-bottom: 16px;
+    }
+    .admin-card {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: 12px;
+        padding: 16px;
+        display: flex; justify-content: space-between;
+        align-items: center; gap: 16px;
+    }
+    .admin-card--dangerous {
+        border-color: rgba(185, 28, 28, 0.2);
+        background: rgba(254, 226, 226, 0.3);
+    }
+    .admin-card__content {
+        display: flex; flex-direction: column;
+        gap: 4px; flex: 1;
+    }
+    .admin-card__label {
+        font-size: 0.84rem; font-weight: 600; color: var(--label);
+    }
+    .admin-card__description {
+        font-size: 0.75rem; color: var(--label-2);
+    }
+    .admin-card__action {
+        display: flex; gap: 6px;
+    }
+
+    /* 3.2: Contextual Help Tooltips */
+    .help-tooltip {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 20px; height: 20px;
+        border-radius: 50%; background: rgba(0, 102, 204, 0.1);
+        color: var(--tint); font-size: 0.75rem; font-weight: 700;
+        cursor: help; transition: all 0.15s ease;
+    }
+    .help-tooltip:hover {
+        background: var(--tint-soft);
+        transform: scale(1.1);
+    }
+    .help-tooltip__content {
+        position: absolute; z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 0.75rem; line-height: 1.4;
+        color: var(--label); max-width: 240px;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
+    }
+
+    /* 3.3: Activity Log & Timeline */
+    .activity-log {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: 14px;
+        padding: 16px 0;
+    }
+    .activity-item {
+        display: flex; gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--separator);
+        transition: background 0.15s ease;
+    }
+    .activity-item:hover {
+        background: var(--surface-muted);
+    }
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    .activity-item__icon {
+        display: flex; align-items: center; justify-content: center;
+        width: 32px; height: 32px; min-width: 32px;
+        border-radius: 8px; background: var(--tint-soft);
+        color: var(--tint); font-size: 0.95rem;
+    }
+    .activity-item__content {
+        display: flex; flex-direction: column;
+        gap: 2px; flex: 1;
+    }
+    .activity-item__title {
+        font-size: 0.84rem; font-weight: 600; color: var(--label);
+    }
+    .activity-item__time {
+        font-size: 0.72rem; color: var(--label-3);
+    }
+
+    /* 3.4: Health Metrics Dashboard */
+    .health-metrics-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px; margin-bottom: 16px;
+    }
+    .health-metric-card {
+        background: var(--surface);
+        border: 1px solid var(--separator);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+    }
+    .health-metric-value {
+        font-size: 1.8rem; font-weight: 700;
+        color: var(--label); line-height: 1;
+    }
+    .health-metric-label {
+        font-size: 0.75rem; color: var(--label-2);
+        margin-top: 6px; font-weight: 500;
+    }
+    .health-metric-sparkline {
+        height: 24px; margin-top: 8px;
+        background: var(--surface-muted);
+        border-radius: 4px;
+    }
+
+    /* 3.5: Scheduled Export Card */
+    .scheduled-export-card {
+        background: linear-gradient(135deg, #E0E7FF 0%, #F0E7FF 100%);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        border-radius: 14px;
+        padding: 16px;
+        display: flex; justify-content: space-between;
+        align-items: center; gap: 16px;
+    }
+    .scheduled-export-card__info {
+        display: flex; flex-direction: column;
+        gap: 4px;
+    }
+    .scheduled-export-card__time {
+        font-size: 0.84rem; font-weight: 650; color: #4F46E5;
+    }
+    .scheduled-export-card__freq {
+        font-size: 0.72rem; color: #6366F1;
+    }
+
+    /* 3.6: Localization Support */
+    .lang-selector {
+        display: flex; gap: 4px;
+    }
+    .lang-button {
+        padding: 6px 10px;
+        border: 1px solid var(--separator);
+        border-radius: 8px;
+        background: var(--surface);
+        font-size: 0.72rem; font-weight: 600;
+        color: var(--label-2);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .lang-button.active {
+        background: var(--tint-soft);
+        border-color: var(--tint);
+        color: var(--tint);
+    }
+    .lang-button:hover {
+        border-color: var(--tint);
+    }
+
+    /* 3.7: Getting Started Guide */
+    .onboarding-card {
+        background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+        border: 1px solid rgba(21, 128, 61, 0.2);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 16px;
+        display: flex; justify-content: space-between;
+        align-items: center; gap: 12px;
+    }
+    .onboarding-card__content {
+        display: flex; flex-direction: column;
+        gap: 4px;
+    }
+    .onboarding-card__title {
+        font-size: 0.95rem; font-weight: 650;
+        color: #15803D;
+    }
+    .onboarding-card__steps {
+        font-size: 0.75rem; color: #22C55E;
+        line-height: 1.5;
+    }
+    .onboarding-card__close {
+        flex-shrink: 0; width: 24px; height: 24px;
+        border: none; background: rgba(21, 128, 61, 0.1);
+        border-radius: 6px; color: #15803D;
+        cursor: pointer; transition: all 0.15s ease;
+    }
+    .onboarding-card__close:hover {
+        background: rgba(21, 128, 61, 0.2);
+    }
+"""
+
 _PHASE2_ENHANCEMENTS_CSS = """
     /* ═══════════════════════════════════════════════════════════
        PHASE 2: SEARCH SIDEBAR, DRAWERS, SKELETONS, DARK MODE
@@ -437,9 +636,9 @@ _PILL_AND_FEED_CARD_CSS = """
     }
 """
 
-FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PHASE1_ENHANCEMENTS_CSS}\n{_PHASE2_ENHANCEMENTS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
+FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PHASE1_ENHANCEMENTS_CSS}\n{_PHASE2_ENHANCEMENTS_CSS}\n{_PHASE3_ENHANCEMENTS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
 
-APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENTS_CSS + _PHASE2_ENHANCEMENTS_CSS + """
+APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENTS_CSS + _PHASE2_ENHANCEMENTS_CSS + _PHASE3_ENHANCEMENTS_CSS + """
 
     /* ==========================================================
        2. FOUNDATION
@@ -2250,7 +2449,7 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENT
 </style>
 """
 
-AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE2_ENHANCEMENTS_CSS + """
+AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE2_ENHANCEMENTS_CSS + _PHASE3_ENHANCEMENTS_CSS + """
     /* ── Reset & Base ─────────────────────────────────── */
     html, body, .stMarkdown, p, label, h1, h2, button, input {
         font-family: var(--font) !important;

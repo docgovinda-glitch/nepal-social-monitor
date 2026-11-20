@@ -3196,6 +3196,85 @@ def _render_phase2_skeleton_cards(count: int = 3) -> None:
         )
 
 
+def _render_phase3_help_icon(tooltip_text: str, icon: str = "?") -> str:
+    """PHASE 3: Render contextual help tooltip icon."""
+    return (
+        f'<span class="help-tooltip" title="{html.escape(tooltip_text)}">'
+        f'{html.escape(icon)}'
+        f'</span>'
+    )
+
+
+def _render_phase3_activity_log(items: List[Dict[str, Any]], max_items: int = 5) -> None:
+    """PHASE 3: Render recent activity log."""
+    if not items:
+        st.info("No recent activity")
+        return
+
+    activity_html = '<div class="activity-log">'
+    for item in items[:max_items]:
+        icon = item.get("icon", "📝")
+        title = html.escape(str(item.get("title", "Activity")))
+        time_str = html.escape(str(item.get("time", "Just now")))
+
+        activity_html += (
+            f'<div class="activity-item">'
+            f'<div class="activity-item__icon">{icon}</div>'
+            f'<div class="activity-item__content">'
+            f'<div class="activity-item__title">{title}</div>'
+            f'<div class="activity-item__time">{time_str}</div>'
+            f'</div>'
+            f'</div>'
+        )
+
+    activity_html += '</div>'
+    st.markdown(activity_html, unsafe_allow_html=True)
+
+
+def _render_phase3_health_metrics(metrics: Dict[str, Any]) -> None:
+    """PHASE 3: Render health dashboard metrics."""
+    cols = st.columns(len(metrics) or 3)
+
+    for col, (label, value) in zip(cols, metrics.items()):
+        with col:
+            st.markdown(
+                f'<div class="health-metric-card">'
+                f'<div class="health-metric-value">{html.escape(str(value))}</div>'
+                f'<div class="health-metric-label">{html.escape(str(label))}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+
+def _render_phase3_onboarding_card() -> None:
+    """PHASE 3: Show first-time user onboarding card."""
+    if st.session_state.get("dismiss_onboarding"):
+        return
+
+    col_content, col_close = st.columns([4, 0.3])
+
+    with col_content:
+        st.markdown(
+            f'<div class="onboarding-card">'
+            f'<div class="onboarding-card__content">'
+            f'<div class="onboarding-card__title">🎯 Welcome to Media Monitor!</div>'
+            f'<div class="onboarding-card__steps">'
+            f'<b>Getting started:</b><br>'
+            f'1️⃣ Browse live feeds (Nepali, Indian, X)<br>'
+            f'2️⃣ Search & filter by topic<br>'
+            f'3️⃣ Share to WhatsApp groups'
+            f'</div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    with col_close:
+        if st.button("×", key="dismiss_onboard", help="Dismiss"):
+            st.session_state["dismiss_onboarding"] = True
+            st.rerun()
+
+
 @st.fragment
 def _render_phase2_search_sidebar() -> None:
     """PHASE 2: Persistent search sidebar with active filter pills."""
