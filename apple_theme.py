@@ -2729,3 +2729,23 @@ def _append_css(block: str, extra: str) -> str:
 
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _COMPACT_UX_CSS)
 FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _COMPACT_UX_CSS)
+
+
+_AUTH_LIGHT_CSS = """
+    /* ===== Login: single blue accent, flat and light (Apple style) ===== */
+    [data-testid="stAppViewContainer"], .main { background: #F5F5F7 !important; }
+    div[data-testid="stForm"] {
+        background: #FFFFFF !important;
+        -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+        border: 1px solid rgba(0, 0, 0, 0.06) !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05) !important;
+    }
+    .auth-header__icon-ring { background: #E8F1FC; box-shadow: none; }
+    .auth-header__icon-ring svg path { fill: #0066CC; fill-opacity: 1; }
+    div[data-testid="stForm"] div[data-baseweb="input"] > div { background: #F5F5F7 !important; border-color: transparent !important; }
+    div[data-testid="stForm"] div[data-baseweb="input"] > div:focus-within { background: #FFFFFF !important; border-color: #0066CC !important; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.14) !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button { background: #0066CC !important; box-shadow: none !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:hover { background: #0071E3 !important; filter: none !important; box-shadow: none !important; transform: none !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:active { background: #0058B0 !important; filter: none !important; box-shadow: none !important; }
+"""
+AUTH_CSS = _append_css(AUTH_CSS, _AUTH_LIGHT_CSS)
