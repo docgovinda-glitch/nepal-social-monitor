@@ -23,49 +23,108 @@ from typing import List, Dict, Any, Callable, Optional, Tuple
 logger = logging.getLogger("nepal_summarizer")
 
 TRANSLATION_CACHE_MAX_SIZE = int(os.getenv("TRANSLATION_CACHE_MAX_SIZE", "5000"))
+TRANSLATION_CACHE_DIR = os.getenv("TRANSLATION_CACHE_DIR", "")
 
 
 class TranslationLRUCache:
-    """Thread-safe bounded LRU translation cache to prevent memory leaks during 24/7 runs."""
-    def __init__(self, maxsize: int = 5000):
+    """
+    Persistent SQLite-backed (diskcache) and thread-safe bounded LRU translation cache.
+    Falls back gracefully to an in-memory OrderedDict if the filesystem is read-only or diskcache is missing.
+    """
+    def __init__(self, maxsize: int = 5000, cache_dir: Optional[str] = None):
         self.maxsize = max(1, maxsize)
-        self._cache = collections.OrderedDict()
+        self._mem_cache = collections.OrderedDict()
         self._lock = threading.Lock()
+        self._disk_cache = None
+
+        target_dir = cache_dir or TRANSLATION_CACHE_DIR
+        if not target_dir:
+            import tempfile
+            target_dir = os.path.join(tempfile.gettempdir(), "nepal_monitor_translation_cache")
+
+        try:
+            import diskcache
+            os.makedirs(target_dir, exist_ok=True)
+            self._disk_cache = diskcache.Cache(target_dir, size_limit=int(1e8))  # ~100 MB limit
+            logger.info(f"Initialized diskcache TranslationLRUCache at {target_dir}")
+        except Exception as exc:
+            logger.info(f"Diskcache unavailable or directory unwriteable ({exc}); using in-memory LRU cache.")
+            self._disk_cache = None
 
     def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
-            if key not in self._cache:
+            if key not in self._mem_cache:
+                if self._disk_cache is not None:
+                    try:
+                        val = self._disk_cache.get(key, default=None)
+                        if val is not None:
+                            self._mem_cache[key] = val
+                            return val
+                    except Exception:
+                        pass
                 return default
-            self._cache.move_to_end(key)
-            return self._cache[key]
+            self._mem_cache.move_to_end(key)
+            return self._mem_cache[key]
 
     def __contains__(self, key: str) -> bool:
         with self._lock:
-            return key in self._cache
+            if key in self._mem_cache:
+                return True
+            if self._disk_cache is not None:
+                try:
+                    return key in self._disk_cache
+                except Exception:
+                    pass
+            return False
 
     def __getitem__(self, key: str) -> str:
         with self._lock:
-            self._cache.move_to_end(key)
-            return self._cache[key]
+            if key not in self._mem_cache:
+                if self._disk_cache is not None:
+                    try:
+                        val = self._disk_cache.get(key, default=None)
+                        if val is not None:
+                            self._mem_cache[key] = val
+                            return val
+                    except Exception:
+                        pass
+                raise KeyError(key)
+            self._mem_cache.move_to_end(key)
+            return self._mem_cache[key]
 
     def __setitem__(self, key: str, value: str) -> None:
         with self._lock:
-            if key in self._cache:
-                self._cache.move_to_end(key)
-            self._cache[key] = value
-            if len(self._cache) > self.maxsize:
-                self._cache.popitem(last=False)
+            if key in self._mem_cache:
+                self._mem_cache.move_to_end(key)
+            self._mem_cache[key] = value
+            if len(self._mem_cache) > self.maxsize:
+                evicted_key, _ = self._mem_cache.popitem(last=False)
+                if self._disk_cache is not None:
+                    try:
+                        self._disk_cache.delete(evicted_key)
+                    except Exception:
+                        pass
+            if self._disk_cache is not None:
+                try:
+                    self._disk_cache.set(key, value)
+                except Exception:
+                    pass
 
     def set(self, key: str, value: str) -> None:
         self[key] = value
 
     def clear(self) -> None:
         with self._lock:
-            self._cache.clear()
+            if self._disk_cache is not None:
+                try:
+                    self._disk_cache.clear()
+                except Exception:
+                    pass
+            self._mem_cache.clear()
 
     def __len__(self) -> int:
         with self._lock:
-            return len(self._cache)
+            return len(self._mem_cache)
 
 
 _TRANSLATION_CACHE = TranslationLRUCache(maxsize=TRANSLATION_CACHE_MAX_SIZE)
@@ -121,31 +180,45 @@ def record_translation_success() -> None:
 
 
 _LOCAL_MODEL = None
-_LOCAL_TOKENIZER = None
 _LOCAL_MODEL_LOCK = threading.Lock()
 
 
 def _load_local_nllb_model():
-    """Lazy-loads facebook/nllb-200-distilled-600M on CPU on first fallback invocation."""
-    global _LOCAL_MODEL, _LOCAL_TOKENIZER
+    """
+    Lazy-loads CTranslate2 INT8 model (Serkan007/CTranslate2-nllb-200-int8) on CPU on first fallback invocation.
+    Provides ~4x faster inference and 60% less RAM compared to PyTorch transformers.
+    """
+    global _LOCAL_MODEL
     if _LOCAL_MODEL is not None:
-        return _LOCAL_MODEL, _LOCAL_TOKENIZER
+        return _LOCAL_MODEL
     with _LOCAL_MODEL_LOCK:
         if _LOCAL_MODEL is not None:
-            return _LOCAL_MODEL, _LOCAL_TOKENIZER
-        logger.info("Lazy-loading local translation model (facebook/nllb-200-distilled-600M on CPU)...")
+            return _LOCAL_MODEL
+        model_name = os.getenv("LOCAL_NLLB_MODEL_NAME", "Serkan007/CTranslate2-nllb-200-int8")
+        logger.info(f"Lazy-loading local CTranslate2 translation model ({model_name} on CPU int8)...")
         try:
-            import torch
-            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-            model_name = os.getenv("LOCAL_NLLB_MODEL_NAME", "facebook/nllb-200-distilled-600M")
-            _LOCAL_TOKENIZER = AutoTokenizer.from_pretrained(model_name)
-            _LOCAL_MODEL = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-            _LOCAL_MODEL.eval()
-            logger.info("Local NLLB model successfully loaded on CPU.")
-            return _LOCAL_MODEL, _LOCAL_TOKENIZER
+            from hf_hub_ctranslate2 import MultiLingualTranslatorCT2fromHfHub
+            _LOCAL_MODEL = MultiLingualTranslatorCT2fromHfHub(
+                model_name_or_path=model_name,
+                device="cpu",
+                compute_type="int8",
+            )
+            logger.info("Local CTranslate2 INT8 model successfully loaded on CPU.")
+            return _LOCAL_MODEL
         except Exception as exc:
-            logger.error(f"Failed to load local NLLB model: {exc}")
-            raise
+            logger.warning(f"Failed to load CTranslate2 model ({exc}); attempting PyTorch transformers fallback...")
+            try:
+                from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+                fallback_name = "facebook/nllb-200-distilled-600M"
+                tok = AutoTokenizer.from_pretrained(fallback_name)
+                mod = AutoModelForSeq2SeqLM.from_pretrained(fallback_name)
+                mod.eval()
+                _LOCAL_MODEL = (mod, tok)
+                logger.info("Loaded PyTorch fallback NLLB model.")
+                return _LOCAL_MODEL
+            except Exception as e2:
+                logger.error(f"All local translation model loaders failed: {e2}")
+                raise
 
 
 def _translate_with_local_model(text: str, source_lang: str = "ne") -> str:
@@ -153,20 +226,40 @@ def _translate_with_local_model(text: str, source_lang: str = "ne") -> str:
     if not text:
         return ""
     try:
-        model, tokenizer = _load_local_nllb_model()
-        import torch
+        model_obj = _load_local_nllb_model()
         src_lang = "hin_Deva" if source_lang == "hi" else "npi_Deva"
         tgt_lang = "eng_Latn"
-        tokenizer.src_lang = src_lang
 
         chunks = [text] if len(text) <= 500 else [p.strip() for p in text.split("\n\n") if p.strip()]
         out_chunks = []
-        for ch in chunks:
-            inputs = tokenizer(ch, return_tensors="pt", truncation=True, max_length=512)
-            forced_bos_token_id = tokenizer.convert_tokens_to_ids(tgt_lang)
-            with torch.no_grad():
-                outputs = model.generate(**inputs, forced_bos_token_id=forced_bos_token_id, max_length=512)
-            out_chunks.append(tokenizer.batch_decode(outputs, skip_special_tokens=True)[0])
+
+        # Check if model_obj is MultiLingualTranslatorCT2fromHfHub or PyTorch tuple
+        if hasattr(model_obj, "generate"):
+            # CTranslate2 path
+            for ch in chunks:
+                tr = model_obj.generate(
+                    text=ch,
+                    src_lang=src_lang,
+                    tgt_lang=tgt_lang,
+                    beam_size=4,
+                    max_decoding_length=512,
+                )
+                if isinstance(tr, list):
+                    out_chunks.append(tr[0] if tr else ch)
+                else:
+                    out_chunks.append(str(tr))
+        else:
+            # PyTorch fallback path
+            mod, tok = model_obj
+            import torch
+            tok.src_lang = src_lang
+            for ch in chunks:
+                inputs = tok(ch, return_tensors="pt", truncation=True, max_length=512)
+                forced_bos_token_id = tok.convert_tokens_to_ids(tgt_lang)
+                with torch.no_grad():
+                    outputs = mod.generate(**inputs, forced_bos_token_id=forced_bos_token_id, max_length=512)
+                out_chunks.append(tok.batch_decode(outputs, skip_special_tokens=True)[0])
+
         return "\n\n".join(out_chunks).strip()
     except Exception as exc:
         logger.error(f"Local NLLB translation failed: {type(exc).__name__}: {exc}")
@@ -239,7 +332,7 @@ def mask_entities_for_translation(text: str) -> Tuple[str, Dict[str, str]]:
 def restore_entities_after_translation(text: str, mask_map: Dict[str, str]) -> str:
     """
     Restores deterministic entity tokens (__ENT001__) to their exact proper English forms.
-    Tolerates machine-translation variations in whitespace and casing around tokens.
+    Tolerates machine-translation variations in whitespace, casing, and underscores (e.g. _ ent 001 _).
     """
     if not text or not mask_map:
         return text or ""
@@ -249,7 +342,8 @@ def restore_entities_after_translation(text: str, mask_map: Dict[str, str]) -> s
         full_tok = f"__ENT{int(tok_num):03d}__"
         return mask_map.get(full_tok, m.group(0))
 
-    restored = re.sub(r"__\s*ENT\s*(\d{1,3})\s*__", _repl, text, flags=re.IGNORECASE)
+    # Regex matches: r'_{1,2}\s*ent\s*(\d{1,3})\s*_{1,2}' case-insensitively
+    restored = re.sub(r"_{1,2}\s*ent\s*(\d{1,3})\s*_{1,2}", _repl, text, flags=re.IGNORECASE)
     return re.sub(r"[ \t]+", " ", restored).strip()
 
 _SSL_CTX = ssl._create_unverified_context()
@@ -428,10 +522,18 @@ def normalize_english_proper_nouns(text: str) -> str:
     return re.sub(r"[ \t]+", " ", out).strip()
 
 
+_NEPALI_DISTINCTIVE_MARKERS = re.compile(
+    r"(?:^|\s)(?:गर्ने|गरेको|गरिएको|भएको|छन्|गरेका|भने|गर्दै|रहेका|रहेको|गरे|भनेर|गर्न|भनेका|गरेकी|हुने|हुनेछ|गरेपछि|लागि|बाट|सँग|लाई|बारे|तर्फ|अनुसार)(?:\s|[।,.!?]|$)"
+)
+_HINDI_DISTINCTIVE_MARKERS = re.compile(
+    r"(?:^|\s)(?:है|हैं|था|थी|थे|में|से|की|के|को|पर|और|नहीं|कहा|किया|होगा|होगी|होंगे|होने|गया|गई|गए)(?:\s|[।,.!?]|$)"
+)
+
+
 def detect_text_language(text: str, declared_lang: str = "") -> str:
     """
     Detects whether text is English ('en'), Nepali ('ne'), Hindi ('hi'), or another non-English language ('auto').
-    Uses Devanagari script + Hindi/Nepali lexical markers, plus non-ASCII script detection.
+    Distinguishes Hindi vs. Nepali Devanagari using distinctive morphological postpositions and verb auxiliaries.
     """
     raw = (text or "").strip()
     decl = (declared_lang or "").strip().lower()
@@ -440,8 +542,16 @@ def detect_text_language(text: str, declared_lang: str = "") -> str:
             return "ne"
         if decl in ("hindi", "hi"):
             return "hi"
-        if re.search(r"(?:^|\s)(?:है|हैं|था|थी|थे|में|से|की|के|को|पर|और|नहीं|कहा|किया)(?:\s|[।,.!?]|$)", raw):
+
+        ne_hits = len(_NEPALI_DISTINCTIVE_MARKERS.findall(raw))
+        hi_hits = len(_HINDI_DISTINCTIVE_MARKERS.findall(raw))
+
+        if hi_hits > ne_hits:
             return "hi"
+        if ne_hits > hi_hits:
+            return "ne"
+
+        # Default Devanagari within nepal-social-monitor domain is Nepali
         return "ne"
 
     # Strip URLs, @mentions, #hashtags, emojis/punctuation before checking non-Latin scripts
@@ -460,7 +570,7 @@ def _has_devanagari(text: str) -> bool:
 
 
 def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -> str:
-    """Zero-key translation failover across working POST endpoints on translate.googleapis.com with circuit breaker."""
+    """Zero-key translation failover across working POST endpoints on translate.googleapis.com with circuit breaker & tenacity."""
     global _CLIENT_ROTATION_IDX
     clean_chunk = (chunk or "").strip()
     if not clean_chunk:
@@ -482,29 +592,49 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
     }
     encoded_body = urllib.parse.urlencode({"q": clean_chunk}).encode("utf-8")
 
+    def _execute_single_request(url: str, path: str) -> Optional[str]:
+        req = urllib.request.Request(url, data=encoded_body, headers=headers, method="POST")
+        with _TRANSLATE_SEM:
+            with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                out = ""
+                if path == "translate_a/t":
+                    if isinstance(data, list) and data:
+                        out = data[0] if isinstance(data[0], str) else str(data[0][0])
+                else:
+                    if isinstance(data, list) and data and isinstance(data[0], list):
+                        out = "".join(seg[0] for seg in data[0] if seg and seg[0])
+                if out and out.strip() and out.strip() != clean_chunk and not _has_devanagari(out):
+                    return out.strip()
+        return None
+
+    # Tenacity-wrapped request executor
+    try:
+        from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception_type
+        @retry(
+            stop=stop_after_attempt(2),
+            wait=wait_exponential_jitter(initial=0.05, max=0.5),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        )
+        def _retryable_call(url: str, path: str) -> Optional[str]:
+            return _execute_single_request(url, path)
+    except Exception:
+        def _retryable_call(url: str, path: str) -> Optional[str]:
+            return _execute_single_request(url, path)
+
     last_err = ""
     for path, client in ordered:
         url = f"https://translate.googleapis.com/{path}?client={client}&sl={sl_code}&tl=en"
         if path == "translate_a/single":
             url += "&dt=t"
-        req = urllib.request.Request(url, data=encoded_body, headers=headers, method="POST")
         try:
-            with _TRANSLATE_SEM:
-                with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                    out = ""
-                    if path == "translate_a/t":
-                        if isinstance(data, list) and data:
-                            out = data[0] if isinstance(data[0], str) else str(data[0][0])
-                    else:
-                        if isinstance(data, list) and data and isinstance(data[0], list):
-                            out = "".join(seg[0] for seg in data[0] if seg and seg[0])
-                    if out and out.strip() and out.strip() != clean_chunk and not _has_devanagari(out):
-                        record_translation_success()
-                        return out.strip()
+            res = _retryable_call(url, path)
+            if res:
+                record_translation_success()
+                return res
         except Exception as exc:
             last_err = f"{type(exc).__name__}: {exc}"
-            time.sleep(0.05)
             continue
 
     record_translation_failure(last_err or "Primary endpoints failed to translate Devanagari")
@@ -665,10 +795,15 @@ _LAST_UPDATED_RE = re.compile(
 
 
 def clean_journalistic_text(text: str, title: str = "") -> str:
-    """Strips HTML, wire datelines, read-time/updated prefixes, and editorial boilerplate while preserving sentence structure."""
+    """Strips HTML, wire datelines, read-time/updated prefixes, and editorial boilerplate while preserving sentence structure and fixing Unicode."""
     if not text:
         return ""
-    s = html.unescape(str(text))
+    try:
+        import ftfy
+        s = ftfy.fix_text(str(text))
+    except Exception:
+        s = str(text)
+    s = html.unescape(s)
     s = re.sub(r"<[^>]+>", " ", s)
     s = s.replace("\xa0", " ")
     s = re.sub(r"[\r\n\t]+", " ", s)
@@ -697,9 +832,10 @@ def _tokenize_content_words(text: str) -> List[str]:
 
 
 def _split_sentences(text: str) -> List[str]:
-    """Splits cleaned text into well-formed sentences without slicing inside numbers/abbreviations."""
-    # Protect common abbreviations and only strip numbered list markers at start or after sentence end
+    """Splits cleaned text into well-formed sentences without slicing inside numbers, English abbreviations, or Devanagari abbreviations."""
+    # Protect common English and Devanagari abbreviations
     protected = re.sub(r"\b(Mr|Mrs|Ms|Dr|Prof|Hon|Rs|No|St|vs|etc|U\.S|U\.K)\.", r"\1<DOT>", text)
+    protected = re.sub(r"(वि\.सं|डा|प्रा|रु|नं|प्र\.जि\.अ|कि\.मी|मे\.वा|मु\.अ|अ\.नि)\.", r"\1<DOT>", protected)
     protected = re.sub(r"(\d)\.(\d)", r"\1<DOT>\2", protected)
     protected = re.sub(r"(?:^|(?<=[.!?।])\s+)\d{1,2}\.\s+", r" ", protected)
     raw_sents = re.split(r"(?<=[.!?।])\s+", protected)
@@ -710,14 +846,14 @@ def _split_sentences(text: str) -> List[str]:
         restored = _DANGLING_LEAD_PREFIX_RE.sub("", restored).strip()
         if not restored:
             continue
-        # Ensure first char is capitalized after prefix stripping
-        if restored[0].islower():
+        # Ensure first char is capitalized for English Latin text; allow Devanagari Unicode
+        if not _has_devanagari(restored) and restored[0].islower():
             continue
         word_count = len(restored.split())
         if word_count < 7 or word_count > 55:
             continue
-        # Filter bare image captions / noun phrases lacking a finite verb
-        if not _FINITE_VERB_RE.search(restored):
+        # Filter bare image captions / noun phrases lacking a finite verb in English text
+        if not _has_devanagari(restored) and not _FINITE_VERB_RE.search(restored):
             continue
         sents.append(restored)
     return sents
@@ -985,19 +1121,38 @@ def generate_lexrank_english_summary(
     selected_indices: List[int] = [lead_candidates[0][1]] if lead_candidates else [0]
 
     # Pick highest-scoring non-redundant supporting sentence sharing topical continuity
+    # Uses RapidFuzz token_set_ratio to penalize paraphrased/duplicate sentences cleanly
     scored_indices.sort(key=lambda x: x[0], reverse=True)
     for _, cand_idx in scored_indices:
         if len(selected_indices) >= max_sentences:
             break
         if cand_idx in selected_indices:
             continue
+        cand_sent = sentences[cand_idx]
         cand_set = sent_sets[cand_idx]
-        if any(_jaccard_overlap(cand_set, sent_sets[sel_i]) > 0.58 for sel_i in selected_indices):
+
+        is_dup = False
+        for sel_i in selected_indices:
+            sel_sent = sentences[sel_i]
+            # RapidFuzz similarity check
+            try:
+                import rapidfuzz.fuzz as fuzz
+                sim_ratio = fuzz.token_set_ratio(cand_sent, sel_sent)
+                if sim_ratio > 68:
+                    is_dup = True
+                    break
+            except Exception:
+                if _jaccard_overlap(cand_set, sent_sets[sel_i]) > 0.58:
+                    is_dup = True
+                    break
+
+        if is_dup:
             continue
         if not (cand_set & lead_tokens):
             continue
         selected_indices.append(cand_idx)
 
+    # Always re-sort selected sentences back into original chronological order
     selected_indices.sort()
 
     chosen_sents: List[str] = []

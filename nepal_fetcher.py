@@ -121,6 +121,18 @@ def extract_article_full_text(url: str, timeout: int = 8) -> str:
                 raw_html = r_resp.text
         if not raw_html:
             return ""
+
+        # Primary: Trafilatura full-body extraction
+        try:
+            import trafilatura
+            traf_extracted = trafilatura.extract(raw_html, url=url, include_comments=False, include_tables=False)
+            if traf_extracted and len(traf_extracted.strip()) >= 350:
+                body_clean = re.sub(r"[\r\n\t]+", "\n\n", traf_extracted.strip())
+                FULL_ARTICLE_TEXT_CACHE[url] = body_clean
+                return body_clean
+        except Exception:
+            pass
+
         soup = BeautifulSoup(raw_html, "html.parser")
 
         # Extract JSON-LD articleBody and meta description BEFORE stripping tags

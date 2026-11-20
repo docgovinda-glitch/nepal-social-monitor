@@ -26,10 +26,12 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements-backend.txt
 
-      - name: Cache Hugging Face models
+      - name: Cache Hugging Face models & translation cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/huggingface
+          path: |
+            ~/.cache/huggingface
+            ${{ github.workspace }}/.cache/translation_cache
           key: ${{ runner.os }}-hf-nllb-${{ hashFiles('requirements-backend.txt') }}
           restore-keys: |
             ${{ runner.os }}-hf-nllb-
@@ -44,6 +46,7 @@ jobs:
           SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           ENABLE_LOCAL_TRANSLATION_FALLBACK: "true"
+          TRANSLATION_CACHE_DIR: ${{ github.workspace }}/.cache/translation_cache
           GREEN_API_URL: ${{ secrets.GREEN_API_URL }}
           GREEN_API_ID_INSTANCE: ${{ secrets.GREEN_API_ID_INSTANCE }}
           GREEN_API_TOKEN_INSTANCE: ${{ secrets.GREEN_API_TOKEN_INSTANCE }}

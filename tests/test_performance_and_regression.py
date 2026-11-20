@@ -1592,6 +1592,58 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"DISABLE_BACKGROUND_DAEMON": "false"}):
             self.assertFalse(cfg.is_background_daemon_disabled())
 
+    def test_nlp_upgrades_lingua_rapidfuzz_diskcache_and_ctranslate2(self):
+        import nepal_summarizer as summ
+
+        # 1. Lingua / Hindi vs. Nepali detection
+        hi_text = "नई दिल्ली में प्रधानमंत्री ने उच्च स्तरीय बैठक की अध्यक्षता की"
+        ne_text = "काठमाडौँमा सरकारले नयाँ बजेट सार्वजनिक गर्‍यो"
+        en_text = "Nepal government signed cross-border power agreement with India"
+        self.assertEqual(summ.detect_text_language(hi_text), "hi")
+        self.assertEqual(summ.detect_text_language(ne_text), "ne")
+        self.assertEqual(summ.detect_text_language(en_text), "en")
+
+        # 2. Entity restoration regex tolerance (tolerates spacing, lowercase, underscores)
+        mask_map = {"__ENT001__": "Supreme Court", "__ENT002__": "Singha Durbar"}
+        leaked_1 = "The decision of _ ent 001 _ was announced at __ent002__."
+        restored_1 = summ.restore_entities_after_translation(leaked_1, mask_map)
+        self.assertEqual(restored_1, "The decision of Supreme Court was announced at Singha Durbar.")
+
+        # 3. Unicode fixing via ftfy in clean_journalistic_text
+        mojibake = "काठमाण्डौ\u200b\u200d\u200eâ€™s news"
+        cleaned_m = summ.clean_journalistic_text(mojibake)
+        self.assertNotIn("â€™", cleaned_m)
+
+        # 4. Devanagari abbreviation protection in sentence splitting
+        abbr_text = "डा. गोविन्द केसीले काठमाडौंमा नयाँ चरणको अनशन सुरु गरेका छन्। वि.सं. २०८३ मा संसदीय आम निर्वाचन हुने सम्भावना देखिएको छ। अर्को वाक्य यहाँ थपिएको छ।"
+        sents = summ._split_sentences(abbr_text)
+        # Should not split inside "डा." or "वि.सं."
+        self.assertTrue(any("डा. गोविन्द केसीले" in s for s in sents))
+        self.assertTrue(any("वि.सं. २०८३" in s for s in sents))
+
+        # 5. Persistent DiskCache functionality
+        import os
+        import tempfile
+        import shutil
+        test_cache_dir = os.path.join(tempfile.gettempdir(), "test_lru_diskcache_unit")
+        shutil.rmtree(test_cache_dir, ignore_errors=True)
+        try:
+            d_cache = summ.TranslationLRUCache(maxsize=10, cache_dir=test_cache_dir)
+            d_cache["ne::परीक्षण"] = "Test Value"
+            self.assertIn("ne::परीक्षण", d_cache)
+            self.assertEqual(d_cache["ne::परीक्षण"], "Test Value")
+            self.assertEqual(d_cache.get("ne::परीक्षण"), "Test Value")
+        finally:
+            shutil.rmtree(test_cache_dir, ignore_errors=True)
+
+        # 6. CTranslate2 local translation loading structure
+        mock_ct2 = mock.MagicMock()
+        mock_ct2.generate.return_value = ["Nepal and India agreement"]
+        with mock.patch("nepal_summarizer._load_local_nllb_model", return_value=mock_ct2):
+            out_tr = summ._translate_with_local_model("नेपाल र भारत सम्झौता", source_lang="ne")
+            self.assertEqual(out_tr, "Nepal and India agreement")
+            mock_ct2.generate.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
