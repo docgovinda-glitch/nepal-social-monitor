@@ -2585,16 +2585,31 @@ __all__ = ["APPLE_DESIGN_SYSTEM_CSS", "FEED_CARD_CSS", "AUTH_CSS"]
 _COMPACT_UX_CSS = """
     /* ===== Compact UX: fewer rows, no overlap, minimal scrolling ===== */
     .feed-card-inner { display: block; }
+    /* Dialog action strip is icons only at every width */
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:not(:last-child) .stButton button [data-testid="stMarkdownContainer"] { display: none !important; }
+
+    /* WhatsApp glyph replaces the generic share/send icon */
+    [class*="st-key-btn_gen_"] button [data-testid="stIconMaterial"], [class*="st-key-dlg_conf_"] button[kind="primary"] [data-testid="stIconMaterial"], [class*="st-key-dlg_rd_conf_"] button[kind="primary"] [data-testid="stIconMaterial"] {
+        font-size: 0 !important; width: 18px !important; height: 18px !important; display: inline-block !important; background: currentColor !important;
+        -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath d=%22M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z%22/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath d=%22M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z%22/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    [class*="st-key-btn_gen_"] button[kind="primary"], [class*="st-key-dlg_conf_"] button[kind="primary"], [class*="st-key-dlg_rd_conf_"] button[kind="primary"] { background: #1B9A4C !important; color: #FFFFFF !important; }
+    [class*="st-key-btn_gen_"] button[kind="primary"]:hover, [class*="st-key-dlg_conf_"] button[kind="primary"]:hover, [class*="st-key-dlg_rd_conf_"] button[kind="primary"]:hover { background: #178540 !important; }
+    [class*="st-key-btn_gen_"] button *, [class*="st-key-dlg_conf_"] button[kind="primary"] *, [class*="st-key-dlg_rd_conf_"] button[kind="primary"] * { color: #FFFFFF !important; }
+    .feed-btn--wa { background: #1B9A4C !important; border-color: transparent !important; color: #FFFFFF !important; min-inline-size: 44px; padding: 0 14px; }
+    .feed-btn--wa:hover { background: #178540 !important; }
+    .feed-btn--wa svg { width: 18px; height: 18px; fill: currentColor; }
+
     .feed-card-stripe { border-radius: 0; z-index: 1; }
     .sec-tag-more { display: none; background: #EEF2F7; font-weight: 650; }
     .sync-fresh-chip .fresh-short { display: none; }
 
     /* Dialog action strip (5+ columns): tighter buttons, Send label may wrap instead of truncating */
-    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) .stButton > button { padding: 0 8px !important; }
-    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button {
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) .stButton button { padding: 0 8px !important; }
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton button {
         height: auto !important; min-height: 38px !important; padding: 4px 10px !important; line-height: 1.2 !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button p { white-space: normal !important; }
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton button p { white-space: normal !important; }
 
     @media (max-width: 640px) {
         /* Card header: always one row; long source names truncate instead of wrapping */
@@ -2649,19 +2664,19 @@ _COMPACT_UX_CSS = """
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(3)):not(:has(> div[data-testid="stColumn"]:nth-child(4))) > div[data-testid="stColumn"]:nth-child(2) {
             flex: 0.75 1 0 !important;
         }
-        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton > button {
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton button {
             height: 38px !important; min-height: 38px !important; padding: 0 5px !important;
             font-size: 0.78rem !important; gap: 4px !important; white-space: nowrap !important;
         }
-        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton > button p { white-space: nowrap !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"] .stButton button p { white-space: nowrap !important; }
         /* 5+ columns (edit/copy/save/close strip + Send): strip on one row, Send full width below */
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) { flex-wrap: wrap !important; row-gap: 8px !important; }
         div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child {
             flex: 1 1 100% !important;
         }
-        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:not(:last-child) .stButton > button [data-testid="stMarkdownContainer"] { display: none !important; }
-        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button { height: 44px !important; min-height: 44px !important; font-size: 0.86rem !important; white-space: normal !important; }
-        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton > button p { white-space: normal !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:not(:last-child) .stButton button [data-testid="stMarkdownContainer"] { display: none !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton button { height: 44px !important; min-height: 44px !important; font-size: 0.86rem !important; white-space: normal !important; }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(5)) > div[data-testid="stColumn"]:last-child .stButton button p { white-space: normal !important; }
 
         /* overflow:hidden on the dialog shell would trap sticky children; clip keeps rounded corners without scroll containment */
         div[data-testid="stDialog"] div:has(> [role="dialog"]) { overflow: clip !important; }
@@ -2670,7 +2685,6 @@ _COMPACT_UX_CSS = """
         div[data-testid="stDialog"] div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] iframe) {
             position: sticky; bottom: 0; z-index: 6; background: #FFFFFF;
             padding: 8px 0 10px 0; margin-top: 4px;
-            border-top: 1px solid rgba(15, 23, 42, 0.07);
         }
 
         /* Reader: one scroll area, tighter padding */

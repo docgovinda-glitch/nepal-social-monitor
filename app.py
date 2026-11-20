@@ -216,6 +216,9 @@ _ICON_PATHS = {
     "alert": '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
     "tag": '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1"/>',
 }
+_WA_SVG = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>'
+)
 _EMOJI_TO_ICON = {"📰": "news", "🌐": "globe", "🔍": "search", "📊": "chart", "📋": "list", "🕒": "clock", "⚡": "bolt", "📡": "rss"}
 
 
@@ -1647,6 +1650,7 @@ def _show_read_in_app_dialog() -> None:
                 with cols[ci]:
                     st.button(
                         "Original",
+                        help="Switch between original and English",
                         icon=":material/swap_horiz:",
                         type="secondary",
                         key=f"dlg_ft_tog_{item_uid}",
@@ -1879,7 +1883,7 @@ def _render_share_send_fragment(
             st.error(f"{wa_status.get('error') or 'Failed to send WhatsApp message.'} Your draft is preserved — click Confirm to Send to retry.")
 
 
-@st.dialog("Share", width="medium", icon=":material/share:", on_dismiss=_clear_active_modal)
+@st.dialog("WhatsApp", width="medium", icon=":material/chat:", on_dismiss=_clear_active_modal)
 def _show_share_dialog() -> None:
     ctx = st.session_state.get("active_modal") or {}
     item = ctx.get("item") or {}
@@ -2302,11 +2306,12 @@ def render_feed_item_with_actions(
             ci += 1
         with cols[ci]:
             if st.button(
-                "Share",
+                "",
                 icon=":material/share:",
                 type="primary",
                 key=f"btn_gen_{item_uid}",
-                help="Generate English Brief / Translation to review, copy, or share to WhatsApp",
+                help="Share to WhatsApp: English brief to review, copy or send",
+                width="stretch",
             ):
                 st.session_state["active_modal"] = {
                     "mode": "share",
@@ -2449,9 +2454,9 @@ def _build_card_wrapper_html(
             f'<span class="feed-btn__label">Original</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>'
         )
     btns.append(
-        f'<button type="button" class="feed-btn feed-btn--primary" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
-        f'aria-label="Share brief" title="Generate English Brief / Translation to review, copy, or share to Social Media Monitoring">'
-        f'Share</button>'
+        f'<button type="button" class="feed-btn feed-btn--wa" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
+        f'aria-label="Share to WhatsApp" title="Share to WhatsApp: English brief to review, copy or send">'
+        f'{_WA_SVG}</button>'
     )
     return (
         f'<div class="feed-card-wrap" data-uid="{html.escape(item_uid, quote=True)}">'
