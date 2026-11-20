@@ -2593,11 +2593,11 @@ _COMPACT_UX_CSS = """
         font-size: 0 !important; width: 18px !important; height: 18px !important; display: inline-block !important; background: currentColor !important;
         -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath d=%22M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z%22/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath d=%22M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z%22/%3E%3C/svg%3E") center / contain no-repeat;
     }
-    [class*="st-key-btn_gen_"] button[kind="primary"], [class*="st-key-dlg_conf_"] button[kind="primary"], [class*="st-key-dlg_rd_conf_"] button[kind="primary"] { background: #1B9A4C !important; color: #FFFFFF !important; }
-    [class*="st-key-btn_gen_"] button[kind="primary"]:hover, [class*="st-key-dlg_conf_"] button[kind="primary"]:hover, [class*="st-key-dlg_rd_conf_"] button[kind="primary"]:hover { background: #178540 !important; }
-    [class*="st-key-btn_gen_"] button *, [class*="st-key-dlg_conf_"] button[kind="primary"] *, [class*="st-key-dlg_rd_conf_"] button[kind="primary"] * { color: #FFFFFF !important; }
-    .feed-btn--wa { background: #1B9A4C !important; border-color: transparent !important; color: #FFFFFF !important; min-inline-size: 44px; padding: 0 14px; }
-    .feed-btn--wa:hover { background: #178540 !important; }
+    [class*="st-key-btn_gen_"] button[kind="primary"], [class*="st-key-dlg_conf_"] button[kind="primary"], [class*="st-key-dlg_rd_conf_"] button[kind="primary"] { background: var(--green-soft) !important; color: var(--green) !important; }
+    [class*="st-key-btn_gen_"] button[kind="primary"]:hover, [class*="st-key-dlg_conf_"] button[kind="primary"]:hover, [class*="st-key-dlg_rd_conf_"] button[kind="primary"]:hover { background: var(--green-soft) !important; filter: brightness(0.96); }
+    [class*="st-key-btn_gen_"] button *, [class*="st-key-dlg_conf_"] button[kind="primary"] *, [class*="st-key-dlg_rd_conf_"] button[kind="primary"] * { color: inherit !important; }
+    .feed-btn--wa { background: var(--green-soft) !important; border-color: transparent !important; color: var(--green) !important; min-inline-size: 40px; padding: 0 12px; }
+    .feed-btn--wa:hover { filter: brightness(0.96); }
     .feed-btn--wa svg { width: 18px; height: 18px; fill: currentColor; }
 
     .feed-card-stripe { border-radius: 0; z-index: 1; }
@@ -2765,16 +2765,16 @@ _APPLE_POLISH_CSS = """
     div[data-testid="stSelectbox"] div:has(> input):hover,
     div[data-baseweb="select"] > div:first-child:hover { background-color: var(--fill-hover) !important; border-color: transparent !important; }
     [data-testid="stPopover"] > button, [data-testid="stPopover"] > div > button,
-    .stButton > button[kind="secondary"], div[data-testid="stDownloadButton"] > button, div[data-testid="stLinkButton"] > a {
+    .stButton button[kind="secondary"], div[data-testid="stDownloadButton"] > button, div[data-testid="stLinkButton"] > a {
         background: var(--fill) !important; border: 1px solid transparent !important; box-shadow: none !important;
         border-radius: 10px !important; min-height: 36px !important; height: 36px !important; color: var(--label) !important;
     }
     [data-testid="stPopover"] > button:hover, [data-testid="stPopover"] > div > button:hover,
-    .stButton > button[kind="secondary"]:hover, div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stLinkButton"] > a:hover {
+    .stButton button[kind="secondary"]:hover, div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stLinkButton"] > a:hover {
         background: var(--fill-hover) !important; border-color: transparent !important; box-shadow: none !important;
     }
-    .stButton > button[kind="primary"] { background: #0066CC !important; border: none !important; box-shadow: none !important; border-radius: 10px !important; }
-    .stButton > button[kind="primary"]:hover { background: #0071E3 !important; }
+    .stButton button[kind="primary"] { background: #0066CC !important; border: none !important; box-shadow: none !important; border-radius: 10px !important; }
+    .stButton button[kind="primary"]:hover { background: #0071E3 !important; }
     .stButton > button:focus-visible, [data-testid="stPopover"] button:focus-visible { outline: 2px solid rgba(0, 102, 204, 0.5) !important; outline-offset: 2px !important; }
 
     /* Cards, metrics, expanders: white surface, hairline, light shadow */
@@ -2958,6 +2958,8 @@ _DARK_CSS_BODY = """
     .sync-status-pill--idle { color: #A1A1AA !important; }
     .sync-fresh-chip { color: #A1A1AA !important; }
     .brand-tile { background: rgba(77, 163, 255, 0.18); color: #7DBBFF; }
+    .hl-av--in { background: rgba(255, 159, 10, 0.2) !important; color: #FFB340 !important; }
+    .hl-src { color: #E5E5EA !important; }
     .live-status-inline { background: rgba(50, 215, 75, 0.18) !important; color: #6BE585 !important; }
     .wa-already-sent-notice { background: rgba(50, 215, 75, 0.14) !important; color: #6BE585 !important; }
     .extraction-badge, .share-draft-pill { background: rgba(255, 255, 255, 0.10) !important; color: #E5E5EA !important; border-color: transparent !important; }
@@ -3086,3 +3088,70 @@ def theme_override_css(mode: str) -> str:
     if mode == "light":
         return ""
     return "<style>@media (prefers-color-scheme: dark) {" + _DARK_CSS_BODY + "}</style>"
+
+
+_HEADLINE_UX_CSS = """
+    /* ===== Headline-first cards, soft buttons, bottom tab bar ===== */
+    .hl-card { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+    .hl-meta { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 0.74rem; color: var(--label-3); }
+    .hl-av { width: 22px; height: 22px; border-radius: 7px; background: var(--fill); color: var(--label-2); display: inline-flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; flex: none; text-transform: uppercase; }
+    .hl-av--in { background: rgba(244, 125, 32, 0.14); color: #C2410C; }
+    .hl-src { color: var(--label-2); font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hl-dot { flex: none; }
+    .hl-time { flex: none; white-space: nowrap; }
+    .hl-sp { flex: 1 1 0; min-width: 0; }
+    .hl-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 2px 8px; border-radius: 999px; background: var(--fill); color: var(--label-2); font-size: 0.7rem; font-weight: 650; }
+    .hl-chip--warn { background: var(--amber-soft); color: var(--amber); }
+    .hl-chip--ok { background: var(--green-soft); color: var(--green); padding: 2px 6px; }
+    .hl-title { margin: 0 !important; padding: 0 !important; font-size: 1.02rem !important; font-weight: 650 !important; line-height: 1.4 !important; letter-spacing: -0.012em !important; text-wrap: pretty; }
+    .hl-title a { color: var(--label) !important; text-decoration: none !important; }
+    .hl-title a:hover { color: var(--link) !important; }
+    .feed-card-wrap { padding: 14px 16px 10px 16px !important; }
+    .feed-card-wrap .feed-card-footer { margin-top: 8px; padding-top: 0; justify-content: flex-end; }
+    .feed-card-wrap .feed-btn { background: var(--fill) !important; color: var(--label-2) !important; }
+    .feed-card-wrap .feed-btn--wa { background: var(--green-soft) !important; color: var(--green) !important; }
+    @media (max-width: 640px) {
+        .feed-card-wrap { padding: 12px 14px 8px 14px !important; }
+        .feed-card-wrap .feed-card-footer { margin-top: 6px; }
+        .hl-title { font-size: 0.98rem !important; }
+    }
+
+    /* One calm primary: tinted fill + coloured label instead of a solid colour block */
+    .stButton:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b), div[data-testid="stFormSubmitButton"]:not(#a):not(#b) button[kind="primaryFormSubmit"]:not(#a):not(#b),
+    div[data-testid="stDownloadButton"]:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b), div[data-testid="stForm"]:not(#a):not(#b) div[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"]:not(#a):not(#b) {
+        background: var(--tint-soft) !important; color: var(--tint) !important; border: none !important; box-shadow: none !important; font-weight: 650 !important;
+    }
+    .stButton:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b) *, div[data-testid="stFormSubmitButton"]:not(#a):not(#b) button[kind="primaryFormSubmit"]:not(#a):not(#b) *,
+    div[data-testid="stDownloadButton"]:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b) * { color: inherit !important; }
+    .stButton:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b):hover, div[data-testid="stFormSubmitButton"]:not(#a):not(#b) button[kind="primaryFormSubmit"]:not(#a):not(#b):hover { filter: brightness(0.96); box-shadow: none !important; }
+    [class*="st-key-btn_gen_"]:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b), [class*="st-key-dlg_conf_"]:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b), [class*="st-key-dlg_rd_conf_"]:not(#a):not(#b) button[kind="primary"]:not(#a):not(#b) {
+        background: var(--green-soft) !important; color: var(--green) !important;
+    }
+
+    /* Bottom tab bar on phones: the same workspace control, moved to the thumb */
+    @media (max-width: 640px) {
+        .block-container { padding-bottom: 88px !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) {
+            position: fixed !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999 !important; width: 100% !important;
+            background: var(--surface) !important; box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.07) !important;
+            padding: 6px max(6px, env(safe-area-inset-left, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-right, 0px)) !important; margin: 0 !important;
+        }
+        .st-key-app_nav_seg:not(#a):not(#b) div[data-testid="stButtonGroup"], .st-key-app_nav_seg:not(#a):not(#b) [role="radiogroup"] {
+            width: 100% !important; justify-content: space-between !important; flex-wrap: nowrap !important; overflow: visible !important; gap: 0 !important;
+        }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) {
+            flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; height: auto !important; min-height: 50px !important; padding: 5px 2px !important;
+            border-radius: 12px !important; background: transparent !important; color: var(--label-3) !important; flex-direction: column !important;
+        }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) * { font-size: 0.64rem !important; line-height: 1.15 !important; font-weight: 600 !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) > div { width: 100% !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) > div > span { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 3px !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) p { margin: 0 !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) [data-testid="stIconMaterial"] { font-size: 1.45rem !important; line-height: 1 !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b):not(:has([data-testid="stIconMaterial"])) * { font-size: 1.2rem !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button[aria-checked="true"]:not(#a):not(#b) { background: transparent !important; color: var(--tint) !important; }
+        .st-key-app_nav_seg:not(#a):not(#b) button[aria-checked="true"]:not(#a):not(#b) * { font-weight: 700 !important; }
+    }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _HEADLINE_UX_CSS)
+FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _HEADLINE_UX_CSS)

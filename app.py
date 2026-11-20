@@ -761,6 +761,53 @@ def get_badge_html(cat: str) -> str:
 def compact_number(n: int) -> str:
     return f"{n / 1000:.1f}K" if n >= 1000 else str(n)
 
+def _source_initials(name: str) -> str:
+    parts = re.findall(r"[A-Za-z0-9\u0900-\u097F]+", name or "")
+    if not parts:
+        return "•"
+    if len(parts) == 1:
+        return parts[0][:2]
+    return (parts[0][0] + parts[1][0])
+
+
+_HL_ALERT_SVG = '<svg class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>'
+_HL_CHECK_SVG = '<svg class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
+
+
+def render_headline_card(item: Dict[str, Any], is_indian: bool = False, sent_title: str = "") -> str:
+    """Headline-first card: one meta line, the headline, nothing else (actions live in the feed footer)."""
+    source_name = (item.get("source") or "Unknown").strip()
+    cat = item.get("primary_section") or item.get("structured_category", "Nepal – Others")
+    raw_title = (item.get("title") or "").strip()
+    headline_en = (item.get("headline_english") or "").strip()
+    display_title = headline_en if (headline_en and not _has_devanagari(headline_en)) else raw_title
+    link = html.escape((item.get("link") or "").strip() or "#", quote=True)
+    rel = html.escape(str(item.get("relative_time") or "Recent"))
+    exact = html.escape(str(item.get("exact_time") or ""), quote=True)
+
+    chips = ""
+    if is_indian:
+        pct = int(round(float(item.get("nepal_relevance_score", 0.75)) * 100))
+        reason = html.escape(str(item.get("relevance_reason", "Substantive Nepal connection")), quote=True)
+        if item.get("relevance_status") == "borderline_review":
+            chips += f'<span class="hl-chip hl-chip--warn" title="Borderline · Nepal relevance {pct}% · {reason}">{_HL_ALERT_SVG}{pct}%</span>'
+        else:
+            chips += f'<span class="hl-chip" title="Nepal relevance {pct}% · {reason}">{pct}%</span>'
+    elif item.get("low_confidence"):
+        chips += f'<span class="hl-chip hl-chip--warn" title="Needs review: classification confidence below 0.60">{_HL_ALERT_SVG}</span>'
+    if sent_title:
+        chips += f'<span class="hl-chip hl-chip--ok" title="{html.escape(sent_title, quote=True)}">{_HL_CHECK_SVG}</span>'
+
+    return (
+        f'<article class="hl-card" title="{html.escape(str(cat), quote=True)}">'
+        f'<header class="hl-meta"><span class="hl-av{" hl-av--in" if is_indian else ""}">{html.escape(_source_initials(source_name))}</span>'
+        f'<b class="hl-src">{html.escape(source_name)}</b><span class="hl-dot">·</span>'
+        f'<time class="hl-time" title="{exact}">{rel}</time><span class="hl-sp"></span>{chips}</header>'
+        f'<h3 class="hl-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(display_title)}</a></h3>'
+        f'</article>'
+    )
+
+
 def time_badge_html(rel_time: str, exact_time: str) -> str:
     rel_time, exact_time = html.escape(str(rel_time or "")), html.escape(str(exact_time or ""))
     label = rel_time or exact_time or "Recent"
@@ -956,9 +1003,9 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
                 width: 100%;
                 height: {btn_height}px;
                 border-radius: 8px;
-                border: 1px solid rgba(15, 23, 42, 0.13);
-                background: #FFFFFF;
-                color: #0F172A;
+                border: none;
+                background: rgba(0, 0, 0, 0.05);
+                color: #1D1D1F;
                 font-size: 13px;
                 font-weight: 600;
                 cursor: pointer;
@@ -966,11 +1013,11 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
                 align-items: center;
                 justify-content: center;
                 gap: 6px;
-                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-                transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+                box-shadow: none;
+                transition: background-color 0.15s ease, color 0.15s ease;
                 box-sizing: border-box;
             }}
-            .cp-btn:hover {{ background: #F8FAFC; border-color: rgba(15, 23, 42, 0.24); }}
+            .cp-btn:hover {{ background: rgba(0, 0, 0, 0.08); }}
             {_cp_dark_css}
             @media (max-width: 110px) {{ .cp-btn span {{ display: none; }} }}
             .cp-btn.copied {{
@@ -2417,11 +2464,17 @@ def _build_card_wrapper_html(
         card_html = render_apple_x_post_card(item, show_footer=False)
         tags_html = _render_x_metrics_html(item)
     else:
-        card_html = render_apple_article_card(item, is_indian=is_indian, show_tags=False)
-        tags_html = _render_article_tags_html(item, is_indian=is_indian)
+        persisted_for_chip = wa_sent_map.get(cache_id)
+        sent_title = ""
+        if persisted_for_chip:
+            _g = str(persisted_for_chip.get("group_name") or "WhatsApp")
+            _t = _format_wa_sent_time(persisted_for_chip.get("sent_at"))
+            sent_title = f"Sent to {_g}" + (f" · {_t}" if _t else "")
+        card_html = render_headline_card(item, is_indian=is_indian, sent_title=sent_title)
+        tags_html = ""
 
     wa_html = ""
-    persisted_sent = wa_sent_map.get(cache_id)
+    persisted_sent = wa_sent_map.get(cache_id) if is_x else None
     if persisted_sent:
         sent_gname = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
         sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
@@ -2444,14 +2497,14 @@ def _build_card_wrapper_html(
     if not is_x:
         btns.append(
             f'<button type="button" class="feed-btn" data-action="read" data-uid="{html.escape(item_uid, quote=True)}" '
-            f'aria-label="Read in App" title="Read complete article in a focused modal with optional English translation">'
-            f'Read</button>'
+            f'aria-label="Read in App" title="Read the full article, with optional English translation">'
+            f'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4H10a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H3.5A1.5 1.5 0 0 1 2 16.5z"/><path d="M22 5.5A1.5 1.5 0 0 0 20.5 4H14a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg></button>'
         )
     if item_link:
         btns.append(
             f'<a class="feed-btn" href="{html.escape(item_link, quote=True)}" target="_blank" rel="noopener noreferrer" '
             f'aria-label="Open original source" title="Open original publisher article">'
-            f'<span class="feed-btn__label">Original</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>'
+            f'<svg width="16" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>'
         )
     btns.append(
         f'<button type="button" class="feed-btn feed-btn--wa" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
@@ -3194,9 +3247,6 @@ _WS_TAB_META = {
 
 def _ws_seg_label(name: str) -> str:
     icon, short = _WS_TAB_META.get(name, (_NAV_ICON_MAP.get(name, ""), name))
-    cnt = _ws_counts.get(name)
-    if cnt is not None:
-        return f"{icon} {short} · {cnt:,}" if short else f"{icon} · {cnt:,}"
     return f"{icon} {short}" if short else icon
 
 
