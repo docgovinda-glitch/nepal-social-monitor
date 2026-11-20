@@ -3184,13 +3184,40 @@ def _format_sync_age(finished_at: float) -> str:
     return f"{age // 86400}d ago"
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _latest_ingest_epoch() -> float:
+    """Newest source poll time recorded in Supabase (written by GitHub Actions or the in-app daemon)."""
+    best = 0.0
+    try:
+        rows = get_all_source_health() or []
+    except Exception:
+        return 0.0
+    now = time.time()
+    for row in rows:
+        raw = row.get("last_discovery_time")
+        ts = 0.0
+        try:
+            if isinstance(raw, datetime.datetime):
+                dt = raw if raw.tzinfo else raw.replace(tzinfo=datetime.timezone.utc)
+                ts = dt.timestamp()
+            elif isinstance(raw, str) and raw.strip():
+                dt = datetime.datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+                dt = dt if dt.tzinfo else dt.replace(tzinfo=datetime.timezone.utc)
+                ts = dt.timestamp()
+        except Exception:
+            continue
+        if ts <= now + 60:
+            best = max(best, ts)
+    return best
+
+
 @st.fragment(run_every=2)
 def _render_sync_status_bar() -> None:
     """Inline sync status bar: per-stream pills plus a data-freshness chip."""
     snap = get_manual_sync_status()
     pipes = snap.get("pipelines") or {}
     running = bool(snap.get("running"))
-    finished_at = float(snap.get("finished_at") or 0)
+    finished_at = max(float(snap.get("finished_at") or 0), _latest_ingest_epoch())
 
     pills_html = []
     for key, label, emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
@@ -3207,7 +3234,7 @@ def _render_sync_status_bar() -> None:
         elif finished_at:
             cls, content = "sync-status-pill--idle", "Up to date"
         else:
-            cls, content = "sync-status-pill--waiting", "Starting…"
+            cls, content = "sync-status-pill--idle", "No sync yet"
         pills_html.append(f'<div class="sync-status-pill {cls}">{emoji} {label}: {content}</div>')
 
     if running:
@@ -3215,24 +3242,10 @@ def _render_sync_status_bar() -> None:
     elif finished_at:
         fresh = f"Updated {_format_sync_age(finished_at)}"
     else:
-        fresh = "Showing stored data"
+        fresh = "Freshness unknown"
     pills_html.append(f'<div class="sync-fresh-chip">🕒 {fresh}</div>')
 
     st.markdown(f'<div class="sync-status-bar">{"".join(pills_html)}</div>', unsafe_allow_html=True)
-
-
-_boot_sync_snap = get_manual_sync_status()
-if (
-    st.session_state.get("auto_sync_enabled", True)
-    and not st.session_state.get("_boot_sync_requested")
-    and not _boot_sync_snap.get("running")
-    and not float(_boot_sync_snap.get("finished_at") or 0)
-):
-    st.session_state["_boot_sync_requested"] = True
-    try:
-        trigger_manual_sync_async()
-    except Exception:
-        pass
 
 
 # PHASE 1: Render inline sync status bar
