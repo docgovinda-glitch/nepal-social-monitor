@@ -3062,7 +3062,8 @@ _DARK_CSS_BODY = """
     /* Login */
     div[data-testid="stForm"] { background: #1C1C1E !important; }
     .auth-header__icon-ring { background: rgba(77, 163, 255, 0.18) !important; }
-    .auth-header__icon-ring svg path { fill: #7DBBFF !important; }
+    .auth-header__icon-ring { color: #7DBBFF !important; }
+    .auth-header__icon-ring svg path { fill: none !important; stroke: currentColor !important; }
     .auth-header__title { color: #F5F5F7 !important; }
     .auth-header__subtitle, .auth-footer { color: #A1A1AA !important; }
     div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] { background: #0A84FF !important; color: #FFFFFF !important; border: none !important; }
@@ -3189,3 +3190,35 @@ _POLISH2_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _POLISH2_CSS)
 FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _POLISH2_CSS)
+
+
+_NAV_ICONS_CSS = """
+    /* ===== Workspace icons: Nepal peaks, India chakra, X logo, Health pulse (drawn as masks over the Material placeholder) ===== */
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(1):not(#z) [data-testid="stIconMaterial"],
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(2):not(#z) [data-testid="stIconMaterial"],
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(3):not(#z) [data-testid="stIconMaterial"],
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(4):not(#z) [data-testid="stIconMaterial"],
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(6):not(#z) [data-testid="stIconMaterial"] {
+        display: inline-block !important; font-size: 0 !important; width: 18px !important; min-width: 18px !important; max-width: none !important; flex: 0 0 auto !important; height: 18px !important; background: currentColor !important;
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;
+    }
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(1):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z%22/%3E%3Cpath d=%22M17 9h3v9a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h3%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z%22/%3E%3Cpath d=%22M17 9h3v9a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h3%22/%3E%3C/svg%3E"); }
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(2):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M2 19 8.5 7 13 15l2.5-4L22 19z%22/%3E%3Cpath d=%22m7 10 1.5 1.5L10 10%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M2 19 8.5 7 13 15l2.5-4L22 19z%22/%3E%3Cpath d=%22m7 10 1.5 1.5L10 10%22/%3E%3C/svg%3E"); }
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(3):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22/%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%221.6%22/%3E%3Cpath d=%22M12 3v7.4M12 13.6V21M3 12h7.4M13.6 12H21M5.6 5.6l5.2 5.2M13.2 13.2l5.2 5.2M18.4 5.6l-5.2 5.2M10.8 13.2l-5.2 5.2%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22/%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%221.6%22/%3E%3Cpath d=%22M12 3v7.4M12 13.6V21M3 12h7.4M13.6 12H21M5.6 5.6l5.2 5.2M13.2 13.2l5.2 5.2M18.4 5.6l-5.2 5.2M10.8 13.2l-5.2 5.2%22/%3E%3C/svg%3E"); }
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(4):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22black%22%3E%3Cpath d=%22M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22black%22%3E%3Cpath d=%22M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z%22/%3E%3C/svg%3E"); }
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(6):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M3 12h4l3-8 4 16 3-8h4%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M3 12h4l3-8 4 16 3-8h4%22/%3E%3C/svg%3E"); }
+    @media (max-width: 640px) {
+        .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(1):not(#z) [data-testid="stIconMaterial"],
+    .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(2):not(#z) [data-testid="stIconMaterial"],
+        .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(3):not(#z) [data-testid="stIconMaterial"],
+        .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(4):not(#z) [data-testid="stIconMaterial"],
+        .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(6):not(#z) [data-testid="stIconMaterial"] { width: 24px !important; min-width: 24px !important; height: 24px !important; }
+        /* Stop sideways drift of the whole page on phones */
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main { overflow-x: hidden !important; max-width: 100vw; }
+    }
+    /* Login logo: line icon in the accent colour */
+    .auth-header__icon-ring { color: #0066CC; }
+    .auth-header__icon-ring svg path { fill: none !important; stroke: currentColor !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _NAV_ICONS_CSS)
+AUTH_CSS = _append_css(AUTH_CSS, _NAV_ICONS_CSS)

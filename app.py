@@ -162,8 +162,8 @@ def check_password() -> bool:
             st.markdown("""
             <div class="auth-header">
                 <div class="auth-header__icon-ring">
-                    <svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M18 4L14.5 18.5H8L16 32L19.5 17.5H26L18 4Z" fill="white" fill-opacity="0.95"/>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z"/><path d="M17 9h3v9a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h3"/>
                     </svg>
                 </div>
                 <h1 class="auth-header__title">Media Monitor</h1>
@@ -3236,10 +3236,10 @@ _ws_counts = {
 }
 
 _WS_TAB_META = {
-    "Live Feed": (":material/bolt:", "Live"),
-    "Nepali Media": (":material/newspaper:", "Nepal"),
+    "Live Feed": (":material/newspaper:", "Live"),
+    "Nepali Media": (":material/landscape:", "Nepal"),
     "Indian Press": (":material/public:", "India"),
-    "X": ("𝕏", ""),
+    "X": (":material/tag:", "X"),
     "Analytics & Export": (":material/ios_share:", "Export"),
     "System Health": (":material/monitor_heart:", "Health"),
 }
@@ -3261,7 +3261,7 @@ _nav_brand, _nav_theme, _nav_tabs = st.columns([1.75, 0.9, 4.35], gap="small", v
 with _nav_brand:
     st.markdown(
         f'<div class="editorial-brand-anchor" style="display:flex;align-items:center;gap:8px;height:36px;margin:0;padding:0;white-space:nowrap;">'
-        f'<span class="brand-tile">{_ico("bolt", 14)}</span>'
+        f'<span class="brand-tile">{_ico("news", 15)}</span>'
         f'<span class="brand-name">Media Monitor</span>'
         f'<span class="live-status-inline" style="background:#E8F5EC;color:#15803D;padding:2px 7px;border-radius:999px;font-size:0.62rem;font-weight:700;letter-spacing:0.06em;" title="Synced {html.escape(st.session_state["last_sync_npt"])} NPT · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts"><span class="live-pill__dot" style="width:5px;height:5px;"></span>Live</span>'
         f'</div>',
