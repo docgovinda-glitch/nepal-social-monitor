@@ -193,6 +193,29 @@ from apple_theme import APPLE_DESIGN_SYSTEM_CSS, FEED_CARD_CSS
 
 st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
 
+_ICON_PATHS = {
+    "search": '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    "clock": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "bolt": '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+    "globe": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    "news": '<path d="M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z"/><path d="M17 9h3v9a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h3"/>',
+    "rss": '<path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+    "list": '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+    "chart": '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    "check": '<path d="M20 6 9 17l-5-5"/>',
+    "alert": '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+    "tag": '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1"/>',
+}
+_EMOJI_TO_ICON = {"📰": "news", "🌐": "globe", "🔍": "search", "📊": "chart", "📋": "list", "🕒": "clock", "⚡": "bolt", "📡": "rss"}
+
+
+def _ico(name: str, size: int = 13) -> str:
+    path = _ICON_PATHS.get(name, "")
+    return (
+        f'<svg class="ico" width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{path}</svg>'
+    )
+
 from nepal_config import (
     NEPAL_TZ,
     DEFAULT_NEPAL_RELEVANCE_THRESHOLD,
@@ -875,8 +898,9 @@ def render_page_header(title: str, subtitle: str = "", show_window: bool = False
     )
 
 def render_empty_state(icon: str, title: str, body: str) -> None:
+    glyph = _ico(_EMOJI_TO_ICON[icon], 26) if icon in _EMOJI_TO_ICON else icon
     st.markdown(
-        f'<div class="empty-state"><div class="empty-state__icon">{icon}</div>'
+        f'<div class="empty-state"><div class="empty-state__icon">{glyph}</div>'
         f'<p class="empty-state__title">{html.escape(title)}</p><p class="empty-state__body">{html.escape(body)}</p></div>',
         unsafe_allow_html=True,
     )
@@ -2400,7 +2424,7 @@ def _build_card_wrapper_html(
         btns.append(
             f'<a class="feed-btn" href="{html.escape(item_link, quote=True)}" target="_blank" rel="noopener noreferrer" '
             f'aria-label="Open original source" title="Open original publisher article">'
-            f'<span class="feed-btn__label">Original</span><span aria-hidden="true">↗</span></a>'
+            f'<span class="feed-btn__label">Original</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>'
         )
     btns.append(
         f'<button type="button" class="feed-btn feed-btn--primary" data-action="share" data-uid="{html.escape(item_uid, quote=True)}" '
@@ -3132,12 +3156,12 @@ _ws_counts = {
 }
 
 _WS_TAB_META = {
-    "Live Feed": ("🌐", "Live"),
-    "Nepali Media": ("🇳🇵", "Nepal"),
-    "Indian Press": ("🇮🇳", "India"),
+    "Live Feed": (":material/bolt:", "Live"),
+    "Nepali Media": (":material/newspaper:", "Nepal"),
+    "Indian Press": (":material/public:", "India"),
     "X": ("𝕏", ""),
-    "Analytics & Export": ("📊", "Export"),
-    "System Health": ("🩺", "Health"),
+    "Analytics & Export": (":material/ios_share:", "Export"),
+    "System Health": (":material/monitor_heart:", "Health"),
 }
 
 
@@ -3160,9 +3184,9 @@ _nav_brand, _nav_tabs = st.columns([2.05, 4.95], gap="small")
 with _nav_brand:
     st.markdown(
         f'<div class="editorial-brand-anchor" style="display:flex;align-items:center;gap:8px;height:36px;margin:0;padding:0;white-space:nowrap;">'
-        f'<span style="font-size:1.08rem;line-height:1;">🇳🇵</span>'
-        f'<span style="font-weight:750;font-size:0.96rem;letter-spacing:-0.025em;color:var(--label);line-height:1;">Nepal Media Monitor</span>'
-        f'<span class="live-status-inline" style="background:#E8F5EC;color:#15803D;padding:2px 7px;border-radius:999px;font-size:0.62rem;font-weight:700;letter-spacing:0.06em;" title="Synced {html.escape(st.session_state["last_sync_npt"])} NPT · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts"><span class="live-pill__dot" style="width:5px;height:5px;"></span>LIVE</span>'
+        f'<span class="brand-tile">{_ico("bolt", 14)}</span>'
+        f'<span class="brand-name">Media Monitor</span>'
+        f'<span class="live-status-inline" style="background:#E8F5EC;color:#15803D;padding:2px 7px;border-radius:999px;font-size:0.62rem;font-weight:700;letter-spacing:0.06em;" title="Synced {html.escape(st.session_state["last_sync_npt"])} NPT · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts"><span class="live-pill__dot" style="width:5px;height:5px;"></span>Live</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -3249,7 +3273,7 @@ def _render_sync_status_bar() -> None:
         fresh = f'<span class="fresh-long">Updated {age}</span><span class="fresh-short">{age}</span>'
     else:
         fresh = "Freshness unknown"
-    pills_html.append(f'<div class="sync-fresh-chip">🕒 {fresh}</div>')
+    pills_html.append(f'<div class="sync-fresh-chip">{_ico("clock", 12)} {fresh}</div>')
 
     st.markdown(f'<div class="sync-status-bar">{"".join(pills_html)}</div>', unsafe_allow_html=True)
 
@@ -3323,7 +3347,7 @@ def _render_phase2_search_sidebar() -> None:
     if _active_sq:
         filter_pills_html.append(
             f'<div class="filter-pill-removable">'
-            f'🔍 {html.escape(_active_sq[:30])}'
+            f'{_ico("search", 12)} {html.escape(_active_sq[:30])}'
             f'<button onclick="window.location.search = \'query=\';" title="Clear search">×</button>'
             f'</div>'
         )
@@ -3429,12 +3453,9 @@ def _render_phase3_onboarding_card() -> None:
         st.markdown(
             f'<div class="onboarding-card">'
             f'<div class="onboarding-card__content">'
-            f'<div class="onboarding-card__title">🎯 Welcome to Media Monitor!</div>'
+            f'<div class="onboarding-card__title">Welcome</div>'
             f'<div class="onboarding-card__steps">'
-            f'<b>Getting started:</b><br>'
-            f'1️⃣ Browse live feeds (Nepali, Indian, X)<br>'
-            f'2️⃣ Search & filter by topic<br>'
-            f'3️⃣ Share to WhatsApp groups'
+            f'Browse · Search · Share'
             f'</div>'
             f'</div>'
             f'</div>',
@@ -3450,7 +3471,7 @@ def _render_phase3_onboarding_card() -> None:
 def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffix: str) -> None:
     """Renders [ 🕒 12h ▾ | 🔍 | 🔄 ] on the right side of Row 2."""
     with col_time:
-        with st.popover(f"🕒 {active_preset}", help=f"Timeframe: {window_label} (Synced {st.session_state['last_sync_npt']} NPT)", width="stretch"):
+        with st.popover(f":material/schedule: {active_preset}", help=f"Timeframe: {window_label} (Synced {st.session_state['last_sync_npt']} NPT)", width="stretch"):
             st.segmented_control(
                 "Timeframe",
                 options=TIMEFRAME_PRESETS,
@@ -3597,7 +3618,7 @@ elif _sync_snap.get("errors"):
 if _active_sq:
     _sq_c1, _sq_c2 = st.columns([5.0, 1.0], gap="small")
     with _sq_c1:
-        st.markdown(f'<div style="padding:2px 0;"><span class="pill pill--tint">🔍 Search: {html.escape(_active_sq)}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="padding:2px 0;"><span class="pill pill--tint">{_ico("search", 12)} {html.escape(_active_sq)}</span></div>', unsafe_allow_html=True)
     with _sq_c2:
         if st.button("Clear search", icon=":material/close:", key="btn_clr_top_search", width="stretch"):
             st.session_state["committed_search_query"] = ""
@@ -3786,7 +3807,7 @@ def render_indian_press_section() -> None:
     ind_audit = _ind_boot.get("audit") or {"total": 0, "substantive": 0, "borderline_review": 0, "excluded": 0}
     borderline_items = _ind_boot.get("borderline_items") or []
 
-    with st.expander(f"⚠️ Flagged Borderline Articles for Editorial Review ({len(borderline_items)})", expanded=False):
+    with st.expander(f":material/flag: Review queue · {len(borderline_items)}", expanded=False):
         st.caption(
             "Borderline articles (scoring between 40% and the active relevance threshold) and excluded domestic Indian articles are retained in the central database (`indian_media_articles`) without cluttering the main feed."
         )
@@ -3802,7 +3823,7 @@ def render_indian_press_section() -> None:
         else:
             st.success("No borderline articles currently pending editorial review.")
 
-    with st.expander("⚡ Dedicated Nepal Desks in Indian Media", expanded=False):
+    with st.expander(":material/bolt: Nepal desks", expanded=False):
         q1, q2, q3, q4 = st.columns(4)
         q1.link_button("The Indian Express ↗", "https://indianexpress.com/about/nepal/", width="stretch")
         q2.link_button("The Hindu ↗", "https://www.thehindu.com/news/international/", width="stretch")
@@ -3939,26 +3960,26 @@ def render_x_section() -> None:
             prefetched_init=_x_boot,
         )
 
-        with st.expander("⚡ Live X Searches by Editorial Category", expanded=False):
+        with st.expander(":material/search: Live X searches", expanded=False):
             clean_q = search_query.strip() if search_query else ""
             x_cat_searches = [
-                ("🇮🇳 India Section ↗", '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "#NepalIndia")'),
-                ("🇨🇳 China Section ↗", '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "#NepalChina")'),
-                ("🇧🇩 Bangladesh Section ↗", '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy")'),
-                ("🇵🇰 Pakistan Section ↗", '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC")'),
-                ("🇳🇵 Nepal – Internal ↗", '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्")'),
-                ("🌐 Nepal – External ↗", '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र")'),
-                ("📈 Nepal – Economy ↗", '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र")'),
-                ("📌 Nepal – Others ↗", '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "संस्कृति")'),
-                ("🌍 International News ↗", '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "BRICS")'),
+                ("India", "🇮🇳", '("Nepal" OR "नेपाल" OR "India" OR "भारत") AND ("Modi" OR "border" OR "trade" OR "#NepalIndia")'),
+                ("China", "🇨🇳", '("Nepal" OR "नेपाल" OR "China" OR "चीन") AND ("Beijing" OR "BRI" OR "Pokhara" OR "#NepalChina")'),
+                ("Bangladesh", "🇧🇩", '("Nepal" OR "नेपाल" OR "Bangladesh" OR "बंगलादेश") AND ("Dhaka" OR "Yunus" OR "energy")'),
+                ("Pakistan", "🇵🇰", '("Nepal" OR "नेपाल" OR "Pakistan" OR "पाकिस्तान") AND ("Islamabad" OR "SAARC")'),
+                ("Internal", "🇳🇵", '("Nepal" OR "नेपाल") AND ("politics" OR "Oli" OR "Deuba" OR "Prachanda" OR "Balen" OR "संसद्")'),
+                ("External", ":material/public:", '("Nepal" OR "नेपाल") AND ("diplomacy" OR "ambassador" OR "UN" OR "USAID" OR "MCC" OR "परराष्ट्र")'),
+                ("Economy", ":material/trending_up:", '("Nepal" OR "नेपाल") AND ("economy" OR "NRB" OR "remittance" OR "inflation" OR "budget" OR "अर्थतन्त्र")'),
+                ("Others", ":material/push_pin:", '("Nepal" OR "नेपाल") AND ("cricket" OR "cinema" OR "weather" OR "Everest" OR "संस्कृति")'),
+                ("International", ":material/language:", '("geopolitics" OR "conflict" OR "diplomacy" OR "summit" OR "Ukraine" OR "Gaza" OR "BRICS")'),
             ]
             for row_idx in range(0, len(x_cat_searches), 3):
                 cols = st.columns(3)
-                for col_idx, (label, query_str) in enumerate(x_cat_searches[row_idx:row_idx + 3]):
+                for col_idx, (label, label_icon, query_str) in enumerate(x_cat_searches[row_idx:row_idx + 3]):
                     with cols[col_idx]:
                         full_q = f"({clean_q}) AND {query_str}" if clean_q else query_str
                         x_url = f"https://x.com/search?q={urllib.parse.quote_plus(full_q)}&f=live"
-                        st.link_button(label, x_url, width="stretch")
+                        st.link_button(label, x_url, icon=label_icon, width="stretch")
 
     # -------------------------------------------------------------
     # SUBVIEW 2: MONITORED DIRECTORY (200+ ACCOUNTS)
@@ -4078,7 +4099,9 @@ def render_x_section() -> None:
             ])
             csv_bytes = export_df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                "📥 Export Directory (CSV)",
+                "CSV",
+                icon=":material/download:",
+                help="Export directory as CSV",
                 data=csv_bytes,
                 file_name=f"nepal_x_monitored_accounts_{datetime.datetime.now(NEPAL_TZ).strftime('%Y%m%d')}.csv",
                 mime="text/csv",
@@ -4161,9 +4184,9 @@ def render_x_section() -> None:
         """, unsafe_allow_html=True)
 
         admin_tab1, admin_tab2, admin_tab3 = st.tabs([
-            "➕ Onboard New Account",
-            f"⏳ Review Pending Candidates ({pending_acc_count})",
-            "🛡️ Batch Network Reachability Audit"
+            ":material/person_add: Onboard",
+            f":material/hourglass_top: Pending · {pending_acc_count}",
+            ":material/shield: Audit"
         ])
 
         with admin_tab1:
@@ -4405,7 +4428,7 @@ elif selected_nav == "Analytics & Export":
 
     selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
     st.markdown(
-        f'<div class="counter-badge" style="margin-bottom:8px;">📋 <b>{len(selected_export_items)} of {len(filtered_export_items)}</b> selected for Executive Word Document</div>',
+        f'<div class="counter-badge" style="margin-bottom:8px;">{_ico("list", 13)} <b>{len(selected_export_items)} / {len(filtered_export_items)}</b> selected</div>',
         unsafe_allow_html=True,
     )
 
@@ -4625,8 +4648,8 @@ def render_system_health_section() -> None:
     _n_portals = len(TOP_NEPAL_NEWS_PORTALS)
     _all_portals_lbl = f"All {_n_portals} Portals"
     with ctrl_col1:
-        st.markdown("##### ⚡ Live Ingestion Controls")
-        if st.button(f"Trigger Ingestion ({_all_portals_lbl})", icon=":material/refresh:", width="stretch", key="btn_trigger_all_ingest"):
+        st.markdown("##### Ingestion")
+        if st.button(f"Ingest all · {_n_portals}", icon=":material/refresh:", width="stretch", key="btn_trigger_all_ingest"):
             with st.spinner(f"Executing parallel discovery across all {_n_portals} Nepali news portals…"):
                 from nepal_news_scheduler import run_all_sources_discovery
                 sync_res = run_all_sources_discovery(parallel_workers=20, force_all=True)
@@ -4634,17 +4657,17 @@ def render_system_health_section() -> None:
                 st.success(f"✓ Checked {sync_res['total_checked']} portals · Ingested {sync_res['total_ingested']} fresh articles.")
                 time.sleep(1)
                 st.rerun()
-        st.caption("Background daemon continuously polls portals based on configured tiers.")
+        st.caption("Auto-polled by tier.")
 
     with ctrl_col2:
-        st.markdown("##### ⏪ Historical Backfill & Archive Recovery")
-        with st.expander("Configure Historical Backfill", expanded=False):
+        st.markdown("##### Backfill")
+        with st.expander(":material/history: Backfill", expanded=False):
             st.caption("Inspect past days' archives, category pagination, and XML sitemaps:")
             bf_days = st.select_slider("Backfill Time Horizon:", options=[1, 3, 5, 7, 14], value=3, format_func=lambda x: f"Past {x} Days")
             portal_options = [_all_portals_lbl] + NEPALI_PORTAL_NAMES
             bf_targets = st.multiselect("Select Target Portals:", portal_options, default=[_all_portals_lbl])
 
-            if st.button("Start Historical Backfill", icon=":material/history:", width="stretch", key="btn_exec_backfill"):
+            if st.button("Start", icon=":material/history:", width="stretch", key="btn_exec_backfill"):
                 targets = None if _all_portals_lbl in bf_targets else bf_targets
                 with st.spinner(f"Initiating deep backfill for {len(targets) if targets else _n_portals} portals across the past {bf_days} days…"):
                     from nepal_news_scheduler import run_historical_backfill
@@ -4655,7 +4678,7 @@ def render_system_health_section() -> None:
                     st.rerun()
 
     st.write("")
-    st.markdown(f"##### 🇮🇳 Indian Press Source Health ({len(TOP_INDIAN_MEDIA_SOURCES)} Outlets)")
+    st.markdown(f"##### Indian press · {len(TOP_INDIAN_MEDIA_SOURCES)} outlets")
     ind_health_rows = _get_cached_indian_source_health()
     ind_by_name = {r.get("source_name"): r for r in ind_health_rows if r.get("source_name")}
     ind_merged = []
@@ -4700,7 +4723,7 @@ def render_system_health_section() -> None:
     ik4.metric("Substantive (7d)", f"{ind_7d_tot}")
     with ik_btn:
         st.write("")
-        if st.button(f"Refresh Indian ({len(TOP_INDIAN_MEDIA_SOURCES)})", icon=":material/refresh:", width="stretch", key="btn_trigger_indian_health"):
+        if st.button("Refresh", icon=":material/refresh:", help=f"Re-scan {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets", width="stretch", key="btn_trigger_indian_health"):
             with st.spinner(f"Running precision discovery across {len(TOP_INDIAN_MEDIA_SOURCES)} Indian outlets…"):
                 from nepal_fetcher import fetch_nepal_in_indian_media
                 ind_cands = fetch_nepal_in_indian_media(max_workers=16, force_refresh=True, return_all_stored=False)
@@ -4744,7 +4767,7 @@ def render_system_health_section() -> None:
     )
 
     st.write("")
-    st.markdown("##### 📋 Monitored Nepali Media Source Registry")
+    st.markdown("##### Nepali sources")
 
     sh_c1, sh_c2, sh_c3, sh_c4 = st.columns([1.4, 1.2, 1.1, 1.1], gap="small")
     with sh_c1:
@@ -4824,7 +4847,7 @@ def render_system_health_section() -> None:
         latest_title = src.get("latest_article_title") or "No article recorded yet"
         latest_link = src.get("latest_article_link") or src.get("url") or "#"
         latest_pub = src.get("latest_article_pub_dt") or ""
-        boost_pill_html = f'<span class="pill">⚡ X-Boost @{html.escape(s_boost_h)}</span>' if s_boost_h else ""
+        boost_pill_html = f'<span class="pill">{_ico("bolt", 11)} @{html.escape(s_boost_h)}</span>' if s_boost_h else ""
 
         st.markdown(f"""
         <div class="health-card {card_accent}">
@@ -4832,10 +4855,10 @@ def render_system_health_section() -> None:
                 <div class="health-card__title">
                     <span class="health-card__name">{html.escape(s_name)}</span>
                     <span class="status-pill {status_cls}">● {status_txt}</span>
-                    <span class="pill">⏱ Every {s_interval}m ({s_priority})</span>
-                    <span class="pill">📡 {s_type}</span>
+                    <span class="pill">{_ico("clock", 11)} {s_interval}m · {s_priority}</span>
+                    <span class="pill">{_ico("rss", 11)} {s_type}</span>
                     {boost_pill_html}
-                    <span class="pill">🌐 {s_lang}</span>
+                    <span class="pill">{_ico("globe", 11)} {s_lang}</span>
                 </div>
                 <div class="health-card__meta">
                     Last Polled: <b>{html.escape(str(last_disc)[:19])}</b> · Latency: <b>{lat}s</b>
@@ -4854,7 +4877,7 @@ def render_system_health_section() -> None:
 
         sc1, sc2, sc3, sc4 = st.columns([1.5, 1.5, 1.5, 1.5])
         with sc1:
-            if st.button(f"Refresh {s_name}", icon=":material/refresh:", key=f"btn_ref_src_{s_name}_{s_idx}", width="stretch"):
+            if st.button("Refresh", icon=":material/refresh:", help=f"Refresh {s_name}", key=f"btn_ref_src_{s_name}_{s_idx}", width="stretch"):
                 with st.spinner(f"Ingesting latest feeds from {s_name}…"):
                     from nepal_news_scheduler import run_single_source_discovery
                     portal_cfg = next((p for p in TOP_NEPAL_NEWS_PORTALS if p["name"] == s_name), None)
@@ -4876,7 +4899,7 @@ def render_system_health_section() -> None:
                 set_source_interval(s_name, new_int)
                 st.rerun()
         with sc3:
-            toggle_label = "Disable Source" if s_enabled else "Enable Source"
+            toggle_label = "Disable" if s_enabled else "Enable"
             toggle_icon = ":material/cancel:" if s_enabled else ":material/check_circle:"
             if st.button(toggle_label, icon=toggle_icon, key=f"btn_tog_en_{s_name}_{s_idx}", width="stretch"):
                 set_source_enabled(s_name, not s_enabled)
@@ -4888,7 +4911,7 @@ def render_system_health_section() -> None:
             else:
                 st.caption("✓ Zero active errors")
 
-    with st.expander("🔍 Coverage Diagnostics & Anomaly Detection", expanded=False):
+    with st.expander(":material/troubleshoot: Diagnostics", expanded=False):
         low_coverage_sources = [
             h for h in health_data 
             if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and (h.get("count_7d", 0) == 0 or h.get("status") in ["failing", "degraded"])

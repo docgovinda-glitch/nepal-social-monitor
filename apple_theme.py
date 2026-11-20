@@ -2749,3 +2749,77 @@ _AUTH_LIGHT_CSS = """
     div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:active { background: #0058B0 !important; filter: none !important; box-shadow: none !important; }
 """
 AUTH_CSS = _append_css(AUTH_CSS, _AUTH_LIGHT_CSS)
+
+
+_APPLE_POLISH_CSS = """
+    /* ===== Apple-grade polish: neutral greys, flat fills, hairlines, one blue ===== */
+    :root {
+        --bg: #F5F5F7; --surface: #FFFFFF; --surface-muted: #F5F5F7;
+        --label: #1D1D1F; --label-2: #424245; --label-3: #6E6E73;
+        --separator: rgba(0, 0, 0, 0.08); --separator-strong: rgba(0, 0, 0, 0.14);
+        --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.06);
+        --fill: rgba(0, 0, 0, 0.045); --fill-hover: rgba(0, 0, 0, 0.07);
+    }
+    [data-testid="stAppViewContainer"], .main { background-color: #F5F5F7 !important; }
+    .ico { vertical-align: -2px; flex-shrink: 0; }
+
+    /* Brand */
+    .brand-tile { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; background: var(--tint-soft); color: var(--tint); flex-shrink: 0; }
+    .brand-name { font-weight: 650; font-size: 0.95rem; letter-spacing: -0.02em; color: var(--label); line-height: 1; }
+    .live-status-inline { text-transform: none !important; letter-spacing: 0.01em !important; font-weight: 600 !important; }
+
+    /* Status bar: white hairline instead of tinted gradient */
+    .sync-status-bar { background: #FFFFFF; border: 1px solid var(--separator); border-radius: 12px; }
+    .sync-status-pill--idle { background: var(--fill); }
+    .sync-status-pill .ico, .pill .ico, .sync-fresh-chip .ico, .filter-pill-removable .ico, .counter-badge .ico { margin-right: 1px; }
+
+    /* Inputs, selects, popovers, secondary buttons: soft fill, no outline */
+    div[data-testid="stSelectbox"] div:has(> input),
+    div[data-testid="stTextInput"]:not(div[data-testid="stForm"] *) div[data-baseweb="input"],
+    div[data-baseweb="input"] > div:first-child,
+    div[data-baseweb="select"] > div:first-child {
+        background-color: var(--fill) !important; border: 1px solid transparent !important;
+        box-shadow: none !important; border-radius: 10px !important;
+        min-height: 36px !important; height: 36px !important; max-height: 36px !important;
+    }
+    div[data-testid="stSelectbox"] div:has(> input):hover,
+    div[data-baseweb="select"] > div:first-child:hover { background-color: var(--fill-hover) !important; border-color: transparent !important; }
+    [data-testid="stPopover"] > button, [data-testid="stPopover"] > div > button,
+    .stButton > button[kind="secondary"], div[data-testid="stDownloadButton"] > button, div[data-testid="stLinkButton"] > a {
+        background: var(--fill) !important; border: 1px solid transparent !important; box-shadow: none !important;
+        border-radius: 10px !important; min-height: 36px !important; height: 36px !important; color: var(--label) !important;
+    }
+    [data-testid="stPopover"] > button:hover, [data-testid="stPopover"] > div > button:hover,
+    .stButton > button[kind="secondary"]:hover, div[data-testid="stDownloadButton"] > button:hover, div[data-testid="stLinkButton"] > a:hover {
+        background: var(--fill-hover) !important; border-color: transparent !important; box-shadow: none !important;
+    }
+    .stButton > button[kind="primary"] { background: #0066CC !important; border: none !important; box-shadow: none !important; border-radius: 10px !important; }
+    .stButton > button[kind="primary"]:hover { background: #0071E3 !important; }
+    .stButton > button:focus-visible, [data-testid="stPopover"] button:focus-visible { outline: 2px solid rgba(0, 102, 204, 0.5) !important; outline-offset: 2px !important; }
+
+    /* Cards, metrics, expanders: white surface, hairline, light shadow */
+    div[data-testid="stMetric"], div[data-testid="stExpander"], div[data-testid="stForm"], .health-card, .acct-card-rich {
+        border: 1px solid var(--separator) !important; border-radius: 14px !important; box-shadow: var(--shadow-1) !important; background: #FFFFFF !important;
+    }
+    div[data-testid="stExpander"] summary { font-weight: 600; font-size: 0.88rem; }
+    div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] * { color: var(--label-3) !important; font-weight: 500 !important; font-size: 0.74rem !important; }
+
+    /* Tabs: quiet underline in the one blue */
+    div[data-testid="stTabs"] button[role="tab"] { font-size: 0.86rem; font-weight: 600; color: var(--label-3); }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { color: var(--tint); }
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background-color: var(--tint) !important; }
+    div[data-testid="stTabs"] [data-baseweb="tab-border"] { background-color: var(--separator) !important; }
+
+    /* Empty state: line icon in a soft tile */
+    .empty-state__icon { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 16px; background: var(--fill); color: var(--label-3); font-size: 1.5rem; margin-bottom: 8px; }
+    .empty-state__title { font-weight: 650; color: var(--label); }
+    .empty-state__body { color: var(--label-3); font-size: 0.84rem; }
+
+    /* Headings: quieter, tighter */
+    h5, .stMarkdown h5 { font-size: 0.8rem !important; font-weight: 650 !important; letter-spacing: 0.02em !important; text-transform: none; color: var(--label-3) !important; margin-bottom: 6px !important; }
+    .onboarding-card__title { font-weight: 650; }
+    .stCaption, div[data-testid="stCaptionContainer"] { color: var(--label-3) !important; font-size: 0.76rem !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _APPLE_POLISH_CSS)
+FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _APPLE_POLISH_CSS)
