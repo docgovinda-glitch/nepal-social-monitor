@@ -1,3 +1,13 @@
+---
+title: Nepal Media Monitor Backend
+emoji: 🇳🇵
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🇳🇵 Nepal Media & Geo-Political Trends Monitor
 
 A real-time monitoring and classification tool designed to track:
