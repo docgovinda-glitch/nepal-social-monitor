@@ -475,6 +475,20 @@ _PHASE1_ENHANCEMENTS_CSS = """
     .sync-status-pill--idle {
         background: #F1F5F9; color: #64748B;
     }
+    .sync-status-pill--waiting {
+        color: #64748B;
+        background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+        background-size: 200% 100%;
+        animation: sync-shimmer 1.8s ease-in-out infinite;
+    }
+    @keyframes sync-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    .sync-fresh-chip {
+        margin-left: auto; font-size: 0.7rem; font-weight: 600;
+        color: #64748B; white-space: nowrap;
+    }
     .sync-status-pill--running {
         background: #FEF3C7; color: #B45309;
         animation: pulse-bg 1.5s ease-in-out infinite;

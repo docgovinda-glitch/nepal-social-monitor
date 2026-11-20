@@ -3173,39 +3173,66 @@ with _nav_tabs:
     )
 
 
+def _format_sync_age(finished_at: float) -> str:
+    age = max(0, int(time.time() - finished_at))
+    if age < 45:
+        return "just now"
+    if age < 3600:
+        return f"{max(1, age // 60)}m ago"
+    if age < 86400:
+        return f"{age // 3600}h ago"
+    return f"{age // 86400}d ago"
+
+
 @st.fragment(run_every=2)
 def _render_sync_status_bar() -> None:
-    """PHASE 1: Inline sync status bar with real-time stream updates."""
-    _sync_snap = get_manual_sync_status()
-    pipes = _sync_snap.get("pipes", {})
+    """Inline sync status bar: per-stream pills plus a data-freshness chip."""
+    snap = get_manual_sync_status()
+    pipes = snap.get("pipelines") or {}
+    running = bool(snap.get("running"))
+    finished_at = float(snap.get("finished_at") or 0)
 
-    # Build status pills for each stream
     pills_html = []
-    for stream_key, stream_label, stream_emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
-        pipe = pipes.get(stream_key, {})
+    for key, label, emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
+        pipe = pipes.get(key) or {}
         status = pipe.get("status", "idle")
-        count = int(pipe.get("count", 0))
-        elapsed = pipe.get("elapsed_secs", 0)
-
         if status == "running":
-            status_class = "sync-status-pill--running"
-            content = f'<span class="sync-spinner"></span> Syncing…'
+            cls, content = "sync-status-pill--running", '<span class="sync-spinner"></span> Syncing…'
         elif status == "done":
-            status_class = "sync-status-pill--done"
-            content = f'✓ {count} ({elapsed}s)'
+            cls, content = "sync-status-pill--done", f'✓ {int(pipe.get("count", 0))} new'
         elif status in ("error", "timeout"):
-            status_class = "sync-status-pill--error"
-            content = f'⚠️ {status}'
+            cls, content = "sync-status-pill--error", f"⚠️ {html.escape(str(status))}"
+        elif running:
+            cls, content = "sync-status-pill--waiting", "Queued…"
+        elif finished_at:
+            cls, content = "sync-status-pill--idle", "Up to date"
         else:
-            status_class = "sync-status-pill--idle"
-            content = "Pending"
+            cls, content = "sync-status-pill--waiting", "Starting…"
+        pills_html.append(f'<div class="sync-status-pill {cls}">{emoji} {label}: {content}</div>')
 
-        pills_html.append(f'<div class="sync-status-pill {status_class}">{stream_emoji} {stream_label}: {content}</div>')
+    if running:
+        fresh = "Refreshing live feeds…"
+    elif finished_at:
+        fresh = f"Updated {_format_sync_age(finished_at)}"
+    else:
+        fresh = "Showing stored data"
+    pills_html.append(f'<div class="sync-fresh-chip">🕒 {fresh}</div>')
 
-    st.markdown(
-        f'<div class="sync-status-bar">{"".join(pills_html)}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="sync-status-bar">{"".join(pills_html)}</div>', unsafe_allow_html=True)
+
+
+_boot_sync_snap = get_manual_sync_status()
+if (
+    st.session_state.get("auto_sync_enabled", True)
+    and not st.session_state.get("_boot_sync_requested")
+    and not _boot_sync_snap.get("running")
+    and not float(_boot_sync_snap.get("finished_at") or 0)
+):
+    st.session_state["_boot_sync_requested"] = True
+    try:
+        trigger_manual_sync_async()
+    except Exception:
+        pass
 
 
 # PHASE 1: Render inline sync status bar
