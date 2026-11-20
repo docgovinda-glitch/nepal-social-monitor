@@ -49,6 +49,10 @@ jobs:
         env:
           SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_POOLER_HOST: ${{ secrets.SUPABASE_POOLER_HOST }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           ENABLE_LOCAL_TRANSLATION_FALLBACK: "true"
           TRANSLATION_CACHE_DIR: ${{ github.workspace }}/.cache/translation_cache
           GREEN_API_URL: ${{ secrets.GREEN_API_URL }}

@@ -20,7 +20,7 @@ import collections
 import re
 import html
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import requests
 import feedparser
 from bs4 import BeautifulSoup
