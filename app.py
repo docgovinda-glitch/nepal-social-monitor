@@ -103,13 +103,25 @@ st.markdown(
 # AUTHENTICATION GATEWAY (PASSWORD PROTECTION)
 # ==========================================
 def _get_app_password() -> str:
-    pwd = (os.getenv("APP_PASSWORD") or "").strip()
-    if not pwd:
-        try:
-            pwd = str(st.secrets.get("APP_PASSWORD", "")).strip()
-        except Exception:
-            pwd = ""
-    return pwd
+    if "APP_PASSWORD" in os.environ:
+        val = (os.environ.get("APP_PASSWORD") or "").strip()
+        if val or os.environ.get("APP_PASSWORD") == "":
+            return val
+    try:
+        if hasattr(st, "secrets") and "APP_PASSWORD" in st.secrets:
+            s_val = str(st.secrets.get("APP_PASSWORD", "")).strip()
+            if s_val:
+                return s_val
+    except Exception:
+        pass
+    try:
+        from nepal_news_store import _load_local_config_fast
+        cfg_val = (_load_local_config_fast().get("APP_PASSWORD") or "").strip()
+        if cfg_val:
+            return cfg_val
+    except Exception:
+        pass
+    return ""
 
 APP_PASSWORD = _get_app_password()
 
