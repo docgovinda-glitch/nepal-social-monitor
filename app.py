@@ -1096,6 +1096,24 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
     )
 
 
+def _wa_dest_from_state(targets: List[Dict[str, Any]], key: str) -> str:
+    names = [t["name"] for t in targets]
+    cur = st.session_state.get(key)
+    return cur if cur in names else names[0]
+
+
+def _render_wa_group_chip(targets: List[Dict[str, Any]], key: str, uid: str) -> None:
+    """Compact WhatsApp group picker: a short-name chip that opens a list of groups."""
+    names = [t["name"] for t in targets]
+    cur = _wa_dest_from_state(targets, key)
+    if st.session_state.get(key) != cur:
+        st.session_state[key] = cur
+    _w = cur.split()
+    short = " ".join(_w[:2]) if len(" ".join(_w[:2])) <= 12 else _w[0]
+    with st.popover(f":material/chat: {short}", help=cur, key=f"wa_pop_{uid}", width="stretch"):
+        st.radio("WhatsApp group", names, key=key, label_visibility="collapsed")
+
+
 def _compute_item_uid(item: Dict[str, Any], prefix: str) -> str:
     raw_key = f"{prefix}|{item.get('canonical_id') or item.get('id') or item.get('link') or item.get('title') or ''}"
     return hashlib.md5(raw_key.encode("utf-8", errors="ignore")).hexdigest()[:12]
@@ -1296,9 +1314,9 @@ def _render_read_send_fragment(
     persisted_sent = _get_wa_sent_map().get(cache_id)
     is_sent = cache_id in sent_ids or bool(persisted_sent)
 
-    btn_label = "Sent ✓" if is_sent else f"Send to {dest_name}"
+    btn_label = "Sent" if is_sent else "Send"
     btn_icon = ":material/check:" if is_sent else ":material/send:"
-    btn_help = f"Already sent to {dest_name}" if is_sent else f"Confirm to Send: send latest saved translation (v{ver}) to {dest_name}"
+    btn_help = f"Already sent to {dest_name}" if is_sent else f"Send to {dest_name}: latest saved translation (v{ver}) to {dest_name}"
 
     send_clicked = st.button(
         btn_label,
@@ -1696,16 +1714,7 @@ def _show_read_in_app_dialog() -> None:
         has_tr_btn = needs_tr or has_tr
 
         if is_english_mode and len(_wa_targets) > 1:
-            _cur_target = st.session_state.get(_wa_grp_key) or _wa_targets[0]["name"]
-            dest_name = st.segmented_control(
-                "Destination WhatsApp Group",
-                options=[t["name"] for t in _wa_targets],
-                default=_cur_target,
-                key=_wa_grp_key,
-                label_visibility="collapsed",
-            )
-            if not dest_name:
-                dest_name = _wa_targets[0]["name"]
+            dest_name = _wa_dest_from_state(_wa_targets, _wa_grp_key)
             selected_gid = _target_by_name[dest_name]
 
         copy_body = "\n\n".join(body_paras) if body_paras else (shown_text or "").strip()
@@ -1717,64 +1726,63 @@ def _show_read_in_app_dialog() -> None:
         )
 
         if is_english_mode:
-            cols = st.columns(
-                [1.25, 0.8, 0.95, 1.1, 1.1, 2.6] if has_tr_btn else [0.8, 0.95, 1.1, 1.1, 2.6],
-                vertical_alignment="center",
-                gap="small",
-            )
-            ci = 0
-            if has_tr_btn:
+            _multi_wa = len(_wa_targets) > 1
+            _spec = ([1.25] if has_tr_btn else []) + [0.8, 0.95, 1.1] + ([1.1] if has_unsaved else []) + ([3] if _multi_wa else [])
+            with st.container(key=f"wa_actions_{item_uid}"):
+                cols = st.columns(_spec, vertical_alignment="center", gap="small")
+                ci = 0
+                if has_tr_btn:
+                    with cols[ci]:
+                        st.button(
+                            "Original",
+                            help="Switch between original and English",
+                            icon=":material/swap_horiz:",
+                            type="secondary",
+                            key=f"dlg_ft_tog_{item_uid}",
+                            on_click=_on_toggle_read_view,
+                            args=(cache_id,),
+                            width="stretch",
+                        )
+                    ci += 1
                 with cols[ci]:
+                    _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}", icon_only=False)
+                with cols[ci + 1]:
                     st.button(
-                        "Original",
-                        help="Switch between original and English",
-                        icon=":material/swap_horiz:",
-                        type="secondary",
-                        key=f"dlg_ft_tog_{item_uid}",
-                        on_click=_on_toggle_read_view,
+                        "Edit",
+                        icon=":material/edit:",
+                        key=f"dlg_rd_edit_{item_uid}",
+                        help="Edit translation",
+                        on_click=_on_read_enter_edit,
                         args=(cache_id,),
                         width="stretch",
                     )
-                ci += 1
-            with cols[ci]:
-                _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}", icon_only=False)
-            with cols[ci + 1]:
-                st.button(
-                    "Edit",
-                    icon=":material/edit:",
-                    key=f"dlg_rd_edit_{item_uid}",
-                    help="Edit translation",
-                    on_click=_on_read_enter_edit,
-                    args=(cache_id,),
-                    width="stretch",
-                )
-            with cols[ci + 2]:
-                st.button(
-                    "Save",
-                    icon=":material/save:",
-                    key=f"dlg_rd_save_bar_{item_uid}",
-                    disabled=not has_unsaved,
-                    help="Save draft without sending" if has_unsaved else "All changes saved",
-                    on_click=_on_read_save,
-                    args=(cache_id, "", ""),
-                    width="stretch",
-                )
-            with cols[ci + 3]:
+                with cols[ci + 2]:
+                    st.button(
+                        "Save",
+                        icon=":material/save:",
+                        key=f"dlg_rd_save_bar_{item_uid}",
+                        disabled=not has_unsaved,
+                        help="Save draft without sending" if has_unsaved else "All changes saved",
+                        on_click=_on_read_save,
+                        args=(cache_id, "", ""),
+                        width="stretch",
+                    )
+                ci += 3
                 if has_unsaved:
-                    st.button(
-                        "Close",
-                        icon=":material/close:",
-                        key=f"dlg_ft_cls_{item_uid}",
-                        help="Close",
-                        on_click=_on_read_req_close_guard,
-                        args=(cache_id,),
-                        width="stretch",
-                    )
-                else:
-                    if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close", width="stretch"):
-                        st.session_state["active_modal"] = None
-                        st.rerun()
-            with cols[ci + 4]:
+                    with cols[ci]:
+                        st.button(
+                            "Close",
+                            icon=":material/close:",
+                            key=f"dlg_ft_cls_{item_uid}",
+                            help="Close",
+                            on_click=_on_read_req_close_guard,
+                            args=(cache_id,),
+                            width="stretch",
+                        )
+                    ci += 1
+                if _multi_wa:
+                    with cols[ci]:
+                        _render_wa_group_chip(_wa_targets, _wa_grp_key, item_uid)
                 _render_read_send_fragment(
                     cache_id=cache_id,
                     item_uid=item_uid,
@@ -1900,9 +1908,9 @@ def _render_share_send_fragment(
     persisted_sent = _get_wa_sent_map().get(cache_id)
     is_sent = cache_id in sent_ids or bool(persisted_sent)
 
-    btn_label = "Sent ✓" if is_sent else f"Send to {dest_name}"
+    btn_label = "Sent" if is_sent else "Send"
     btn_icon = ":material/check:" if is_sent else ":material/send:"
-    btn_help = f"Already sent to {dest_name}" if is_sent else f"Confirm to Send: send latest saved draft (v{ver}) to {dest_name}"
+    btn_help = f"Already sent to {dest_name}" if is_sent else f"Send to {dest_name}: latest saved draft (v{ver}) to {dest_name}"
 
     send_clicked = st.button(
         btn_label,
@@ -2227,63 +2235,53 @@ def _show_share_dialog() -> None:
                 args=(cache_id,),
             )
 
-    if len(_wa_targets) > 1:
-        _cur_target = st.session_state.get(_wa_grp_key) or _wa_targets[0]["name"]
-        dest_name = st.segmented_control(
-            "Destination WhatsApp Group",
-            options=[t["name"] for t in _wa_targets],
-            default=_cur_target,
-            key=_wa_grp_key,
-            label_visibility="collapsed",
-        )
-        if not dest_name:
-            dest_name = _wa_targets[0]["name"]
+    _multi_wa = len(_wa_targets) > 1
+    if _multi_wa:
+        dest_name = _wa_dest_from_state(_wa_targets, _wa_grp_key)
         selected_gid = _target_by_name[dest_name]
 
-    c_copy, c_edit, c_save, c_cls, c_send = st.columns(
-        [1.1, 1.1, 1.1, 1.1, 2.3],
-        vertical_alignment="center",
-        gap="small",
-    )
-    with c_copy:
-        _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=False)
-    with c_edit:
-        st.button(
-            "Edit",
-            icon=":material/edit:",
-            key=f"dlg_edit_{item_uid}",
-            help="Edit draft",
-            on_click=_on_share_enter_edit,
-            args=(cache_id,),
-            width="stretch",
-        )
-    with c_save:
-        st.button(
-            "Save",
-            icon=":material/save:",
-            key=f"dlg_save_bar_{item_uid}",
-            disabled=not has_unsaved,
-            help="Save current draft without sending" if has_unsaved else "All changes saved",
-            on_click=_on_share_save,
-            args=(cache_id, ""),
-            width="stretch",
-        )
-    with c_cls:
-        if has_unsaved:
+    with st.container(key=f"wa_actions_{item_uid}"):
+        _spec = [1, 1, 1] + ([1] if has_unsaved else []) + ([3] if _multi_wa else [])
+        _cols = st.columns(_spec, vertical_alignment="center", gap="small")
+        with _cols[0]:
+            _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=False)
+        with _cols[1]:
             st.button(
-                "Close",
-                icon=":material/close:",
-                key=f"dlg_sh_cls_{item_uid}",
-                help="Close",
-                on_click=_on_share_req_close_guard,
+                "Edit",
+                icon=":material/edit:",
+                key=f"dlg_edit_{item_uid}",
+                help="Edit draft",
+                on_click=_on_share_enter_edit,
                 args=(cache_id,),
                 width="stretch",
             )
-        else:
-            if st.button("Close", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close", width="stretch"):
-                st.session_state["active_modal"] = None
-                st.rerun()
-    with c_send:
+        with _cols[2]:
+            st.button(
+                "Save",
+                icon=":material/save:",
+                key=f"dlg_save_bar_{item_uid}",
+                disabled=not has_unsaved,
+                help="Save current draft without sending" if has_unsaved else "All changes saved",
+                on_click=_on_share_save,
+                args=(cache_id, ""),
+                width="stretch",
+            )
+        _ci = 3
+        if has_unsaved:
+            with _cols[_ci]:
+                st.button(
+                    "Close",
+                    icon=":material/close:",
+                    key=f"dlg_sh_cls_{item_uid}",
+                    help="Close",
+                    on_click=_on_share_req_close_guard,
+                    args=(cache_id,),
+                    width="stretch",
+                )
+            _ci += 1
+        if _multi_wa:
+            with _cols[_ci]:
+                _render_wa_group_chip(_wa_targets, _wa_grp_key, item_uid)
         _render_share_send_fragment(
             cache_id=cache_id,
             item_uid=item_uid,
