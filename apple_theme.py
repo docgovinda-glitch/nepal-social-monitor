@@ -3084,11 +3084,12 @@ _DARK_CSS_BODY = """
 
 def theme_override_css(mode: str) -> str:
     """Returns the dark-mode override stylesheet for 'dark', an OS-driven one for 'auto', or '' for 'light'."""
+    body = _DARK_MIN if "_DARK_MIN" in globals() else _DARK_CSS_BODY
     if mode == "dark":
-        return "<style>" + _DARK_CSS_BODY + "</style>"
+        return "<style>" + body + "</style>"
     if mode == "light":
         return ""
-    return "<style>@media (prefers-color-scheme: dark) {" + _DARK_CSS_BODY + "}</style>"
+    return "<style>@media (prefers-color-scheme: dark) {" + body + "}</style>"
 
 
 _HEADLINE_UX_CSS = """
@@ -3247,3 +3248,36 @@ _DIALOG_TIGHT_CSS = """
     .fulltext-reader-box__header:empty { display: none !important; }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _DIALOG_TIGHT_CSS)
+
+
+_TYPE_CSS = """
+    /* ===== Type: Devanagari-friendly, no download ===== */
+    @font-face { font-family: "NepaliLocal"; font-display: swap; unicode-range: U+0900-097F, U+1CD0-1CF9, U+A8E0-A8FF;
+        src: local("Kohinoor Devanagari"), local("Devanagari Sangam MN"), local("Noto Sans Devanagari"), local("Mukta"), local("Nirmala UI"), local("Lohit Devanagari"); }
+    .hl-title, .hl-title a, .apple-card-title, .apple-card-title a, .apple-card-summary, .reader-para, .fulltext-reader-box__title, .fulltext-reader-box__body, .share-brief-body {
+        font-family: "NepaliLocal", var(--font), sans-serif; letter-spacing: 0 !important; font-feature-settings: "kern" 1, "liga" 1; text-rendering: optimizeLegibility;
+        overflow-wrap: break-word; hyphens: manual;
+    }
+    .hl-title, .apple-card-title { line-height: 1.48 !important; }
+    /* Calmer refresh: stale content fades a little instead of flashing */
+    div[data-stale="true"] { opacity: 0.6 !important; transition: opacity 0.2s ease; }
+    div[data-testid="stElementContainer"]:has(iframe[height="0"]) { display: none !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TYPE_CSS)
+FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _TYPE_CSS)
+
+
+import re as _re
+
+
+def _minify_css(css: str) -> str:
+    css = _re.sub(r"/\*.*?\*/", "", css, flags=_re.S)
+    css = _re.sub(r"\s+", " ", css)
+    css = _re.sub(r"\s*([{};])\s*", r"\1", css)
+    return css.strip()
+
+
+_DARK_MIN = _minify_css(_DARK_CSS_BODY)
+APPLE_DESIGN_SYSTEM_CSS = _minify_css(APPLE_DESIGN_SYSTEM_CSS)
+FEED_CARD_CSS = _minify_css(FEED_CARD_CSS)
+AUTH_CSS = _minify_css(AUTH_CSS)

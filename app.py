@@ -89,9 +89,10 @@ def _ensure_reloaded_daemon_on_code_update() -> None:
 _ensure_reloaded_daemon_on_code_update()
 
 # 1. Page Configuration
+_PAGE_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icon-192.png")
 st.set_page_config(
-    page_title="Nepal Media & Geo-Political Intelligence Dashboard",
-    page_icon="🇳🇵",
+    page_title="Media Monitor",
+    page_icon=_PAGE_ICON if os.path.exists(_PAGE_ICON) else "📰",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -202,6 +203,27 @@ import streamlit.components.v1 as components
 from apple_theme import APPLE_DESIGN_SYSTEM_CSS, FEED_CARD_CSS
 
 st.markdown(APPLE_DESIGN_SYSTEM_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
+
+# Home-screen install hints: icon, full-screen mode and status-bar colour (injected into the parent page head)
+components.html(
+    """<script>(function(){try{
+var d=window.parent.document,h=d.head,m="__MODE__";
+function put(tag,attrs){var id="nmm-"+tag+"-"+(attrs.name||attrs.rel||"x")+(attrs.media?"-"+attrs.media.replace(/[^a-z0-9]/gi,""):"");
+var e=d.getElementById(id);if(e)e.remove();e=d.createElement(tag);e.id=id;for(var k in attrs)e.setAttribute(k,attrs[k]);h.appendChild(e);}
+put("link",{rel:"apple-touch-icon",href:"/app/static/apple-touch-icon.png"});
+put("link",{rel:"manifest",href:"/app/static/manifest.json"});
+put("meta",{name:"apple-mobile-web-app-capable",content:"yes"});
+put("meta",{name:"mobile-web-app-capable",content:"yes"});
+put("meta",{name:"apple-mobile-web-app-title",content:"Media Monitor"});
+put("meta",{name:"apple-mobile-web-app-status-bar-style",content:"default"});
+d.querySelectorAll('meta[name="theme-color"]').forEach(function(x){if(x.id.indexOf("nmm-")===0)x.remove();});
+if(m==="dark"){put("meta",{name:"theme-color",content:"#000000"});}
+else if(m==="light"){put("meta",{name:"theme-color",content:"#F5F5F7"});}
+else{var a=d.createElement("meta");a.id="nmm-meta-theme-color-l";a.name="theme-color";a.content="#F5F5F7";a.media="(prefers-color-scheme: light)";h.appendChild(a);
+var b=d.createElement("meta");b.id="nmm-meta-theme-color-d";b.name="theme-color";b.content="#000000";b.media="(prefers-color-scheme: dark)";h.appendChild(b);}
+}catch(e){}})();</script>""".replace("__MODE__", _THEME_MODE),
+    height=0,
+)
 
 _ICON_PATHS = {
     "search": '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
