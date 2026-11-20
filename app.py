@@ -1733,9 +1733,9 @@ def _render_share_send_fragment(
     item_link: str,
     has_unsaved: bool,
     ver: int,
+    saved_formatted: str,
 ) -> None:
     draft = st.session_state.get("share_drafts", {}).get(cache_id, {})
-    saved_formatted = draft.get("saved_formatted") or ""
     sent_ids = st.session_state.setdefault("whatsapp_sent_ids", set())
     persisted_sent = _get_wa_sent_map().get(cache_id)
     is_sent = cache_id in sent_ids or bool(persisted_sent)
@@ -2151,6 +2151,7 @@ def _show_share_dialog() -> None:
             item_link=item_link,
             has_unsaved=has_unsaved,
             ver=ver,
+            saved_formatted=saved_formatted,
         )
 
 
