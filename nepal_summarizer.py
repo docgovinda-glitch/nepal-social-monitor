@@ -613,7 +613,7 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
         from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception_type
         @retry(
             stop=stop_after_attempt(2),
-            wait=wait_exponential_jitter(initial=0.5, max=3.0, exp_base=2),
+            wait=wait_exponential_jitter(initial=0.5, max=3.0),
             retry=retry_if_exception_type(Exception),
             reraise=True,
         )
