@@ -173,3 +173,19 @@ def format_exc(exc: BaseException, limit: int = 300) -> str:
     cls = type(exc).__name__
     text = f"{cls}: {msg}" if msg else cls
     return text[:limit] if limit and len(text) > limit else text
+
+
+def is_background_daemon_disabled() -> bool:
+    """Checks if background daemon is disabled via env var, secrets, or Streamlit Cloud runtime."""
+    env_v = os.getenv("DISABLE_BACKGROUND_DAEMON")
+    if env_v is not None:
+        return env_v.strip().lower() in ("true", "1", "yes")
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "DISABLE_BACKGROUND_DAEMON" in st.secrets:
+            return str(st.secrets["DISABLE_BACKGROUND_DAEMON"]).strip().lower() in ("true", "1", "yes")
+    except Exception:
+        pass
+    if os.getenv("STREAMLIT_SHARING_MODE") or os.getenv("STREAMLIT_SERVER_BASE_URL"):
+        return True
+    return False

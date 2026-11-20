@@ -41,9 +41,13 @@ def load_env():
 
 load_env()
 
+from nepal_config import is_background_daemon_disabled
+
 
 def _ensure_reloaded_daemon_on_code_update() -> None:
     """Automatically stops stale @st.cache_resource daemon threads and reloads submodules on hot git deploys."""
+    if is_background_daemon_disabled():
+        return
     import sys
     import importlib
 
@@ -207,11 +211,12 @@ from nepal_news_scheduler import (
     get_manual_sync_status,
 )
 
-# Start background news monitoring daemon only after authentication
-try:
-    start_monitoring_daemon()
-except Exception:
-    pass
+# Start background news monitoring daemon only if not disabled for split deployment
+if not is_background_daemon_disabled():
+    try:
+        start_monitoring_daemon()
+    except Exception:
+        pass
 
 # 3. Time Reference (separate actual filtering timestamp from 3-minute cache-bucket anchor)
 actual_now_npt = datetime.datetime.now(NEPAL_TZ)

@@ -1499,6 +1499,109 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         }
         self.assertFalse(summ._needs_body_scrape(full_art))
 
+    def test_entity_masking_and_restoration(self):
+        import nepal_summarizer as summ
+
+        text = "सिंहदरबारमा नेकपा एमाले, रास्वपा र नेपाली कांग्रेस बीच बैठक बस्यो। बालेन्द्र शाहले शीतल निवासमा छलफल गरे।"
+        masked, mask_map = summ.mask_entities_for_translation(text)
+        self.assertIn("__ENT", masked)
+        self.assertNotIn("सिंहदरबार", masked)
+        self.assertNotIn("नेकपा एमाले", masked)
+        self.assertNotIn("रास्वपा", masked)
+        self.assertNotIn("नेपाली कांग्रेस", masked)
+        self.assertNotIn("बालेन्द्र शाह", masked)
+        self.assertNotIn("शीतल निवास", masked)
+
+        recovered_values = set(mask_map.values())
+        self.assertIn("Singha Durbar", recovered_values)
+        self.assertIn("CPN-UML", recovered_values)
+        self.assertIn("RSP", recovered_values)
+        self.assertIn("Nepali Congress", recovered_values)
+        self.assertIn("Balendra Shah", recovered_values)
+        self.assertIn("Sheetal Niwas", recovered_values)
+
+        simulated_tr = (
+            "A meeting took place between __ENT002__, __ENT003__ and __ENT004__ at __ENT001__. "
+            "__ent005__ held discussions at __ ent006 __."
+        )
+        restored = summ.restore_entities_after_translation(simulated_tr, mask_map)
+        self.assertIn("Singha Durbar", restored)
+        self.assertIn("CPN-UML", restored)
+        self.assertIn("RSP", restored)
+        self.assertIn("Nepali Congress", restored)
+        self.assertIn("Balendra Shah", restored)
+        self.assertIn("Sheetal Niwas", restored)
+        self.assertNotIn("__ENT", restored)
+
+    def test_bounded_translation_lru_cache(self):
+        import nepal_summarizer as summ
+
+        cache = summ.TranslationLRUCache(maxsize=3)
+        cache["k1"] = "val1"
+        cache["k2"] = "val2"
+        cache["k3"] = "val3"
+        self.assertEqual(len(cache), 3)
+
+        _ = cache["k1"]
+
+        cache["k4"] = "val4"
+        self.assertEqual(len(cache), 3)
+        self.assertIn("k1", cache)
+        self.assertNotIn("k2", cache)
+        self.assertIn("k3", cache)
+        self.assertIn("k4", cache)
+
+    def test_translation_circuit_breaker_and_fallback(self):
+        import nepal_summarizer as summ
+
+        with summ._CB_LOCK:
+            summ._CONSECUTIVE_FAILURES = 0
+            summ._CIRCUIT_OPEN_UNTIL = 0.0
+
+        self.assertFalse(summ.is_circuit_breaker_open())
+
+        for _ in range(summ.CIRCUIT_BREAKER_THRESHOLD):
+            summ.record_translation_failure("Simulated network timeout")
+
+        self.assertTrue(summ.is_circuit_breaker_open())
+
+        with mock.patch("nepal_summarizer.ENABLE_LOCAL_TRANSLATION_FALLBACK", True), \
+             mock.patch("nepal_summarizer._translate_with_local_model", return_value="Local NLLB Translation Output") as mock_local:
+            out = summ._translate_chunk_with_failover("नेपालको अर्थतन्त्र", sl_code="ne")
+            self.assertEqual(out, "Local NLLB Translation Output")
+            mock_local.assert_called_once()
+
+        summ.record_translation_success()
+        self.assertFalse(summ.is_circuit_breaker_open())
+
+    def test_hf_main_health_and_root_endpoints(self):
+        from fastapi.testclient import TestClient
+        import hf_main
+
+        with TestClient(hf_main.app) as client:
+            resp_root = client.get("/")
+            self.assertEqual(resp_root.status_code, 200)
+            self.assertEqual(resp_root.json()["status"], "running")
+            self.assertEqual(resp_root.json()["service"], "nepal-media-monitor-backend")
+
+            resp_health = client.get("/health")
+            self.assertEqual(resp_health.status_code, 200)
+            hdata = resp_health.json()
+            self.assertIn(hdata["status"], ("healthy", "degraded"))
+            self.assertIn("daemon_alive", hdata)
+            self.assertIn("local_translation_enabled", hdata)
+            self.assertIn("uptime_seconds", hdata)
+
+    def test_app_background_daemon_disabled_flag(self):
+        import os
+        import nepal_config as cfg
+
+        with mock.patch.dict(os.environ, {"DISABLE_BACKGROUND_DAEMON": "true"}):
+            self.assertTrue(cfg.is_background_daemon_disabled())
+
+        with mock.patch.dict(os.environ, {"DISABLE_BACKGROUND_DAEMON": "false"}):
+            self.assertFalse(cfg.is_background_daemon_disabled())
+
 
 if __name__ == "__main__":
     unittest.main()

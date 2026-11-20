@@ -4,20 +4,254 @@ Single Source of Truth for Cross-Lingual Translation and Hybrid LexRank Extracti
 Zero external AI models, zero Ollama, zero paid APIs. Pure Python deterministic NLP.
 """
 
+import os
 import re
 import ssl
 import html
 import math
 import json
 import time
+import logging
 import threading
+import collections
 import urllib.request
 import urllib.parse
 import concurrent.futures
 from collections import Counter
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any, Callable, Optional, Tuple
 
-_TRANSLATION_CACHE: Dict[str, str] = {}
+logger = logging.getLogger("nepal_summarizer")
+
+TRANSLATION_CACHE_MAX_SIZE = int(os.getenv("TRANSLATION_CACHE_MAX_SIZE", "5000"))
+
+
+class TranslationLRUCache:
+    """Thread-safe bounded LRU translation cache to prevent memory leaks during 24/7 runs."""
+    def __init__(self, maxsize: int = 5000):
+        self.maxsize = max(1, maxsize)
+        self._cache = collections.OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: str, default: Any = None) -> Any:
+        with self._lock:
+            if key not in self._cache:
+                return default
+            self._cache.move_to_end(key)
+            return self._cache[key]
+
+    def __contains__(self, key: str) -> bool:
+        with self._lock:
+            return key in self._cache
+
+    def __getitem__(self, key: str) -> str:
+        with self._lock:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+
+    def __setitem__(self, key: str, value: str) -> None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            self._cache[key] = value
+            if len(self._cache) > self.maxsize:
+                self._cache.popitem(last=False)
+
+    def set(self, key: str, value: str) -> None:
+        self[key] = value
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._cache)
+
+
+_TRANSLATION_CACHE = TranslationLRUCache(maxsize=TRANSLATION_CACHE_MAX_SIZE)
+
+# Circuit breaker & local translation fallback settings
+ENABLE_LOCAL_TRANSLATION_FALLBACK = (
+    os.getenv("ENABLE_LOCAL_TRANSLATION_FALLBACK", "false").lower() in ("true", "1", "yes")
+)
+CIRCUIT_BREAKER_THRESHOLD = int(os.getenv("TRANSLATION_CIRCUIT_BREAKER_THRESHOLD", "3"))
+CIRCUIT_BREAKER_COOLDOWN_SECS = int(os.getenv("TRANSLATION_CIRCUIT_COOLDOWN_SECS", "600"))
+
+_CB_LOCK = threading.Lock()
+_CONSECUTIVE_FAILURES = 0
+_CIRCUIT_OPEN_UNTIL = 0.0
+
+
+def is_circuit_breaker_open() -> bool:
+    """Returns True if the translation circuit breaker is currently open (cooling down)."""
+    with _CB_LOCK:
+        if _CIRCUIT_OPEN_UNTIL > 0:
+            if time.time() < _CIRCUIT_OPEN_UNTIL:
+                return True
+            else:
+                logger.info("Translation circuit breaker cooldown expired; attempting recovery to primary endpoint.")
+                return False
+        return False
+
+
+def record_translation_failure(reason: str = "") -> None:
+    """Records a failure on primary translation endpoints and trips the circuit breaker if threshold is reached."""
+    global _CONSECUTIVE_FAILURES, _CIRCUIT_OPEN_UNTIL
+    with _CB_LOCK:
+        _CONSECUTIVE_FAILURES += 1
+        logger.warning(
+            f"Primary translation failure #{_CONSECUTIVE_FAILURES} (threshold {CIRCUIT_BREAKER_THRESHOLD}): {reason}"
+        )
+        if _CONSECUTIVE_FAILURES >= CIRCUIT_BREAKER_THRESHOLD:
+            _CIRCUIT_OPEN_UNTIL = time.time() + CIRCUIT_BREAKER_COOLDOWN_SECS
+            logger.error(
+                f"Translation Circuit Breaker OPENED for {CIRCUIT_BREAKER_COOLDOWN_SECS}s. "
+                f"Routing to {'local offline NLLB' if ENABLE_LOCAL_TRANSLATION_FALLBACK else 'text fallback'}."
+            )
+
+
+def record_translation_success() -> None:
+    """Resets consecutive failures and closes the circuit breaker upon a successful primary translation."""
+    global _CONSECUTIVE_FAILURES, _CIRCUIT_OPEN_UNTIL
+    with _CB_LOCK:
+        if _CONSECUTIVE_FAILURES > 0 or _CIRCUIT_OPEN_UNTIL > 0:
+            logger.info("Primary translation service recovered; circuit breaker CLOSED.")
+        _CONSECUTIVE_FAILURES = 0
+        _CIRCUIT_OPEN_UNTIL = 0.0
+
+
+_LOCAL_MODEL = None
+_LOCAL_TOKENIZER = None
+_LOCAL_MODEL_LOCK = threading.Lock()
+
+
+def _load_local_nllb_model():
+    """Lazy-loads facebook/nllb-200-distilled-600M on CPU on first fallback invocation."""
+    global _LOCAL_MODEL, _LOCAL_TOKENIZER
+    if _LOCAL_MODEL is not None:
+        return _LOCAL_MODEL, _LOCAL_TOKENIZER
+    with _LOCAL_MODEL_LOCK:
+        if _LOCAL_MODEL is not None:
+            return _LOCAL_MODEL, _LOCAL_TOKENIZER
+        logger.info("Lazy-loading local translation model (facebook/nllb-200-distilled-600M on CPU)...")
+        try:
+            import torch
+            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+            model_name = os.getenv("LOCAL_NLLB_MODEL_NAME", "facebook/nllb-200-distilled-600M")
+            _LOCAL_TOKENIZER = AutoTokenizer.from_pretrained(model_name)
+            _LOCAL_MODEL = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+            _LOCAL_MODEL.eval()
+            logger.info("Local NLLB model successfully loaded on CPU.")
+            return _LOCAL_MODEL, _LOCAL_TOKENIZER
+        except Exception as exc:
+            logger.error(f"Failed to load local NLLB model: {exc}")
+            raise
+
+
+def _translate_with_local_model(text: str, source_lang: str = "ne") -> str:
+    """Translates text using local NLLB model on CPU when circuit breaker is active or endpoints fail."""
+    if not text:
+        return ""
+    try:
+        model, tokenizer = _load_local_nllb_model()
+        import torch
+        src_lang = "hin_Deva" if source_lang == "hi" else "npi_Deva"
+        tgt_lang = "eng_Latn"
+        tokenizer.src_lang = src_lang
+
+        chunks = [text] if len(text) <= 500 else [p.strip() for p in text.split("\n\n") if p.strip()]
+        out_chunks = []
+        for ch in chunks:
+            inputs = tokenizer(ch, return_tensors="pt", truncation=True, max_length=512)
+            forced_bos_token_id = tokenizer.convert_tokens_to_ids(tgt_lang)
+            with torch.no_grad():
+                outputs = model.generate(**inputs, forced_bos_token_id=forced_bos_token_id, max_length=512)
+            out_chunks.append(tokenizer.batch_decode(outputs, skip_special_tokens=True)[0])
+        return "\n\n".join(out_chunks).strip()
+    except Exception as exc:
+        logger.error(f"Local NLLB translation failed: {type(exc).__name__}: {exc}")
+        return text
+
+
+# High-priority entity mapping for pre-translation preservation
+_HIGH_PRIORITY_ENTITY_RULES = [
+    # Compound / High-specificity organizations & locations first
+    (r"(?:अख्तियार\s*दुरुपयोग\s*अनुसन्धान\s*आयोग|अख्तियार)", "CIAA"),
+    (r"(?:नेपाल\s*राष्ट्र\s*बैंक|राष्ट्र\s*बैंक)", "Nepal Rastra Bank"),
+    (r"(?:सर्वोच्च\s*अदालत)", "Supreme Court"),
+    (r"(?:निर्वाचन\s*आयोग)", "Election Commission"),
+    (r"(?:सिंहदरबार|सिंह\s*दरबार|सिंहदरवार|सिंह\s*दरवार)", "Singha Durbar"),
+    (r"(?:शीतल\s*निवास|शितल\s*निवास|शीतलनिवास|शितलनिवास)", "Sheetal Niwas"),
+    (r"(?:बालुवाटार|वालुवाटार)", "Baluwatar"),
+    (r"(?:नेकपा\s*\(एमाले\)|नेकपा\s*एमाले|एमाले)", "CPN-UML"),
+    (r"(?:राष्ट्रिय\s*स्वतन्त्र\s*पार्टी|रास्वपा)", "RSP"),
+    (r"(?:नेकपा\s*\(माओवादी\s*केन्द्र\)|नेकपा\s*माओवादी\s*केन्द्र|माओवादी\s*केन्द्र)", "Maoist Centre"),
+    (r"(?:नेपाली\s*का[ङ्गं]ग्रेस|का[ङ्गं]ग्रेस)", "Nepali Congress"),
+    (r"(?:बालेन्द्र\s*शाह|बालेन\s*शाह)", "Balendra Shah"),
+    (r"बालेन", "Balen"),
+    (r"(?:केपी\s*शर्मा\s*ओली|केपी\s*ओली)", "KP Sharma Oli"),
+    (r"(?:पुष्पकमल\s*दाहाल\s*['\"]?प्रचण्ड['\"]?|पुष्पकमल\s*दाहाल|प्रचण्ड)", "Pushpa Kamal Dahal (Prachanda)"),
+    (r"(?:शेरबहादुर\s*देउ[वाबा]|देउ[वाबा])", "Sher Bahadur Deuba"),
+    (r"(?:रवि\s*लामिछाने)", "Rabi Lamichhane"),
+    (r"(?:गगन\s*थापा|गगनकुमार\s*थापा)", "Gagan Thapa"),
+    (r"(?:कुलमान\s*घिसिङ)", "Kulman Ghising"),
+    (r"(?:नेपाल\s*विद्युत\s*प्राधिकरण|विद्युत\s*प्राधिकरण)", "Nepal Electricity Authority"),
+]
+
+_POSTPOSITION_CHARS = "मालेलाईकोकाकीबाटदेखिसँगसंगभित्रतर्फविरुद्धसहित"
+
+
+def mask_entities_for_translation(text: str) -> Tuple[str, Dict[str, str]]:
+    """
+    Masks high-priority entities, acronyms and proper nouns with deterministic tokens
+    (__ENT001__, __ENT002__, etc.) before sending text to machine translation.
+    Detaches attached Devanagari postpositions so prepositions translate naturally.
+    """
+    if not text:
+        return text, {}
+    mask_map: Dict[str, str] = {}
+    entity_to_tok: Dict[str, str] = {}
+    out = text
+    idx = 1
+
+    for pat, en_name in _HIGH_PRIORITY_ENTITY_RULES:
+        full_pat = re.compile(pat + rf"(?P<post>[{_POSTPOSITION_CHARS}])?", re.UNICODE)
+
+        def _repl(m: re.Match) -> str:
+            nonlocal idx
+            if en_name in entity_to_tok:
+                token = entity_to_tok[en_name]
+            else:
+                token = f"__ENT{idx:03d}__"
+                entity_to_tok[en_name] = token
+                mask_map[token] = en_name
+                idx += 1
+            post = m.group("post")
+            if post:
+                return f"{token} {post}"
+            return token
+
+        out = full_pat.sub(_repl, out)
+
+    return out, mask_map
+
+
+def restore_entities_after_translation(text: str, mask_map: Dict[str, str]) -> str:
+    """
+    Restores deterministic entity tokens (__ENT001__) to their exact proper English forms.
+    Tolerates machine-translation variations in whitespace and casing around tokens.
+    """
+    if not text or not mask_map:
+        return text or ""
+
+    def _repl(m: re.Match) -> str:
+        tok_num = m.group(1)
+        full_tok = f"__ENT{int(tok_num):03d}__"
+        return mask_map.get(full_tok, m.group(0))
+
+    restored = re.sub(r"__\s*ENT\s*(\d{1,3})\s*__", _repl, text, flags=re.IGNORECASE)
+    return re.sub(r"[ \t]+", " ", restored).strip()
+
 _SSL_CTX = ssl._create_unverified_context()
 _TRANSLATE_SEM = threading.Semaphore(2)
 _ROTATION_LOCK = threading.Lock()
@@ -226,11 +460,16 @@ def _has_devanagari(text: str) -> bool:
 
 
 def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -> str:
-    """Zero-key translation failover across working POST endpoints on translate.googleapis.com."""
+    """Zero-key translation failover across working POST endpoints on translate.googleapis.com with circuit breaker."""
     global _CLIENT_ROTATION_IDX
     clean_chunk = (chunk or "").strip()
     if not clean_chunk:
         return ""
+
+    if is_circuit_breaker_open():
+        if ENABLE_LOCAL_TRANSLATION_FALLBACK:
+            return _translate_with_local_model(clean_chunk, source_lang=sl_code)
+        return clean_chunk
 
     with _ROTATION_LOCK:
         start_idx = _CLIENT_ROTATION_IDX % 4
@@ -243,6 +482,7 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
     }
     encoded_body = urllib.parse.urlencode({"q": clean_chunk}).encode("utf-8")
 
+    last_err = ""
     for path, client in ordered:
         url = f"https://translate.googleapis.com/{path}?client={client}&sl={sl_code}&tl=en"
         if path == "translate_a/single":
@@ -252,19 +492,25 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
             with _TRANSLATE_SEM:
                 with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
                     data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                    out = ""
                     if path == "translate_a/t":
                         if isinstance(data, list) and data:
                             out = data[0] if isinstance(data[0], str) else str(data[0][0])
-                            if out and out.strip():
-                                return out.strip()
                     else:
                         if isinstance(data, list) and data and isinstance(data[0], list):
                             out = "".join(seg[0] for seg in data[0] if seg and seg[0])
-                            if out and out.strip():
-                                return out.strip()
-        except Exception:
+                    if out and out.strip() and out.strip() != clean_chunk and not _has_devanagari(out):
+                        record_translation_success()
+                        return out.strip()
+        except Exception as exc:
+            last_err = f"{type(exc).__name__}: {exc}"
             time.sleep(0.05)
             continue
+
+    record_translation_failure(last_err or "Primary endpoints failed to translate Devanagari")
+    if ENABLE_LOCAL_TRANSLATION_FALLBACK:
+        logger.info("Primary endpoints exhausted; routing to local offline NLLB model.")
+        return _translate_with_local_model(clean_chunk, source_lang=sl_code)
 
     return clean_chunk
 
@@ -293,12 +539,12 @@ def _translate_batch_group(items: List[str], sl_code: str, timeout: int = 10) ->
 
 
 def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: int = 10) -> List[str]:
-    """Translates a list of Devanagari texts in batched POST requests, updating _TRANSLATION_CACHE."""
+    """Translates a list of Devanagari texts in batched POST requests with entity masking, updating _TRANSLATION_CACHE."""
     if not texts:
         return []
     sl_code = "hi" if source_lang == "hi" else "ne"
     results: List[str] = [""] * len(texts)
-    pending: List[tuple] = []  # (idx, cache_key, one_line_prepped)
+    pending: List[tuple] = []  # (idx, cache_key, one_line_prepped, clean, mask_map)
 
     for idx, raw in enumerate(texts):
         clean = (raw or "").strip()
@@ -312,45 +558,53 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
             results[idx] = _TRANSLATION_CACHE[cache_key]
             continue
         prepped = _normalize_devanagari_before_translation(clean) if source_lang != "hi" else clean
-        one_line = re.sub(r"[\r\n\t]+", " ", prepped)
+        masked, mmap = mask_entities_for_translation(prepped)
+        one_line = re.sub(r"[\r\n\t]+", " ", masked)
         one_line = re.sub(r"\s+", " ", one_line).strip()
-        pending.append((idx, cache_key, one_line, clean))
+        pending.append((idx, cache_key, one_line, clean, mmap))
 
     # Deduplicate identical pending strings
     unique_map: Dict[str, tuple] = {}
-    for idx, ckey, one_line, orig in pending:
-        unique_map.setdefault(ckey, (one_line, orig))
+    for idx, ckey, one_line, orig, mmap in pending:
+        unique_map.setdefault(ckey, (one_line, orig, mmap))
 
     unique_keys = list(unique_map.keys())
     pos = 0
     while pos < len(unique_keys):
         batch_keys: List[str] = []
         batch_strs: List[str] = []
+        batch_mmaps: List[Dict[str, str]] = []
         char_budget = 0
         while pos < len(unique_keys) and len(batch_keys) < 16:
             k = unique_keys[pos]
             s = unique_map[k][0]
+            mmap = unique_map[k][2]
             if batch_keys and (char_budget + len(s) + 1 > 3400):
                 break
             batch_keys.append(k)
             batch_strs.append(s)
+            batch_mmaps.append(mmap)
             char_budget += len(s) + 1
             pos += 1
 
         translated_strs = _translate_batch_group(batch_strs, sl_code=sl_code, timeout=timeout)
-        for k, src_line, tr_line in zip(batch_keys, batch_strs, translated_strs):
-            norm_tr = normalize_english_proper_nouns(tr_line)
+        for k, src_line, tr_line, mmap in zip(batch_keys, batch_strs, translated_strs, batch_mmaps):
+            restored = restore_entities_after_translation(tr_line, mmap)
+            norm_tr = normalize_english_proper_nouns(restored)
             if norm_tr and not _has_devanagari(norm_tr) and tr_line != src_line:
                 _TRANSLATION_CACHE[k] = norm_tr
 
-    for idx, ckey, one_line, orig in pending:
-        results[idx] = _TRANSLATION_CACHE.get(ckey, orig)
+    for idx, ckey, one_line, orig, mmap in pending:
+        if ckey in _TRANSLATION_CACHE:
+            results[idx] = _TRANSLATION_CACHE[ckey]
+        else:
+            results[idx] = orig
 
     return results
 
 
 def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", force_translate: bool = False) -> str:
-    """Translates Nepali, Hindi, or auto-detected non-English text into English with proper-noun normalization."""
+    """Translates Nepali, Hindi, or auto-detected non-English text into English with entity masking and proper-noun normalization."""
     clean = (text or "").strip()
     if not clean:
         return clean
@@ -363,11 +617,14 @@ def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", fo
     prepped = _normalize_devanagari_before_translation(clean) if source_lang == "ne" else clean
     sl_code = source_lang if source_lang in ("ne", "hi", "auto") else "ne"
 
+    # Pre-translation entity masking
+    masked_prepped, mask_map = mask_entities_for_translation(prepped)
+
     chunks = []
-    if len(prepped) <= 2500:
-        chunks = [prepped]
+    if len(masked_prepped) <= 2500:
+        chunks = [masked_prepped]
     else:
-        paras = prepped.split("\n\n")
+        paras = masked_prepped.split("\n\n")
         cur = ""
         for p in paras:
             if len(cur) + len(p) + 2 <= 2500:
@@ -390,7 +647,8 @@ def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", fo
         tr = _translate_chunk_with_failover(chunk, sl_code=sl_code, timeout=timeout)
         if _has_devanagari(tr) and tr == chunk:
             any_failed = True
-        translated_chunks.append(normalize_english_proper_nouns(tr))
+        restored = restore_entities_after_translation(tr, mask_map)
+        translated_chunks.append(normalize_english_proper_nouns(restored))
 
     result = "\n\n".join(translated_chunks).strip()
     if not any_failed and not _has_devanagari(result):
@@ -634,6 +892,10 @@ def generate_lexrank_english_summary(
         # Clean dangling ellipsis fragment to last complete clause or word
         no_ellip = re.sub(r"\s*[.…]{2,}\s*$", "", clean_body).strip()
         return _trim_clean_sentence(no_ellip or clean_body, limit=max_chars)
+
+    # Sentence-count guard to ensure graph centrality runs in <10ms even on unpunctuated text
+    if len(sentences) > 25:
+        sentences = sentences[:25]
 
     if len(sentences) <= 2:
         joined = " ".join(s if s[-1] in ".!?" else f"{s}." for s in sentences)
