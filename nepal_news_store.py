@@ -240,8 +240,6 @@ logger = logging.getLogger("nepal_news_store")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
-_DEFAULT_SB_TOKEN_B64 = "c2JwX2ZjMjU1YzMxNTdlNzgzNjg2NGU3YjQwZTQ0MDIyNWI3ZjQ0M2UyOTM="
-
 _LOCAL_CONFIG_CACHE: Optional[Dict[str, str]] = None
 _LOCAL_CONFIG_LOCK = threading.Lock()
 _PG_POOL = None
@@ -305,11 +303,6 @@ def get_env_variable(key: str, default: str = "", allow_st_secrets: bool = True)
                 if sval:
                     os.environ.setdefault(key, sval)
                 return sval
-        except Exception:
-            pass
-    if key == "SUPABASE_MANAGEMENT_TOKEN" and not default:
-        try:
-            return base64.b64decode(_DEFAULT_SB_TOKEN_B64).decode("utf-8")
         except Exception:
             pass
     return default

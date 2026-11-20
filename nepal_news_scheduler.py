@@ -666,3 +666,50 @@ def start_monitoring_daemon(code_version: str = _DAEMON_CODE_VERSION):
     return _MONITOR_THREAD
 
 
+def run_single_cycle() -> Dict[str, Any]:
+    """
+    Executes a single, non-blocking fetch-summarize-translate-upsert cycle across all streams
+    (Nepali portals, Indian press, X scanner) and returns the ingestion summary.
+    Designed for ephemeral runners like GitHub Actions.
+    """
+    logger.info("Executing single monitoring cycle...")
+    try:
+        from nepal_config import TOP_NEPAL_NEWS_PORTALS
+        register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
+    except Exception as exc:
+        logger.warning(f"Failed to register portal sources: {format_exc(exc)}")
+
+    acquired = _INGEST_RUN_LOCK.acquire(timeout=10.0)
+    if not acquired:
+        logger.warning("Another ingestion cycle is already running; skipping.")
+        return {"status": "skipped", "reason": "lock_held", "results": {}, "errors": {}}
+
+    try:
+        results, errors = _run_concurrent_ingest_pipelines(
+            include_nepali=True,
+            include_indian=True,
+            include_x=True,
+            nepali_workers=10,
+            indian_workers=16,
+            pipeline_timeout_secs=180.0,
+        )
+        _invalidate_store_caches_after_sync(targets=("nepali", "indian", "x"))
+        logger.info(f"Single cycle completed. Results: {results}. Errors: {errors}")
+        return {"status": "completed", "results": results, "errors": errors}
+    finally:
+        _INGEST_RUN_LOCK.release()
+
+
+if __name__ == "__main__":
+    import sys
+    res = run_single_cycle()
+    if res.get("status") == "skipped":
+        sys.exit(0)
+    errs = res.get("errors", {})
+    if any(errs.values()):
+        logger.warning(f"One or more pipelines encountered warnings/errors: {errs}")
+    # Always exit cleanly unless total unhandled failure
+    sys.exit(0)
+
+
+

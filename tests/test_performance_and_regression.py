@@ -1574,23 +1574,13 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         summ.record_translation_success()
         self.assertFalse(summ.is_circuit_breaker_open())
 
-    def test_backend_main_health_and_root_endpoints(self):
-        from fastapi.testclient import TestClient
-        import backend_main
+    def test_news_scheduler_run_single_cycle(self):
+        import nepal_news_scheduler as sched
 
-        with TestClient(backend_main.app) as client:
-            resp_root = client.get("/")
-            self.assertEqual(resp_root.status_code, 200)
-            self.assertEqual(resp_root.json()["status"], "running")
-            self.assertEqual(resp_root.json()["service"], "nepal-media-monitor-backend")
-
-            resp_health = client.get("/health")
-            self.assertEqual(resp_health.status_code, 200)
-            hdata = resp_health.json()
-            self.assertIn(hdata["status"], ("healthy", "degraded"))
-            self.assertIn("daemon_alive", hdata)
-            self.assertIn("local_translation_enabled", hdata)
-            self.assertIn("uptime_seconds", hdata)
+        with mock.patch("nepal_news_scheduler._run_concurrent_ingest_pipelines", return_value=({"nepali": 5, "indian": 3, "x": 2}, {})):
+            res = sched.run_single_cycle()
+            self.assertEqual(res["status"], "completed")
+            self.assertEqual(res["results"], {"nepali": 5, "indian": 3, "x": 2})
 
     def test_app_background_daemon_disabled_flag(self):
         import os
