@@ -1707,7 +1707,7 @@ def _show_share_dialog() -> None:
     current_formatted = _fmt_payload(active_headline, active_text)
 
     from whatsapp_greenapi import get_share_targets
-    _wa_targets = get_share_targets(is_x_post=("X POST" in (content_type_lbl or "").upper()))
+    _wa_targets = get_share_targets(is_x_post=is_x)
     _wa_grp_key = f"dlg_wa_grp_{item_uid}"
     if len(_wa_targets) == 1:
         selected_gid = _wa_targets[0]["id"]
@@ -1907,6 +1907,13 @@ def _show_share_dialog() -> None:
             options=[t["name"] for t in _wa_targets],
             horizontal=True,
             key=_wa_grp_key,
+        )
+    else:
+        st.markdown(
+            f'<div style="font-size:0.82rem;font-weight:600;color:var(--label-2);margin:8px 0 6px 0;">'
+            f'Destination WhatsApp Group: <span style="color:var(--label-1);font-weight:700;">{html.escape(dest_name)}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
         )
 
     c_copy, c_edit, c_save, c_cls, c_send = st.columns(5, gap="small")

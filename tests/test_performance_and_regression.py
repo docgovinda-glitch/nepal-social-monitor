@@ -672,7 +672,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         item = live_sess["items_by_uid"][first_uid]
 
         # 1. Share modal: opening -> editing -> typing -> saving keeps modal on screen and commits draft v2
-        at.session_state["inf_feed_live"] = {"event": "action", "action": "share", "item_uid": first_uid, "ts": 5001}
+        at.session_state["inf_feed_live"] = {"event": "action", "action": "share", "item_uid": first_uid, "ts": int(time.time() * 1000) + 100}
         at.run()
         self.assertEqual(at.session_state["active_modal"]["mode"], "share")
 
@@ -700,7 +700,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertIsNone(at.session_state.get("active_modal"))
 
         # 2. Read modal: opening -> translation editing -> typing -> saving -> WhatsApp single-click send
-        at.session_state["inf_feed_live"] = {"event": "action", "action": "read", "item_uid": first_uid, "ts": 5002}
+        at.session_state["inf_feed_live"] = {"event": "action", "action": "read", "item_uid": first_uid, "ts": int(time.time() * 1000) + 200}
         at.run()
         self.assertEqual(at.session_state["active_modal"]["mode"], "read")
 
@@ -741,6 +741,17 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
              mock.patch("nepal_news_store.record_whatsapp_sent") as mock_record:
             send_btn.click().run()
             self.assertTrue(mock_record.called)
+
+        # 3. Verify X post destination group routing directly to Social Media Monitoring
+        from whatsapp_greenapi import get_share_targets
+        x_targets = get_share_targets(is_x_post=True)
+        self.assertEqual(len(x_targets), 1)
+        self.assertEqual(x_targets[0]["name"], "Social Media Monitoring")
+        self.assertEqual(x_targets[0]["id"], "120363412139269937@g.us")
+
+        news_targets = get_share_targets(is_x_post=False)
+        self.assertEqual(len(news_targets), 2)
+        self.assertEqual({t["name"] for t in news_targets}, {"India Related News in Nepali Media", "Core group of PIC Wing"})
 
     def test_annapurna_post_x_bridge_card_and_reader_parity(self):
         import nepal_config as cfg
@@ -784,12 +795,26 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertEqual(art["summary"], "काठमाडौं : बिहीबार सेयर बजार परिसूचक नेप्सेमा सामान्य सुधार देखिएको छ।")
         self.assertEqual((art["published_dt"].hour, art["published_dt"].minute), (15, 23))
 
-        # 3) Direct scraping is skipped for annapurnapost.com and Read modal succeeds cleanly (ok=True)
-        with mock.patch("urllib.request.urlopen") as m_open:
-            self.assertEqual(fetcher.extract_article_full_text("https://annapurnapost.com/story/511589/"), "")
-            m_open.assert_not_called()
+        # 3) Direct scraping works for annapurnapost.com via .news__details and Read modal succeeds cleanly (ok=True)
+        mock_ap_html = (
+            b'<html><body><div class="news__details">'
+            b'<p>\xe0\xa4\x95\xe0\xa4\xbe\xe0\xa4\xa0\xe0\xa4\xae\xe0\xa4\xbe\xe0\xa4\xa1\xe0\xa4\xb0\xe0\xa5\x8c\xe0\xa4\x82 : '
+            b'\xe0\xa4\xac\xe0\xa4\xbf\xe0\xa4\xb9\xe0\xa5\x80\xe0\xa4\xac\xe0\xa4\xbe\xe0\xa4\xb0 \xe0\xa4\xb8\xe0\xa5\x87\xe0\xa4\xaf\xe0\xa4\xb0 '
+            b'\xe0\xa4\xac\xe0\xa4\x9c\xe0\xa4\xbe\xe0\xa4\xb0 \xe0\xa4\xaa\xe0\xa4\xb0\xe0\xa4\xbf\xe0\xa4\xb8\xe0\xa5\x82\xe0\xa4\x9a\xe0\xa4\x95 '
+            b'\xe0\xa4\xa8\xe0\xa5\x87\xe0\xa4\xaa\xe0\xa5\x8d\xe0\xa4\xb8\xe0\xa5\x87\xe0\xa4\xae\xe0\xa4\xbe \xe0\xa4\xb8\xe0\xa4\xbe\xe0\xa4\xae\xe0\xa4\xbe\xe0\xa4\xa8\xe0\xa5\x8d\xe0\xa4\xaf '
+            b'\xe0\xa4\xb8\xe0\xa5\x81\xe0\xa4\xa7\xe0\xa4\xbe\xe0\xa4\xb0 \xe0\xa4\xa6\xe0\xa5\x87\xe0\xa4\x96\xe0\xa4\xbf\xe0\xa4\x8f\xe0\xa4\x95\xe0\xa5\x8b \xe0\xa4\x9b\xe0\xa5\xa4</p>'
+            b'</div></body></html>'
+        )
+        mock_resp = mock.MagicMock()
+        mock_resp.read.return_value = mock_ap_html
+        mock_resp.__enter__.return_value = mock_resp
+        fetcher.FULL_ARTICLE_TEXT_CACHE.pop("https://annapurnapost.com/story/511589/", None)
+        with mock.patch("urllib.request.urlopen", return_value=mock_resp):
+            extracted = fetcher.extract_article_full_text("https://annapurnapost.com/story/511589/")
+            self.assertIn("नेप्सेमा सामान्य सुधार", extracted)
 
-        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None):
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
+             mock.patch("nepal_fetcher.extract_article_full_text", return_value="काठमाडौं : बिहीबार सेयर बजार परिसूचक नेप्सेमा सामान्य सुधार देखिएको छ।"):
             rd = summ.extract_on_demand_full_article(art, translate_to_english=False)
         self.assertTrue(rd["ok"])
         self.assertEqual(rd["source_url"], "https://annapurnapost.com/story/511589/")
@@ -1355,6 +1380,105 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         m_prof_disc.assert_not_called()
         self.assertEqual(len(res_arts), 1)
         self.assertEqual(res_arts[0]["source"], "Annapurna Post")
+
+    def test_portal_extraction_cleaning_and_boilerplate_stripping(self):
+        import nepal_fetcher as fetcher
+
+        # 1. Annapurna Post: extracted via .news__details without being blocked
+        ap_html = b"""<html><body>
+            <div class="news__details">
+                <p>Annapurna Post main paragraph 1.</p>
+                <p>Annapurna Post main paragraph 2.</p>
+            </div>
+        </body></html>"""
+        m_resp = mock.MagicMock()
+        m_resp.read.return_value = ap_html
+        m_resp.__enter__.return_value = m_resp
+        fetcher.FULL_ARTICLE_TEXT_CACHE.clear()
+        with mock.patch("urllib.request.urlopen", return_value=m_resp):
+            txt = fetcher.extract_article_full_text("https://annapurnapost.com/story/12345")
+            self.assertIn("Annapurna Post main paragraph 1.", txt)
+            self.assertIn("Annapurna Post main paragraph 2.", txt)
+
+        # 2. Baahrakhari: decomposes .opinion-box, .trending-news, prioritizes .editor-box over .detail-box
+        bh_html = b"""<html><body>
+            <div class="detail-box">
+                <div class="editor-box">
+                    <p>Baahrakhari core story text.</p>
+                </div>
+                <div class="opinion-box"><p>Unrelated opinion text</p></div>
+                <div class="trending-news"><p>Unrelated trending news</p></div>
+            </div>
+        </body></html>"""
+        m_resp.read.return_value = bh_html
+        fetcher.FULL_ARTICLE_TEXT_CACHE.clear()
+        with mock.patch("urllib.request.urlopen", return_value=m_resp):
+            txt = fetcher.extract_article_full_text("https://baahrakhari.com/news/12345")
+            self.assertIn("Baahrakhari core story text.", txt)
+            self.assertNotIn("Unrelated opinion text", txt)
+            self.assertNotIn("Unrelated trending news", txt)
+
+        # 3. Republica: selects .rep-body--regular, decomposes .rep-paywall
+        rep_html = b"""<html><body>
+            <div class="rep-article-container">
+                <div class="rep-body--regular">
+                    <p>Republica primary news story.</p>
+                </div>
+                <div class="rep-paywall"><p>Gain access to up to 10 free articles</p></div>
+            </div>
+        </body></html>"""
+        m_resp.read.return_value = rep_html
+        fetcher.FULL_ARTICLE_TEXT_CACHE.clear()
+        with mock.patch("urllib.request.urlopen", return_value=m_resp):
+            txt = fetcher.extract_article_full_text("https://myrepublica.nagariknetwork.com/news/12345")
+            self.assertIn("Republica primary news story.", txt)
+            self.assertNotIn("free articles", txt)
+
+        # 4. Nepal Live: stops before email/feedback disclaimer and decomposes .related-stories
+        nl_html = b"""<html><body>
+            <div class="editor-box">
+                <p>Nepal Live legitimate article body.</p>
+                <div class="related-stories"><p>Unrelated sidebar carousel</p></div>
+                <p>\xe0\xa4\xa8\xe0\xa5\x87\xe0\xa4\xaa\xe0\xa4\xbe\xe0\xa4\xb2\xe0\xa4\xb2\xe0\xa4\xbe\xe0\xa4\x87\xe0\xa4\xad\xe0\xa4\xae\xe0\xa4\xbe \xe0\xa4\xaa\xe0\xa5\x8d\xe0\xa4\xb0\xe0\xa4\x95\xe0\xa4\xbe\xe0\xa4\xb6\xe0\xa4\xbf\xe0\xa4\xa4 \xe0\xa4\xb8\xe0\xa4\xbe\xe0\xa4\xae\xe0\xa4\x97\xe0\xa5\x8d\xe0\xa4\xb0\xe0\xa5\x80\xe0\xa4\xac\xe0\xa4\xbe\xe0\xa4\xb0\xe0\xa5\x87 \xe0\xa4\x95\xe0\xa5\x81\xe0\xa4\xa8\xe0\xa5\x88 \xe0\xa4\x97\xe0\xa5\x81\xe0\xa4\xa8\xe0\xa4\xbe\xe0\xa4\xb8\xe0\xa5\x8b nepallivenews@gmail.com</p>
+            </div>
+        </body></html>"""
+        m_resp.read.return_value = nl_html
+        fetcher.FULL_ARTICLE_TEXT_CACHE.clear()
+        with mock.patch("urllib.request.urlopen", return_value=m_resp):
+            txt = fetcher.extract_article_full_text("https://nepallive.com/story/12345")
+            self.assertIn("Nepal Live legitimate article body.", txt)
+            self.assertNotIn("nepallivenews@gmail.com", txt)
+            self.assertNotIn("Unrelated sidebar carousel", txt)
+
+        # 5. Nepal News: selects #textToRead, stops before registration notice
+        nn_html = b"""<html><body>
+            <div id="textToRead">
+                <p>Nepal News clean report.</p>
+                <p>\xe0\xa4\xb8\xe0\xa5\x82\xe0\xa4\x9a\xe0\xa4\xa8\xe0\xa4\xbe \xe0\xa4\xad\xe0\xa4\xbf\xe0\xa4\xad\xe0\xa4\xbe\xe0\xa4\x97 \xe0\xa4\xa6\xe0\xa4\xb0\xe0\xa5\x8d\xe0\xa4\xa4\xe0\xa4\xbe \xe0\xa4\xa8\xe0\xa4\x82 : \xe0\xa5\xa8\xe0\xa5\xa7\xe0\xa5\xaa/\xe0\xa5\xa6\xe0\xa5\xad\xe0\xa5\xad-\xe0\xa5\xad\xe0\xa5\xae</p>
+            </div>
+        </body></html>"""
+        m_resp.read.return_value = nn_html
+        fetcher.FULL_ARTICLE_TEXT_CACHE.clear()
+        with mock.patch("urllib.request.urlopen", return_value=m_resp):
+            txt = fetcher.extract_article_full_text("https://nepalnews.com/s/12345")
+            self.assertIn("Nepal News clean report.", txt)
+            self.assertNotIn("\xe0\xa4\xa6\xe0\xa4\xb0\xe0\xa5\x8d\xe0\xa4\xa4\xe0\xa4\xbe", txt)
+
+        # 6. TechPana: extracts full story from .content__desc and .news_detail-para
+        tp_html = b"""<html><body>
+            <div class="news__details">
+                <div class="content__desc">
+                    <p class="news_detail-para">TechPana in-depth technical story paragraph 1.</p>
+                    <p class="news_detail-para">TechPana in-depth technical story paragraph 2.</p>
+                </div>
+            </div>
+        </body></html>"""
+        m_resp.read.return_value = tp_html
+        fetcher.FULL_ARTICLE_TEXT_CACHE.clear()
+        with mock.patch("urllib.request.urlopen", return_value=m_resp):
+            txt = fetcher.extract_article_full_text("https://techpana.com/2026/160082/hamro-patro")
+            self.assertIn("TechPana in-depth technical story paragraph 1.", txt)
+            self.assertIn("TechPana in-depth technical story paragraph 2.", txt)
 
 
 if __name__ == "__main__":
