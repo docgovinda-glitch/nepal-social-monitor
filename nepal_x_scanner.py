@@ -73,7 +73,7 @@ def _decode_snowflake_dt(sid: str) -> Optional[datetime.datetime]:
 # =====================================================================
 from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY
 
-# Canonical, unified verified X directory (216 authentic researched accounts)
+# Canonical, unified verified X directory
 TOP_NEPAL_X_ACCOUNTS: List[Dict[str, Any]] = [
     {**acc, "type": acc.get("category", "Civil Society and Public Voices"), "verified": True}
     for acc in VERIFIED_NEPAL_X_DIRECTORY
@@ -399,6 +399,21 @@ def _enrich_tweet_by_id(
     rel_time = format_relative_time(pub_dt, now_npt)
     exact_time = pub_dt.strftime("%b %d, %I:%M %p NPT")
 
+    expanded_urls: List[str] = []
+    entities = tweet_json.get("entities") if isinstance(tweet_json.get("entities"), dict) else {}
+    for u_obj in (entities.get("urls") or []):
+        if isinstance(u_obj, dict):
+            eu = (u_obj.get("expanded_url") or u_obj.get("url") or "").strip()
+            if eu and eu not in expanded_urls:
+                expanded_urls.append(eu)
+    card = tweet_json.get("card") if isinstance(tweet_json.get("card"), dict) else {}
+    bv = card.get("binding_values") if isinstance(card.get("binding_values"), dict) else {}
+    card_title = str((bv.get("title") or {}).get("string_value") or "").strip()
+    card_description = str((bv.get("description") or {}).get("string_value") or "").strip()
+    card_url = str((bv.get("card_url") or {}).get("string_value") or "").strip()
+    if card_url and card_url not in expanded_urls:
+        expanded_urls.append(card_url)
+
     return {
         "id": sid,
         "is_real_api": True,
@@ -423,7 +438,10 @@ def _enrich_tweet_by_id(
         "relative_time": rel_time,
         "exact_time": exact_time,
         "link": link,
-        "sentiment": sentiment
+        "sentiment": sentiment,
+        "expanded_urls": expanded_urls,
+        "card_title": card_title,
+        "card_description": card_description,
     }
 
 

@@ -945,20 +945,21 @@ def format_reader_copy_payload(
     headline: str,
     full_body: str,
     source_url: str = "",
+    whatsapp_bold: bool = False,
 ) -> str:
     """
-    Formats the complete 3-part In-App Reader copy payload:
-    1. Headline
+    Formats the complete 3-part In-App Reader payload:
+    1. Headline (optionally bold for WhatsApp)
     2. Full Body
     3. Direct Article Link
     """
-    hl = re.sub(r"\s+", " ", (headline or "").strip())
+    hl = re.sub(r"\s+", " ", (headline or "").strip()).strip("*").strip()
     body = (full_body or "").strip()
     url = (source_url or "").strip()
 
     parts: List[str] = []
     if hl:
-        parts.append(hl)
+        parts.append(f"*{hl}*" if whatsapp_bold else hl)
     if body:
         parts.append(body)
     if url:

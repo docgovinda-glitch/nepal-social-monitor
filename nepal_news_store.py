@@ -2,7 +2,7 @@
 nepal_news_store.py
 Cloud-native Supabase PostgreSQL news intelligence store and source-monitoring engine.
 Guarantees idempotent ingestion, canonical deduplication, per-source health tracking,
-and global metric aggregation for all 34 Nepali Media Portals and Indian press on Nepal.
+and global metric aggregation for Nepali Media Portals and Indian press on Nepal.
 """
 
 import os
@@ -610,20 +610,58 @@ def register_portal_sources(portals_list: List[Dict[str, Any]], force: bool = Fa
             check_interval_mins = EXCLUDED.check_interval_mins;
         """
         query_supabase(sql)
+        if len(portals_list) >= 10:
+            active_names = ", ".join(esc_sql(p["name"]) for p in portals_list if p.get("name"))
+            if active_names:
+                query_supabase(f"UPDATE sources SET enabled = 0 WHERE name NOT IN ({active_names}) AND enabled <> 0;")
         _PORTALS_REG_STATE["ts"] = time.time()
+
+
+def get_existing_article_urls(canonical_urls: List[str]) -> Dict[str, str]:
+    """
+    Queries Supabase articles for existing rows matching the given normalized URLs.
+    Returns {canonical_url: canonical_id}.
+    """
+    clean_urls = sorted({
+        normalize_canonical_url(u)
+        for u in (canonical_urls or [])
+        if u and normalize_canonical_url(u)
+    })
+    if not clean_urls:
+        return {}
+    existing: Dict[str, str] = {}
+    for i in range(0, len(clean_urls), 500):
+        chunk = clean_urls[i:i + 500]
+        in_sql = ", ".join(esc_sql(u) for u in chunk)
+        rows = query_supabase(
+            f"SELECT canonical_id, canonical_url FROM articles WHERE canonical_url IN ({in_sql});"
+        )
+        for r in rows or []:
+            cu = (r.get("canonical_url") or "").strip()
+            cid = (r.get("canonical_id") or "").strip()
+            if cu and cid:
+                existing[cu] = cid
+    return existing
+
 
 def batch_upsert_articles(
     articles: List[Dict[str, Any]],
     source_name: str,
     latency_secs: float = 0.0,
-    checkpoint: Optional[str] = None
+    checkpoint: Optional[str] = None,
+    is_x_boost: bool = False,
 ) -> Dict[str, int]:
-    """Inserts newly scraped articles into Supabase and updates source health."""
+    """
+    Inserts newly scraped articles into Supabase and updates source health.
+    - When is_x_boost=True: skips any URL already present in articles so RSS/HTML is never overwritten.
+    - When is_x_boost=False: reconciles normalized canonical_url against existing rows (e.g. earlier X-boost
+      entries) and upgrades them in place with official RSS/HTML headlines, summaries, bodies, and timestamps.
+    """
     if not articles:
         return {"discovered": 0, "ingested": 0, "duplicates": 0, "updated": 0}
 
     discovered = len(articles)
-    deduped: Dict[str, Dict[str, Any]] = {}
+    deduped_by_key: Dict[str, Dict[str, Any]] = {}
     for a in articles:
         title = (a.get("title") or "").strip()
         link = (a.get("link") or "").strip()
@@ -631,16 +669,55 @@ def batch_upsert_articles(
             continue
         can_url = normalize_canonical_url(link)
         cid = a.get("canonical_id") or generate_canonical_id(source_name, can_url, title)
-        a["canonical_id"] = cid
-        prev = deduped.get(cid)
-        if prev is None or len(str(a.get("full_content") or "")) >= len(str(prev.get("full_content") or "")):
-            deduped[cid] = a
+        item_copy = dict(a)
+        item_copy["canonical_id"] = cid
+        item_copy["_can_url"] = can_url
+        dedup_key = can_url or cid
+        prev = deduped_by_key.get(dedup_key)
+        if prev is None or len(str(item_copy.get("full_content") or "")) >= len(str(prev.get("full_content") or "")):
+            deduped_by_key[dedup_key] = item_copy
+
+    if not deduped_by_key:
+        return {"discovered": discovered, "ingested": 0, "duplicates": 0, "updated": 0}
+
+    candidate_urls = [a["_can_url"] for a in deduped_by_key.values() if a.get("_can_url")]
+    existing_by_url = get_existing_article_urls(candidate_urls) if candidate_urls else {}
+
+    reconciled_rows: List[Dict[str, Any]] = []
+    skipped_dups = 0
+    new_count = 0
+    updated_count = 0
+    for a in deduped_by_key.values():
+        can_url = a.get("_can_url", "")
+        existing_cid = existing_by_url.get(can_url) if can_url else None
+        if is_x_boost:
+            if existing_cid:
+                skipped_dups += 1
+                continue
+            new_count += 1
+            reconciled_rows.append(a)
+        else:
+            if existing_cid:
+                a["canonical_id"] = existing_cid
+                updated_count += 1
+            else:
+                new_count += 1
+            reconciled_rows.append(a)
+
+    if not reconciled_rows:
+        return {
+            "discovered": discovered,
+            "ingested": 0,
+            "duplicates": skipped_dups,
+            "updated": 0,
+        }
 
     values_list = []
-    for cid, a in deduped.items():
+    for a in reconciled_rows:
+        cid = a["canonical_id"]
         title = (a.get("title") or "").strip()
         link = (a.get("link") or "").strip()
-        can_url = normalize_canonical_url(link)
+        can_url = a.get("_can_url") or normalize_canonical_url(link)
 
         pub_dt = a.get("published_dt")
         if isinstance(pub_dt, datetime.datetime):
@@ -677,6 +754,32 @@ def batch_upsert_articles(
         values_list.append(f"({', '.join(vals)})")
 
     if values_list:
+        _excluded_is_real_intraday = (
+            "COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived') "
+            "AND NOT ("
+            "EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0 "
+            "AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0 "
+            "AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)"
+            ")"
+        )
+        _should_upgrade_ts = (
+            "COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived') "
+            "AND ("
+            "COALESCE(articles.exact_time, '') IN ('', 'Archived') "
+            "OR ("
+            "EXTRACT(MINUTE FROM articles.published_dt) = 0 "
+            "AND EXTRACT(SECOND FROM articles.published_dt) = 0 "
+            "AND EXTRACT(HOUR FROM articles.published_dt) IN (0, 12) "
+            "AND NOT ("
+            "EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0 "
+            "AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0 "
+            "AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)"
+            ")"
+            ") "
+            f"OR (articles.title IS DISTINCT FROM EXCLUDED.title AND ({_excluded_is_real_intraday})) "
+            "OR EXCLUDED.published_dt > articles.published_dt"
+            ")"
+        )
         # Upsert into articles in chunks of 50
         chunk_size = 50
         for i in range(0, len(values_list), chunk_size):
@@ -689,24 +792,87 @@ def batch_upsert_articles(
                 classification_confidence, low_confidence, is_viral
             ) VALUES {', '.join(chunk)}
             ON CONFLICT (canonical_id) DO UPDATE SET
+                title = CASE
+                    WHEN COALESCE(EXCLUDED.title, '') <> ''
+                         AND articles.title IS DISTINCT FROM EXCLUDED.title
+                    THEN EXCLUDED.title
+                    ELSE articles.title
+                END,
+                link = CASE
+                    WHEN COALESCE(EXCLUDED.link, '') <> ''
+                         AND articles.title IS DISTINCT FROM EXCLUDED.title
+                    THEN EXCLUDED.link
+                    ELSE articles.link
+                END,
+                canonical_url = CASE
+                    WHEN COALESCE(EXCLUDED.canonical_url, '') <> ''
+                    THEN EXCLUDED.canonical_url
+                    ELSE articles.canonical_url
+                END,
+                portal_category = CASE
+                    WHEN COALESCE(EXCLUDED.portal_category, '') <> ''
+                         AND articles.title IS DISTINCT FROM EXCLUDED.title
+                    THEN EXCLUDED.portal_category
+                    ELSE articles.portal_category
+                END,
+                primary_section = CASE
+                    WHEN articles.title IS DISTINCT FROM EXCLUDED.title
+                         OR LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                    THEN EXCLUDED.primary_section
+                    ELSE articles.primary_section
+                END,
+                sections = CASE
+                    WHEN articles.title IS DISTINCT FROM EXCLUDED.title
+                         OR LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                    THEN EXCLUDED.sections
+                    ELSE articles.sections
+                END,
+                secondary_tags = CASE
+                    WHEN articles.title IS DISTINCT FROM EXCLUDED.title
+                         OR LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                    THEN EXCLUDED.secondary_tags
+                    ELSE articles.secondary_tags
+                END,
+                classification_confidence = CASE
+                    WHEN articles.title IS DISTINCT FROM EXCLUDED.title
+                         OR LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                    THEN EXCLUDED.classification_confidence
+                    ELSE articles.classification_confidence
+                END,
+                low_confidence = CASE
+                    WHEN articles.title IS DISTINCT FROM EXCLUDED.title
+                         OR LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                    THEN EXCLUDED.low_confidence
+                    ELSE articles.low_confidence
+                END,
                 full_content = CASE
                     WHEN LENGTH(COALESCE(EXCLUDED.full_content, '')) > LENGTH(COALESCE(articles.full_content, ''))
+                         OR (
+                             articles.title IS DISTINCT FROM EXCLUDED.title
+                             AND LENGTH(COALESCE(articles.full_content, '')) < 300
+                             AND LENGTH(COALESCE(EXCLUDED.full_content, '')) >= 20
+                         )
                     THEN EXCLUDED.full_content
                     ELSE articles.full_content
                 END,
                 summary = CASE
                     WHEN COALESCE(EXCLUDED.summary, '') <> ''
-                         AND NOT (EXCLUDED.summary ~ '[\u0900-\u097F]')
                          AND (
-                             COALESCE(articles.summary, '') = ''
-                             OR articles.summary = articles.title
-                             OR articles.summary LIKE '%...%'
-                             OR articles.summary LIKE '%appeared first on%'
-                             OR articles.summary LIKE 'Author %'
-                             OR articles.summary LIKE 'By %'
-                             OR articles.summary LIKE 'Edited by %'
-                             OR articles.summary LIKE 'Kathmandu [%'
-                             OR articles.summary ~ '[\u0900-\u097F]'
+                             articles.title IS DISTINCT FROM EXCLUDED.title
+                             OR (
+                                 NOT (EXCLUDED.summary ~ '[\u0900-\u097F]')
+                                 AND (
+                                     COALESCE(articles.summary, '') = ''
+                                     OR articles.summary = articles.title
+                                     OR articles.summary LIKE '%...%'
+                                     OR articles.summary LIKE '%appeared first on%'
+                                     OR articles.summary LIKE 'Author %'
+                                     OR articles.summary LIKE 'By %'
+                                     OR articles.summary LIKE 'Edited by %'
+                                     OR articles.summary LIKE 'Kathmandu [%'
+                                     OR articles.summary ~ '[\u0900-\u097F]'
+                                 )
+                             )
                          )
                     THEN EXCLUDED.summary
                     ELSE articles.summary
@@ -715,52 +881,29 @@ def batch_upsert_articles(
                     WHEN COALESCE(EXCLUDED.headline_english, '') <> ''
                          AND NOT (EXCLUDED.headline_english ~ '[\u0900-\u097F]')
                          AND (
-                             COALESCE(articles.headline_english, '') = ''
+                             articles.title IS DISTINCT FROM EXCLUDED.title
+                             OR COALESCE(articles.headline_english, '') = ''
                              OR articles.headline_english ~ '[\u0900-\u097F]'
                          )
                     THEN EXCLUDED.headline_english
                     ELSE articles.headline_english
                 END,
                 published_dt = CASE
-                    WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
-                         AND (
-                             COALESCE(articles.exact_time, '') IN ('', 'Archived')
-                             OR (
-                                 EXTRACT(MINUTE FROM articles.published_dt) = 0
-                                 AND EXTRACT(SECOND FROM articles.published_dt) = 0
-                                 AND EXTRACT(HOUR FROM articles.published_dt) IN (0, 12)
-                                 AND NOT (
-                                     EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0
-                                     AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0
-                                     AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)
-                                 )
-                             )
-                             OR EXCLUDED.published_dt > articles.published_dt
-                         )
+                    WHEN {_should_upgrade_ts}
                     THEN EXCLUDED.published_dt
                     ELSE articles.published_dt
                 END,
                 relative_time = CASE
                     WHEN COALESCE(EXCLUDED.relative_time, '') NOT IN ('', 'Date unlisted')
+                         AND (
+                             {_should_upgrade_ts}
+                             OR COALESCE(articles.relative_time, '') IN ('', 'Date unlisted')
+                         )
                     THEN EXCLUDED.relative_time
                     ELSE articles.relative_time
                 END,
                 exact_time = CASE
-                    WHEN COALESCE(EXCLUDED.exact_time, '') NOT IN ('', 'Archived')
-                         AND (
-                             COALESCE(articles.exact_time, '') IN ('', 'Archived')
-                             OR (
-                                 EXTRACT(MINUTE FROM articles.published_dt) = 0
-                                 AND EXTRACT(SECOND FROM articles.published_dt) = 0
-                                 AND EXTRACT(HOUR FROM articles.published_dt) IN (0, 12)
-                                 AND NOT (
-                                     EXTRACT(MINUTE FROM EXCLUDED.published_dt) = 0
-                                     AND EXTRACT(SECOND FROM EXCLUDED.published_dt) = 0
-                                     AND EXTRACT(HOUR FROM EXCLUDED.published_dt) IN (0, 12)
-                                 )
-                             )
-                             OR EXCLUDED.published_dt > articles.published_dt
-                         )
+                    WHEN {_should_upgrade_ts}
                     THEN EXCLUDED.exact_time
                     ELSE articles.exact_time
                 END;
@@ -780,7 +923,7 @@ def batch_upsert_articles(
                 return parsed
         return datetime.datetime.min.replace(tzinfo=NEPAL_TZ)
 
-    latest_art = max(articles, key=_art_pub_sort_key) if articles else {}
+    latest_art = max(reconciled_rows, key=_art_pub_sort_key) if reconciled_rows else {}
     latest_pub = latest_art.get("published_dt")
     if isinstance(latest_pub, datetime.datetime):
         latest_pub_npt = latest_pub.astimezone(NEPAL_TZ) if latest_pub.tzinfo else latest_pub
@@ -790,6 +933,12 @@ def batch_upsert_articles(
     else:
         latest_pub_str = None
 
+    latency_update_sql = (
+        "discovery_latency_avg_secs = source_health.discovery_latency_avg_secs"
+        if is_x_boost
+        else f"discovery_latency_avg_secs = (source_health.discovery_latency_avg_secs * 0.7) + ({latency_secs} * 0.3)"
+    )
+
     health_sql = f"""
     INSERT INTO source_health (
         source_name, last_discovery_time, last_ingestion_time, status,
@@ -797,7 +946,7 @@ def batch_upsert_articles(
         latest_article_pub_dt, latest_article_title, latest_article_link, discovery_latency_avg_secs, last_checkpoint
     ) VALUES (
         {esc_sql(source_name)}, {esc_sql(now_utc_str)}, {esc_sql(now_utc_str)}, 'operational',
-        0, {discovered}, {discovered}, 0,
+        0, {len(reconciled_rows)}, {new_count}, {skipped_dups},
         {esc_sql(latest_pub_str)}, {esc_sql(latest_art.get("title", ""))}, {esc_sql(latest_art.get("link", ""))},
         {latency_secs}, {esc_sql(checkpoint or "")}
     )
@@ -808,6 +957,7 @@ def batch_upsert_articles(
         consecutive_failures = 0,
         total_discovered = source_health.total_discovered + EXCLUDED.total_discovered,
         total_ingested = source_health.total_ingested + EXCLUDED.total_ingested,
+        duplicate_count = source_health.duplicate_count + EXCLUDED.duplicate_count,
         latest_article_pub_dt = CASE
             WHEN EXCLUDED.latest_article_pub_dt IS NOT NULL
                  AND (source_health.latest_article_pub_dt IS NULL OR EXCLUDED.latest_article_pub_dt >= source_health.latest_article_pub_dt)
@@ -827,11 +977,16 @@ def batch_upsert_articles(
             ELSE COALESCE(source_health.latest_article_link, EXCLUDED.latest_article_link)
         END,
         last_error_message = NULL,
-        discovery_latency_avg_secs = (source_health.discovery_latency_avg_secs * 0.7) + ({latency_secs} * 0.3);
+        {latency_update_sql};
     """
     query_supabase(health_sql)
 
-    return {"discovered": discovered, "ingested": discovered, "duplicates": 0, "updated": 0}
+    return {
+        "discovered": discovered,
+        "ingested": new_count,
+        "duplicates": skipped_dups,
+        "updated": updated_count,
+    }
 
 def record_source_error(source_name: str, error_msg: str, latency_secs: float = 0.0):
     """Records an error for a portal in Supabase source health."""
@@ -848,6 +1003,42 @@ def record_source_error(source_name: str, error_msg: str, latency_secs: float = 
         status = CASE WHEN source_health.consecutive_failures >= 2 THEN 'failing' ELSE 'degraded' END;
     """
     query_supabase(sql)
+
+def is_portal_stale(
+    src: Dict[str, Any],
+    now_npt: Optional[datetime.datetime] = None,
+    stale_hours: float = 24.0,
+) -> bool:
+    """
+    Flags any enabled 'high' or 'standard' portal whose latest_article_pub_dt is older
+    than stale_hours (even when HTTP status is 'operational' / 200 OK).
+    """
+    if not src:
+        return False
+    en = src.get("enabled", 1)
+    if en in (0, False, "0"):
+        return False
+    if (src.get("priority") or "").strip().lower() not in ("high", "standard"):
+        return False
+    latest_raw = src.get("latest_article_pub_dt")
+    if not latest_raw:
+        return False
+    latest_dt = _parse_npt_wallclock_ts(latest_raw)
+    if latest_dt is None:
+        return False
+    ref_npt = now_npt or datetime.datetime.now(NEPAL_TZ)
+    return (ref_npt - latest_dt).total_seconds() > (stale_hours * 3600.0)
+
+
+def _apply_stale_portal_flags(rows: List[Dict[str, Any]], now_npt: Optional[datetime.datetime] = None) -> List[Dict[str, Any]]:
+    ref_npt = now_npt or datetime.datetime.now(NEPAL_TZ)
+    for row in rows or []:
+        stale = is_portal_stale(row, now_npt=ref_npt)
+        row["is_stale"] = stale
+        if stale and (row.get("status") or "operational") == "operational":
+            row["status"] = "stale"
+    return rows
+
 
 def _fetch_all_source_health_raw() -> List[Dict[str, Any]]:
     """Returns comprehensive portal health, counts, and status via a single aggregated CTE (uncached)."""
@@ -886,7 +1077,7 @@ def _fetch_all_source_health_raw() -> List[Dict[str, Any]]:
     WHERE s.name IN ({active_sql})
     ORDER BY s.enabled DESC, s.name ASC;
     """
-    return query_supabase(sql)
+    return _apply_stale_portal_flags(query_supabase(sql))
 
 
 @_cache_data_if_available(ttl=180)
@@ -1179,12 +1370,28 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
     ),
     hlth_kpis AS (
         SELECT
-            COUNT(*) FILTER (WHERE status = 'operational') AS operational,
-            COUNT(*) FILTER (WHERE status = 'degraded') AS degraded,
-            COUNT(*) FILTER (WHERE status = 'failing') AS failing,
-            COALESCE(AVG(discovery_latency_avg_secs), 0.75) AS avg_latency
-        FROM source_health
-        WHERE source_name IN ({active_sql})
+            COUNT(*) FILTER (
+                WHERE COALESCE(h.status, 'operational') = 'operational'
+                  AND NOT (
+                      s.enabled = 1
+                      AND LOWER(COALESCE(s.priority, '')) IN ('high', 'standard')
+                      AND h.latest_article_pub_dt IS NOT NULL
+                      AND h.latest_article_pub_dt < (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '24 hour'
+                  )
+            ) AS operational,
+            COUNT(*) FILTER (
+                WHERE COALESCE(h.status, 'operational') = 'operational'
+                  AND s.enabled = 1
+                  AND LOWER(COALESCE(s.priority, '')) IN ('high', 'standard')
+                  AND h.latest_article_pub_dt IS NOT NULL
+                  AND h.latest_article_pub_dt < (NOW() AT TIME ZONE 'Asia/Kathmandu') - INTERVAL '24 hour'
+            ) AS stale,
+            COUNT(*) FILTER (WHERE h.status = 'degraded') AS degraded,
+            COUNT(*) FILTER (WHERE h.status = 'failing') AS failing,
+            COALESCE(AVG(h.discovery_latency_avg_secs), 0.75) AS avg_latency
+        FROM sources s
+        LEFT JOIN source_health h ON s.name = h.source_name
+        WHERE s.name IN ({active_sql})
     ),
     art_kpis AS (
         SELECT
@@ -1203,7 +1410,8 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
         return {
             "total_sources": int(r.get("total_sources") or n_cfg),
             "active_sources": int(r.get("active_sources") or n_cfg),
-            "operational": int(r.get("operational") or 30),
+            "operational": int(r["operational"]) if r.get("operational") is not None else n_cfg,
+            "stale": int(r.get("stale") or 0),
             "degraded": int(r.get("degraded") or 0),
             "failing": int(r.get("failing") or 0),
             "avg_latency_secs": round(float(r.get("avg_latency") or 0.75), 2),
@@ -1213,7 +1421,7 @@ def _fetch_system_kpis_raw() -> Dict[str, Any]:
             "total_stored_articles": int(r.get("total_stored_articles") or 0),
         }
     return {
-        "total_sources": n_cfg, "active_sources": n_cfg, "operational": n_cfg, "degraded": 0, "failing": 0,
+        "total_sources": n_cfg, "active_sources": n_cfg, "operational": n_cfg, "stale": 0, "degraded": 0, "failing": 0,
         "avg_latency_secs": 0.75, "articles_1h": 0, "articles_24h": 0, "articles_7d": 0, "total_stored_articles": 0,
     }
 
@@ -3129,20 +3337,26 @@ def get_system_health_bundle() -> Dict[str, Any]:
     if not rows:
         return {"kpis": _fetch_system_kpis_raw(), "health": []}
     r = rows[0]
+    raw_health = _parse_json_val(r.get("health_json"), default=[])
+    health = _apply_stale_portal_flags(raw_health if isinstance(raw_health, list) else [])
+    stale_cnt = sum(1 for h in health if h.get("is_stale") or h.get("status") == "stale")
+    op_cnt = sum(1 for h in health if h.get("status") == "operational")
+    deg_cnt = sum(1 for h in health if h.get("status") == "degraded")
+    fail_cnt = sum(1 for h in health if h.get("status") == "failing")
     kpis = {
         "total_sources": int(r.get("total_sources") or n_cfg),
         "active_sources": int(r.get("active_sources") or n_cfg),
-        "operational": int(r.get("operational") or 30),
-        "degraded": int(r.get("degraded") or 0),
-        "failing": int(r.get("failing") or 0),
+        "operational": op_cnt if health else (int(r["operational"]) if r.get("operational") is not None else n_cfg),
+        "stale": stale_cnt,
+        "degraded": deg_cnt if health else int(r.get("degraded") or 0),
+        "failing": fail_cnt if health else int(r.get("failing") or 0),
         "avg_latency_secs": round(float(r.get("avg_latency") or 0.75), 2),
         "articles_1h": int(r.get("articles_1h") or 0),
         "articles_24h": int(r.get("articles_24h") or 0),
         "articles_7d": int(r.get("articles_7d") or 0),
         "total_stored_articles": int(r.get("total_stored_articles") or 0),
     }
-    health = _parse_json_val(r.get("health_json"), default=[])
-    return {"kpis": kpis, "health": health if isinstance(health, list) else []}
+    return {"kpis": kpis, "health": health}
 
 
 def fetch_analytics_export_bundle(

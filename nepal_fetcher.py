@@ -1,7 +1,7 @@
 """
 nepal_fetcher.py
 High-performance news & social media fetcher for Nepal.
-1. Monitors 34 leading online newspapers and digital portals in Nepal (both Nepali and English).
+1. Monitors leading online newspapers and digital portals in Nepal (both Nepali and English).
 2. Classifies content under 8 structured geo-political categories.
 3. Dedicated monitoring of Nepal coverage across Top Indian Media (English & Hindi).
 """
@@ -34,6 +34,7 @@ from nepal_news_store import (
     get_stored_indian_articles,
     get_indian_media_audit_stats,
     get_existing_indian_hydrated_ids,
+    get_existing_article_urls,
     record_indian_source_health,
 )
 
@@ -1061,7 +1062,7 @@ def extract_date_from_card_or_url(a_tag, href: str, now_npt: datetime.datetime, 
 # parse_to_nepal_time is imported from nepal_config above for single source of truth.
 
 
-def resolve_tco_url(url: str, timeout: float = 4.0) -> str:
+def resolve_tco_url(url: str, timeout: float = 4.0, allow_redirects: bool = False) -> str:
     """
     Resolves a https://t.co/... shortlink to its real destination URL using a lightweight
     HEAD (or GET fallback) request with allow_redirects=False so destination sites are never probed.
@@ -1081,12 +1082,12 @@ def resolve_tco_url(url: str, timeout: float = 4.0) -> str:
     resolved = clean_u
     headers = {"User-Agent": "curl/8.7.1", "Accept": "*/*"}
     try:
-        resp = requests.head(clean_u, headers=headers, allow_redirects=False, timeout=timeout)
+        resp = requests.head(clean_u, headers=headers, allow_redirects=allow_redirects, timeout=timeout)
         loc = (resp.headers.get("Location") or resp.headers.get("location") or "").strip()
         if loc.startswith("http"):
             resolved = loc
         else:
-            resp_get = requests.get(clean_u, headers=headers, allow_redirects=False, timeout=timeout)
+            resp_get = requests.get(clean_u, headers=headers, allow_redirects=allow_redirects, timeout=timeout)
             loc2 = (resp_get.headers.get("Location") or resp_get.headers.get("location") or "").strip()
             if loc2.startswith("http"):
                 resolved = loc2
@@ -1372,15 +1373,18 @@ def fetch_x_bridged_portal_articles(
 
     # 1. Gather candidate tweet metadata from seed posts, Supabase x_posts (past 14 days), and live profile
     stored_by_sid: Dict[str, Dict[str, Any]] = {}
+    has_recent_seed_for_handle = False
     for sp in (seed_x_posts or []):
         sp_h = (sp.get("raw_handle") or sp.get("handle") or "").lstrip("@").strip().lower()
         sp_id = str(sp.get("id") or "").strip()
         if sp_id and sp_h == handle_low:
             stored_by_sid[sp_id] = sp
+            has_recent_seed_for_handle = True
 
+    newest_synced_utc: Optional[datetime.datetime] = None
     try:
         db_rows = query_supabase(
-            "SELECT id, raw_handle, text, title, link, published_dt "
+            "SELECT id, raw_handle, text, title, link, published_dt, updated_at "
             f"FROM x_posts WHERE LOWER(raw_handle) = {esc_sql(handle_low)} "
             "AND published_dt >= NOW() - INTERVAL '14 days' "
             f"ORDER BY published_dt DESC LIMIT {min(max(int(max_entries), 20), 60)};"
@@ -1389,18 +1393,37 @@ def fetch_x_bridged_portal_articles(
             sid = str(r.get("id") or "").strip()
             if sid and sid not in stored_by_sid:
                 stored_by_sid[sid] = r
+            upd = r.get("updated_at")
+            upd_utc: Optional[datetime.datetime] = None
+            if isinstance(upd, datetime.datetime):
+                upd_utc = upd.astimezone(datetime.timezone.utc) if upd.tzinfo else upd.replace(tzinfo=datetime.timezone.utc)
+            elif isinstance(upd, str) and upd.strip():
+                try:
+                    upd_dt = dt_parser.parse(upd)
+                    upd_utc = upd_dt.astimezone(datetime.timezone.utc) if upd_dt.tzinfo else upd_dt.replace(tzinfo=datetime.timezone.utc)
+                except Exception:
+                    upd_utc = None
+            if upd_utc is not None and (newest_synced_utc is None or upd_utc > newest_synced_utc):
+                newest_synced_utc = upd_utc
     except Exception:
         pass
 
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    synced_within_5m = bool(
+        has_recent_seed_for_handle
+        or (newest_synced_utc is not None and (now_utc - newest_synced_utc).total_seconds() < 300.0)
+    )
+
     live_sids: List[str] = []
-    try:
-        profile_cands = _discover_profile_tweet_candidates([acc], timeout_secs=8.0) or {}
-        for sid, cand_acc in profile_cands.items():
-            cand_h = (cand_acc.get("handle") or "").lstrip("@").strip().lower() if isinstance(cand_acc, dict) else handle_low
-            if cand_h == handle_low:
-                live_sids.append(str(sid).strip())
-    except Exception:
-        pass
+    if not synced_within_5m:
+        try:
+            profile_cands = _discover_profile_tweet_candidates([acc], timeout_secs=8.0) or {}
+            for sid, cand_acc in profile_cands.items():
+                cand_h = (cand_acc.get("handle") or "").lstrip("@").strip().lower() if isinstance(cand_acc, dict) else handle_low
+                if cand_h == handle_low:
+                    live_sids.append(str(sid).strip())
+        except Exception:
+            pass
 
     all_sids = sorted(
         {s for s in list(stored_by_sid.keys()) + live_sids if s and s.isdigit()},
@@ -1530,10 +1553,270 @@ def fetch_x_bridged_portal_articles(
     return bridged_articles
 
 
+_NON_ARTICLE_EXACT_PATHS = {
+    "", "/npl", "/airquality", "/calendar", "/follow", "/here-now", "/opinion",
+    "/editorial", "/multimedia", "/archive", "/about", "/contact", "/advertise",
+    "/weather", "/forex", "/horoscope", "/rashifal", "/epaper", "/unicode",
+    "/date-converter", "/login", "/register", "/search", "/news", "/national",
+    "/business", "/politics", "/world", "/sports", "/valley", "/money", "/feature",
+    "/art-culture", "/columns", "/cricket", "/health", "/lifestyle", "/literature",
+    "/video", "/videos", "/photo", "/photos", "/live", "/latest", "/trending",
+}
+
+_X_BOOST_SOCIAL_HOSTS = frozenset({
+    "t.co", "www.t.co", "pic.twitter.com", "pbs.twimg.com", "video.twimg.com",
+    "x.com", "www.x.com", "twitter.com", "www.twitter.com",
+    "facebook.com", "www.facebook.com", "fb.watch", "youtu.be", "youtube.com",
+    "www.youtube.com", "instagram.com", "www.instagram.com", "tiktok.com", "www.tiktok.com",
+})
+
+
+def _extract_url_path_date(url: str) -> Optional[datetime.date]:
+    """Extracts a calendar date from URL path segments (e.g. /YYYY/MM/DD/ or /YYYY-MM-DD)."""
+    if not url:
+        return None
+    try:
+        path = urllib.parse.urlparse(url).path or ""
+    except Exception:
+        path = str(url)
+    m_ymd = re.search(r"/(20\d{2})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])(?:/|-|\.|_|$)", path)
+    if not m_ymd:
+        m_ymd = re.search(r"-(20\d{2})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])(?:-|\.|/|$)", path)
+    if m_ymd:
+        try:
+            return datetime.date(int(m_ymd.group(1)), int(m_ymd.group(2)), int(m_ymd.group(3)))
+        except ValueError:
+            return None
+    m_ym = re.search(r"/(20\d{2})/(0?[1-9]|1[0-2])(?:/|$)", path)
+    if m_ym:
+        try:
+            import calendar
+            y, m = int(m_ym.group(1)), int(m_ym.group(2))
+            return datetime.date(y, m, calendar.monthrange(y, m)[1])
+        except ValueError:
+            return None
+    return None
+
+
+def _is_x_boost_article_url_valid(
+    url: str,
+    portal: Dict[str, Any],
+    now_npt: datetime.datetime,
+    max_path_age_hours: float = 24.0,
+) -> bool:
+    """
+    Validates that an X-boost candidate URL belongs to the target portal's domain,
+    looks like an actual article URL (not a homepage/category/social link), and does
+    not carry a URL path date older than max_path_age_hours.
+    """
+    if not url or not url.startswith(("http://", "https://")):
+        return False
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False
+    host = parsed.netloc.lower().split(":")[0]
+    if not host or host in _X_BOOST_SOCIAL_HOSTS:
+        return False
+
+    portal_domain = (portal.get("target_domain") or "").strip().lower()
+    if not portal_domain:
+        portal_domain = urllib.parse.urlparse(portal.get("url", "")).netloc.lower().split(":")[0]
+    if portal_domain.startswith("www."):
+        portal_domain = portal_domain[4:]
+    if not portal_domain:
+        return False
+
+    if host != portal_domain and not host.endswith("." + portal_domain):
+        return False
+    # Prevent Nepali-edition X-boost handles from ingesting separate English-subdomain portals
+    if portal.get("lang") == "Nepali" and (host.startswith("en.") or host.startswith("english.")):
+        return False
+
+    path = (parsed.path or "").strip()
+    path_low = path.rstrip("/").lower()
+    if path_low in _NON_ARTICLE_EXACT_PATHS:
+        return False
+    if any(seg in path_low for seg in ("/author/", "/tag/", "/tags/", "/category/", "/topic/", "/page/", "/morearticles/", "/epaper")):
+        return False
+
+    segs = [s for s in path.split("/") if s]
+    if not segs:
+        return False
+    last_seg = segs[-1]
+    looks_like_article = bool(
+        re.search(r"\.(?:html?|ece|aspx|php)$", last_seg, re.I)
+        or re.search(r"\d{3,}", path)
+        or "/story/" in path_low
+        or "/news/" in path_low
+        or (len(segs) >= 2 and (len(last_seg) >= 8 or "-" in last_seg))
+    )
+    if not looks_like_article:
+        return False
+
+    path_date = _extract_url_path_date(url)
+    if path_date is not None:
+        end_of_url_day = datetime.datetime.combine(path_date, datetime.time(23, 59, 59), tzinfo=NEPAL_TZ)
+        if (now_npt - end_of_url_day).total_seconds() > (max_path_age_hours * 3600.0):
+            return False
+
+    return True
+
+
+def _resolve_x_boost_article_url(
+    raw_text: str,
+    expanded_urls: Optional[List[str]],
+    portal: Dict[str, Any],
+    now_npt: datetime.datetime,
+) -> str:
+    """Resolves t.co shortlinks via resolve_tco_url(..., allow_redirects=False) and validates article URL."""
+    candidates: List[str] = []
+    for u in (expanded_urls or []):
+        if isinstance(u, str) and u.strip().startswith("http"):
+            candidates.append(u.strip())
+    for m_u in re.findall(r"https?://[^\s<>\"']+", raw_text or ""):
+        clean_m = m_u.rstrip(").,;।")
+        if clean_m and clean_m not in candidates:
+            candidates.append(clean_m)
+
+    for cand in candidates:
+        host = urllib.parse.urlparse(cand).netloc.lower().split(":")[0]
+        target = resolve_tco_url(cand, allow_redirects=False) if host in ("t.co", "www.t.co") else cand
+        if _is_x_boost_article_url_valid(target, portal, now_npt):
+            return target
+    return ""
+
+
+def boost_x_portals_to_articles(
+    x_posts: Optional[List[Dict[str, Any]]] = None,
+    now_npt: Optional[datetime.datetime] = None,
+) -> int:
+    """
+    Dual-Feed X-Boost layer for high-velocity RSS/HTML portals configured with 'x_boost_handle'.
+    Resolves t.co links without extra site probing, skips non-article and >24h path-date links,
+    skips URLs already stored in Supabase articles, classifies via classify_article_editorial(),
+    and upserts new breaking stories so RSS/HTML can upgrade them in place on the next scrape.
+    """
+    from nepal_news_store import esc_sql, query_supabase
+
+    ref_npt = now_npt or datetime.datetime.now(NEPAL_TZ)
+    boost_portals_by_handle: Dict[str, Dict[str, Any]] = {}
+    for portal in TOP_NEPAL_NEWS_PORTALS:
+        if portal.get("type") == "x_bridge":
+            continue
+        bh = (portal.get("x_boost_handle") or "").lstrip("@").strip().lower()
+        if bh:
+            boost_portals_by_handle[bh] = portal
+
+    if not boost_portals_by_handle:
+        return 0
+
+    source_posts = list(x_posts) if x_posts is not None else []
+    if x_posts is None:
+        try:
+            in_handles = ", ".join(esc_sql(h) for h in sorted(boost_portals_by_handle.keys()))
+            source_posts = query_supabase(
+                "SELECT id, raw_handle, handle, text, title, link, published_dt "
+                f"FROM x_posts WHERE LOWER(raw_handle) IN ({in_handles}) "
+                "AND published_dt >= NOW() - INTERVAL '24 hours' "
+                "ORDER BY published_dt DESC LIMIT 180;"
+            ) or []
+        except Exception:
+            source_posts = []
+
+    if not source_posts:
+        return 0
+
+    candidates_by_portal: Dict[str, List[Dict[str, Any]]] = {}
+    candidate_norm_urls: List[str] = []
+    seen_norm_urls = set()
+
+    for post in source_posts:
+        raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").strip().lower()
+        portal = boost_portals_by_handle.get(raw_h)
+        if not portal:
+            continue
+
+        raw_text = str(post.get("text") or post.get("title") or "").strip()
+        if not raw_text or raw_text.startswith("@"):
+            continue
+
+        pub_raw = post.get("published_dt")
+        pub_dt, _, _ = parse_to_nepal_time(pub_raw, ref_npt)
+        if (ref_npt - pub_dt).total_seconds() > 86400.0:
+            continue
+
+        article_url = _resolve_x_boost_article_url(
+            raw_text=raw_text,
+            expanded_urls=post.get("expanded_urls"),
+            portal=portal,
+            now_npt=ref_npt,
+        )
+        if not article_url:
+            continue
+
+        norm_u = normalize_canonical_url(article_url)
+        if not norm_u or norm_u in seen_norm_urls:
+            continue
+
+        art = build_x_bridged_article(
+            portal=portal,
+            tweet_id=str(post.get("id") or ""),
+            raw_text=raw_text,
+            published_dt_raw=pub_dt,
+            now_npt=ref_npt,
+            expanded_urls=[article_url],
+            card_title=str(post.get("card_title") or ""),
+            card_description=str(post.get("card_description") or ""),
+            x_handle=portal.get("x_boost_handle"),
+        )
+        if not art:
+            continue
+
+        art["link"] = article_url
+        art["canonical_url"] = norm_u
+        seen_norm_urls.add(norm_u)
+        candidate_norm_urls.append(norm_u)
+        candidates_by_portal.setdefault(portal["name"], []).append(art)
+
+    if not candidate_norm_urls:
+        return 0
+
+    existing_urls = get_existing_article_urls(candidate_norm_urls)
+    total_boosted = 0
+    for portal_name, portal_arts in candidates_by_portal.items():
+        fresh_arts = [a for a in portal_arts if a.get("canonical_url") not in existing_urls]
+        if not fresh_arts:
+            continue
+        try:
+            batch_fetch_full_content(fresh_arts, max_workers=8, summarize_english=False)
+        except Exception:
+            pass
+        for a in fresh_arts:
+            cls_res = classify_article_editorial(
+                a.get("title", ""),
+                a.get("summary", ""),
+                portal_name,
+                a.get("full_content", ""),
+            )
+            cat = cls_res["primary_section"]
+            a["structured_category"] = cat
+            a["primary_section"] = cat
+            a["sections"] = cls_res["sections"]
+            a["secondary_tags"] = cls_res["secondary_tags"]
+            a["classification_confidence"] = cls_res["confidence"]
+            a["low_confidence"] = cls_res["low_confidence"]
+            a["category_icon"] = CATEGORY_ICONS.get(cat, "📌")
+        res = batch_upsert_articles(fresh_arts, portal_name, is_x_boost=True)
+        total_boosted += int(res.get("ingested", 0) or 0)
+
+    return total_boosted
+
+
 def bridge_x_portals_to_articles(x_posts: Optional[List[Dict[str, Any]]] = None) -> int:
     """
     Triggers X-to-Nepali-Media bridging for all configured x_bridge portals (e.g. Annapurna Post)
-    right after X ingestion runs, upserting articles and updating source_health.
+    and X-Boost breaking discovery for x_boost_handle portals right after X ingestion runs.
     """
     import time
     now_npt = datetime.datetime.now(NEPAL_TZ)
@@ -1559,6 +1842,10 @@ def bridge_x_portals_to_articles(x_posts: Optional[List[Dict[str, Any]]] = None)
                 total_bridged += len(bridged)
         except Exception:
             pass
+    try:
+        total_bridged += boost_x_portals_to_articles(x_posts=x_posts, now_npt=now_npt)
+    except Exception:
+        pass
     return total_bridged
 
 
@@ -1653,15 +1940,6 @@ def fetch_single_portal(
                 "is_viral": is_viral
             })
         return parsed_items
-
-    _NON_ARTICLE_EXACT_PATHS = {
-        "", "/npl", "/airquality", "/calendar", "/follow", "/here-now", "/opinion",
-        "/editorial", "/multimedia", "/archive", "/about", "/contact", "/advertise",
-        "/weather", "/forex", "/horoscope", "/rashifal", "/epaper", "/unicode",
-        "/date-converter", "/login", "/register", "/search", "/news", "/national",
-        "/business", "/politics", "/world", "/sports", "/valley", "/money", "/feature",
-        "/art-culture", "/columns", "/cricket", "/health", "/lifestyle", "/literature",
-    }
 
     def _clean_anchor_title_and_summary(a_el) -> Tuple[str, str]:
         """
@@ -1924,7 +2202,7 @@ def fetch_single_portal(
 
 def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False, return_all_stored: bool = True):
     """
-    Fetches real-time news items across all 34 Top Nepal Online News Portals in parallel.
+    Fetches real-time news items across all configured Top Nepal Online News Portals in parallel.
     If force_refresh=False and the SQLite store already holds recent articles, returns them
     immediately in <50ms while the background daemon keeps the store continuously synced.
     Pass return_all_stored=False during background/manual ingestion to skip re-fetching 1500 stored rows.

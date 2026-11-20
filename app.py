@@ -1,10 +1,10 @@
 """
 app.py
-Interactive Nepal Social Media, Nepali Media (Top 34 Portals), and Nepal in Indian Media Monitor.
+Interactive Nepal Social Media, Nepali Media Portals, and Nepal in Indian Media Monitor.
 Includes:
 - Date and Time Picker Filter (From selected timestamp up to current moment in NPT)
 - 8 Structured Classification Categories
-- 34 Top Nepali and English News Portals
+- Top Nepali and English News Portals
 - Dedicated Nepal in Indian Media Menu
 - Live X (Twitter) Feeds
 - CSV / Excel Export with Timestamps and Categories
@@ -47,7 +47,7 @@ def _ensure_reloaded_daemon_on_code_update() -> None:
     import sys
     import importlib
 
-    target_ver = "2026-11-19-v7"
+    target_ver = "2026-11-20-v8"
     old_sched = sys.modules.get("nepal_news_scheduler")
     if old_sched is not None and getattr(old_sched, "_DAEMON_CODE_VERSION", None) != target_ver:
         try:
@@ -166,6 +166,7 @@ from nepal_news_store import (
     get_system_kpis,
     get_system_health_bundle,
     get_db_transport_info,
+    is_portal_stale,
     set_source_enabled,
     set_source_interval,
     get_stored_articles,
@@ -993,13 +994,83 @@ def _commit_share_draft(draft: Dict[str, Any], new_text: str, new_headline: Opti
             draft["saved_headline"] = clean_hl
         draft["version"] = int(draft.get("version") or 1) + 1
         draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
-        st.toast(f"Saved draft v{draft['version']}", icon="💾")
+        draft["_just_saved"] = f"Saved draft v{draft['version']}"
     draft["draft_content"] = draft.get("saved_content") or ""
     if "saved_headline" in draft:
         draft["draft_headline"] = draft.get("saved_headline") or ""
     draft["is_editing"] = False
     draft["unsaved_send_warn"] = False
     draft["close_guard"] = False
+
+
+def _commit_read_draft(draft: Dict[str, Any], new_body: str, new_headline: Optional[str] = None) -> None:
+    """Commits edited headline/body text to the versioned Read Translation draft."""
+    clean = (new_body or "").strip()
+    old_body = (draft.get("saved_body") or "").strip()
+    old_hl = (draft.get("saved_headline") or "").strip()
+    clean_hl = (new_headline if new_headline is not None else old_hl).strip()
+    changed = (clean and clean != old_body) or (new_headline is not None and clean_hl != old_hl)
+    if changed:
+        if clean:
+            draft["saved_body"] = clean
+        if new_headline is not None:
+            draft["saved_headline"] = clean_hl
+        draft["version"] = int(draft.get("version") or 1) + 1
+        draft["saved_at"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p NPT")
+        draft["_just_saved"] = f"Saved translation draft v{draft['version']}"
+    draft["draft_body"] = draft.get("saved_body") or ""
+    draft["draft_headline"] = draft.get("saved_headline") or ""
+    draft["is_editing"] = False
+    draft["unsaved_send_warn"] = False
+    draft["close_guard"] = False
+
+
+def _on_read_enter_edit(cache_id: str) -> None:
+    d = st.session_state.get("read_translation_drafts", {}).get(cache_id)
+    if d:
+        d["is_editing"] = True
+        d["close_guard"] = False
+        d["unsaved_send_warn"] = False
+
+
+def _on_read_cancel_edit(cache_id: str) -> None:
+    d = st.session_state.get("read_translation_drafts", {}).get(cache_id)
+    if d:
+        d["draft_body"] = d.get("saved_body") or ""
+        d["draft_headline"] = d.get("saved_headline") or ""
+        d["is_editing"] = False
+        d["unsaved_send_warn"] = False
+
+
+def _on_read_save(cache_id: str, ta_key: str = "", hl_key: str = "") -> None:
+    d = st.session_state.get("read_translation_drafts", {}).get(cache_id)
+    if not d:
+        return
+    txt = str(st.session_state[ta_key]) if (ta_key and ta_key in st.session_state) else (d.get("draft_body") or "")
+    hl_val: Optional[str] = None
+    if hl_key and hl_key in st.session_state:
+        hl_val = str(st.session_state[hl_key])
+    elif "draft_headline" in d:
+        hl_val = str(d.get("draft_headline") or "")
+    _commit_read_draft(d, txt, new_headline=hl_val)
+
+
+def _on_read_discard_unsaved(cache_id: str) -> None:
+    d = st.session_state.get("read_translation_drafts", {}).get(cache_id)
+    if d:
+        d["draft_body"] = d.get("saved_body") or ""
+        d["draft_headline"] = d.get("saved_headline") or ""
+        d["unsaved_send_warn"] = False
+
+
+def _on_read_req_send(cache_id: str) -> None:
+    st.session_state["pending_read_send"] = cache_id
+
+
+def _on_read_req_close_guard(cache_id: str) -> None:
+    d = st.session_state.get("read_translation_drafts", {}).get(cache_id)
+    if d:
+        d["close_guard"] = True
 
 
 def _on_req_read_translate(cache_id: str) -> None:
@@ -1021,6 +1092,9 @@ def _show_read_in_app_dialog() -> None:
 
     st.session_state.setdefault("ondemand_fulltext", {})
     st.session_state.setdefault("ondemand_fulltext_view", {})
+    st.session_state.setdefault("read_translation_drafts", {})
+    st.session_state.setdefault("wa_sent_registry", set())
+    st.session_state.setdefault("wa_item_status", {})
 
     if st.session_state.pop("pending_read_translate", None) == cache_id:
         from nepal_summarizer import extract_on_demand_full_article
@@ -1033,6 +1107,34 @@ def _show_read_in_app_dialog() -> None:
                 st.session_state["ondemand_fulltext_view"][cache_id] = "en"
                 tr_status.update(label="English translation ready", state="complete", expanded=False)
                 st.toast("Headline & full article translated to English", icon="✅")
+                tr_t = (ft_tr.get("translated_title") or "").strip()
+                tr_b = (ft_tr.get("translated_text") or "").strip()
+                rd = st.session_state["read_translation_drafts"].get(cache_id)
+                if rd:
+                    if rd.get("version", 1) == 1 and not rd.get("is_editing"):
+                        if tr_t:
+                            rd["original_headline"] = tr_t
+                            rd["saved_headline"] = tr_t
+                            rd["draft_headline"] = tr_t
+                        if tr_b:
+                            rd["original_body"] = tr_b
+                            rd["saved_body"] = tr_b
+                            rd["draft_body"] = tr_b
+                else:
+                    st.session_state["read_translation_drafts"][cache_id] = {
+                        "original_headline": tr_t,
+                        "saved_headline": tr_t,
+                        "draft_headline": tr_t,
+                        "original_body": tr_b,
+                        "saved_body": tr_b,
+                        "draft_body": tr_b,
+                        "source_url": ft_tr.get("source_url") or item_link,
+                        "version": 1,
+                        "saved_at": "",
+                        "is_editing": False,
+                        "close_guard": False,
+                        "unsaved_send_warn": False,
+                    }
             else:
                 tr_status.update(label="Translation unavailable", state="error", expanded=False)
 
@@ -1055,39 +1157,221 @@ def _show_read_in_app_dialog() -> None:
         has_tr = bool(fulltext_data.get("translated_text") or fulltext_data.get("translated_title"))
         view_mode = st.session_state["ondemand_fulltext_view"].get(cache_id, "en" if has_tr else "orig")
         is_en_view = bool(view_mode == "en" and has_tr)
-        shown_text = (
+        is_english_mode = is_en_view or (ft_lang == "en")
+
+        raw_title = (fulltext_data.get("original_title") or item.get("title") or "").strip()
+        tr_title = (fulltext_data.get("translated_title") or "").strip()
+        base_shown_title = tr_title if (is_en_view and tr_title) else raw_title
+        base_shown_text = (
             fulltext_data["translated_text"]
             if (is_en_view and fulltext_data.get("translated_text"))
             else fulltext_data["original_text"]
         )
-        ft_eyebrow = "English Translation" if is_en_view else lang_lbl
+        ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
+
+        read_draft = st.session_state["read_translation_drafts"].get(cache_id)
+        if is_english_mode:
+            if not read_draft:
+                read_draft = {
+                    "original_headline": base_shown_title,
+                    "saved_headline": base_shown_title,
+                    "draft_headline": base_shown_title,
+                    "original_body": base_shown_text,
+                    "saved_body": base_shown_text,
+                    "draft_body": base_shown_text,
+                    "source_url": ft_src,
+                    "version": 1,
+                    "saved_at": "",
+                    "is_editing": False,
+                    "close_guard": False,
+                    "unsaved_send_warn": False,
+                }
+                st.session_state["read_translation_drafts"][cache_id] = read_draft
+            if read_draft.get("_just_saved"):
+                st.toast(read_draft.pop("_just_saved"), icon="💾")
+
+        hl_key = f"dlg_rd_hl_{item_uid}"
+        ta_key = f"dlg_rd_ta_{item_uid}"
+        if read_draft and read_draft.get("is_editing") and is_english_mode:
+            if hl_key in st.session_state:
+                read_draft["draft_headline"] = str(st.session_state[hl_key] or "")
+            if ta_key in st.session_state:
+                read_draft["draft_body"] = str(st.session_state[ta_key] or "")
+
+        saved_headline = (read_draft.get("saved_headline") if read_draft else base_shown_title) or ""
+        current_draft_headline = (read_draft.get("draft_headline") if read_draft else base_shown_title) or ""
+        saved_body = (read_draft.get("saved_body") if read_draft else base_shown_text) or ""
+        current_draft_body = (read_draft.get("draft_body") if read_draft else base_shown_text) or ""
+
+        has_unsaved = bool(is_english_mode and read_draft and (
+            (current_draft_body.strip() != saved_body.strip()) or
+            (current_draft_headline.strip() != saved_headline.strip())
+        ))
+        active_headline = current_draft_headline if (has_unsaved and current_draft_headline != saved_headline) else saved_headline
+        active_body = current_draft_body if (has_unsaved and current_draft_body != saved_body) else saved_body
+
+        shown_title = active_headline if is_english_mode else base_shown_title
+        shown_text = active_body if is_english_mode else base_shown_text
+
+        from whatsapp_greenapi import get_share_targets
+        _wa_targets = get_share_targets(is_x_post=False)
+        _wa_grp_key = f"dlg_rd_wa_grp_{item_uid}"
+        if len(_wa_targets) == 1:
+            selected_gid = _wa_targets[0]["id"]
+            dest_name = _wa_targets[0]["name"]
+        else:
+            _target_by_name = {t["name"]: t["id"] for t in _wa_targets}
+            _default_grp = st.session_state.get(_wa_grp_key)
+            if _default_grp not in _target_by_name:
+                _default_grp = _wa_targets[0]["name"]
+            dest_name = _default_grp
+            selected_gid = _target_by_name[dest_name]
+
+        if is_english_mode and st.session_state.pop("pending_read_send", None) == cache_id:
+            if has_unsaved:
+                read_draft["unsaved_send_warn"] = True
+            else:
+                with st.status(f"Sending translation to {dest_name}…", expanded=True) as send_status:
+                    from whatsapp_greenapi import send_group_message as send_wa_group_message
+                    send_status.write("Delivering confirmed translation to Green API…")
+                    wa_payload = format_reader_copy_payload(
+                        headline=saved_headline,
+                        full_body=saved_body,
+                        source_url=ft_src,
+                        whatsapp_bold=True,
+                    )
+                    wa_res = send_wa_group_message(
+                        chat_id=selected_gid,
+                        message=wa_payload,
+                        session_approved=True,
+                        sent_registry=st.session_state["wa_sent_registry"],
+                    )
+                    wa_res["group_name"] = dest_name
+                    st.session_state["wa_item_status"][cache_id] = wa_res
+                    if wa_res.get("ok") and wa_res.get("accepted"):
+                        send_status.write("Recording delivery in WhatsApp log…")
+                        try:
+                            record_whatsapp_sent(
+                                item_key=cache_id,
+                                group_id=selected_gid,
+                                group_name=dest_name,
+                                id_message=str(wa_res.get("id_message") or ""),
+                                item_link=item_link,
+                            )
+                            _get_wa_sent_map.clear()
+                            get_cached_header_bundle.clear()
+                            get_cached_login_bootstrap.clear()
+                            st.session_state.pop("_hdr_state_cache", None)
+                        except Exception as log_exc:
+                            wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
+                        send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
+                        st.session_state["active_modal"] = None
+                        st.session_state.pop("feed_sessions", None)
+                        st.toast(f"Sent translation to {dest_name}!", icon="✅")
+                        st.rerun()
+                    else:
+                        send_status.update(label="Delivery not completed", state="error", expanded=False)
+
+        ft_eyebrow = "English Translation" if is_en_view else ("English Article" if ft_lang == "en" else lang_lbl)
         is_complete = bool(fulltext_data.get("is_complete", True))
         ext_badge = (
             '<span class="extraction-badge extraction-badge--full">✓ Full Article</span>'
             if is_complete
             else '<span class="extraction-badge extraction-badge--partial">⚠ Partial Extraction</span>'
         )
-        raw_title = (fulltext_data.get("original_title") or item.get("title") or "").strip()
-        tr_title = (fulltext_data.get("translated_title") or "").strip()
-        shown_title = tr_title if (is_en_view and tr_title) else raw_title
+
+        persisted_sent = _get_wa_sent_map().get(cache_id)
+        ver = int(read_draft.get("version") or 1) if read_draft else 1
+        saved_at = read_draft.get("saved_at") or "" if read_draft else ""
+
+        status_pill = ""
+        if is_english_mode and read_draft:
+            status_pill = (
+                '<span class="share-draft-pill share-draft-pill--unsaved">● Unsaved</span>'
+                if has_unsaved
+                else (
+                    f'<span class="share-draft-pill share-draft-pill--saved">✓ Saved v{ver} · {html.escape(saved_at)}</span>'
+                    if saved_at
+                    else f'<span class="share-draft-pill share-draft-pill--saved">Draft v{ver}</span>'
+                )
+            )
+
+        sent_pill = ""
+        if persisted_sent:
+            gname_esc = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
+            ts_str = _format_wa_sent_time(persisted_sent.get("sent_at"))
+            msg_id_esc = html.escape(str(persisted_sent.get("id_message") or ""))
+            ts_txt = f" · {html.escape(ts_str)}" if ts_str else ""
+            sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
+
+        st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
+
+        if is_english_mode and read_draft and read_draft.get("is_editing"):
+            st.markdown(
+                f'<div class="share-modal-head">'
+                f'<span class="share-modal-type">{html.escape(ft_eyebrow)} (Editing)</span>'
+                f'<span class="share-modal-pills">{status_pill}{sent_pill}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            edited_hl = st.text_input(
+                "Headline (English)",
+                value=read_draft.get("draft_headline") or "",
+                key=hl_key,
+            )
+            read_draft["draft_headline"] = edited_hl or ""
+            current_draft_headline = read_draft["draft_headline"].strip()
+
+            edited_body = st.text_area(
+                "Article Body (English)",
+                value=read_draft.get("draft_body") or "",
+                height=280,
+                key=ta_key,
+            )
+            read_draft["draft_body"] = edited_body or ""
+            current_draft_body = read_draft["draft_body"].strip()
+            has_unsaved = (current_draft_body != saved_body) or (current_draft_headline != saved_headline)
+
+            if ft_src:
+                st.markdown(_render_source_link_html(ft_src, inline=True), unsafe_allow_html=True)
+            ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
+            with ec1:
+                st.button(
+                    "Save",
+                    icon=":material/save:",
+                    type="primary",
+                    key=f"dlg_rd_save_{item_uid}",
+                    help="Save draft without sending",
+                    on_click=_on_read_save,
+                    args=(cache_id, ta_key, hl_key),
+                )
+            with ec2:
+                st.button(
+                    "",
+                    icon=":material/close:",
+                    key=f"dlg_rd_cancel_{item_uid}",
+                    help="Discard unsaved edits",
+                    on_click=_on_read_cancel_edit,
+                    args=(cache_id,),
+                )
+            return
+
         reader_title = html.escape(shown_title)
         reader_src = html.escape((item.get("source") or "").strip())
         reader_time = html.escape((item.get("exact_time") or item.get("relative_time") or "").strip())
         meta_parts = [p for p in (reader_src, reader_time) if p]
         reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
 
-        # Strip redundant leading headline if scraped/translated body starts with the exact title
         body_paras = [p.strip() for p in re.split(r"\n\s*\n", (shown_text or "").strip()) if p.strip()]
-        if body_paras and len(body_paras) > 1 and body_paras[0] in (raw_title, shown_title):
+        if body_paras and len(body_paras) > 1 and body_paras[0] in (raw_title, shown_title, base_shown_title):
             body_paras = body_paras[1:]
         body_html = "".join(f'<p class="reader-para">{html.escape(p)}</p>' for p in body_paras)
-
-        ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
         ft_src_html = _render_source_link_html(ft_src)
-        st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
+
+        header_pills = f'<div style="display:inline-flex;gap:6px;align-items:center;">{ext_badge}{status_pill}{sent_pill}</div>'
         st.markdown(
             f'<div class="fulltext-reader-box">'
-            f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{ext_badge}</div>'
+            f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{header_pills}</div>'
             f'<div class="fulltext-reader-box__title">{reader_title}</div>'
             f'{reader_meta_html}'
             f'<div class="fulltext-reader-box__body">{body_html}</div>'
@@ -1098,45 +1382,163 @@ def _show_read_in_app_dialog() -> None:
         if fulltext_data.get("error"):
             st.warning(fulltext_data["error"])
 
+        if is_english_mode and read_draft:
+            if read_draft.get("close_guard") and has_unsaved:
+                st.warning("Save changes before closing?")
+                g1, g2, g3 = st.columns(3, gap="small")
+                with g1:
+                    if st.button("Save & Close", icon=":material/save:", type="primary", key=f"dlg_rd_sc_{item_uid}"):
+                        _commit_read_draft(read_draft, current_draft_body, new_headline=current_draft_headline)
+                        st.session_state["active_modal"] = None
+                        st.rerun()
+                with g2:
+                    if st.button("Discard", icon=":material/delete_outline:", key=f"dlg_rd_dc_{item_uid}"):
+                        read_draft["draft_body"] = read_draft["saved_body"]
+                        read_draft["draft_headline"] = read_draft.get("saved_headline") or ""
+                        read_draft["close_guard"] = False
+                        st.session_state["active_modal"] = None
+                        st.rerun()
+                with g3:
+                    st.button(
+                        "Keep Editing",
+                        icon=":material/edit:",
+                        key=f"dlg_rd_ke_{item_uid}",
+                        on_click=_on_read_enter_edit,
+                        args=(cache_id,),
+                    )
+                return
+
+            if read_draft.get("unsaved_send_warn") and has_unsaved:
+                st.warning("Unsaved edits exist. Save or discard them before sending.")
+                u1, u2 = st.columns(2, gap="small")
+                with u1:
+                    st.button(
+                        "Save Draft",
+                        icon=":material/save:",
+                        type="primary",
+                        key=f"dlg_rd_sd_{item_uid}",
+                        on_click=_on_read_save,
+                        args=(cache_id, "", ""),
+                    )
+                with u2:
+                    st.button(
+                        "Discard Edits",
+                        icon=":material/undo:",
+                        key=f"dlg_rd_dd_{item_uid}",
+                        on_click=_on_read_cancel_edit,
+                        args=(cache_id,),
+                    )
+
         needs_tr = (ft_lang != "en") or _has_devanagari(raw_title) or _has_devanagari(fulltext_data.get("original_text", ""))
         has_tr_btn = needs_tr or has_tr
-        ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
-        col_i = 0
-        if needs_tr and not has_tr:
-            with ft_cols[col_i]:
-                st.button(
-                    "Translate to English",
-                    icon=":material/translate:",
-                    type="primary",
-                    key=f"dlg_ft_tr_{item_uid}",
-                    on_click=_on_req_read_translate,
-                    args=(cache_id,),
-                )
-            col_i += 1
-        elif has_tr and needs_tr:
-            with ft_cols[col_i]:
-                toggle_lbl = "Original" if view_mode == "en" else "English Translation"
-                st.button(
-                    toggle_lbl,
-                    icon=":material/swap_horiz:",
-                    type="primary",
-                    key=f"dlg_ft_tog_{item_uid}",
-                    on_click=_on_toggle_read_view,
-                    args=(cache_id,),
-                )
-            col_i += 1
-        with ft_cols[col_i]:
-            copy_body = "\n\n".join(body_paras) if body_paras else (shown_text or "").strip()
-            ft_copy_payload = format_reader_copy_payload(
-                headline=shown_title,
-                full_body=copy_body,
-                source_url=ft_src,
+
+        if is_english_mode and len(_wa_targets) > 1:
+            dest_name = st.radio(
+                "Destination WhatsApp Group",
+                options=[t["name"] for t in _wa_targets],
+                horizontal=True,
+                key=_wa_grp_key,
             )
-            _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
-        with ft_cols[col_i + 1]:
-            if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}"):
-                st.session_state["active_modal"] = None
-                st.rerun()
+            selected_gid = _target_by_name[dest_name]
+
+        copy_body = "\n\n".join(body_paras) if body_paras else (shown_text or "").strip()
+        ft_copy_payload = format_reader_copy_payload(
+            headline=shown_title,
+            full_body=copy_body,
+            source_url=ft_src,
+            whatsapp_bold=False,
+        )
+
+        if is_english_mode:
+            cols = st.columns(6 if has_tr_btn else 5, gap="small")
+            ci = 0
+            if has_tr_btn:
+                with cols[ci]:
+                    st.button(
+                        "Original",
+                        icon=":material/swap_horiz:",
+                        type="secondary",
+                        key=f"dlg_ft_tog_{item_uid}",
+                        on_click=_on_toggle_read_view,
+                        args=(cache_id,),
+                    )
+                ci += 1
+            with cols[ci]:
+                _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}", icon_only=True)
+            with cols[ci + 1]:
+                st.button(
+                    "",
+                    icon=":material/edit:",
+                    key=f"dlg_rd_edit_{item_uid}",
+                    help="Edit translation",
+                    on_click=_on_read_enter_edit,
+                    args=(cache_id,),
+                )
+            with cols[ci + 2]:
+                st.button(
+                    "",
+                    icon=":material/save:",
+                    key=f"dlg_rd_save_bar_{item_uid}",
+                    disabled=not has_unsaved,
+                    help="Save draft without sending" if has_unsaved else "All changes saved",
+                    on_click=_on_read_save,
+                    args=(cache_id, "", ""),
+                )
+            with cols[ci + 3]:
+                if has_unsaved:
+                    st.button(
+                        "",
+                        icon=":material/close:",
+                        key=f"dlg_ft_cls_{item_uid}",
+                        help="Close",
+                        on_click=_on_read_req_close_guard,
+                        args=(cache_id,),
+                    )
+                else:
+                    if st.button("", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close"):
+                        st.session_state["active_modal"] = None
+                        st.rerun()
+            with cols[ci + 4]:
+                st.button(
+                    "",
+                    icon=":material/send:",
+                    type="primary",
+                    key=f"dlg_rd_conf_{item_uid}",
+                    help=f"Confirm to Send: send latest saved translation (v{ver}) to {dest_name}",
+                    on_click=_on_read_req_send,
+                    args=(cache_id,),
+                )
+        else:
+            ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
+            col_i = 0
+            if needs_tr and not has_tr:
+                with ft_cols[col_i]:
+                    st.button(
+                        "Translate to English",
+                        icon=":material/translate:",
+                        type="primary",
+                        key=f"dlg_ft_tr_{item_uid}",
+                        on_click=_on_req_read_translate,
+                        args=(cache_id,),
+                    )
+                col_i += 1
+            elif has_tr and needs_tr:
+                with ft_cols[col_i]:
+                    st.button(
+                        "English Translation",
+                        icon=":material/swap_horiz:",
+                        type="primary",
+                        key=f"dlg_ft_tog_{item_uid}",
+                        on_click=_on_toggle_read_view,
+                        args=(cache_id,),
+                    )
+                col_i += 1
+            with ft_cols[col_i]:
+                _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
+            with ft_cols[col_i + 1]:
+                if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}"):
+                    st.session_state["active_modal"] = None
+                    st.rerun()
     else:
         st.warning("Full article could not be extracted (the publisher may block scraping or require a subscription). Use View Original to read on the publisher's site.")
         c1, c2 = st.columns(2, gap="small")
@@ -1263,6 +1665,9 @@ def _show_share_dialog() -> None:
         draft["original_headline"] = gen_headline
         draft["saved_headline"] = gen_headline
         draft["draft_headline"] = gen_headline
+
+    if draft and draft.get("_just_saved"):
+        st.toast(draft.pop("_just_saved"), icon="💾")
 
     ta_key = f"dlg_ta_edit_{item_uid}"
     hl_key = f"dlg_hl_edit_{item_uid}"
@@ -2246,18 +2651,17 @@ def render_infinite_workspace_feed(
         key=f"inf_feed_{workspace}",
     )
 
-    if modal_action_requested is not None:
-        if modal_action_requested["action"] == "read" and not modal_action_requested["is_x"]:
-            _show_read_in_app_dialog()
-        elif modal_action_requested["action"] == "share":
-            _show_share_dialog()
-    else:
+    if modal_action_requested is None:
         _process_component_event(ev, is_pre_pass=False)
-        if modal_action_requested is not None:
-            if modal_action_requested["action"] == "read" and not modal_action_requested["is_x"]:
-                _show_read_in_app_dialog()
-            elif modal_action_requested["action"] == "share":
-                _show_share_dialog()
+
+    active_m = st.session_state.get("active_modal")
+    if active_m:
+        m_mode = active_m.get("mode")
+        m_is_x = bool(active_m.get("is_x", False))
+        if m_mode == "read" and not m_is_x:
+            _show_read_in_app_dialog()
+        elif m_mode == "share":
+            _show_share_dialog()
 
     return {
         "total_count": max(sess["total_count"], loaded_count),
@@ -2727,7 +3131,7 @@ if selected_nav == "Live Feed":
 
 
 # ==========================================
-# SECTION 1: Nepali Media (Top 34 Portals)
+# SECTION 1: Nepali Media (Monitored Portals)
 # ==========================================
 @st.fragment
 def render_nepali_media_section() -> None:
@@ -3625,6 +4029,7 @@ def render_system_health_section() -> None:
             "total_sources": len(TOP_NEPAL_NEWS_PORTALS),
             "active_sources": len(TOP_NEPAL_NEWS_PORTALS),
             "operational": len(TOP_NEPAL_NEWS_PORTALS),
+            "stale": 0,
             "degraded": 0,
             "failing": 0,
             "avg_latency_secs": 0.75,
@@ -3635,13 +4040,42 @@ def render_system_health_section() -> None:
         }
         health_data = []
 
+    stale_portals = []
+    for _h in health_data:
+        if "is_stale" not in _h:
+            _h["is_stale"] = is_portal_stale(_h)
+        if _h["is_stale"] and (_h.get("status") or "operational") == "operational":
+            _h["status"] = "stale"
+        if _h["is_stale"] or _h.get("status") == "stale":
+            stale_portals.append(_h)
+
+    _failing_cnt = int(kpis.get("failing") or 0)
+    _stale_cnt = len(stale_portals) if health_data else int(kpis.get("stale") or 0)
+    if _failing_cnt > 0:
+        _op_delta = f"-{_failing_cnt} failing"
+    elif _stale_cnt > 0:
+        _op_delta = f"{_stale_cnt} stale (>24h)"
+    else:
+        _op_delta = "100% Healthy"
+
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric("Total Portals", f"{kpis['total_sources']}")
-    k2.metric("Operational", f"{kpis['operational']}", delta="100% Healthy" if kpis["failing"] == 0 else f"-{kpis['failing']} failing")
+    k2.metric("Operational", f"{kpis['operational']}", delta=_op_delta)
     k3.metric("Last 1 Hour", f"{kpis['articles_1h']:,}")
     k4.metric("Last 24 Hours", f"{kpis['articles_24h']:,}")
     k5.metric("Total Stored", f"{kpis['total_stored_articles']:,}")
     k6.metric("Avg Latency", f"{kpis['avg_latency_secs']}s")
+
+    if stale_portals:
+        _stale_names = ", ".join(
+            f"{sp['name']} ({str(sp.get('latest_article_pub_dt') or '')[:16]})"
+            for sp in stale_portals[:5]
+        )
+        st.warning(
+            f"{len(stale_portals)} enabled high/standard portal(s) returned HTTP 200 OK but have no fresh articles in the last 24h (possible silent CMS redesign): {_stale_names}",
+            icon=":material/warning:",
+            title="Stale 200 OK portal alert",
+        )
 
     st.write("")
 
@@ -3759,7 +4193,13 @@ def render_system_health_section() -> None:
 
     ind_view_sorted = sorted(ind_view, key=lambda r: (0 if r["_status"] == "failing" else (1 if r["_status"] == "degraded" else 2), -r["7d"], -r["24h"], r["Outlet"]))
     ind_table_rows = [{k: v for k, v in r.items() if not k.startswith("_")} for r in ind_view_sorted]
-    st.dataframe(ind_table_rows, width="stretch", hide_index=True, height=320)
+    st.dataframe(
+        ind_table_rows,
+        width="stretch",
+        hide_index=True,
+        height=320,
+        alt="Indian press source health table",
+    )
 
     st.write("")
     st.markdown("##### 📋 Monitored Nepali Media Source Registry")
@@ -3768,7 +4208,7 @@ def render_system_health_section() -> None:
     with sh_c1:
         admin_search_src = st.text_input("Source Name", placeholder="Filter by source name…", key="inp_admin_src_srch", label_visibility="collapsed")
     with sh_c2:
-        admin_status_filter = st.selectbox("Status Filter", ["All Statuses", "Operational Only", "Degraded Only", "Failing Only"], key="sel_admin_status", label_visibility="collapsed")
+        admin_status_filter = st.selectbox("Status Filter", ["All Statuses", "Operational Only", "Stale Only", "Degraded Only", "Failing Only"], key="sel_admin_status", label_visibility="collapsed")
     with sh_c3:
         admin_lang_filter = st.selectbox("Source Language", [ALL_LANG_DEFAULT, "Nepali Only", "English Only"], key="sel_admin_lang", label_visibility="collapsed")
     with sh_c4:
@@ -3780,6 +4220,8 @@ def render_system_health_section() -> None:
         filtered_health = [h for h in filtered_health if q_src in h["name"].lower()]
     if admin_status_filter == "Operational Only":
         filtered_health = [h for h in filtered_health if h.get("status") == "operational"]
+    elif admin_status_filter == "Stale Only":
+        filtered_health = [h for h in filtered_health if h.get("status") == "stale" or h.get("is_stale")]
     elif admin_status_filter == "Degraded Only":
         filtered_health = [h for h in filtered_health if h.get("status") == "degraded"]
     elif admin_status_filter == "Failing Only":
@@ -3800,6 +4242,12 @@ def render_system_health_section() -> None:
     st.markdown(f'<div class="counter-badge">Displaying <b>{len(filtered_health)} of {len(health_data)}</b> monitored media sources</div>', unsafe_allow_html=True)
     st.write("")
 
+    _boost_handle_by_portal = {
+        p["name"]: p["x_boost_handle"]
+        for p in TOP_NEPAL_NEWS_PORTALS
+        if p.get("x_boost_handle")
+    }
+
     for s_idx, src in enumerate(filtered_health):
         s_name = src["name"]
         s_status = src.get("status", "operational")
@@ -3808,10 +4256,14 @@ def render_system_health_section() -> None:
         s_priority = src.get("priority", "standard").capitalize()
         s_interval = src.get("check_interval_mins", 15)
         s_enabled = bool(src.get("enabled", 1))
+        s_boost_h = _boost_handle_by_portal.get(s_name, "")
 
         if s_status == "operational":
             status_cls, status_txt = "status-pill--ok", "Operational"
             card_accent = "health-card--ok"
+        elif s_status == "stale" or src.get("is_stale"):
+            status_cls, status_txt = "status-pill--warn", "Stale (>24h)"
+            card_accent = "health-card--warn"
         elif s_status == "degraded":
             status_cls, status_txt = "status-pill--warn", "Degraded"
             card_accent = "health-card--warn"
@@ -3830,6 +4282,7 @@ def render_system_health_section() -> None:
         latest_title = src.get("latest_article_title") or "No article recorded yet"
         latest_link = src.get("latest_article_link") or src.get("url") or "#"
         latest_pub = src.get("latest_article_pub_dt") or ""
+        boost_pill_html = f'<span class="pill">⚡ X-Boost @{html.escape(s_boost_h)}</span>' if s_boost_h else ""
 
         st.markdown(f"""
         <div class="health-card {card_accent}">
@@ -3839,6 +4292,7 @@ def render_system_health_section() -> None:
                     <span class="status-pill {status_cls}">● {status_txt}</span>
                     <span class="pill">⏱ Every {s_interval}m ({s_priority})</span>
                     <span class="pill">📡 {s_type}</span>
+                    {boost_pill_html}
                     <span class="pill">🌐 {s_lang}</span>
                 </div>
                 <div class="health-card__meta">
@@ -3897,16 +4351,24 @@ def render_system_health_section() -> None:
             h for h in health_data 
             if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and (h.get("count_7d", 0) == 0 or h.get("status") in ["failing", "degraded"])
         ]
+        stale_diag_sources = [
+            h for h in health_data
+            if h.get("enabled", 1) and (h.get("status") == "stale" or h.get("is_stale"))
+        ]
         quiet_sources = [
             h for h in health_data 
-            if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and h.get("count_7d", 0) > 0 and h.get("status") not in ["failing", "degraded"]
+            if h.get("count_24h", 0) == 0 and h.get("enabled", 1) and h.get("count_7d", 0) > 0 and h.get("status") not in ["failing", "degraded", "stale"]
         ]
+        if stale_diag_sources:
+            st.warning(f"⏰ **Stale 200 OK Alert:** {len(stale_diag_sources)} enabled high/standard portal(s) have `latest_article_pub_dt` older than 24h:")
+            for sds in stale_diag_sources:
+                st.write(f"- **{sds['name']}** ({sds['priority']} · {sds['type']}): Latest `{str(sds.get('latest_article_pub_dt') or '—')[:19]}` · Endpoint: `{sds['url']}`")
         if low_coverage_sources:
             st.warning(f"⚠️ **Low Discovery Alert:** {len(low_coverage_sources)} enabled portals have produced 0 articles and require endpoint review:")
             for lcs in low_coverage_sources:
                 st.write(f"- **{lcs['name']}** ({lcs['type']} · {lcs['lang']}): Status `{lcs['status']}` · Endpoint: `{lcs['url']}`")
-        else:
-            st.success("🎉 All active media portal feeds and web scrapers are healthy with zero degraded endpoints!")
+        if not low_coverage_sources and not stale_diag_sources:
+            st.success("🎉 All active media portal feeds and web scrapers are healthy with zero degraded or stale endpoints!")
 
         if quiet_sources:
             st.info(f"ℹ️ **Quiet / Periodic Portals:** {len(quiet_sources)} portals (e.g. {', '.join([q['name'] for q in quiet_sources[:3]])}) publish on a weekly or holiday schedule. Their scrapers are operational and will automatically ingest stories when published.")

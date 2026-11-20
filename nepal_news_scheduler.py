@@ -296,13 +296,14 @@ def run_summary_enrichment_backfill(batch_size: int = 80) -> int:
 
 
 # Background Monitoring Worker Thread
-_DAEMON_CODE_VERSION = "2026-11-19-v7"
+_DAEMON_CODE_VERSION = "2026-11-20-v8"
 _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
 _LAST_INDIAN_SCAN_TIME = 0.0
 X_SCAN_INTERVAL_SECS = 15 * 60  # Automatically scan X every 15 minutes
-INDIAN_SCAN_INTERVAL_SECS = 15 * 60  # Automatically poll 18 Indian outlets every 15 minutes
+INDIAN_SCAN_INTERVAL_SECS = 15 * 60  # Automatically poll 34 Indian outlets every 15 minutes
+STREAM_STAGGER_SECS = 6 * 60  # Stagger Indian Press and X scanner by 6 minutes so streams never collide
 
 _MANUAL_SYNC_LOCK = threading.Lock()
 _INGEST_RUN_LOCK = threading.Lock()
@@ -513,6 +514,45 @@ def trigger_manual_sync_async(targets: Optional[List[str]] = None) -> Tuple[bool
     return True, snap
 
 
+def _compute_staggered_due_streams(
+    now_sec: float,
+    last_indian_ts: float,
+    last_x_ts: float,
+    indian_interval: float = INDIAN_SCAN_INTERVAL_SECS,
+    x_interval: float = X_SCAN_INTERVAL_SECS,
+    stagger_secs: float = STREAM_STAGGER_SECS,
+) -> Tuple[bool, bool, float, float]:
+    """
+    Determines whether Indian Press or X scanner should run on the current 60s tick while
+    staggering both 15-minute streams by ~6 minutes so all 3 streams never collide on tick 0
+    or after system wake.
+    """
+    if last_indian_ts == 0.0 and last_x_ts == 0.0:
+        # Cold start: Nepali runs immediately at t=0; Indian at +5m, X at +11m (6m apart)
+        last_indian_ts = now_sec - indian_interval + 300.0
+        last_x_ts = now_sec - x_interval + 300.0 + stagger_secs
+    elif last_indian_ts == 0.0:
+        last_indian_ts = now_sec - indian_interval + 300.0
+    elif last_x_ts == 0.0:
+        last_x_ts = now_sec - x_interval + 300.0 + stagger_secs
+
+    ind_age = now_sec - last_indian_ts
+    x_age = now_sec - last_x_ts
+    run_indian = ind_age >= indian_interval
+    run_x = x_age >= x_interval
+
+    if run_indian and run_x:
+        # Never run both heavy streams on the same 60s tick; run the more overdue one and stagger the other
+        if ind_age >= x_age:
+            run_x = False
+            last_x_ts = now_sec - x_interval + stagger_secs
+        else:
+            run_indian = False
+            last_indian_ts = now_sec - indian_interval + stagger_secs
+
+    return run_indian, run_x, last_indian_ts, last_x_ts
+
+
 def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
     """Background continuous loop that checks and ingests Nepali portals, Indian press, and X posts."""
     global _LAST_X_SCAN_TIME, _LAST_INDIAN_SCAN_TIME
@@ -531,8 +571,9 @@ def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
         if _INGEST_RUN_LOCK.acquire(blocking=False):
             try:
                 now_sec = time.time()
-                run_indian = (now_sec - _LAST_INDIAN_SCAN_TIME) >= INDIAN_SCAN_INTERVAL_SECS
-                run_x = (now_sec - _LAST_X_SCAN_TIME) >= X_SCAN_INTERVAL_SECS
+                run_indian, run_x, _LAST_INDIAN_SCAN_TIME, _LAST_X_SCAN_TIME = _compute_staggered_due_streams(
+                    now_sec, _LAST_INDIAN_SCAN_TIME, _LAST_X_SCAN_TIME
+                )
 
                 def _run_scheduled_nepali():
                     return run_all_sources_discovery(parallel_workers=10, force_all=False, cycle_timeout_secs=45.0)

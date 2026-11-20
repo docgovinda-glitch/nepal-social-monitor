@@ -659,6 +659,89 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             self.assertEqual(len(at.exception), 0)
             self.assertIn("live|Today|", at.session_state["feed_sessions"]["live"]["filter_sig"])
 
+    def test_share_and_read_modal_edit_persistence_and_whatsapp_sending(self):
+        from streamlit.testing.v1 import AppTest
+
+        at = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=45)
+        at.run()
+        at.text_input[0].set_value("PIC@55")
+        at.button[0].click().run()
+
+        live_sess = at.session_state["feed_sessions"]["live"]
+        first_uid = list(live_sess["items_by_uid"].keys())[0]
+        item = live_sess["items_by_uid"][first_uid]
+
+        # 1. Share modal: opening -> editing -> typing -> saving keeps modal on screen and commits draft v2
+        at.session_state["inf_feed_live"] = {"event": "action", "action": "share", "item_uid": first_uid, "ts": 5001}
+        at.run()
+        self.assertEqual(at.session_state["active_modal"]["mode"], "share")
+
+        edit_btn = [b for b in at.button if b.key == f"dlg_edit_{first_uid}"][0]
+        edit_btn.click().run()
+
+        ti = [t for t in at.text_input if t.key == f"dlg_hl_edit_{first_uid}"][0]
+        ta = [t for t in at.text_area if t.key == f"dlg_ta_edit_{first_uid}"][0]
+        ti.set_value("Edited Regression Share Title")
+        ta.set_value("Edited Regression Share Brief")
+
+        save_btn = [b for b in at.button if b.key == f"dlg_save_edit_{first_uid}"][0]
+        save_btn.click().run()
+
+        cid = at.session_state["active_modal"]["cache_id"]
+        sh_draft = at.session_state["share_drafts"][cid]
+        self.assertEqual(sh_draft["version"], 2)
+        self.assertEqual(sh_draft["saved_headline"], "Edited Regression Share Title")
+        self.assertEqual(sh_draft["saved_content"], "Edited Regression Share Brief")
+        self.assertFalse(sh_draft["is_editing"])
+
+        # Close Share modal cleanly
+        cls_btn = [b for b in at.button if b.key == f"dlg_sh_cls_{first_uid}"][0]
+        cls_btn.click().run()
+        self.assertIsNone(at.session_state.get("active_modal"))
+
+        # 2. Read modal: opening -> translation editing -> typing -> saving -> WhatsApp single-click send
+        at.session_state["inf_feed_live"] = {"event": "action", "action": "read", "item_uid": first_uid, "ts": 5002}
+        at.run()
+        self.assertEqual(at.session_state["active_modal"]["mode"], "read")
+
+        read_cid = at.session_state["active_modal"]["cache_id"]
+        at.session_state["ondemand_fulltext"][read_cid] = {
+            "ok": True,
+            "lang": "en",
+            "original_title": item.get("title"),
+            "original_text": "Sample original text paragraph 1.\n\nSample paragraph 2.",
+            "translated_title": "Translated English Title",
+            "translated_text": "Translated English Body paragraph 1.\n\nTranslated English Body paragraph 2.",
+            "source_url": item.get("link"),
+            "is_complete": True,
+        }
+        at.session_state["ondemand_fulltext_view"][read_cid] = "en"
+        at.run()
+
+        rd_edit_btn = [b for b in at.button if b.key == f"dlg_rd_edit_{first_uid}"][0]
+        rd_edit_btn.click().run()
+
+        rd_ti = [t for t in at.text_input if t.key == f"dlg_rd_hl_{first_uid}"][0]
+        rd_ta = [t for t in at.text_area if t.key == f"dlg_rd_ta_{first_uid}"][0]
+        rd_ti.set_value("Custom Edited Translation Title")
+        rd_ta.set_value("Custom Edited Translation Body Line 1.\n\nCustom Edited Translation Body Line 2.")
+
+        rd_save_btn = [b for b in at.button if b.key == f"dlg_rd_save_{first_uid}"][0]
+        rd_save_btn.click().run()
+
+        rd_draft = at.session_state["read_translation_drafts"][read_cid]
+        self.assertEqual(rd_draft["version"], 2)
+        self.assertEqual(rd_draft["saved_headline"], "Custom Edited Translation Title")
+        self.assertIn("Custom Edited Translation Body Line 1", rd_draft["saved_body"])
+        self.assertFalse(rd_draft["is_editing"])
+
+        # WhatsApp send
+        send_btn = [b for b in at.button if b.key == f"dlg_rd_conf_{first_uid}"][0]
+        with mock.patch("whatsapp_greenapi.send_group_message", return_value={"ok": True, "accepted": True, "id_message": "WA_TEST_REG_456"}), \
+             mock.patch("nepal_news_store.record_whatsapp_sent") as mock_record:
+            send_btn.click().run()
+            self.assertTrue(mock_record.called)
+
     def test_annapurna_post_x_bridge_card_and_reader_parity(self):
         import nepal_config as cfg
         import nepal_fetcher as fetcher
@@ -901,6 +984,61 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertIn("2050 flood and 2072 earthquake", copy_payload)
         self.assertTrue(copy_payload.endswith("\n\nRead Original Source: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html"))
 
+        # 4) Hindi Indian Press article -> 3-part English Brief + Read modal English headline translation & Copy
+        hi_item = {
+            "source": "Amar Ujala",
+            "language": "Hindi",
+            "title": "नेपाल सीमा पर सुरक्षा व्यवस्था और कड़ी की गई",
+            "summary": "सोनौली और रक्सौल सीमा पर अतिरिक्त सुरक्षा बल तैनात किए गए हैं।",
+            "full_content": (
+                "सोनौली और रक्सौल सीमा पर अतिरिक्त सुरक्षा बल तैनात किए गए हैं।\n\n"
+                "अधिकारियों ने दोनों देशों के बीच समन्वय बैठक की।"
+            ),
+            "link": "https://www.amarujala.com/uttar-pradesh/nepal-border-security",
+        }
+
+        def _fake_hi_translate(txt, **kw):
+            if "सुरक्षा व्यवस्था" in txt:
+                return "Security arrangements tightened further along Nepal border"
+            if "समन्वय बैठक" in txt:
+                return "Officials held a coordination meeting between the two countries."
+            return "Additional security forces have been deployed at Sunauli and Raxaul borders."
+
+        with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
+             mock.patch("nepal_fetcher.extract_article_full_text", return_value=""), \
+             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_hi_translate):
+            brief_hi = summ.generate_on_demand_news_brief(hi_item)
+            rd_hi = summ.extract_on_demand_full_article(hi_item, translate_to_english=True)
+
+        self.assertTrue(brief_hi["ok"])
+        parts_hi = brief_hi["formatted_text"].split("\n\n")
+        self.assertEqual(len(parts_hi), 3)
+        self.assertEqual(parts_hi[0], "*Security arrangements tightened further along Nepal border*")
+        self.assertEqual(parts_hi[2], "Read Original Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security")
+
+        self.assertTrue(rd_hi["ok"])
+        self.assertEqual(rd_hi["translated_title"], "Security arrangements tightened further along Nepal border")
+        hi_copy = summ.format_reader_copy_payload(
+            headline=rd_hi["translated_title"],
+            full_body=rd_hi["translated_text"],
+            source_url=rd_hi["source_url"],
+            whatsapp_bold=False,
+        )
+        self.assertTrue(hi_copy.startswith("Security arrangements tightened further along Nepal border\n\n"))
+        self.assertIn("coordination meeting", hi_copy)
+        self.assertTrue(hi_copy.endswith("\n\nRead Original Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security"))
+
+        # Verify 3-part WhatsApp payload from reader with bold headline
+        hi_wa = summ.format_reader_copy_payload(
+            headline=rd_hi["translated_title"],
+            full_body=rd_hi["translated_text"],
+            source_url=rd_hi["source_url"],
+            whatsapp_bold=True,
+        )
+        self.assertTrue(hi_wa.startswith("*Security arrangements tightened further along Nepal border*\n\n"))
+        self.assertIn("coordination meeting", hi_wa)
+        self.assertTrue(hi_wa.endswith("\n\nRead Original Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security"))
+
     def test_indian_media_classifier_boundaries_entities_and_placeholder_ts_repair(self):
         import nepal_config as cfg
         import nepal_fetcher as fetcher
@@ -1008,6 +1146,215 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertIn("'operational'", health_sql[0])
         self.assertIn("'failing'", health_sql[0])
         self.assertIn("+00:00", health_sql[0])
+
+    def test_dual_feed_x_boost_filtering_and_inplace_url_reconciliation(self):
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_news_store as store
+        from nepal_verified_x_directory import DIRECTORY_BY_HANDLE
+
+        # 1) All 6 top portals keep RSS/HTML primary config + verified x_boost_handle
+        expected_boosts = {
+            "eKantipur": ("html", "ekantipur_com"),
+            "OnlineKhabar (NP)": ("rss", "Online_khabar"),
+            "Setopati": ("rss", "Setopati"),
+            "Ratopati": ("rss", "Rato_pati"),
+            "Nagarik News": ("rss", "nagarik_news"),
+            "The Kathmandu Post": ("rss", "kathmandupost"),
+        }
+        portals_by_name = {p["name"]: p for p in cfg.TOP_NEPAL_NEWS_PORTALS}
+        for pname, (ptype, handle) in expected_boosts.items():
+            pcfg = portals_by_name[pname]
+            self.assertEqual(pcfg["type"], ptype)
+            self.assertEqual(pcfg.get("x_boost_handle"), handle)
+            self.assertTrue(pcfg.get("url"))
+            self.assertIn(handle.lower(), DIRECTORY_BY_HANDLE)
+
+        now_npt = datetime.datetime(2026, 11, 20, 12, 0, 0, tzinfo=cfg.NEPAL_TZ)
+
+        # 2) boost_x_portals_to_articles filters non-article, >24h path-date, and already-ingested URLs
+        tco_map = {
+            "https://t.co/fresh1": "https://ekantipur.com/business/2026/11/20/hydropower-deal-594mw.html",
+            "https://t.co/old1": "https://ekantipur.com/news/2026/11/17/archive-story.html",
+            "https://t.co/sec1": "https://ekantipur.com/politics",
+            "https://t.co/already1": "https://www.onlinekhabar.com/2026/11/2061671/already-ingested",
+        }
+        fetcher.TCO_REDIRECT_CACHE.clear()
+
+        def _fake_resolve(u, timeout=4.0, allow_redirects=False):
+            self.assertFalse(allow_redirects)
+            return tco_map.get(u, u)
+
+        x_posts = [
+            {
+                "id": "9001",
+                "raw_handle": "ekantipur_com",
+                "text": "सेयर बजार नेप्से परिसूचकमा ५९ अंकको उछाल, कारोबार रकम ६ अर्ब नाघ्यो #NEPSE https://t.co/fresh1",
+                "published_dt": now_npt - datetime.timedelta(minutes=3),
+            },
+            {
+                "id": "9002",
+                "raw_handle": "ekantipur_com",
+                "text": "पुरानो संग्रह समाचार फेरि सेयर https://t.co/old1",
+                "published_dt": now_npt - datetime.timedelta(minutes=5),
+            },
+            {
+                "id": "9003",
+                "raw_handle": "ekantipur_com",
+                "text": "राजनीति खण्ड हेर्नुहोस् https://t.co/sec1",
+                "published_dt": now_npt - datetime.timedelta(minutes=4),
+            },
+            {
+                "id": "9004",
+                "raw_handle": "Online_khabar",
+                "text": "पहिले नै आइसकेको समाचार https://t.co/already1",
+                "published_dt": now_npt - datetime.timedelta(minutes=2),
+            },
+            {
+                "id": "9005",
+                "raw_handle": "Setopati",
+                "text": "लिंक नभएको ट्विट मात्र",
+                "published_dt": now_npt - datetime.timedelta(minutes=1),
+            },
+        ]
+
+        captured_upserts = []
+        existing_db = {
+            "https://www.onlinekhabar.com/2026/11/2061671/already-ingested": "existing_ok_cid"
+        }
+        with mock.patch("nepal_fetcher.resolve_tco_url", side_effect=_fake_resolve), \
+             mock.patch("nepal_fetcher.get_existing_article_urls", return_value=existing_db) as m_exist, \
+             mock.patch("nepal_fetcher.batch_fetch_full_content"), \
+             mock.patch("nepal_fetcher.batch_upsert_articles", side_effect=lambda arts, sname, **kw: captured_upserts.append((sname, arts, kw)) or {"ingested": len(arts)}) as m_up:
+            boosted_cnt = fetcher.boost_x_portals_to_articles(x_posts=x_posts, now_npt=now_npt)
+
+        self.assertEqual(boosted_cnt, 1)
+        m_exist.assert_called_once()
+        self.assertEqual(len(captured_upserts), 1)
+        sname, b_arts, b_kw = captured_upserts[0]
+        self.assertEqual(sname, "eKantipur")
+        self.assertTrue(b_kw.get("is_x_boost"))
+        self.assertEqual(len(b_arts), 1)
+        self.assertEqual(b_arts[0]["link"], "https://ekantipur.com/business/2026/11/20/hydropower-deal-594mw.html")
+        self.assertEqual(b_arts[0]["primary_section"], "Nepal – Economy")
+        self.assertIn("Economy & Finance", b_arts[0]["secondary_tags"])
+
+        # 3) batch_upsert_articles skips existing URLs on is_x_boost=True AND reconciles/upgrades in place on RSS/HTML
+        article_url = "https://ekantipur.com/business/2026/11/20/hydropower-deal-594mw.html"
+        norm_url = store.normalize_canonical_url(article_url)
+        x_cid = store.generate_canonical_id("eKantipur", norm_url, "ट्विट क्याप्सन")
+
+        # 3a) X-boost skips when URL already exists in Supabase
+        with mock.patch("nepal_news_store.get_existing_article_urls", return_value={norm_url: x_cid}), \
+             mock.patch("nepal_news_store.query_supabase") as m_q:
+            skip_res = store.batch_upsert_articles([b_arts[0]], "eKantipur", is_x_boost=True)
+        self.assertEqual(skip_res["ingested"], 0)
+        self.assertEqual(skip_res["duplicates"], 1)
+        m_q.assert_not_called()
+
+        # 3b) RSS/HTML arrival with different official title + tracking query reconciles to existing canonical_id in place
+        rss_art = {
+            "source": "eKantipur",
+            "title": "भारतको ऊर्जा एक्सचेन्जमा ५९४ मेगावाट विद्युत् निर्यात स्वीकृत",
+            "link": article_url + "?utm_source=rss",
+            "summary": "नेपाल र भारतबीच ५९४ मेगावाट विद्युत् व्यापार सम्झौता कार्यान्वयनमा आएको छ।",
+            "full_content": "विस्तृत आधिकारिक समाचार: नेपाल र भारतबीच ५९४ मेगावाट विद्युत् व्यापार सम्झौता आजदेखि कार्यान्वयनमा आएको ऊर्जा मन्त्रालयले जनाएको छ।",
+            "published_dt": datetime.datetime(2026, 11, 20, 11, 56, 12, tzinfo=cfg.NEPAL_TZ),
+            "relative_time": "3 mins ago",
+            "exact_time": "Nov 20, 11:56 AM NPT",
+            "language": "Nepali",
+            "portal_category": "National Daily",
+            "primary_section": "Nepal – Economy",
+            "sections": ["Nepal – Economy"],
+            "secondary_tags": ["Economy & Finance", "India"],
+            "classification_confidence": 0.92,
+        }
+        sql_calls = []
+        with mock.patch("nepal_news_store.get_existing_article_urls", return_value={norm_url: x_cid}), \
+             mock.patch("nepal_news_store.query_supabase", side_effect=lambda sql, params=None: sql_calls.append(sql) or []):
+            up_res = store.batch_upsert_articles([rss_art], "eKantipur", latency_secs=0.45, is_x_boost=False)
+
+        self.assertEqual(up_res["updated"], 1)
+        self.assertEqual(up_res["ingested"], 0)
+        self.assertTrue(sql_calls)
+        self.assertIn(f"'{x_cid}'", sql_calls[0], "RSS upgrade must reuse existing canonical_id instead of inserting duplicate row")
+        self.assertIn("ON CONFLICT (canonical_id) DO UPDATE SET", sql_calls[0])
+        self.assertIn("articles.title IS DISTINCT FROM EXCLUDED.title", sql_calls[0])
+
+    def test_operational_polish_stale_detector_staggering_and_x_bridge_guard(self):
+        import nepal_config as cfg
+        import nepal_fetcher as fetcher
+        import nepal_news_scheduler as sched
+        import nepal_news_store as store
+
+        now_npt = datetime.datetime(2026, 11, 20, 12, 0, 0, tzinfo=cfg.NEPAL_TZ)
+
+        # 1) Stale 200 OK detector flags enabled high/standard portals >24h old, ignores low/disabled/fresh
+        self.assertTrue(store.is_portal_stale({
+            "name": "NepalKhabar (EN)",
+            "enabled": 1,
+            "priority": "standard",
+            "status": "operational",
+            "latest_article_pub_dt": now_npt - datetime.timedelta(hours=30),
+        }, now_npt=now_npt))
+        self.assertFalse(store.is_portal_stale({
+            "name": "Setopati",
+            "enabled": 1,
+            "priority": "high",
+            "status": "operational",
+            "latest_article_pub_dt": now_npt - datetime.timedelta(hours=2),
+        }, now_npt=now_npt))
+        self.assertFalse(store.is_portal_stale({
+            "name": "The Annapurna Express",
+            "enabled": 1,
+            "priority": "low",
+            "status": "operational",
+            "latest_article_pub_dt": now_npt - datetime.timedelta(hours=48),
+        }, now_npt=now_npt))
+        self.assertFalse(store.is_portal_stale({
+            "name": "Disabled Portal",
+            "enabled": 0,
+            "priority": "high",
+            "status": "operational",
+            "latest_article_pub_dt": now_npt - datetime.timedelta(hours=48),
+        }, now_npt=now_npt))
+
+        # 2) Scheduler staggering: cold start runs neither Indian nor X immediately, offset by 6 minutes;
+        #    and if both become overdue simultaneously, only one fires per tick.
+        t0 = 1_000_000.0
+        r_ind, r_x, next_ind, next_x = sched._compute_staggered_due_streams(t0, 0.0, 0.0)
+        self.assertFalse(r_ind)
+        self.assertFalse(r_x)
+        self.assertAlmostEqual((next_x - next_ind), sched.STREAM_STAGGER_SECS, delta=1.0)
+
+        # Simulate long pause where both 15m streams are overdue -> only one runs on this tick
+        r_ind2, r_x2, adj_ind2, adj_x2 = sched._compute_staggered_due_streams(
+            t0 + 5000.0, t0 + 1000.0, t0 + 1500.0
+        )
+        self.assertTrue(r_ind2)
+        self.assertFalse(r_x2)
+        self.assertGreater(adj_x2, t0 + 5000.0 - sched.X_SCAN_INTERVAL_SECS)
+
+        # 3) x_bridge freshness guard skips live profile scraping when x_posts was synced <5 mins ago
+        ap_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "Annapurna Post")
+        recent_utc = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=2)
+        db_row = {
+            "id": "2123350203076133335",
+            "raw_handle": "Annapurna_Post",
+            "text": "ताजा समाचार अपडेट https://annapurnapost.com/story/511589/",
+            "title": "ताजा समाचार अपडेट",
+            "link": "https://x.com/Annapurna_Post/status/2123350203076133335",
+            "published_dt": recent_utc,
+            "updated_at": recent_utc,
+        }
+        with mock.patch("nepal_news_store.query_supabase", return_value=[db_row]), \
+             mock.patch("nepal_x_scanner._discover_profile_tweet_candidates") as m_prof_disc, \
+             mock.patch("nepal_x_scanner._get_x_http_session") as m_sess:
+            m_sess.return_value.get.return_value.status_code = 404
+            res_arts = fetcher.fetch_x_bridged_portal_articles(ap_cfg, now_npt, max_entries=10)
+        m_prof_disc.assert_not_called()
+        self.assertEqual(len(res_arts), 1)
+        self.assertEqual(res_arts[0]["source"], "Annapurna Post")
 
 
 if __name__ == "__main__":
