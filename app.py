@@ -1362,7 +1362,9 @@ def _show_read_in_app_dialog() -> None:
 
     if st.session_state.pop("pending_read_translate", None) == cache_id:
         from nepal_summarizer import extract_on_demand_full_article
-        with st.status("Translating headline & full article to English…", expanded=True) as tr_status:
+        _tr_ph = st.empty()
+        _tr_failed = False
+        with _tr_ph.status("Translating…", expanded=True) as tr_status:
             def _tr_prog(msg: str, pct: float) -> None:
                 tr_status.update(label=f"{msg} ({int(pct * 100)}%)")
             ft_tr = extract_on_demand_full_article(item, translate_to_english=True, on_progress=_tr_prog)
@@ -1401,17 +1403,22 @@ def _show_read_in_app_dialog() -> None:
                     }
             else:
                 tr_status.update(label="Translation unavailable", state="error", expanded=False)
+                _tr_failed = True
+        if not _tr_failed:
+            _tr_ph.empty()
 
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
     if not fulltext_data:
         from nepal_summarizer import extract_on_demand_full_article
-        with st.status("Opening article…", expanded=True) as status:
+        _op_ph = st.empty()
+        with _op_ph.status("Opening…", expanded=True) as status:
             def _read_prog(msg: str, pct: float) -> None:
                 status.update(label=f"{msg} ({int(pct * 100)}%)")
             fulltext_data = extract_on_demand_full_article(item, translate_to_english=False, on_progress=_read_prog)
             status.update(label="Article ready", state="complete", expanded=False)
             st.session_state["ondemand_fulltext"][cache_id] = fulltext_data
             st.session_state["ondemand_fulltext_view"][cache_id] = "orig"
+        _op_ph.empty()
 
     if fulltext_data and fulltext_data.get("ok"):
         from nepal_summarizer import format_reader_copy_payload
@@ -1528,8 +1535,7 @@ def _show_read_in_app_dialog() -> None:
         if is_english_mode and read_draft and read_draft.get("is_editing"):
             st.markdown(
                 f'<div class="share-modal-head">'
-                f'<span class="share-modal-type">{html.escape(ft_eyebrow)} (Editing)</span>'
-                f'<span class="share-modal-pills">{status_pill}{sent_pill}</span>'
+                f'<span class="share-modal-pills">{"<span class=share-draft-pill>●</span>" if has_unsaved else ""}</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -1600,10 +1606,13 @@ def _show_read_in_app_dialog() -> None:
         body_html = "".join(f'<p class="reader-para">{html.escape(p)}</p>' for p in body_paras)
         ft_src_html = _render_source_link_html(ft_src)
 
-        header_pills = f'<div style="display:inline-flex;gap:6px;align-items:center;">{ext_badge}{status_pill}{sent_pill}</div>'
+        _partial_chip = '' if is_complete else '<span class="extraction-badge extraction-badge--partial" title="Partial extraction">⚠</span>'
+        _rd_unsaved = '<span class="share-draft-pill share-draft-pill--unsaved" title="Unsaved changes">●</span>' if (is_english_mode and read_draft and has_unsaved) else ''
+        _rd_sent = f'<span class="share-draft-pill share-draft-pill--sent" title="Already sent to WhatsApp">✓ Sent</span>' if persisted_sent else ''
+        header_pills = f'{_partial_chip}{_rd_unsaved}{_rd_sent}'
         st.markdown(
             f'<div class="fulltext-reader-box">'
-            f'<div class="fulltext-reader-box__header"><div class="unified-brief-box__eyebrow">{html.escape(ft_eyebrow)}</div>{header_pills}</div>'
+            f'{"<div class=fulltext-reader-box__header>" + header_pills + "</div>" if header_pills else ""}'
             f'<div class="fulltext-reader-box__title">{reader_title}</div>'
             f'{reader_meta_html}'
             f'<div class="fulltext-reader-box__body">{body_html}</div>'
@@ -1665,7 +1674,6 @@ def _show_read_in_app_dialog() -> None:
         has_tr_btn = needs_tr or has_tr
 
         if is_english_mode and len(_wa_targets) > 1:
-            st.markdown('<div class="wa-dest-label">Destination WhatsApp Group</div>', unsafe_allow_html=True)
             _cur_target = st.session_state.get(_wa_grp_key) or _wa_targets[0]["name"]
             dest_name = st.segmented_control(
                 "Destination WhatsApp Group",
@@ -1954,12 +1962,14 @@ def _show_share_dialog() -> None:
 
     generated = st.session_state["ondemand_generated"].get(cache_id)
     if not generated:
-        with st.status(f"Preparing {content_type_lbl}…", expanded=True) as status:
+        _pr_ph = st.empty()
+        with _pr_ph.status("Preparing…", expanded=True) as status:
             def _gen_prog(msg: str, pct: float) -> None:
                 status.update(label=f"{msg} ({int(pct * 100)}%)")
             generated = _generate_unified_item_content(item, is_x=is_x, on_progress=_gen_prog)
             status.update(label=f"{content_type_lbl} ready", state="complete", expanded=False)
             st.session_state["ondemand_generated"][cache_id] = generated
+        _pr_ph.empty()
 
     if not generated or not generated.get("ok"):
         st.error((generated or {}).get("error") or "Could not generate English output for this item.")
@@ -2071,30 +2081,17 @@ def _show_share_dialog() -> None:
         sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
 
     st.markdown('<div class="share-modal-anchor"></div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="share-modal-head">'
-        f'<span class="share-modal-type">{html.escape(content_type_lbl)}</span>'
-        f'<span class="share-modal-pills">{status_pill}{sent_pill}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
+    _min_chips = (
+        ('<span class="share-draft-pill share-draft-pill--unsaved" title="Unsaved changes">●</span>' if has_unsaved else "")
+        + (
+            f'<span class="share-draft-pill share-draft-pill--sent" title="Sent to {html.escape(str(persisted_sent.get("group_name") or "WhatsApp"), quote=True)} {html.escape(_format_wa_sent_time(persisted_sent.get("sent_at")) or "", quote=True)}">✓ Sent</span>'
+            if persisted_sent else ""
+        )
     )
-    if persisted_sent:
-        _sent_grp = str(persisted_sent.get("group_name") or "WhatsApp")
-        _sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
-        _sent_when = f" at {_sent_ts}" if _sent_ts else ""
-        st.info(f"Already sent to **{_sent_grp}**{_sent_when}.")
+    if _min_chips:
+        st.markdown(f'<div class="share-modal-head"><span class="share-modal-pills">{_min_chips}</span></div>', unsafe_allow_html=True)
 
     if draft.get("is_editing"):
-        st.markdown(
-            '<div class="editorial-edit-banner">'
-            '<div class="editorial-edit-banner__tag">'
-            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
-            'EDITORIAL STUDIO'
-            '</div>'
-            '<div class="editorial-edit-banner__hint">Tap any field to refine before sending. Changes save to session draft.</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
         if not is_x:
             edited_hl = st.text_input(
                 "Headline (English)",
@@ -2205,7 +2202,6 @@ def _show_share_dialog() -> None:
             )
 
     if len(_wa_targets) > 1:
-        st.markdown('<div class="wa-dest-label">Destination WhatsApp Group</div>', unsafe_allow_html=True)
         _cur_target = st.session_state.get(_wa_grp_key) or _wa_targets[0]["name"]
         dest_name = st.segmented_control(
             "Destination WhatsApp Group",
@@ -2217,13 +2213,6 @@ def _show_share_dialog() -> None:
         if not dest_name:
             dest_name = _wa_targets[0]["name"]
         selected_gid = _target_by_name[dest_name]
-    else:
-        st.markdown(
-            f'<div class="wa-dest-label">'
-            f'Destination WhatsApp Group: <span class="wa-dest-val">{html.escape(dest_name)}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
 
     c_copy, c_edit, c_save, c_cls, c_send = st.columns(
         [1.1, 1.1, 1.1, 1.1, 2.3],

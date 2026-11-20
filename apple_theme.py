@@ -3235,3 +3235,15 @@ _TOOLBAR_CSS = """
     div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { padding: 0 8px !important; min-width: 0 !important; }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TOOLBAR_CSS)
+
+
+_DIALOG_TIGHT_CSS = """
+    /* ===== Dialogs: no spacer rows, smaller title, tighter rhythm ===== */
+    div[data-testid="stElementContainer"]:has(.share-modal-anchor), div[data-testid="stElementContainer"]:has(.read-modal-anchor) { display: none !important; }
+    div[data-testid="stDialog"] [data-testid="stVerticalBlock"] { gap: 0.55rem !important; }
+    div[data-testid="stDialog"] [role="dialog"] h2 { font-size: 1.2rem !important; font-weight: 650 !important; letter-spacing: -0.015em !important; line-height: 1.3 !important; }
+    .share-modal-head { margin: 0 !important; min-height: 0 !important; }
+    .fulltext-reader-box { margin: 0 !important; }
+    .fulltext-reader-box__header:empty { display: none !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _DIALOG_TIGHT_CSS)
