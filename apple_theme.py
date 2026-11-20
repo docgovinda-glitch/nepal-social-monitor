@@ -3155,3 +3155,37 @@ _HEADLINE_UX_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _HEADLINE_UX_CSS)
 FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _HEADLINE_UX_CSS)
+
+
+_POLISH2_CSS = """
+    /* ===== Polish pass ===== */
+    /* Header: brand sits left, not spread across the row */
+    .editorial-brand-anchor:not(#a):not(#b) { justify-content: flex-start !important; width: auto !important; gap: 8px !important; }
+
+    /* Status bar: a single quiet line when everything is up to date */
+    .sync-status-bar--calm { background: transparent !important; box-shadow: none !important; padding: 2px 4px !important; margin: 0 !important; gap: 7px; justify-content: flex-start; font-size: 0.74rem; font-weight: 500; color: var(--label-3); }
+    .dot-ok { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; flex: none; }
+
+    /* Cards */
+    .hl-title { line-height: 1.45 !important; }
+    .feed-card-wrap .feed-btn { height: 34px; min-block-size: 34px; }
+    .feed-btn:active, .stButton button:active, .st-key-app_nav_seg button:active { transform: scale(0.96); }
+    .feed-card-wrap .feed-card-footer:has(.x-metrics-group) { flex-wrap: nowrap; justify-content: space-between; gap: 8px; }
+    .feed-card-wrap .x-metrics-group { flex-wrap: nowrap; gap: 10px; min-width: 0; overflow: hidden; }
+    .feed-card-wrap .x-metric-item { background: transparent !important; padding: 0 !important; font-size: 0.76rem; color: var(--label-3) !important; gap: 4px; }
+    .feed-card-wrap .x-sentiment-badge { background: transparent !important; padding: 0 !important; font-size: 0.74rem; font-weight: 650; }
+    .feed-card-wrap .x-sentiment-positive { color: var(--green) !important; }
+    .feed-card-wrap .x-sentiment-alert { color: var(--red) !important; }
+
+    @media (max-width: 640px) {
+        /* Tab bar: soft pill behind the active icon, like iOS */
+        .st-key-app_nav_seg:not(#a):not(#b) button:not(#a):not(#b) > div > span > span:first-child { display: inline-flex !important; align-items: center; justify-content: center; padding: 3px 16px !important; border-radius: 999px; transition: background-color 0.18s ease; }
+        .st-key-app_nav_seg:not(#a):not(#b) button[aria-checked="true"]:not(#a):not(#b) > div > span > span:first-child { background: var(--tint-soft); }
+        .st-key-app_nav_seg:not(#a):not(#b) { box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.06) !important; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .feed-btn:active, .stButton button:active, .st-key-app_nav_seg button:active { transform: none; }
+    }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _POLISH2_CSS)
+FEED_CARD_CSS = _append_css(FEED_CARD_CSS, _POLISH2_CSS)

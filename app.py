@@ -3343,6 +3343,15 @@ def _render_sync_status_bar() -> None:
     running = bool(snap.get("running"))
     finished_at = max(float(snap.get("finished_at") or 0), _latest_ingest_epoch())
 
+    just_finished = bool(float(snap.get("finished_at") or 0)) and (time.time() - float(snap.get("finished_at") or 0)) <= 180
+    needs_detail = running or any((pipes.get(k) or {}).get("status") in ("error", "timeout") for k in ("nepali", "indian", "x")) or just_finished
+    if not needs_detail and finished_at:
+        st.markdown(
+            f'<div class="sync-status-bar sync-status-bar--calm"><span class="dot-ok"></span> Up to date · {_format_sync_age(finished_at)}</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
     pills_html = []
     for key, label, emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
         pipe = pipes.get(key) or {}
