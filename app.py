@@ -3252,6 +3252,55 @@ def _render_sync_status_bar() -> None:
 _render_sync_status_bar()
 
 
+def _apply_fresh_data_refresh(epoch: float) -> None:
+    """Drops cached feed data and per-session feed pages so the next rerun loads newly ingested rows."""
+    st.session_state["_seen_ingest_epoch"] = epoch
+    for fn in (
+        get_all_source_health, _latest_ingest_epoch, get_cached_header_bundle, get_cached_login_bootstrap,
+        _get_cached_feed_page_with_count, _get_cached_filtered_count, get_active_nepal_articles,
+        get_active_indian_articles, get_active_x_posts, _get_cached_indian_workspace_bootstrap,
+        _get_cached_x_workspace_bootstrap, _get_cached_indian_source_health, get_cached_analytics_bundle,
+    ):
+        try:
+            fn.clear()
+        except Exception:
+            pass
+    st.session_state.pop("_hdr_state_cache", None)
+    st.session_state.pop("x_posts", None)
+    sessions = st.session_state.get("feed_sessions")
+    if isinstance(sessions, dict):
+        sessions.clear()
+    vers = st.session_state.get("stream_versions")
+    if isinstance(vers, dict):
+        for k in ("nepali", "indian", "x"):
+            vers[k] = int(vers.get(k, 0)) + 1
+    st.session_state["data_version"] = int(st.session_state.get("data_version", 0)) + 1
+    st.session_state["last_sync_npt"] = datetime.datetime.now(NEPAL_TZ).strftime("%I:%M %p").lstrip("0")
+
+
+@st.fragment(run_every=60)
+def _render_new_data_banner() -> None:
+    """Polls Supabase freshness once a minute and offers a one-tap reload when newer data has landed."""
+    epoch = _latest_ingest_epoch()
+    seen = float(st.session_state.setdefault("_seen_ingest_epoch", epoch))
+    if epoch <= seen + 1:
+        return
+    c1, c2 = st.columns([4.2, 1.5], vertical_alignment="center", gap="small")
+    with c1:
+        st.markdown(
+            '<div class="search-sidebar" style="margin:4px 0;"><div class="search-sidebar__label">'
+            f'New stories available · updated {_format_sync_age(epoch)}</div></div>',
+            unsafe_allow_html=True,
+        )
+    with c2:
+        if st.button("Load new", icon=":material/refresh:", key="btn_load_new_data", type="primary", width="stretch"):
+            _apply_fresh_data_refresh(epoch)
+            st.rerun()
+
+
+_render_new_data_banner()
+
+
 @st.fragment
 def _render_phase2_search_sidebar() -> None:
     """PHASE 2: Persistent search sidebar with active filter pills."""
