@@ -23,7 +23,7 @@ import os
 import concurrent.futures
 from typing import Any, Callable, Dict, List
 
-from apple_theme import AUTH_CSS
+from apple_theme import AUTH_CSS, theme_override_css
 
 
 def load_env():
@@ -126,6 +126,11 @@ def _get_app_password() -> str:
 APP_PASSWORD = _get_app_password()
 
 
+_THEME_MODE = st.query_params.get("theme", "auto")
+if _THEME_MODE not in ("auto", "light", "dark"):
+    _THEME_MODE = "auto"
+
+
 def check_password() -> bool:
     """Returns True if the user entered the correct password or has a persisted session cookie/token."""
     if st.session_state.get("authenticated", False):
@@ -133,7 +138,7 @@ def check_password() -> bool:
 
     app_pwd = _get_app_password()
     if not app_pwd:
-        st.markdown(AUTH_CSS, unsafe_allow_html=True)
+        st.markdown(AUTH_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
         st.error(
             "⚠️ **Authentication Configuration Error**: `APP_PASSWORD` is not configured in the environment "
             "or Streamlit secrets. Administrative access is locked to protect intelligence feeds."
@@ -147,7 +152,7 @@ def check_password() -> bool:
 
     auth_slot = st.empty()
     with auth_slot.container():
-        st.markdown(AUTH_CSS, unsafe_allow_html=True)
+        st.markdown(AUTH_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=False):
             st.markdown("""
             <div class="auth-header">
@@ -191,7 +196,7 @@ check_password()
 import streamlit.components.v1 as components
 from apple_theme import APPLE_DESIGN_SYSTEM_CSS, FEED_CARD_CSS
 
-st.markdown(APPLE_DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
+st.markdown(APPLE_DESIGN_SYSTEM_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
 
 _ICON_PATHS = {
     "search": '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
@@ -919,6 +924,16 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
         '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>'
         '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
     )
+    _cp_dark = (
+        ".cp-btn { background: #3A3A3C; color: #F5F5F7; border-color: transparent; box-shadow: none; } "
+        ".cp-btn:hover { background: #48484A; } .cp-btn.copied { background: rgba(50,215,75,.2); color: #6BE585; }"
+    )
+    if _THEME_MODE == "dark":
+        _cp_dark_css = _cp_dark
+    elif _THEME_MODE == "auto":
+        _cp_dark_css = "@media (prefers-color-scheme: dark) { " + _cp_dark + " }"
+    else:
+        _cp_dark_css = ""
     default_html = svg_icon if icon_only else f'{svg_icon}<span>Copy</span>'
     copied_html = "✓" if icon_only else "<span>✓ Copied</span>"
     btn_height = 36
@@ -948,6 +963,7 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
                 box-sizing: border-box;
             }}
             .cp-btn:hover {{ background: #F8FAFC; border-color: rgba(15, 23, 42, 0.24); }}
+            {_cp_dark_css}
             @media (max-width: 110px) {{ .cp-btn span {{ display: none; }} }}
             .cp-btn.copied {{
                 background: #DCFCE7;
@@ -2873,7 +2889,7 @@ def render_infinite_workspace_feed(
     loaded_count = len(sess["items_by_uid"])
     if need_full_payload:
         batches_to_send = sess["batches"]
-        theme_css_to_send = FEED_CARD_CSS
+        theme_css_to_send = FEED_CARD_CSS + theme_override_css(_THEME_MODE)
         sess["_mounted_nav_seq"] = current_nav_seq
     elif just_appended_batch is not None:
         batches_to_send = [just_appended_batch]
@@ -3180,7 +3196,7 @@ def _on_ws_seg_change() -> None:
 
 st.session_state["app_nav_seg"] = selected_nav
 
-_nav_brand, _nav_tabs = st.columns([2.05, 4.95], gap="small")
+_nav_brand, _nav_theme, _nav_tabs = st.columns([1.75, 0.9, 4.35], gap="small", vertical_alignment="center")
 with _nav_brand:
     st.markdown(
         f'<div class="editorial-brand-anchor" style="display:flex;align-items:center;gap:8px;height:36px;margin:0;padding:0;white-space:nowrap;">'
@@ -3189,6 +3205,24 @@ with _nav_brand:
         f'<span class="live-status-inline" style="background:#E8F5EC;color:#15803D;padding:2px 7px;border-radius:999px;font-size:0.62rem;font-weight:700;letter-spacing:0.06em;" title="Synced {html.escape(st.session_state["last_sync_npt"])} NPT · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts"><span class="live-pill__dot" style="width:5px;height:5px;"></span>Live</span>'
         f'</div>',
         unsafe_allow_html=True,
+    )
+def _on_theme_change() -> None:
+    chosen = st.session_state.get("theme_seg") or "auto"
+    st.query_params["theme"] = chosen
+    st.session_state.pop("feed_sessions", None)
+
+
+with _nav_theme:
+    st.markdown('<div class="theme-row-anchor"></div>', unsafe_allow_html=True)
+    st.segmented_control(
+        "Theme",
+        options=["auto", "light", "dark"],
+        format_func=lambda m: {"auto": ":material/brightness_auto:", "light": ":material/light_mode:", "dark": ":material/dark_mode:"}[m],
+        default=_THEME_MODE,
+        key="theme_seg",
+        on_change=_on_theme_change,
+        label_visibility="collapsed",
+        help="Appearance: auto, light, dark",
     )
 with _nav_tabs:
     st.segmented_control(

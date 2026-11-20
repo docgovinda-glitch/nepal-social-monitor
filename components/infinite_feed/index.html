@@ -198,7 +198,7 @@
       let inFlight = false;
       let lastRequestedSeq = -1;
       let nextExpectedSeq = 0;
-      let themeInjected = false;
+      let lastThemeCss = "";
       let rafPending = false;
       let currentError = "";
       let lastTotalCount = 0;
@@ -377,9 +377,9 @@
         if (!data || data.type !== "streamlit:render") return;
         const args = data.args || {};
 
-        if (args.theme_css && !themeInjected) {
+        if (args.theme_css && args.theme_css !== lastThemeCss) {
           themeMount.innerHTML = args.theme_css;
-          themeInjected = true;
+          lastThemeCss = args.theme_css;
         }
 
         if (args.session_key !== currentSessionKey) {
