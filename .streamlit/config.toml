@@ -7,7 +7,7 @@ textColor = "#0F172A"
 font = "sans serif"
 
 [client]
-showErrorDetails = "full"
+showErrorDetails = "none"
 
 
 [server]
