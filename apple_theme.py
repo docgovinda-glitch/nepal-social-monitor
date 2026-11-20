@@ -2989,6 +2989,15 @@ _DARK_CSS_BODY = """
     div[data-testid="stDialog"] .stButton > button[kind="primary"] { border: none !important; }
     div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]) { background-color: transparent; }
     .wa-dest-label { color: #A1A1AA !important; }
+    [data-testid="stPopoverBody"] [data-testid="stWidgetLabel"] *, div[data-testid="stDialog"] [data-testid="stWidgetLabel"] * { color: #D1D1D6 !important; }
+    [data-testid="stPopoverBody"] [data-testid="stMarkdownContainer"] *, [data-testid="stPopoverBody"] p, [data-testid="stPopoverBody"] label { color: #F5F5F7; }
+    [data-testid="stPopoverBody"] [data-testid="stCaptionContainer"], [data-testid="stPopoverBody"] [data-testid="stCaptionContainer"] * { color: #A1A1AA !important; }
+    div[data-testid="stDateInputField"]:not(#a), div[data-testid="stTimeInputTimeDisplay"]:not(#a), div[data-testid="stDateInput"] [data-baseweb]:not(#a), div[data-testid="stTimeInput"] [data-baseweb]:not(#a) { background: #3A3A3C !important; color: #F5F5F7 !important; border: none !important; }
+    div[data-testid="stDateInputField"] *, div[data-testid="stTimeInputTimeDisplay"] * { color: #F5F5F7 !important; }
+    div[data-testid="stDateInput"] svg, div[data-testid="stTimeInput"] svg { fill: #A1A1AA !important; color: #A1A1AA !important; }
+    div[data-testid="stToggle"] [role="switch"][aria-checked="true"], div[data-testid="stToggle"] input:checked + div { background-color: #0A84FF !important; }
+    div[data-testid="stTextInputRootElement"] [data-testid="stIconMaterial"], div[data-testid="stTextInputRootElement"] span[role="img"] { color: #A1A1AA !important; }
+    div[data-testid="stTextInputRootElement"] input::placeholder { font-weight: 400 !important; color: #8E8E93 !important; }
     div[data-testid="stDialog"] div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .stButton),
     div[data-testid="stDialog"] div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] iframe) { background: #1C1C1E !important; border-top-color: transparent !important; }
 
@@ -3040,8 +3049,10 @@ _DARK_CSS_BODY = """
     .auth-header__icon-ring svg path { fill: #7DBBFF !important; }
     .auth-header__title { color: #F5F5F7 !important; }
     .auth-header__subtitle, .auth-footer { color: #A1A1AA !important; }
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button { background: #0A84FF !important; color: #FFFFFF !important; }
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button * { color: #FFFFFF !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] { background: #0A84FF !important; color: #FFFFFF !important; border: none !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"] * { color: #FFFFFF !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button[kind="secondaryFormSubmit"] { background: rgba(255, 255, 255, 0.12) !important; color: #F5F5F7 !important; border: none !important; }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button[kind="secondaryFormSubmit"] * { color: #F5F5F7 !important; }
     div[data-testid="stForm"] div[data-baseweb="input"]:not(#a) { background: #2C2C2E !important; border: none !important; }
     div[data-testid="stForm"] div[data-baseweb="input"]:not(#a) > div:not(#a), div[data-testid="stForm"] div[data-baseweb="base-input"]:not(#a), div[data-testid="stForm"] input:not(#a) { background: transparent !important; color: #F5F5F7 !important; border: none !important; }
     div[data-testid="stForm"] input:not(#a)::placeholder { color: #8E8E93 !important; opacity: 1 !important; }
