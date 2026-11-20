@@ -603,8 +603,10 @@ def _needs_body_scrape(art: Dict[str, Any]) -> bool:
         return False
     return (
         not source_text
-        or len(source_text) < 350
+        or len(source_text) < 750
+        or (full_body == raw_summary and len(source_text) < 1200)
         or "..." in source_text
+        or "…" in source_text
         or "appeared first on" in source_text.lower()
         or source_text == raw_title
     )

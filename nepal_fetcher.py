@@ -1244,7 +1244,7 @@ def build_x_bridged_article(
     Normalizes an official media X post into the exact standard Nepali Media article schema
     with resolved publisher URL, editorial classification, topic tags, and Reader-safe body text.
     """
-    handle = (x_handle or portal.get("x_handle") or "").lstrip("@").strip()
+    handle = (x_handle or portal.get("x_handle") or portal.get("x_boost_handle") or "").lstrip("@").strip()
     preferred_domain = (portal.get("target_domain") or "").strip().lower()
     if not preferred_domain:
         pname_low = portal.get("name", "").lower()
@@ -1252,6 +1252,13 @@ def build_x_bridged_article(
             preferred_domain = "annapurnapost.com"
         elif "naya patrika" in pname_low:
             preferred_domain = "nayapatrikadaily.com"
+        elif "techpana" in pname_low:
+            preferred_domain = "techpana.com"
+        elif portal.get("url"):
+            try:
+                preferred_domain = urllib.parse.urlparse(portal["url"]).netloc.lower().split(":")[0].replace("www.", "")
+            except Exception:
+                pass
 
     clean_tweet = _clean_x_bridge_text(raw_text)
     clean_card_title = _clean_x_bridge_text(card_title)

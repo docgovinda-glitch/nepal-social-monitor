@@ -883,10 +883,10 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertIn("विनाबिलबिजक ओसारपसार", extracted_np)
         self.assertNotIn("Unrelated sidebar", extracted_np)
 
-        # 6) TechPana (@TechPanaNP) & The Himalayan Times (@TheHimalayan) x_bridge configs + headline/hashtag parsing
+        # 6) TechPana (@TechPanaNP) RSS + X-Boost config & The Himalayan Times (@TheHimalayan) x_bridge config + headline/hashtag parsing
         tp_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "TechPana")
         tht_cfg = next(p for p in cfg.TOP_NEPAL_NEWS_PORTALS if p["name"] == "The Himalayan Times")
-        self.assertEqual((tp_cfg["type"], tp_cfg["x_handle"]), ("x_bridge", "TechPanaNP"))
+        self.assertEqual((tp_cfg["type"], tp_cfg["x_boost_handle"]), ("rss", "TechPanaNP"))
         self.assertEqual((tht_cfg["type"], tht_cfg["x_handle"]), ("x_bridge", "TheHimalayan"))
 
         tp_art = fetcher.build_x_bridged_article(
@@ -1479,6 +1479,25 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             txt = fetcher.extract_article_full_text("https://techpana.com/2026/160082/hamro-patro")
             self.assertIn("TechPana in-depth technical story paragraph 1.", txt)
             self.assertIn("TechPana in-depth technical story paragraph 2.", txt)
+
+        # 7. Verify _needs_body_scrape triggers for RSS teaser blurbs (e.g. 556 chars) where full_content == summary
+        import nepal_summarizer as summ
+        teaser_art = {
+            "title": "TechPana News Title",
+            "summary": "Short 556-char RSS teaser description blurb without real article paragraphs.",
+            "full_content": "Short 556-char RSS teaser description blurb without real article paragraphs.",
+            "link": "https://techpana.com/2026/160082/sample",
+        }
+        self.assertTrue(summ._needs_body_scrape(teaser_art))
+
+        # Real hydrated full article with 1,500 chars does not need body scrape
+        full_art = {
+            "title": "TechPana News Title",
+            "summary": "Short summary",
+            "full_content": "Long hydrated news article paragraph 1.\n\nParagraph 2.\n\nParagraph 3." * 25,
+            "link": "https://techpana.com/2026/160082/sample",
+        }
+        self.assertFalse(summ._needs_body_scrape(full_art))
 
 
 if __name__ == "__main__":
