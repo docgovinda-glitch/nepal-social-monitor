@@ -151,14 +151,28 @@ def check_password() -> bool:
         with st.form("auth_form", clear_on_submit=False):
             st.markdown("""
             <div class="auth-header">
-                <div class="auth-header__flag">🇳🇵</div>
+                <div class="auth-header__icon-ring">
+                    <svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 4L14.5 18.5H8L16 32L19.5 17.5H26L18 4Z" fill="white" fill-opacity="0.95"/>
+                    </svg>
+                </div>
                 <h1 class="auth-header__title">Media Monitor</h1>
                 <p class="auth-header__subtitle">News Intelligence Platform</p>
             </div>
             """, unsafe_allow_html=True)
-            pwd = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
+            pwd = st.text_input("Password", type="password", placeholder="Enter password", label_visibility="collapsed")
             submit = st.form_submit_button("Unlock", width="stretch", type="primary")
-            st.markdown('<div class="auth-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="auth-footer">'
+                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+                '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>'
+                '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+                '</svg>'
+                'Secure access · Authorised users only'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
         if submit:
             if pwd and hmac.compare_digest(pwd.strip(), app_pwd):

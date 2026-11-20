@@ -1956,22 +1956,152 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
 """
 
 AUTH_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
-    html, body, .stMarkdown, p, label, h1, button, input { font-family: var(--font) !important; -webkit-font-smoothing: antialiased !important; }
-    [data-testid="stAppViewContainer"], .main { background-color: var(--bg) !important; }
-    [data-testid="stSidebar"], [data-testid="collapsedControl"], header[data-testid="stHeader"] { display: none !important; }
-    .block-container { padding-top: 14vh !important; max-width: 420px !important; margin: 0 auto !important; }
-    div[data-testid="stForm"] {
-        background: var(--surface) !important; border: 1px solid var(--separator) !important;
-        border-radius: 20px !important; padding: 36px 32px 28px 32px !important; box-shadow: var(--shadow-2) !important;
+    /* ── Reset & Base ─────────────────────────────────── */
+    html, body, .stMarkdown, p, label, h1, h2, button, input {
+        font-family: var(--font) !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
     }
-    .auth-header { text-align: center; margin-bottom: 22px; }
-    .auth-header__flag { font-size: 2rem; line-height: 1; margin-bottom: 12px; }
-    .auth-header__title { font-size: 1.85rem !important; font-weight: 700 !important; color: var(--label) !important; letter-spacing: -0.028em !important; margin: 0 0 4px 0 !important; padding: 0 !important; }
-    .auth-header__subtitle { font-size: 0.92rem; color: var(--label-2); margin: 0; }
-    div[data-testid="stForm"] div[data-baseweb="input"] > div { min-height: 48px !important; border-radius: 12px !important; }
-    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button { min-height: 48px !important; width: 100% !important; border-radius: 12px !important; font-size: 0.95rem !important; background: var(--tint) !important; color: #FFFFFF !important; border: none !important; font-weight: 600 !important; }
-    div[data-testid="InputInstructions"] { display: none !important; }
-    .auth-footer { text-align: center; font-size: 0.76rem; color: var(--label-3); margin-top: 14px; }
+
+    /* ── Ambient Background ───────────────────────────── */
+    [data-testid="stAppViewContainer"], .main {
+        background: linear-gradient(160deg, #F0F4FA 0%, #E8EDF6 30%, #F4F1F8 60%, #EDF3FA 100%) !important;
+        min-height: 100dvh;
+    }
+
+    /* ── Hide chrome ──────────────────────────────────── */
+    [data-testid="stSidebar"], [data-testid="collapsedControl"],
+    header[data-testid="stHeader"], div[data-testid="InputInstructions"],
+    [data-testid="stDecoration"] { display: none !important; }
+
+    /* ── Layout ───────────────────────────────────────── */
+    .block-container {
+        padding-top: 12vh !important;
+        max-width: 400px !important;
+        margin: 0 auto !important;
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+    }
+
+    /* ── Card (the form) ──────────────────────────────── */
+    div[data-testid="stForm"] {
+        background: rgba(255, 255, 255, 0.82) !important;
+        -webkit-backdrop-filter: saturate(180%) blur(28px) !important;
+        backdrop-filter: saturate(180%) blur(28px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.55) !important;
+        border-radius: 24px !important;
+        padding: 44px 36px 32px 36px !important;
+        box-shadow:
+            0 0 0 0.5px rgba(0, 0, 0, 0.03),
+            0 2px 4px rgba(0, 0, 0, 0.02),
+            0 12px 40px rgba(0, 0, 0, 0.06) !important;
+        animation: auth-card-enter 0.7s var(--ease) both;
+    }
+
+    @keyframes auth-card-enter {
+        from { opacity: 0; transform: translateY(16px) scale(0.98); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    .auth-header { text-align: center; margin-bottom: 28px; }
+
+    .auth-header__icon-ring {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 56px; height: 56px; border-radius: 16px;
+        background: linear-gradient(135deg, #DC143C 0%, #C41230 100%);
+        box-shadow: 0 4px 14px rgba(220, 20, 60, 0.25), 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 18px;
+        animation: auth-icon-enter 0.8s var(--ease) 0.15s both;
+    }
+    .auth-header__icon-ring svg { display: block; }
+
+    @keyframes auth-icon-enter {
+        from { opacity: 0; transform: scale(0.7) rotate(-8deg); }
+        to   { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+
+    .auth-header__title {
+        font-size: 1.65rem !important;
+        font-weight: 700 !important;
+        color: var(--label) !important;
+        letter-spacing: -0.025em !important;
+        margin: 0 0 2px 0 !important;
+        padding: 0 !important;
+        line-height: 1.2 !important;
+    }
+    .auth-header__subtitle {
+        font-size: 0.84rem;
+        font-weight: 500;
+        color: var(--label-3);
+        letter-spacing: 0.02em;
+        margin: 0;
+    }
+
+    /* ── Input Field ──────────────────────────────────── */
+    div[data-testid="stForm"] div[data-baseweb="input"] {
+        margin-top: 4px !important;
+    }
+    div[data-testid="stForm"] div[data-baseweb="input"] > div {
+        min-height: 50px !important;
+        border-radius: 14px !important;
+        background: rgba(255, 255, 255, 0.65) !important;
+        border-color: rgba(0, 0, 0, 0.08) !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease !important;
+    }
+    div[data-testid="stForm"] div[data-baseweb="input"] > div:focus-within {
+        border-color: var(--tint) !important;
+        box-shadow: 0 0 0 3.5px rgba(0, 102, 204, 0.12) !important;
+        background: #FFFFFF !important;
+    }
+    div[data-testid="stForm"] input {
+        font-size: 0.95rem !important;
+        font-weight: 400 !important;
+        letter-spacing: 0.01em !important;
+    }
+
+    /* ── Submit Button ────────────────────────────────── */
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button {
+        min-height: 50px !important;
+        width: 100% !important;
+        border-radius: 14px !important;
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.01em !important;
+        background: linear-gradient(180deg, #1A8CFF 0%, #0066CC 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        box-shadow: 0 1px 3px rgba(0, 102, 204, 0.3), 0 4px 12px rgba(0, 102, 204, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+        transition: transform 0.15s var(--ease), box-shadow 0.15s ease, filter 0.15s ease !important;
+        cursor: pointer !important;
+    }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:hover {
+        filter: brightness(1.05) !important;
+        box-shadow: 0 1px 3px rgba(0, 102, 204, 0.35), 0 6px 18px rgba(0, 102, 204, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+        transform: translateY(-0.5px) !important;
+    }
+    div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:active {
+        transform: scale(0.985) translateY(0px) !important;
+        filter: brightness(0.97) !important;
+        box-shadow: 0 1px 2px rgba(0, 102, 204, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+        transition-duration: 0.05s !important;
+    }
+
+    /* ── Footer ───────────────────────────────────────── */
+    .auth-footer {
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: var(--label-3);
+        letter-spacing: 0.03em;
+        margin-top: 20px;
+        opacity: 0.7;
+    }
+    .auth-footer svg {
+        vertical-align: -2px;
+        margin-right: 4px;
+        opacity: 0.55;
+    }
 </style>
 """
 
