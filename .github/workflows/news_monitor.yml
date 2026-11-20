@@ -2,8 +2,8 @@ name: Nepal News Monitoring Cycle
 
 on:
   schedule:
-    # Run every 15 minutes
-    - cron: '*/15 * * * *'
+    # Run every 15 minutes, shifted off-the-hour to avoid GitHub Actions scheduling jitter
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 concurrency:
@@ -26,15 +26,19 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements-backend.txt
 
-      - name: Cache Hugging Face models & translation cache
+      - name: Static Hugging Face Model Cache
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/huggingface
-            ${{ github.workspace }}/.cache/translation_cache
-          key: ${{ runner.os }}-hf-nllb-${{ hashFiles('requirements-backend.txt') }}
+          path: ~/.cache/huggingface
+          key: hf-nllb-ct2-int8-v1
+
+      - name: Rolling SQLite Translation Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/translation_cache
+          key: translation-cache-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-hf-nllb-
+            translation-cache-
 
       - name: Install backend dependencies
         run: |
