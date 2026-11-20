@@ -3212,6 +3212,47 @@ def _render_sync_status_bar() -> None:
 _render_sync_status_bar()
 
 
+@st.fragment
+def _render_phase2_search_sidebar() -> None:
+    """PHASE 2: Persistent search sidebar with active filter pills."""
+    _active_sq = st.session_state.get("committed_search_query", "")
+    _active_filters = st.session_state.get("active_filters", {})
+
+    if not _active_sq and not _active_filters:
+        return
+
+    # Build filter pills HTML
+    filter_pills_html = []
+
+    # Search query pill
+    if _active_sq:
+        filter_pills_html.append(
+            f'<div class="filter-pill-removable">'
+            f'🔍 {html.escape(_active_sq[:30])}'
+            f'<button onclick="window.location.search = \'query=\';" title="Clear search">×</button>'
+            f'</div>'
+        )
+
+    # Category filter pill
+    if _active_filters.get("category") and _active_filters["category"] != "All":
+        cat = html.escape(str(_active_filters["category"]))
+        filter_pills_html.append(
+            f'<div class="filter-pill-removable">'
+            f'{cat}'
+            f'<button title="Clear category filter">×</button>'
+            f'</div>'
+        )
+
+    if filter_pills_html:
+        st.markdown(
+            f'<div class="search-sidebar">'
+            f'<div class="search-sidebar__label">Active Filters</div>'
+            f'<div class="search-sidebar__filters">{"".join(filter_pills_html)}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
 # PHASE 2: Render persistent search sidebar
 _render_phase2_search_sidebar()
 
@@ -3309,47 +3350,6 @@ def _render_phase3_onboarding_card() -> None:
         if st.button("×", key="dismiss_onboard", help="Dismiss"):
             st.session_state["dismiss_onboarding"] = True
             st.rerun()
-
-
-@st.fragment
-def _render_phase2_search_sidebar() -> None:
-    """PHASE 2: Persistent search sidebar with active filter pills."""
-    _active_sq = st.session_state.get("committed_search_query", "")
-    _active_filters = st.session_state.get("active_filters", {})
-
-    if not _active_sq and not _active_filters:
-        return
-
-    # Build filter pills HTML
-    filter_pills_html = []
-
-    # Search query pill
-    if _active_sq:
-        filter_pills_html.append(
-            f'<div class="filter-pill-removable">'
-            f'🔍 {html.escape(_active_sq[:30])}'
-            f'<button onclick="window.location.search = \'query=\';" title="Clear search">×</button>'
-            f'</div>'
-        )
-
-    # Category filter pill
-    if _active_filters.get("category") and _active_filters["category"] != "All":
-        cat = html.escape(str(_active_filters["category"]))
-        filter_pills_html.append(
-            f'<div class="filter-pill-removable">'
-            f'{cat}'
-            f'<button title="Clear category filter">×</button>'
-            f'</div>'
-        )
-
-    if filter_pills_html:
-        st.markdown(
-            f'<div class="search-sidebar">'
-            f'<div class="search-sidebar__label">Active Filters</div>'
-            f'<div class="search-sidebar__filters">{"".join(filter_pills_html)}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
 
 
 def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffix: str) -> None:
