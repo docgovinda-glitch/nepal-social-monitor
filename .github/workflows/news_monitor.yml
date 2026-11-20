@@ -62,17 +62,3 @@ jobs:
           GREEN_API_SENDING_ENABLED: "false"
         run: |
           python nepal_news_scheduler.py
-
-      - name: Notify on failure
-        if: failure()
-        env:
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-        run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          if [ -n "$ALERT_WEBHOOK_URL" ]; then
-            curl -sS -m 20 -X POST -H 'Content-Type: application/json' \
-              -d "{\"text\":\"Media Monitor scrape failed: $RUN_URL\",\"content\":\"Media Monitor scrape failed: $RUN_URL\"}" \
-              "$ALERT_WEBHOOK_URL" || true
-          else
-            echo "::error::Scrape failed ($RUN_URL). Set the ALERT_WEBHOOK_URL secret to get a chat message."
-          fi

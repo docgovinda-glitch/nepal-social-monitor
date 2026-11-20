@@ -49,17 +49,3 @@ jobs:
           RETENTION_DAYS: ${{ github.event.inputs.days || '90' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
         run: python retention_cleanup.py
-
-      - name: Notify on failure
-        if: failure()
-        env:
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-        run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          if [ -n "$ALERT_WEBHOOK_URL" ]; then
-            curl -sS -m 20 -X POST -H 'Content-Type: application/json' \
-              -d "{\"text\":\"Media Monitor retention job failed: $RUN_URL\",\"content\":\"Media Monitor retention job failed: $RUN_URL\"}" \
-              "$ALERT_WEBHOOK_URL" || true
-          else
-            echo "::error::Retention job failed ($RUN_URL). Set the ALERT_WEBHOOK_URL secret to get a chat message."
-          fi
