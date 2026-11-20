@@ -785,7 +785,12 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
     raw_link = (item.get("link") or "").strip()
     link = html.escape(raw_link or "#", quote=True)
 
+    # PHASE 1: Add card type color stripe
+    stripe_class = "feed-card-stripe--india" if is_indian else "feed-card-stripe--nepal"
+
     return (
+        f'<div style="position: relative;">'
+        f'<div class="feed-card-stripe {stripe_class}"></div>'
         f'<article class="apple-news-card accent--{accent}">'
         f'<header class="apple-card-meta">{source_tag}{get_badge_html(cat)}{review_flag}'
         f'{time_badge_html(item.get("relative_time", "Recent"), item.get("exact_time", ""))}</header>'
@@ -793,6 +798,7 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
         f'{native_title_html}'
         f'{summary_html}{sec_tags_html}'
         f'</article>'
+        f'</div>'
     )
 
 def _render_x_metrics_html(p: Dict[str, Any]) -> str:
@@ -824,7 +830,10 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True) -> str
 
     footer_html = f'<footer class="x-engagement-bar">{_render_x_metrics_html(p)}</footer>' if show_footer else ""
 
+    # PHASE 1: Add card type color stripe for X posts
     return (
+        f'<div style="position: relative;">'
+        f'<div class="feed-card-stripe feed-card-stripe--x"></div>'
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
         f'<div class="x-author-box"><div class="x-avatar" style="background:{avatar_bg};">{initials}</div>'
@@ -836,6 +845,7 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True) -> str
         f'<div class="x-post-text">{text}</div>'
         f'{footer_html}'
         f'</article>'
+        f'</div>'
     )
 
 def render_apple_combined_item_card(item: Dict[str, Any]) -> str:
@@ -3160,6 +3170,44 @@ with _nav_tabs:
         on_change=_on_ws_seg_change,
         label_visibility="collapsed",
         width="stretch",
+    )
+
+# PHASE 1: Render inline sync status bar
+_render_sync_status_bar()
+
+
+@st.fragment(run_every=2)
+def _render_sync_status_bar() -> None:
+    """PHASE 1: Inline sync status bar with real-time stream updates."""
+    _sync_snap = get_manual_sync_status()
+    pipes = _sync_snap.get("pipes", {})
+
+    # Build status pills for each stream
+    pills_html = []
+    for stream_key, stream_label, stream_emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
+        pipe = pipes.get(stream_key, {})
+        status = pipe.get("status", "idle")
+        count = int(pipe.get("count", 0))
+        elapsed = pipe.get("elapsed_secs", 0)
+
+        if status == "running":
+            status_class = "sync-status-pill--running"
+            content = f'<span class="sync-spinner"></span> Syncing…'
+        elif status == "done":
+            status_class = "sync-status-pill--done"
+            content = f'✓ {count} ({elapsed}s)'
+        elif status in ("error", "timeout"):
+            status_class = "sync-status-pill--error"
+            content = f'⚠️ {status}'
+        else:
+            status_class = "sync-status-pill--idle"
+            content = "Pending"
+
+        pills_html.append(f'<div class="sync-status-pill {status_class}">{stream_emoji} {stream_label}: {content}</div>')
+
+    st.markdown(
+        f'<div class="sync-status-bar">{"".join(pills_html)}</div>',
+        unsafe_allow_html=True,
     )
 
 

@@ -45,6 +45,120 @@ _DESIGN_TOKENS_CSS = """
     }
 """
 
+_PHASE1_ENHANCEMENTS_CSS = """
+    /* ═══════════════════════════════════════════════════════════
+       PHASE 1: TAB STYLING, SYNC STATUS, CARD STRIPES, MOBILE NAV
+       ═══════════════════════════════════════════════════════════ */
+
+    /* 1.1: Enhanced Active Tab State — Segmented Control */
+    div[data-testid="stSegmentedControl"] {
+        background: transparent !important;
+        gap: 6px !important;
+    }
+    div[data-testid="stSegmentedControl"] > div[role="button"] {
+        border-radius: 10px !important;
+        padding: 10px 16px !important;
+        font-weight: 550 !important;
+        border: 1px solid rgba(15, 23, 42, 0.08) !important;
+        background: rgba(15, 23, 42, 0.02) !important;
+        transition: all 0.2s var(--ease) !important;
+    }
+    div[data-testid="stSegmentedControl"] > div[role="button"][aria-selected="true"] {
+        background: var(--tint-soft) !important;
+        border-color: var(--tint) !important;
+        border-left: 3px solid var(--tint) !important;
+        padding-left: 14px !important;
+        color: var(--tint) !important;
+        font-weight: 650 !important;
+        box-shadow: 0 1px 3px rgba(0, 102, 204, 0.12) !important;
+    }
+    div[data-testid="stSegmentedControl"] > div[role="button"]:hover {
+        background: rgba(15, 23, 42, 0.05) !important;
+        border-color: rgba(15, 23, 42, 0.16) !important;
+    }
+
+    /* 1.2: Inline Sync Status Bar */
+    .sync-status-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
+        padding: 10px 14px; margin: 8px 0 12px 0;
+        background: linear-gradient(90deg, #F0F9FF 0%, #F5F3FF 100%);
+        border: 1px solid rgba(0, 102, 204, 0.12);
+        border-radius: 12px;
+        font-size: 0.75rem; font-weight: 600; color: var(--label-2);
+    }
+    .sync-status-pill {
+        display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px;
+        border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+        white-space: nowrap;
+    }
+    .sync-status-pill--idle {
+        background: #F1F5F9; color: #64748B;
+    }
+    .sync-status-pill--running {
+        background: #FEF3C7; color: #B45309;
+        animation: pulse-bg 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-bg {
+        0%, 100% { background: #FEF3C7; }
+        50% { background: #FCD34D; }
+    }
+    .sync-status-pill--done {
+        background: #DCFCE7; color: #15803D;
+    }
+    .sync-status-pill--error {
+        background: #FEE2E2; color: #B91C1C;
+    }
+    .sync-spinner {
+        display: inline-block; width: 12px; height: 12px;
+        border: 2px solid rgba(180, 83, 9, 0.2); border-top: 2px solid #B45309;
+        border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* 1.3: Card Type Color Stripes */
+    .feed-card-stripe {
+        position: absolute; left: 0; top: 0; bottom: 0;
+        width: 4px; border-radius: 14px 0 0 14px;
+    }
+    .feed-card-stripe--nepal {
+        background: linear-gradient(180deg, #15803D 0%, #059669 100%);
+    }
+    .feed-card-stripe--india {
+        background: linear-gradient(180deg, #F76B15 0%, #EA580C 100%);
+    }
+    .feed-card-stripe--x {
+        background: linear-gradient(180deg, #1D9BF0 0%, #1A8CD8 100%);
+    }
+    :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor) {
+        position: relative !important;
+    }
+
+    /* 1.4: Mobile Navigation Improvements */
+    @media (max-width: 768px) {
+        div[data-testid="stSegmentedControl"] > div[role="button"] {
+            padding: 8px 12px !important;
+            font-size: 0.78rem !important;
+        }
+        div[data-testid="stSegmentedControl"] > div[role="button"][aria-selected="true"] {
+            padding-left: 11px !important;
+        }
+        .nav-label-text { display: none; }
+        .nav-label-icon { font-size: 1.1rem; }
+    }
+
+    /* 1.5: Modal Focus Trap & Accessibility */
+    div[data-testid="stDialog"] {
+        outline: 2px solid var(--tint) !important;
+        outline-offset: -1px !important;
+    }
+    div[data-testid="stDialog"] [role="button"]:last-of-type {
+        margin-right: 8px !important;
+    }
+"""
+
 _PILL_AND_FEED_CARD_CSS = """
     .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge,
     .x-sentiment-badge, .x-metric-item, .status-pill {
@@ -142,9 +256,9 @@ _PILL_AND_FEED_CARD_CSS = """
     }
 """
 
-FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
+FEED_CARD_CSS = f"<style>\n{_DESIGN_TOKENS_CSS}\n{_PHASE1_ENHANCEMENTS_CSS}\n{_PILL_AND_FEED_CARD_CSS}\n</style>"
 
-APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
+APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENTS_CSS + """
 
     /* ==========================================================
        2. FOUNDATION
