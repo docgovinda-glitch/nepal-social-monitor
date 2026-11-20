@@ -13,6 +13,7 @@ Includes:
 import streamlit as st
 import datetime
 import hashlib
+import hmac
 import json
 import time
 import urllib.parse
@@ -101,7 +102,16 @@ st.markdown(
 # ==========================================
 # AUTHENTICATION GATEWAY (PASSWORD PROTECTION)
 # ==========================================
-APP_PASSWORD = os.getenv("APP_PASSWORD", "PIC@55")
+def _get_app_password() -> str:
+    pwd = (os.getenv("APP_PASSWORD") or "").strip()
+    if not pwd:
+        try:
+            pwd = str(st.secrets.get("APP_PASSWORD", "")).strip()
+        except Exception:
+            pwd = ""
+    return pwd
+
+APP_PASSWORD = _get_app_password()
 
 
 def check_password() -> bool:
@@ -109,9 +119,17 @@ def check_password() -> bool:
     if st.session_state.get("authenticated", False):
         return True
 
-    query_auth = st.query_params.get("auth", "")
+    app_pwd = _get_app_password()
+    if not app_pwd:
+        st.markdown(AUTH_CSS, unsafe_allow_html=True)
+        st.error(
+            "⚠️ **Authentication Configuration Error**: `APP_PASSWORD` is not configured in the environment "
+            "or Streamlit secrets. Administrative access is locked to protect intelligence feeds."
+        )
+        st.stop()
+
     query_key = st.query_params.get("key", "")
-    if query_auth == "true" or query_key == APP_PASSWORD:
+    if query_key and hmac.compare_digest(query_key, app_pwd):
         st.session_state["authenticated"] = True
         return True
 
@@ -131,9 +149,8 @@ def check_password() -> bool:
             st.markdown('<div class="auth-footer">Secure access · Authorised users only</div>', unsafe_allow_html=True)
 
         if submit:
-            if pwd.strip() == APP_PASSWORD:
+            if pwd and hmac.compare_digest(pwd.strip(), app_pwd):
                 st.session_state["authenticated"] = True
-                st.query_params["auth"] = "true"
                 auth_slot.empty()
                 return True
             else:
@@ -832,39 +849,38 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
     """Renders a single-click browser clipboard button matching the Apple HIG button style."""
     js_payload = json.dumps(text_to_copy)
     btn_id = f"cp_{uid}"
-    default_html = (
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    svg_icon = (
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>'
         '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
-        if icon_only
-        else "📋 Copy"
     )
-    copied_html = "✓" if icon_only else "✓ Copied"
-    btn_width = 40 if icon_only else 100
+    default_html = svg_icon if icon_only else f'{svg_icon}<span>Copy</span>'
+    copied_html = "✓" if icon_only else "<span>✓ Copied</span>"
+    btn_height = 36
     components.html(
         f"""
         <!DOCTYPE html>
         <html>
         <head>
         <style>
-            html, body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif; }}
+            html, body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; }}
             .cp-btn {{
                 width: 100%;
-                height: 34px;
-                border-radius: 999px;
+                height: {btn_height}px;
+                border-radius: 8px;
                 border: 1px solid rgba(15, 23, 42, 0.13);
                 background: #FFFFFF;
                 color: #0F172A;
-                font-size: 12.5px;
+                font-size: 13px;
                 font-weight: 600;
                 cursor: pointer;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 gap: 6px;
-                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-                transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+                transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
                 box-sizing: border-box;
             }}
             .cp-btn:hover {{ background: #F8FAFC; border-color: rgba(15, 23, 42, 0.24); }}
@@ -876,7 +892,7 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
         </style>
         </head>
         <body>
-            <button id="{btn_id}" class="cp-btn" type="button" title="Copy content and full source URL" aria-label="Copy content and full source URL" onclick="copyUnified()">{default_html}</button>
+            <button id="{btn_id}" class="cp-btn" type="button" title="Copy content and source" aria-label="Copy content and source" onclick="copyUnified()">{default_html}</button>
             <script>
             const TEXT = {js_payload};
             const DEFAULT_HTML = {json.dumps(default_html)};
@@ -901,18 +917,23 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
                 const ta = document.createElement("textarea");
                 ta.value = TEXT;
                 ta.style.position = "fixed";
-                ta.style.left = "-9999px";
+                ta.style.opacity = "0";
                 document.body.appendChild(ta);
+                ta.focus();
                 ta.select();
-                try {{ document.execCommand("copy"); onDone(); }} catch (e) {{}}
+                try {{
+                    document.execCommand("copy");
+                    onDone();
+                }} catch (e) {{
+                    console.error("Copy failed", e);
+                }}
                 document.body.removeChild(ta);
             }}
             </script>
         </body>
         </html>
         """,
-        height=38,
-        width=btn_width,
+        height=btn_height,
     )
 
 
@@ -977,11 +998,23 @@ def _render_source_link_html(url: str, inline: bool = False) -> str:
     clean = (url or "").strip()
     if not clean:
         return ""
-    style = ' style="border-top:none;padding-top:2px;margin-bottom:6px;"' if inline else ""
-    esc = html.escape(clean, quote=True)
+    from urllib.parse import urlparse
+    parsed = urlparse(clean)
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    domain_label = host or clean
+    esc_url = html.escape(clean, quote=True)
+    esc_dom = html.escape(domain_label)
+    style = ' style="border-top:none;padding-top:2px;margin-bottom:8px;"' if inline else ""
     return (
-        f'<div class="unified-brief-box__source"{style}>Read Original Source: '
-        f'<a href="{esc}" target="_blank" rel="noopener noreferrer">{html.escape(clean)}</a></div>'
+        f'<div class="unified-brief-box__source"{style}>'
+        f'<span class="source-lbl">Source:</span> '
+        f'<a href="{esc_url}" target="_blank" rel="noopener noreferrer" class="source-link-chip" title="Open original article in new tab">'
+        f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>'
+        f'<span>{esc_dom}</span>'
+        f'<span class="source-link-arrow">↗</span>'
+        f'</a></div>'
     )
 
 
@@ -1087,6 +1120,95 @@ def _on_toggle_read_view(cache_id: str) -> None:
     st.session_state.setdefault("ondemand_fulltext_view", {})[cache_id] = "orig" if cur == "en" else "en"
 
 
+@st.fragment
+def _render_read_send_fragment(
+    cache_id: str,
+    item_uid: str,
+    dest_name: str,
+    selected_gid: str,
+    item_link: str,
+    has_unsaved: bool,
+    ver: int,
+    saved_headline: str,
+    saved_body: str,
+    ft_src: str,
+) -> None:
+    sent_ids = st.session_state.setdefault("whatsapp_sent_ids", set())
+    persisted_sent = _get_wa_sent_map().get(cache_id)
+    is_sent = cache_id in sent_ids or bool(persisted_sent)
+
+    btn_label = "Sent ✓" if is_sent else f"Send to {dest_name}"
+    btn_icon = ":material/check:" if is_sent else ":material/send:"
+    btn_help = f"Already sent to {dest_name}" if is_sent else f"Confirm to Send: send latest saved translation (v{ver}) to {dest_name}"
+
+    send_clicked = st.button(
+        btn_label,
+        icon=btn_icon,
+        type="secondary" if is_sent else "primary",
+        key=f"dlg_rd_conf_{item_uid}",
+        disabled=is_sent,
+        help=btn_help,
+        on_click=_on_read_req_send,
+        args=(cache_id,),
+        width="stretch",
+    )
+
+    should_send = (send_clicked or st.session_state.pop("pending_read_send", None) == cache_id) and not is_sent
+    if should_send:
+        read_draft = st.session_state.get("read_translation_drafts", {}).get(cache_id, {})
+        if has_unsaved:
+            read_draft["unsaved_send_warn"] = True
+            st.warning("Please save changes before sending.")
+        else:
+            with st.spinner(f"Sending translation to {dest_name}…"):
+                from whatsapp_greenapi import send_group_message as send_wa_group_message
+                from nepal_summarizer import format_reader_copy_payload
+                wa_payload = format_reader_copy_payload(
+                    headline=saved_headline,
+                    full_body=saved_body,
+                    source_url=ft_src,
+                    whatsapp_bold=True,
+                )
+                wa_res = send_wa_group_message(
+                    chat_id=selected_gid,
+                    message=wa_payload,
+                    session_approved=True,
+                    sent_registry=st.session_state.setdefault("wa_sent_registry", set()),
+                )
+                wa_res["group_name"] = dest_name
+                st.session_state.setdefault("wa_item_status", {})[cache_id] = wa_res
+                if wa_res.get("ok") and wa_res.get("accepted"):
+                    try:
+                        record_whatsapp_sent(
+                            item_key=cache_id,
+                            group_id=selected_gid,
+                            group_name=dest_name,
+                            id_message=str(wa_res.get("id_message") or ""),
+                            item_link=item_link,
+                        )
+                        _get_wa_sent_map.clear()
+                    except Exception as log_exc:
+                        wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
+                    sent_ids.add(cache_id)
+                    st.toast(f"Sent translation to {dest_name}!", icon=":material/send:")
+                else:
+                    st.error(wa_res.get("error") or "Failed to send WhatsApp message.")
+
+    wa_status = st.session_state.get("wa_item_status", {}).get(cache_id)
+    if wa_status:
+        st_code = wa_status.get("status")
+        if wa_status.get("ok") and wa_status.get("accepted"):
+            gname = html.escape(wa_status.get("group_name") or dest_name)
+            msg_id = html.escape(str(wa_status.get("id_message") or ""))
+            st.success(f"✓ Accepted by Green API for {gname} · ID: {msg_id}")
+        elif st_code == "inactive":
+            st.info(wa_status.get("error"))
+        elif st_code == "duplicate_prevented":
+            st.warning(wa_status.get("error"))
+        elif not wa_status.get("ok"):
+            st.error(f"{wa_status.get('error') or 'Failed to send WhatsApp message.'} Your draft is preserved — click Confirm to Send to retry.")
+
+
 @st.dialog("Read in App", width="large", icon=":material/menu_book:", on_dismiss=_clear_active_modal)
 def _show_read_in_app_dialog() -> None:
     ctx = st.session_state.get("active_modal") or {}
@@ -1111,7 +1233,7 @@ def _show_read_in_app_dialog() -> None:
             if ft_tr.get("translated_text") or ft_tr.get("translated_title"):
                 st.session_state["ondemand_fulltext_view"][cache_id] = "en"
                 tr_status.update(label="English translation ready", state="complete", expanded=False)
-                st.toast("Headline & full article translated to English", icon="✅")
+                st.toast("Headline & full article translated to English", icon=":material/translate:")
                 tr_t = (ft_tr.get("translated_title") or "").strip()
                 tr_b = (ft_tr.get("translated_text") or "").strip()
                 rd = st.session_state["read_translation_drafts"].get(cache_id)
@@ -1193,7 +1315,7 @@ def _show_read_in_app_dialog() -> None:
                 }
                 st.session_state["read_translation_drafts"][cache_id] = read_draft
             if read_draft.get("_just_saved"):
-                st.toast(read_draft.pop("_just_saved"), icon="💾")
+                st.toast(read_draft.pop("_just_saved"), icon=":material/bookmark_added:")
 
         hl_key = f"dlg_rd_hl_{item_uid}"
         ta_key = f"dlg_rd_ta_{item_uid}"
@@ -1231,51 +1353,6 @@ def _show_read_in_app_dialog() -> None:
                 _default_grp = _wa_targets[0]["name"]
             dest_name = _default_grp
             selected_gid = _target_by_name[dest_name]
-
-        if is_english_mode and st.session_state.pop("pending_read_send", None) == cache_id:
-            if has_unsaved:
-                read_draft["unsaved_send_warn"] = True
-            else:
-                with st.status(f"Sending translation to {dest_name}…", expanded=True) as send_status:
-                    from whatsapp_greenapi import send_group_message as send_wa_group_message
-                    send_status.write("Delivering confirmed translation to Green API…")
-                    wa_payload = format_reader_copy_payload(
-                        headline=saved_headline,
-                        full_body=saved_body,
-                        source_url=ft_src,
-                        whatsapp_bold=True,
-                    )
-                    wa_res = send_wa_group_message(
-                        chat_id=selected_gid,
-                        message=wa_payload,
-                        session_approved=True,
-                        sent_registry=st.session_state["wa_sent_registry"],
-                    )
-                    wa_res["group_name"] = dest_name
-                    st.session_state["wa_item_status"][cache_id] = wa_res
-                    if wa_res.get("ok") and wa_res.get("accepted"):
-                        send_status.write("Recording delivery in WhatsApp log…")
-                        try:
-                            record_whatsapp_sent(
-                                item_key=cache_id,
-                                group_id=selected_gid,
-                                group_name=dest_name,
-                                id_message=str(wa_res.get("id_message") or ""),
-                                item_link=item_link,
-                            )
-                            _get_wa_sent_map.clear()
-                            get_cached_header_bundle.clear()
-                            get_cached_login_bootstrap.clear()
-                            st.session_state.pop("_hdr_state_cache", None)
-                        except Exception as log_exc:
-                            wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
-                        send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
-                        st.session_state["active_modal"] = None
-                        st.session_state.pop("feed_sessions", None)
-                        st.toast(f"Sent translation to {dest_name}!", icon="✅")
-                        st.rerun()
-                    else:
-                        send_status.update(label="Delivery not completed", state="error", expanded=False)
 
         ft_eyebrow = "English Translation" if is_en_view else ("English Article" if ft_lang == "en" else lang_lbl)
         is_complete = bool(fulltext_data.get("is_complete", True))
@@ -1319,6 +1396,16 @@ def _show_read_in_app_dialog() -> None:
                 f'</div>',
                 unsafe_allow_html=True,
             )
+            st.markdown(
+                '<div class="editorial-edit-banner">'
+                '<div class="editorial-edit-banner__tag">'
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
+                'EDITORIAL STUDIO'
+                '</div>'
+                '<div class="editorial-edit-banner__hint">Tap any field to refine before sending. Changes save to session draft.</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
             edited_hl = st.text_input(
                 "Headline (English)",
                 value=read_draft.get("draft_headline") or "",
@@ -1330,7 +1417,7 @@ def _show_read_in_app_dialog() -> None:
             edited_body = st.text_area(
                 "Article Body (English)",
                 value=read_draft.get("draft_body") or "",
-                height=280,
+                height=260,
                 key=ta_key,
             )
             read_draft["draft_body"] = edited_body or ""
@@ -1339,25 +1426,28 @@ def _show_read_in_app_dialog() -> None:
 
             if ft_src:
                 st.markdown(_render_source_link_html(ft_src, inline=True), unsafe_allow_html=True)
-            ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
+            st.markdown('<div class="editorial-edit-actions-anchor"></div>', unsafe_allow_html=True)
+            ec1, ec2 = st.columns([1.2, 1], gap="small")
             with ec1:
                 st.button(
-                    "Save",
+                    "Save Draft",
                     icon=":material/save:",
                     type="primary",
                     key=f"dlg_rd_save_{item_uid}",
                     help="Save draft without sending",
                     on_click=_on_read_save,
                     args=(cache_id, ta_key, hl_key),
+                    use_container_width=True,
                 )
             with ec2:
                 st.button(
-                    "",
+                    "Discard Edits",
                     icon=":material/close:",
                     key=f"dlg_rd_cancel_{item_uid}",
                     help="Discard unsaved edits",
                     on_click=_on_read_cancel_edit,
                     args=(cache_id,),
+                    use_container_width=True,
                 )
             return
 
@@ -1438,12 +1528,17 @@ def _show_read_in_app_dialog() -> None:
         has_tr_btn = needs_tr or has_tr
 
         if is_english_mode and len(_wa_targets) > 1:
-            dest_name = st.radio(
+            st.markdown('<div class="wa-dest-label">Destination WhatsApp Group</div>', unsafe_allow_html=True)
+            _cur_target = st.session_state.get(_wa_grp_key) or _wa_targets[0]["name"]
+            dest_name = st.segmented_control(
                 "Destination WhatsApp Group",
                 options=[t["name"] for t in _wa_targets],
-                horizontal=True,
+                default=_cur_target,
                 key=_wa_grp_key,
+                label_visibility="collapsed",
             )
+            if not dest_name:
+                dest_name = _wa_targets[0]["name"]
             selected_gid = _target_by_name[dest_name]
 
         copy_body = "\n\n".join(body_paras) if body_paras else (shown_text or "").strip()
@@ -1455,7 +1550,11 @@ def _show_read_in_app_dialog() -> None:
         )
 
         if is_english_mode:
-            cols = st.columns(6 if has_tr_btn else 5, gap="small")
+            cols = st.columns(
+                [1.2, 1.1, 1.1, 1.1, 1.1, 2.3] if has_tr_btn else [1.1, 1.1, 1.1, 1.1, 2.3],
+                vertical_alignment="center",
+                gap="small",
+            )
             ci = 0
             if has_tr_btn:
                 with cols[ci]:
@@ -1466,52 +1565,59 @@ def _show_read_in_app_dialog() -> None:
                         key=f"dlg_ft_tog_{item_uid}",
                         on_click=_on_toggle_read_view,
                         args=(cache_id,),
+                        width="stretch",
                     )
                 ci += 1
             with cols[ci]:
-                _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}", icon_only=True)
+                _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}", icon_only=False)
             with cols[ci + 1]:
                 st.button(
-                    "",
+                    "Edit",
                     icon=":material/edit:",
                     key=f"dlg_rd_edit_{item_uid}",
                     help="Edit translation",
                     on_click=_on_read_enter_edit,
                     args=(cache_id,),
+                    width="stretch",
                 )
             with cols[ci + 2]:
                 st.button(
-                    "",
+                    "Save",
                     icon=":material/save:",
                     key=f"dlg_rd_save_bar_{item_uid}",
                     disabled=not has_unsaved,
                     help="Save draft without sending" if has_unsaved else "All changes saved",
                     on_click=_on_read_save,
                     args=(cache_id, "", ""),
+                    width="stretch",
                 )
             with cols[ci + 3]:
                 if has_unsaved:
                     st.button(
-                        "",
+                        "Close",
                         icon=":material/close:",
                         key=f"dlg_ft_cls_{item_uid}",
                         help="Close",
                         on_click=_on_read_req_close_guard,
                         args=(cache_id,),
+                        width="stretch",
                     )
                 else:
-                    if st.button("", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close"):
+                    if st.button("Close", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close", width="stretch"):
                         st.session_state["active_modal"] = None
                         st.rerun()
             with cols[ci + 4]:
-                st.button(
-                    "",
-                    icon=":material/send:",
-                    type="primary",
-                    key=f"dlg_rd_conf_{item_uid}",
-                    help=f"Confirm to Send: send latest saved translation (v{ver}) to {dest_name}",
-                    on_click=_on_read_req_send,
-                    args=(cache_id,),
+                _render_read_send_fragment(
+                    cache_id=cache_id,
+                    item_uid=item_uid,
+                    dest_name=dest_name,
+                    selected_gid=selected_gid,
+                    item_link=item_link,
+                    has_unsaved=has_unsaved,
+                    ver=ver,
+                    saved_headline=saved_headline,
+                    saved_body=saved_body,
+                    ft_src=ft_src,
                 )
         else:
             ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
@@ -1606,6 +1712,86 @@ def _on_share_req_close_guard(cache_id: str) -> None:
         d["close_guard"] = True
 
 
+@st.fragment
+def _render_share_send_fragment(
+    cache_id: str,
+    item_uid: str,
+    dest_name: str,
+    selected_gid: str,
+    item_link: str,
+    has_unsaved: bool,
+    ver: int,
+) -> None:
+    draft = st.session_state.get("share_drafts", {}).get(cache_id, {})
+    saved_formatted = draft.get("saved_formatted") or ""
+    sent_ids = st.session_state.setdefault("whatsapp_sent_ids", set())
+    persisted_sent = _get_wa_sent_map().get(cache_id)
+    is_sent = cache_id in sent_ids or bool(persisted_sent)
+
+    btn_label = "Sent ✓" if is_sent else f"Send to {dest_name}"
+    btn_icon = ":material/check:" if is_sent else ":material/send:"
+    btn_help = f"Already sent to {dest_name}" if is_sent else f"Confirm to Send: send latest saved draft (v{ver}) to {dest_name}"
+
+    send_clicked = st.button(
+        btn_label,
+        icon=btn_icon,
+        type="secondary" if is_sent else "primary",
+        key=f"dlg_conf_{item_uid}",
+        disabled=is_sent,
+        help=btn_help,
+        on_click=_on_share_req_send,
+        args=(cache_id,),
+        width="stretch",
+    )
+
+    should_send = (send_clicked or st.session_state.pop("pending_share_send", None) == cache_id) and not is_sent
+    if should_send:
+        if has_unsaved:
+            draft["unsaved_send_warn"] = True
+            st.warning("Please save changes before sending.")
+        else:
+            with st.spinner(f"Sending to {dest_name}…"):
+                from whatsapp_greenapi import send_group_message as send_wa_group_message
+                wa_res = send_wa_group_message(
+                    chat_id=selected_gid,
+                    message=saved_formatted,
+                    session_approved=True,
+                    sent_registry=st.session_state.setdefault("wa_sent_registry", set()),
+                )
+                wa_res["group_name"] = dest_name
+                st.session_state.setdefault("wa_item_status", {})[cache_id] = wa_res
+                if wa_res.get("ok") and wa_res.get("accepted"):
+                    try:
+                        record_whatsapp_sent(
+                            item_key=cache_id,
+                            group_id=selected_gid,
+                            group_name=dest_name,
+                            id_message=str(wa_res.get("id_message") or ""),
+                            item_link=item_link,
+                        )
+                        _get_wa_sent_map.clear()
+                    except Exception as log_exc:
+                        wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
+                    sent_ids.add(cache_id)
+                    st.toast(f"Sent to {dest_name}!", icon=":material/send:")
+                else:
+                    st.error(wa_res.get("error") or "Failed to send WhatsApp message.")
+
+    wa_status = st.session_state.get("wa_item_status", {}).get(cache_id)
+    if wa_status:
+        st_code = wa_status.get("status")
+        if wa_status.get("ok") and wa_status.get("accepted"):
+            gname = html.escape(wa_status.get("group_name") or dest_name)
+            msg_id = html.escape(str(wa_status.get("id_message") or ""))
+            st.success(f"✓ Accepted by Green API for {gname} · ID: {msg_id}")
+        elif st_code == "inactive":
+            st.info(wa_status.get("error"))
+        elif st_code == "duplicate_prevented":
+            st.warning(wa_status.get("error"))
+        elif not wa_status.get("ok"):
+            st.error(f"{wa_status.get('error') or 'Failed to send WhatsApp message.'} Your draft is preserved — click Confirm to Send to retry.")
+
+
 @st.dialog("Share", width="medium", icon=":material/share:", on_dismiss=_clear_active_modal)
 def _show_share_dialog() -> None:
     ctx = st.session_state.get("active_modal") or {}
@@ -1672,7 +1858,7 @@ def _show_share_dialog() -> None:
         draft["draft_headline"] = gen_headline
 
     if draft and draft.get("_just_saved"):
-        st.toast(draft.pop("_just_saved"), icon="💾")
+        st.toast(draft.pop("_just_saved"), icon=":material/bookmark_added:")
 
     ta_key = f"dlg_ta_edit_{item_uid}"
     hl_key = f"dlg_hl_edit_{item_uid}"
@@ -1725,45 +1911,6 @@ def _show_share_dialog() -> None:
         dest_name = _default_grp
         selected_gid = _target_by_name[dest_name]
 
-    if st.session_state.pop("pending_share_send", None) == cache_id:
-        if has_unsaved:
-            draft["unsaved_send_warn"] = True
-        else:
-            with st.status(f"Sending to {dest_name}…", expanded=True) as send_status:
-                from whatsapp_greenapi import send_group_message as send_wa_group_message
-                send_status.write("Delivering confirmed draft to Green API…")
-                wa_res = send_wa_group_message(
-                    chat_id=selected_gid,
-                    message=saved_formatted,
-                    session_approved=True,
-                    sent_registry=st.session_state["wa_sent_registry"],
-                )
-                wa_res["group_name"] = dest_name
-                st.session_state["wa_item_status"][cache_id] = wa_res
-                if wa_res.get("ok") and wa_res.get("accepted"):
-                    send_status.write("Recording delivery in WhatsApp log…")
-                    try:
-                        record_whatsapp_sent(
-                            item_key=cache_id,
-                            group_id=selected_gid,
-                            group_name=dest_name,
-                            id_message=str(wa_res.get("id_message") or ""),
-                            item_link=item_link,
-                        )
-                        _get_wa_sent_map.clear()
-                        get_cached_header_bundle.clear()
-                        get_cached_login_bootstrap.clear()
-                        st.session_state.pop("_hdr_state_cache", None)
-                    except Exception as log_exc:
-                        wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
-                    send_status.update(label=f"Sent to {dest_name}", state="complete", expanded=False)
-                    st.session_state["active_modal"] = None
-                    st.session_state.pop("feed_sessions", None)
-                    st.toast(f"Sent to {dest_name}!", icon="✅")
-                    st.rerun()
-                else:
-                    send_status.update(label="Delivery not completed", state="error", expanded=False)
-
     persisted_sent = _get_wa_sent_map().get(cache_id)
     ver = int(draft.get("version") or 1)
     saved_at = draft.get("saved_at") or ""
@@ -1800,6 +1947,16 @@ def _show_share_dialog() -> None:
         st.info(f"Already sent to **{_sent_grp}**{_sent_when}.")
 
     if draft.get("is_editing"):
+        st.markdown(
+            '<div class="editorial-edit-banner">'
+            '<div class="editorial-edit-banner__tag">'
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
+            'EDITORIAL STUDIO'
+            '</div>'
+            '<div class="editorial-edit-banner__hint">Tap any field to refine before sending. Changes save to session draft.</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         if not is_x:
             edited_hl = st.text_input(
                 "Headline (English)",
@@ -1811,7 +1968,7 @@ def _show_share_dialog() -> None:
         edited_val = st.text_area(
             "Brief (English)" if not is_x else f"Edit {content_type_lbl}",
             value=draft["draft_content"],
-            height=150,
+            height=160,
             key=ta_key,
             label_visibility="visible" if not is_x else "collapsed",
         )
@@ -1820,25 +1977,28 @@ def _show_share_dialog() -> None:
         has_unsaved = (current_draft_text != saved_text) or (not is_x and current_draft_headline != saved_headline)
         if src_url:
             st.markdown(_render_source_link_html(src_url, inline=True), unsafe_allow_html=True)
-        ec1, ec2, _ = st.columns([1, 1, 4], gap="small")
+        st.markdown('<div class="editorial-edit-actions-anchor"></div>', unsafe_allow_html=True)
+        ec1, ec2 = st.columns([1.2, 1], gap="small")
         with ec1:
             st.button(
-                "Save",
+                "Save Draft",
                 icon=":material/save:",
                 type="primary",
                 key=f"dlg_save_edit_{item_uid}",
                 help="Save draft without sending",
                 on_click=_on_share_save,
                 args=(cache_id, ta_key, "" if is_x else hl_key),
+                use_container_width=True,
             )
         with ec2:
             st.button(
-                "",
+                "Discard Edits",
                 icon=":material/close:",
                 key=f"dlg_cancel_edit_{item_uid}",
                 help="Discard unsaved edits",
                 on_click=_on_share_cancel_edit,
                 args=(cache_id,),
+                use_container_width=True,
             )
         return
 
@@ -1907,80 +2067,79 @@ def _show_share_dialog() -> None:
             )
 
     if len(_wa_targets) > 1:
-        dest_name = st.radio(
+        st.markdown('<div class="wa-dest-label">Destination WhatsApp Group</div>', unsafe_allow_html=True)
+        _cur_target = st.session_state.get(_wa_grp_key) or _wa_targets[0]["name"]
+        dest_name = st.segmented_control(
             "Destination WhatsApp Group",
             options=[t["name"] for t in _wa_targets],
-            horizontal=True,
+            default=_cur_target,
             key=_wa_grp_key,
+            label_visibility="collapsed",
         )
+        if not dest_name:
+            dest_name = _wa_targets[0]["name"]
+        selected_gid = _target_by_name[dest_name]
     else:
         st.markdown(
-            f'<div style="font-size:0.82rem;font-weight:600;color:var(--label-2);margin:8px 0 6px 0;">'
-            f'Destination WhatsApp Group: <span style="color:var(--label-1);font-weight:700;">{html.escape(dest_name)}</span>'
+            f'<div class="wa-dest-label">'
+            f'Destination WhatsApp Group: <span class="wa-dest-val">{html.escape(dest_name)}</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
 
-    c_copy, c_edit, c_save, c_cls, c_send = st.columns(5, gap="small")
+    c_copy, c_edit, c_save, c_cls, c_send = st.columns(
+        [1.1, 1.1, 1.1, 1.1, 2.3],
+        vertical_alignment="center",
+        gap="small",
+    )
     with c_copy:
-        _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=True)
+        _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=False)
     with c_edit:
         st.button(
-            "",
+            "Edit",
             icon=":material/edit:",
             key=f"dlg_edit_{item_uid}",
             help="Edit draft",
             on_click=_on_share_enter_edit,
             args=(cache_id,),
+            width="stretch",
         )
     with c_save:
         st.button(
-            "",
+            "Save",
             icon=":material/save:",
             key=f"dlg_save_bar_{item_uid}",
             disabled=not has_unsaved,
             help="Save current draft without sending" if has_unsaved else "All changes saved",
             on_click=_on_share_save,
             args=(cache_id, ""),
+            width="stretch",
         )
     with c_cls:
         if has_unsaved:
             st.button(
-                "",
+                "Close",
                 icon=":material/close:",
                 key=f"dlg_sh_cls_{item_uid}",
                 help="Close",
                 on_click=_on_share_req_close_guard,
                 args=(cache_id,),
+                width="stretch",
             )
         else:
-            if st.button("", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close"):
+            if st.button("Close", icon=":material/close:", key=f"dlg_sh_cls_{item_uid}", help="Close", width="stretch"):
                 st.session_state["active_modal"] = None
                 st.rerun()
     with c_send:
-        st.button(
-            "",
-            icon=":material/send:",
-            type="primary",
-            key=f"dlg_conf_{item_uid}",
-            help=f"Confirm to Send: send latest saved draft (v{ver}) to {dest_name}",
-            on_click=_on_share_req_send,
-            args=(cache_id,),
+        _render_share_send_fragment(
+            cache_id=cache_id,
+            item_uid=item_uid,
+            dest_name=dest_name,
+            selected_gid=selected_gid,
+            item_link=item_link,
+            has_unsaved=has_unsaved,
+            ver=ver,
         )
-
-    wa_status = st.session_state["wa_item_status"].get(cache_id)
-    if wa_status:
-        st_code = wa_status.get("status")
-        if wa_status.get("ok") and wa_status.get("accepted"):
-            gname = html.escape(wa_status.get("group_name") or dest_name)
-            msg_id = html.escape(str(wa_status.get("id_message") or ""))
-            st.success(f"✓ Accepted by Green API for {gname} · ID: {msg_id}")
-        elif st_code == "inactive":
-            st.info(wa_status.get("error"))
-        elif st_code == "duplicate_prevented":
-            st.warning(wa_status.get("error"))
-        else:
-            st.error(f"{wa_status.get('error') or 'Failed to send WhatsApp message.'} Your draft is preserved — click Confirm to Send to retry.")
 
 
 def render_feed_item_with_actions(
@@ -2596,9 +2755,15 @@ def render_infinite_workspace_feed(
             new_since_snap = 0
 
     if new_since_snap > 0:
-        b_col1, b_col2 = st.columns([4, 1.2])
+        b_col1, b_col2 = st.columns([3.8, 1.4], vertical_alignment="center", gap="small")
         with b_col1:
-            st.info(f"✨ **{new_since_snap:,}** new {noun} available since you opened this feed.")
+            st.markdown(
+                f'<div class="apple-new-stories-pill">'
+                f'<span class="new-stories-dot"></span>'
+                f'<span class="new-stories-msg"><b>{new_since_snap:,}</b> new {noun} available since you opened this feed</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
         with b_col2:
             if st.button("Refresh feed", icon=":material/refresh:", key=f"btn_new_stories_{workspace}", width="stretch"):
                 sessions.pop(workspace, None)
@@ -2847,7 +3012,7 @@ _seen_sync_seq = int(st.session_state.get("_seen_sync_seq", 0))
 if not _sync_snap.get("running") and int(_sync_snap.get("completed_seq", 0)) > _seen_sync_seq:
     st.session_state["_seen_sync_seq"] = int(_sync_snap["completed_seq"])
     if _changed_streams and not _sync_snap.get("errors"):
-        st.toast("Live feeds synced!", icon="🔄")
+        st.toast("Live feeds synced!", icon=":material/check_circle:")
 
 # Cold login 1-query bootstrap when Live Feed needs initial load; cached header otherwise
 _prefetched_live_init = None
@@ -3016,9 +3181,9 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
         ):
             started, _ = trigger_manual_sync_async()
             if started:
-                st.toast("Refreshing Nepali Media, Indian Press & X in background…", icon="🔄")
+                st.toast("Refreshing live intelligence feeds in background…", icon=":material/bolt:")
             else:
-                st.toast("Sync already in progress…", icon="⏳")
+                st.toast("Sync already in progress…", icon=":material/hourglass_top:")
 
 
 def _format_sync_pipeline_pills(pipes: Dict[str, Dict[str, Any]]) -> str:
@@ -3036,6 +3201,51 @@ def _format_sync_pipeline_pills(pipes: Dict[str, Dict[str, Any]]) -> str:
     return " · ".join(parts)
 
 
+def _render_telemetry_hud_html(elapsed: int, pipes: Dict[str, Dict[str, Any]]) -> str:
+    labels = {
+        "nepali": ("🇳🇵", "Nepali Media"),
+        "indian": ("🇮🇳", "Indian Press"),
+        "x": ("𝕏", "X Intelligence"),
+    }
+    pill_htmls = []
+    for k in ("nepali", "indian", "x"):
+        flag, name = labels[k]
+        p = pipes.get(k) or {}
+        st_name = p.get("status", "idle")
+        if st_name == "running":
+            cls = "telemetry-stream--running"
+            metric = '<span class="telemetry-spinner"></span> Syncing…'
+        elif st_name == "done":
+            cls = "telemetry-stream--done"
+            c = int(p.get("count", 0))
+            el = p.get("elapsed_secs", 0)
+            metric = f"✓ {c} ({el}s)"
+        elif st_name in ("error", "timeout"):
+            cls = "telemetry-stream--error"
+            metric = f"⚠️ {st_name}"
+        else:
+            cls = "telemetry-stream--idle"
+            metric = "Pending"
+        pill_htmls.append(
+            f'<div class="telemetry-stream-pill {cls}">'
+            f'<span class="telemetry-flag">{flag}</span>'
+            f'<span class="telemetry-name">{name}</span>'
+            f'<span class="telemetry-metric">{metric}</span>'
+            f'</div>'
+        )
+
+    return (
+        f'<div class="apple-telemetry-hud">'
+        f'<div class="telemetry-hud-lead">'
+        f'<span class="telemetry-pulse-dot"></span>'
+        f'<span class="telemetry-hud-title">LIVE SYNC</span>'
+        f'<span class="telemetry-hud-elapsed">{elapsed}s</span>'
+        f'</div>'
+        f'<div class="telemetry-hud-streams">{"".join(pill_htmls)}</div>'
+        f'</div>'
+    )
+
+
 @st.fragment(run_every=3)
 def _render_active_sync_monitor() -> None:
     snap = get_manual_sync_status()
@@ -3047,8 +3257,7 @@ def _render_active_sync_monitor() -> None:
         st.rerun()
     if snap.get("running"):
         elapsed = int(max(1, time.time() - float(snap.get("started_at") or time.time())))
-        summary = _format_sync_pipeline_pills(pipes) or "Syncing streams concurrently…"
-        st.info(f"🔄 Background sync ({elapsed}s) — {summary}")
+        st.markdown(_render_telemetry_hud_html(elapsed, pipes), unsafe_allow_html=True)
     elif int(snap.get("completed_seq", 0)) > int(st.session_state.get("_seen_sync_seq", 0)):
         st.rerun()
 
@@ -3058,14 +3267,20 @@ if get_manual_sync_status().get("running"):
 elif _sync_snap.get("errors"):
     _failed_streams = [k for k in ("nepali", "indian", "x") if k in (_sync_snap.get("errors") or {})]
     if _failed_streams:
-        _sc1, _sc2 = st.columns([4.2, 1.3], gap="small")
+        _sc1, _sc2 = st.columns([4.2, 1.3], vertical_alignment="center", gap="small")
         with _sc1:
-            st.warning(f"⚠️ Sync finished with partial errors: {_format_sync_pipeline_pills(_sync_snap.get('pipelines') or {})}")
+            st.markdown(
+                f'<div class="telemetry-error-bar">'
+                f'<span class="telemetry-warn-dot">⚠️</span>'
+                f'<span class="telemetry-error-text">Sync finished with partial errors: <b>{html.escape(_format_sync_pipeline_pills(_sync_snap.get("pipelines") or {}))}</b></span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
         with _sc2:
             if st.button("Retry Failed", icon=":material/refresh:", key="btn_retry_failed_sync", width="stretch"):
                 started, _ = trigger_manual_sync_async(targets=_failed_streams)
                 if started:
-                    st.toast(f"Retrying {', '.join(_failed_streams)}…", icon="🔄")
+                    st.toast(f"Retrying {', '.join(_failed_streams)}…", icon=":material/refresh:")
                 st.rerun()
 
 if _active_sq:
@@ -3348,9 +3563,13 @@ def render_x_section() -> None:
         with xc1:
             x_cat_filter = st.selectbox("Post Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select", label_visibility="collapsed")
         with xc2:
+            x_acc_types = [ALL_ACC_TYPES] + [
+                c for c in CANONICAL_X_CATEGORIES
+                if c not in ("Media Houses and News Outlets", "Media Houses & News Outlets")
+            ]
             selected_acc_type = st.selectbox(
                 "Account Type",
-                [ALL_ACC_TYPES] + CANONICAL_X_CATEGORIES,
+                x_acc_types,
                 key="x_acc_type_select",
                 label_visibility="collapsed",
             )
@@ -3490,7 +3709,7 @@ def render_x_section() -> None:
         with flt_c1:
             dir_search = st.text_input("Search directory", placeholder="Search by name, handle (@...), role, or keywords…", label_visibility="collapsed", key="dir_search_input")
         with flt_c2:
-            dir_cat = st.selectbox("Canonical Sector", ["All Sectors (8)"] + CANONICAL_X_CATEGORIES, label_visibility="collapsed", key="dir_cat_select")
+            dir_cat = st.selectbox("Canonical Sector", [f"All Sectors ({len(CANONICAL_X_CATEGORIES)})"] + CANONICAL_X_CATEGORIES, label_visibility="collapsed", key="dir_cat_select")
         with flt_c3:
             dir_status = st.selectbox("Status Filter", ["All Statuses", "Verified Only", "Active Monitored", "Paused Only", "Pending Review"], label_visibility="collapsed", key="dir_status_select")
 
@@ -3613,7 +3832,7 @@ def render_x_section() -> None:
                     t_val = st.toggle("Active Monitoring", value=is_enabled, key=f"tgl_dir_{h}_{idx}")
                     if t_val != is_enabled:
                         set_x_account_enabled(h, t_val)
-                        st.toast(f"@{h} status updated to {'Active' if t_val else 'Paused'}!", icon="✅")
+                        st.toast(f"@{h} status updated to {'Active' if t_val else 'Paused'}!", icon=":material/check_circle:")
                         st.rerun()
 
     # -------------------------------------------------------------
@@ -3711,12 +3930,12 @@ def render_x_section() -> None:
                             if st.button("Promote to Verified", key=f"btn_promote_{ph}", width="stretch"):
                                 pa["verification_status"] = "verified"
                                 upsert_single_x_account(pa)
-                                st.toast(f"Promoted @{ph} to Verified!", icon="🛡️")
+                                st.toast(f"Promoted @{ph} to Verified!", icon=":material/verified:")
                                 st.rerun()
                         with pc3:
                             if st.button("Remove", key=f"btn_remove_{ph}", width="stretch", type="secondary"):
                                 delete_x_account(ph)
-                                st.toast(f"Removed candidate @{ph}", icon="🗑️")
+                                st.toast(f"Removed candidate @{ph}", icon=":material/delete:")
                                 st.rerun()
 
         with admin_tab3:

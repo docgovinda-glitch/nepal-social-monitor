@@ -1270,6 +1270,7 @@ def _build_x_where(
     end_dt: Optional[datetime.datetime] = None,
     search_query: Optional[str] = None,
     snapshot_ingested_at: Optional[datetime.datetime] = None,
+    exclude_media_houses: bool = False,
 ) -> List[str]:
     clauses = ["1=1"]
     if start_dt:
@@ -1283,7 +1284,16 @@ def _build_x_where(
         if cat_sql:
             clauses.append(cat_sql)
     if author_type and author_type.lower() != "all" and author_type != "All Account Types":
-        clauses.append(f"author_type = {esc_sql(author_type)}")
+        if exclude_media_houses and author_type in ("Media Houses and News Outlets", "Media Houses & News Outlets"):
+            clauses.append("1=0")
+        elif author_type in ("Diplomats & Former Officials", "Diplomats and Former Officials"):
+            clauses.append(f"author_type IN ({esc_sql('Diplomats and Former Officials')}, {esc_sql('Diplomats & Former Officials')})")
+        else:
+            clauses.append(f"author_type = {esc_sql(author_type)}")
+    elif exclude_media_houses:
+        clauses.append(
+            f"(author_type IS NULL OR author_type NOT IN ({esc_sql('Media Houses and News Outlets')}, {esc_sql('Media Houses & News Outlets')}))"
+        )
     srch_sql = _build_search_sql(search_query, ["text", "author_name", "handle", "author_type", "structured_category"])
     if srch_sql:
         clauses.append(srch_sql)
@@ -1889,7 +1899,10 @@ def _build_stream_count_where(
     """Returns SQL WHERE clauses for (articles, indian_media_articles, x_posts) honoring NPT vs UTC storage."""
     where_articles = [f"source IN ({_active_portal_names_sql()})"]
     where_indian = ["relevance_status IN ('substantive', 'relevant')"]
-    where_x = ["1=1"]
+    where_x = [
+        "1=1",
+        f"(author_type IS NULL OR author_type NOT IN ({esc_sql('Media Houses and News Outlets')}, {esc_sql('Media Houses & News Outlets')}))",
+    ]
     if start_dt:
         dt_local_str = _fmt_sql_ts(start_dt, as_utc=False)
         dt_utc_str = _fmt_sql_ts(start_dt, as_utc=True)
@@ -2388,6 +2401,7 @@ def get_stored_x_posts(
     cursor_id: Optional[str] = None,
     cursor_metric: Optional[int] = None,
     sort_mode: str = "Newest",
+    exclude_media_houses: bool = False,
 ) -> List[Dict[str, Any]]:
     """Retrieves X posts from Supabase PostgreSQL with optional keyset cursor."""
     clauses = _build_x_where(
@@ -2397,6 +2411,7 @@ def get_stored_x_posts(
         end_dt=end_dt,
         search_query=search_query,
         snapshot_ingested_at=snapshot_ingested_at,
+        exclude_media_houses=exclude_media_houses,
     )
     metric_col_map = {
         "Most engagement": "COALESCE(engagement_score, 0)",
@@ -2520,6 +2535,7 @@ def _build_live_union_sql(
             end_dt=end_dt,
             search_query=search_query,
             snapshot_ingested_at=snapshot_ingested_at,
+            exclude_media_houses=True,
         )
         c_x = _branch_cursor_clause(1, eff_rank, cursor_dt, cursor_id, "id", sort_asc, as_utc=True)
         if c_x:
@@ -2661,7 +2677,7 @@ def _build_filtered_count_sql_parts(
         w = _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, source=source, language=language, category_filter=category_filter, search_query=search_query)
         return _pair_sql("indian_media_articles", w)
     if workspace == "x":
-        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query)
+        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query, exclude_media_houses=True)
         return _pair_sql("x_posts", w)
 
     tots, news = [], []
@@ -2674,7 +2690,7 @@ def _build_filtered_count_sql_parts(
         tots.append(t)
         news.append(n)
     if stream_filter in ("All Sources", "X (Twitter) Only", "Verified X Voices Only"):
-        t, n = _pair_sql("x_posts", _build_x_where(category=category_filter, start_dt=start_dt, end_dt=end_dt, search_query=search_query))
+        t, n = _pair_sql("x_posts", _build_x_where(category=category_filter, start_dt=start_dt, end_dt=end_dt, search_query=search_query, exclude_media_houses=True))
         tots.append(t)
         news.append(n)
     tot_expr = f"({' + '.join(tots or ['0'])})"
@@ -2770,6 +2786,7 @@ def _build_workspace_page_sql(
         w = _build_x_where(
             category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt,
             search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
+            exclude_media_houses=True,
         )
         metric_col_map = {
             "Most engagement": "COALESCE(engagement_score, 0)",

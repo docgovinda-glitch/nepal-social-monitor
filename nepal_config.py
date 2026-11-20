@@ -39,6 +39,19 @@ CATEGORY_ICONS: Dict[str, str] = {
     "International News": "🌍",
 }
 
+CANONICAL_X_CATEGORIES: List[str] = [
+    "Government Agencies of Nepal",
+    "Diplomats and Former Officials",
+    "Politicians",
+    "Political Analysts",
+    "Civil Society and Public Voices",
+    "Media Houses and News Outlets",
+    "Journalists and Media Professionals",
+    "Academics and Researchers",
+    "Social Activists",
+    "Public Intellectuals and Cultural Voices",
+]
+
 TOP_NEPAL_NEWS_PORTALS: List[Dict[str, Any]] = [
     {"name": "eKantipur", "type": "html", "url": "https://ekantipur.com/", "alt_urls": ["https://ekantipur.com/news", "https://ekantipur.com/national", "https://ekantipur.com/business"], "x_boost_handle": "ekantipur_com", "lang": "Nepali", "category": "National Daily", "priority": "high", "check_interval_mins": 8},
     {"name": "OnlineKhabar (NP)", "type": "rss", "url": "https://www.onlinekhabar.com/feed", "alt_urls": ["https://www.onlinekhabar.com/content/news/feed"], "x_boost_handle": "Online_khabar", "lang": "Nepali", "category": "General News", "priority": "high", "check_interval_mins": 8},

@@ -11,6 +11,7 @@ import html
 import math
 import json
 import time
+import atexit
 import logging
 import threading
 import collections
@@ -122,12 +123,36 @@ class TranslationLRUCache:
                     pass
             self._mem_cache.clear()
 
+    def close(self) -> None:
+        """Closes the underlying SQLite diskcache cleanly and clears in-memory structures."""
+        with self._lock:
+            if self._disk_cache is not None:
+                try:
+                    self._disk_cache.close()
+                except Exception:
+                    pass
+                self._disk_cache = None
+            self._mem_cache.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def __len__(self) -> int:
         with self._lock:
             return len(self._mem_cache)
 
 
 _TRANSLATION_CACHE = TranslationLRUCache(maxsize=TRANSLATION_CACHE_MAX_SIZE)
+atexit.register(_TRANSLATION_CACHE.close)
 
 # Circuit breaker & local translation fallback settings
 ENABLE_LOCAL_TRANSLATION_FALLBACK = (
@@ -613,7 +638,7 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
         from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception_type
         @retry(
             stop=stop_after_attempt(2),
-            wait=wait_exponential_jitter(initial=0.5, max=3.0),
+            wait=wait_exponential_jitter(multiplier=0.5, max=3.0),
             retry=retry_if_exception_type(Exception),
             reraise=True,
         )

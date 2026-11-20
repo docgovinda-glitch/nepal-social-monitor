@@ -5,6 +5,7 @@ All credentials remain strictly server-side via environment / Streamlit secrets.
 Actual group messaging remains inactive until Green API setup is confirmed and approved.
 """
 
+import os
 import hashlib
 import logging
 import requests
@@ -50,14 +51,37 @@ def is_sending_active(session_approved: bool = True) -> bool:
     return bool(session_approved and is_configured())
 
 
+def _get_whatsapp_group_id(env_var: str, default: str) -> str:
+    """Retrieves group ID from environment variable or st.secrets, with fallback."""
+    val = (os.getenv(env_var) or "").strip()
+    if val:
+        return val
+    try:
+        import streamlit as st
+        val = str(st.secrets.get(env_var, "")).strip()
+        if val:
+            return val
+    except Exception:
+        pass
+    if not os.getenv(env_var):
+        logger.debug(f"{env_var} not configured in environment or secrets; using default ID.")
+    return default
+
+
 SOCIAL_MEDIA_GROUP: Dict[str, str] = {
-    "id": "120363412139269937@g.us",
+    "id": _get_whatsapp_group_id("WHATSAPP_SOCIAL_MEDIA_GROUP_ID", "120363412139269937@g.us"),
     "name": "Social Media Monitoring",
 }
 
 NEWS_SHARE_GROUPS: List[Dict[str, str]] = [
-    {"id": "120363428884458826@g.us", "name": "India Related News in Nepali Media"},
-    {"id": "9779823609230-1539002455@g.us", "name": "Core group of PIC Wing"},
+    {
+        "id": _get_whatsapp_group_id("WHATSAPP_PRIMARY_GROUP_ID", "120363428884458826@g.us"),
+        "name": "India Related News in Nepali Media",
+    },
+    {
+        "id": _get_whatsapp_group_id("WHATSAPP_SECONDARY_GROUP_ID", "9779823609230-1539002455@g.us"),
+        "name": "Core group of PIC Wing",
+    },
 ]
 
 
@@ -167,7 +191,7 @@ def send_group_message(
     message: str,
     session_approved: bool = False,
     sent_registry: Optional[Set[str]] = None,
-    timeout: int = 10,
+    timeout: Any = (3, 8),
 ) -> Dict[str, Any]:
     """
     Sends a single text message to a selected WhatsApp group via Green API.

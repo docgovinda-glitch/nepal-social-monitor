@@ -6,6 +6,7 @@ Streamlit AppTest flows (login deferral, single-pass load_more delta payloads,
 workspace switching, filters, search, Analytics & Export, System Health).
 """
 
+import os
 import datetime
 import json
 import sys
@@ -13,6 +14,8 @@ import time
 import unittest
 from pathlib import Path
 from unittest import mock
+
+os.environ.setdefault("APP_PASSWORD", "PIC@55")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -668,8 +671,15 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         at.button[0].click().run()
 
         live_sess = at.session_state["feed_sessions"]["live"]
-        first_uid = list(live_sess["items_by_uid"].keys())[0]
-        item = live_sess["items_by_uid"][first_uid]
+        first_uid = None
+        for uid, itm in live_sess["items_by_uid"].items():
+            if not bool(itm.get("post_id") or itm.get("handle")):
+                first_uid = uid
+                item = itm
+                break
+        if first_uid is None:
+            first_uid = list(live_sess["items_by_uid"].keys())[0]
+            item = live_sess["items_by_uid"][first_uid]
 
         # 1. Share modal: opening -> editing -> typing -> saving keeps modal on screen and commits draft v2
         at.session_state["inf_feed_live"] = {"event": "action", "action": "share", "item_uid": first_uid, "ts": int(time.time() * 1000) + 100}
@@ -1634,6 +1644,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             self.assertEqual(d_cache["ne::परीक्षण"], "Test Value")
             self.assertEqual(d_cache.get("ne::परीक्षण"), "Test Value")
         finally:
+            d_cache.close()
             shutil.rmtree(test_cache_dir, ignore_errors=True)
 
         # 6. CTranslate2 local translation loading structure
@@ -1643,6 +1654,179 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             out_tr = summ._translate_with_local_model("नेपाल र भारत सम्झौता", source_lang="ne")
             self.assertEqual(out_tr, "Nepal and India agreement")
             mock_ct2.generate.assert_called_once()
+
+    def test_security_hardening_and_thread_safe_caches(self):
+        """Verifies Phase 1 auth bypass closure, fail-closed password, and Phase 3 thread-safe LRU caching."""
+        import concurrent.futures
+        import nepal_fetcher as fetcher
+        import nepal_summarizer as summ
+
+        # 1. Thread-safe LRU cache concurrency and bounds
+        cache = fetcher._ThreadSafeLRUCache(maxsize=50)
+
+        def worker_task(start_idx: int):
+            for i in range(start_idx, start_idx + 100):
+                cache[f"key_{i}"] = f"val_{i}"
+                _ = cache.get(f"key_{i}")
+                _ = cache.setdefault(f"key_{i}", f"default_{i}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            futures = [ex.submit(worker_task, w * 50) for w in range(8)]
+            concurrent.futures.wait(futures)
+
+        self.assertLessEqual(len(cache), 50)
+        cache.clear()
+        self.assertEqual(len(cache), 0)
+
+        # Cache dict methods parity
+        cache["a"] = "1"
+        self.assertIn("a", cache)
+        self.assertEqual(cache.pop("a"), "1")
+        self.assertNotIn("a", cache)
+        self.assertEqual(cache.setdefault("b", "2"), "2")
+        self.assertEqual(cache["b"], "2")
+
+        # 2. TranslationLRUCache clean close and context manager
+        with summ.TranslationLRUCache(maxsize=10) as t_cache:
+            t_cache["key1"] = "val1"
+            self.assertEqual(t_cache.get("key1"), "val1")
+
+        # 3. Auth Hardening (SEC-01 & SEC-02) via AppTest
+        from streamlit.testing.v1 import AppTest
+
+        # 3a. Auth bypass attempt via /?auth=true must NOT authenticate
+        at_bypass = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=30)
+        at_bypass.query_params["auth"] = "true"
+        at_bypass.run()
+        self.assertFalse(at_bypass.session_state.get("authenticated", False))
+        self.assertTrue(len(at_bypass.text_input) > 0)  # Password field is still presented
+
+        # 3b. Key parameter with correct password authenticates
+        at_key = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=30)
+        at_key.query_params["key"] = "PIC@55"
+        at_key.run()
+        self.assertTrue(at_key.session_state.get("authenticated", False))
+
+        # 3c. Fail-closed: empty APP_PASSWORD displays configuration error and halts
+        import streamlit.runtime.secrets
+        with mock.patch.dict("os.environ", {"APP_PASSWORD": ""}), mock.patch.object(streamlit.runtime.secrets.Secrets, "get", return_value=""):
+            at_unconfigured = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=30)
+            at_unconfigured.run()
+            self.assertFalse(at_unconfigured.session_state.get("authenticated", False))
+            self.assertTrue(any("Authentication Configuration Error" in e.value for e in at_unconfigured.error))
+
+    def test_x_directory_canonical_schema_and_snowball_deduplication(self):
+        """Verify Nepal X Directory integrity, deduplication, corrected classifications, and Supabase sync."""
+        import nepal_verified_x_directory as x_dir
+        import nepal_news_store as store
+
+        # 1. Canonical 10 categories check (Government Agencies separated from Diplomats)
+        self.assertEqual(len(x_dir.CANONICAL_X_CATEGORIES), 10)
+        expected_cats = {
+            "Government Agencies of Nepal",
+            "Diplomats and Former Officials",
+            "Politicians",
+            "Political Analysts",
+            "Civil Society and Public Voices",
+            "Media Houses and News Outlets",
+            "Journalists and Media Professionals",
+            "Academics and Researchers",
+            "Social Activists",
+            "Public Intellectuals and Cultural Voices",
+        }
+        self.assertEqual(set(x_dir.CANONICAL_X_CATEGORIES), expected_cats)
+
+        # 2. Pool size: Snowball expansion must provide at least 340 curated accounts
+        accounts = x_dir.VERIFIED_NEPAL_X_DIRECTORY
+        self.assertGreaterEqual(len(accounts), 340)
+
+        # 3. No duplicate handles and valid schema per account
+        seen_handles = set()
+        by_handle = {}
+        for acc in accounts:
+            h = acc.get("handle", "").lower().strip()
+            self.assertTrue(h, f"Missing handle in account: {acc}")
+            self.assertNotIn(h, seen_handles, f"Duplicate handle found: @{h}")
+            seen_handles.add(h)
+            by_handle[h] = acc
+
+            self.assertIn(acc.get("category"), expected_cats, f"Invalid category for @{h}: {acc.get('category')}")
+            self.assertTrue(acc.get("name"), f"Missing name for @{h}")
+            self.assertTrue(acc.get("role"), f"Missing role for @{h}")
+            self.assertTrue(acc.get("relevance"), f"Missing relevance for @{h}")
+            self.assertEqual(acc.get("verification_status"), "verified", f"Invalid status for @{h}")
+
+        # 4. Pruned stale duplicate handles must NOT exist
+        for pruned in ("al_giri", "surendra_pandey", "shivagaunle", "ameetdhakal", "biswasktm", "dilbhusanpathak", "sanjeevsatgainy", "umeshshrestha"):
+            self.assertNotIn(pruned, seen_handles, f"Pruned duplicate @{pruned} is still present in directory!")
+
+        # 5. Verified category corrections & Government Agencies separation
+        self.assertEqual(by_handle["binodkchaudhary"]["category"], "Politicians")
+        self.assertEqual(by_handle["prakashsnehi"]["category"], "Politicians")
+        self.assertEqual(by_handle["pm_nepal_"]["category"], "Politicians")
+        self.assertEqual(by_handle["bipinadhikari_"]["category"], "Academics and Researchers")
+
+        # Government Agencies of Nepal (State Organs & Security)
+        self.assertEqual(by_handle["apf_nepal"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["ciaa_nepal"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["mofa_nepal"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["nepal_army"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["nepalpolicehq"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["nepalrastrabank"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["oop_nepal"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["electionnepal"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["doinepal"]["category"], "Government Agencies of Nepal")
+        self.assertEqual(by_handle["hello_nea"]["category"], "Government Agencies of Nepal")
+
+        # Diplomats & Former Officials (Envoys, Missions & Foreign Relations)
+        self.assertEqual(by_handle["drshankarsharma"]["category"], "Diplomats and Former Officials")
+        self.assertEqual(by_handle["adb_hq"]["category"], "Diplomats and Former Officials")
+        self.assertEqual(by_handle["usembassynepal"]["category"], "Diplomats and Former Officials")
+        self.assertEqual(by_handle["chinaambnepal"]["category"], "Diplomats and Former Officials")
+
+        # Media Houses and News Outlets (institutions)
+        self.assertEqual(by_handle["annapurna_post"]["category"], "Media Houses and News Outlets")
+        self.assertEqual(by_handle["ekantipur_com"]["category"], "Media Houses and News Outlets")
+        self.assertEqual(by_handle["online_khabar"]["category"], "Media Houses and News Outlets")
+        self.assertEqual(by_handle["setopati"]["category"], "Media Houses and News Outlets")
+        self.assertEqual(by_handle["bbcnepali"]["category"], "Media Houses and News Outlets")
+
+        # Journalists and Media Professionals (individuals)
+        self.assertEqual(by_handle["ashokpillar"]["category"], "Journalists and Media Professionals")
+        self.assertEqual(by_handle["gbudhathoki"]["category"], "Journalists and Media Professionals")
+        self.assertEqual(by_handle["dilbhushan"]["category"], "Journalists and Media Professionals")
+        self.assertEqual(by_handle["amitdhakal"]["category"], "Journalists and Media Professionals")
+
+        # 6. Supabase X Account KPIs sync check
+        store.get_x_account_kpis.clear()
+        kpis = store.get_x_account_kpis()
+        self.assertGreaterEqual(kpis.get("total_verified", 0), 340)
+        by_cat_db = kpis.get("by_category", {})
+        for cat in expected_cats:
+            self.assertGreater(by_cat_db.get(cat, 0), 0, f"Database has 0 accounts for canonical category: {cat}")
+
+        # 7. X Workspace Media House exclusion & Channel monitoring guardrail verification
+        # 7a. Default X Workspace SQL must exclude Media Houses
+        x_page_sql = store._build_workspace_page_sql(workspace="x", limit=20)
+        self.assertIn("author_type NOT IN ('Media Houses and News Outlets'", x_page_sql)
+
+        # 7b. Filtered count SQL for workspace "x" must exclude Media Houses
+        tot_sql, _ = store._build_filtered_count_sql_parts(workspace="x", include_new_count=False)
+        self.assertIn("author_type NOT IN ('Media Houses and News Outlets'", tot_sql)
+
+        # 7c. Direct selection of Government Agencies generates targeted author_type SQL
+        govt_sql = store._build_workspace_page_sql(workspace="x", author_type="Government Agencies of Nepal", limit=20)
+        self.assertIn("author_type = 'Government Agencies of Nepal'", govt_sql)
+
+        # 7d. If Media Houses is queried with exclude_media_houses=True, returns 1=0 (no posts)
+        media_where = store._build_x_where(author_type="Media Houses and News Outlets", exclude_media_houses=True)
+        self.assertIn("1=0", media_where)
+
+        # 7e. GUARDRAIL: When exclude_media_houses=False (default for backend scrapers & nepal_fetcher),
+        # media outlet posts ARE returned normally for dual-feed X-boost and portal ingestion
+        fetcher_where = store._build_x_where(author_type="Media Houses and News Outlets", exclude_media_houses=False)
+        self.assertNotIn("1=0", fetcher_where)
+        self.assertIn("author_type = 'Media Houses and News Outlets'", fetcher_where)
 
 
 if __name__ == "__main__":

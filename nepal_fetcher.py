@@ -15,6 +15,8 @@ import urllib.request
 import urllib.parse
 import ssl
 import concurrent.futures
+import threading
+import collections
 import re
 import html
 import json
@@ -67,14 +69,74 @@ from nepal_summarizer import (
     enrich_articles_with_english_summaries,
 )
 
-# Full article news text in-memory cache
-FULL_ARTICLE_TEXT_CACHE = {}
-# Published date in-memory cache
-ARTICLE_DATE_CACHE = {}
-# Resolved t.co shortlink cache
-TCO_REDIRECT_CACHE: Dict[str, str] = {}
-# Resolved Google News RSS article redirect cache
-GNEWS_URL_CACHE: Dict[str, str] = {}
+class _ThreadSafeLRUCache:
+    """Thread-safe, bounded in-memory LRU cache with dict-like semantics."""
+
+    def __init__(self, maxsize: int = 1000):
+        self._maxsize = max(1, maxsize)
+        self._cache: collections.OrderedDict[Any, Any] = collections.OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: Any, default: Any = None) -> Any:
+        with self._lock:
+            if key not in self._cache:
+                return default
+            self._cache.move_to_end(key)
+            return self._cache[key]
+
+    def set(self, key: Any, value: Any) -> None:
+        self[key] = value
+
+    def pop(self, key: Any, default: Any = None) -> Any:
+        with self._lock:
+            return self._cache.pop(key, default)
+
+    def setdefault(self, key: Any, default: Any = None) -> Any:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            if len(self._cache) >= self._maxsize:
+                self._cache.popitem(last=False)
+            self._cache[key] = default
+            return default
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
+    def __getitem__(self, key: Any) -> Any:
+        with self._lock:
+            if key not in self._cache:
+                raise KeyError(key)
+            self._cache.move_to_end(key)
+            return self._cache[key]
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            elif len(self._cache) >= self._maxsize:
+                self._cache.popitem(last=False)
+            self._cache[key] = value
+
+    def __contains__(self, key: Any) -> bool:
+        with self._lock:
+            return key in self._cache
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._cache)
+
+
+# Full article news text in-memory bounded LRU cache
+FULL_ARTICLE_TEXT_CACHE = _ThreadSafeLRUCache(maxsize=1000)
+# Published date in-memory bounded LRU cache
+ARTICLE_DATE_CACHE = _ThreadSafeLRUCache(maxsize=1000)
+# Resolved t.co shortlink bounded LRU cache
+TCO_REDIRECT_CACHE = _ThreadSafeLRUCache(maxsize=1000)
+# Resolved Google News RSS article redirect bounded LRU cache
+GNEWS_URL_CACHE = _ThreadSafeLRUCache(maxsize=1000)
 # Domains served via official X syndication bridge rather than direct HTML scraping (empty: all portals direct-scrapable)
 _SKIP_DIRECT_SCRAPE_DOMAINS = frozenset()
 

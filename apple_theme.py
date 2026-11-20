@@ -520,64 +520,98 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
 
     /* Unified Copyable Brief / Translation Inset Panel */
     .unified-brief-box {
-        background: #F4F6F9;
-        border: 1px solid rgba(82, 106, 133, 0.16);
-        border-left: 3px solid var(--tint);
-        border-radius: 10px;
-        padding: 12px 15px;
-        margin: 6px 0 8px 0;
+        background: #F8FAFC;
+        border: 1px solid rgba(15, 23, 42, 0.09);
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin: 8px 0 12px 0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
     }
     .unified-brief-box__eyebrow {
-        font-size: 0.67rem;
-        font-weight: 700;
+        font-size: 0.72rem;
+        font-weight: 750;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--tint);
-        margin-bottom: 6px;
+        letter-spacing: 0.08em;
+        color: #0066CC;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
     .unified-brief-box__headline {
-        font-size: 0.96rem;
+        font-size: 1.10rem;
         font-weight: 700;
-        line-height: 1.38;
-        color: var(--label);
-        padding-bottom: 8px;
-        margin-bottom: 8px;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        line-height: 1.42;
+        color: #0F172A;
+        letter-spacing: -0.015em;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.07);
         word-break: break-word;
     }
     .unified-brief-box__body {
-        font-size: 0.89rem;
-        line-height: 1.56;
-        color: var(--label);
+        font-size: 0.93rem;
+        line-height: 1.66;
+        color: #334155;
         white-space: pre-wrap;
         word-break: break-word;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         user-select: all;
     }
     .unified-brief-box__profile {
-        font-size: 0.8rem;
+        font-size: 0.82rem;
         font-style: italic;
-        line-height: 1.45;
-        color: #526A85;
+        line-height: 1.48;
+        color: #64748B;
         padding-top: 8px;
-        margin-bottom: 8px;
-        border-top: 1px solid rgba(0, 0, 0, 0.07);
+        margin-bottom: 10px;
+        border-top: 1px solid rgba(15, 23, 42, 0.07);
     }
     .unified-brief-box__source {
-        font-size: 0.77rem;
+        font-size: 0.78rem;
         line-height: 1.4;
-        color: var(--label-2);
-        padding-top: 7px;
-        border-top: 1px solid rgba(0, 0, 0, 0.07);
-        word-break: break-all;
+        color: #64748B;
+        padding-top: 10px;
+        border-top: 1px solid rgba(15, 23, 42, 0.07);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
     }
-    .unified-brief-box__source a {
-        color: var(--link) !important;
+    .source-lbl {
+        font-weight: 600;
+        color: #64748B;
+        font-size: 0.76rem;
+    }
+    .source-link-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: #F1F5F9;
+        border: 1px solid rgba(15, 23, 42, 0.10);
+        color: #0066CC !important;
+        font-size: 0.77rem;
+        font-weight: 600;
         text-decoration: none !important;
-        font-weight: 500;
+        transition: all 0.15s ease;
     }
-    .unified-brief-box__source a:hover {
-        text-decoration: underline !important;
+    .source-link-chip:hover {
+        background: #E2E8F0;
+        border-color: rgba(0, 102, 204, 0.28);
+        color: #0052A3 !important;
+        text-decoration: none !important;
+    }
+    .source-link-arrow {
+        font-size: 0.85rem;
+        line-height: 1;
+        color: #64748B;
+        transition: transform 0.15s ease;
+    }
+    .source-link-chip:hover .source-link-arrow {
+        transform: translate(1px, -1px);
+        color: #0066CC;
     }
     .feed-action-divider {
         height: 1px;
@@ -664,11 +698,12 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
         }
     }
     .fulltext-reader-box {
-        background: #FAFAFC;
-        border: 1px solid var(--separator-strong);
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin: 6px 0 8px 0;
+        background: #F8FAFC;
+        border: 1px solid rgba(15, 23, 42, 0.09);
+        border-radius: 14px;
+        padding: 20px 22px;
+        margin: 8px 0 12px 0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
     }
     .fulltext-reader-box__header {
         display: flex;
@@ -676,21 +711,22 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
     }
     .fulltext-reader-box__title {
-        font-size: 1rem;
-        font-weight: 700;
-        color: var(--label);
-        line-height: 1.38;
-        margin: 0 0 4px 0;
+        font-size: 1.18rem;
+        font-weight: 750;
+        color: #0F172A;
+        line-height: 1.40;
+        letter-spacing: -0.015em;
+        margin: 0 0 6px 0;
     }
     .fulltext-reader-box__meta {
-        font-size: 0.74rem;
-        color: var(--label-2);
-        margin-bottom: 10px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid var(--separator);
+        font-size: 0.76rem;
+        color: #64748B;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.07);
     }
     .extraction-badge {
         display: inline-flex;
@@ -704,21 +740,24 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
     .extraction-badge--full { background: var(--green-soft); color: var(--green); }
     .extraction-badge--partial { background: var(--amber-soft); color: var(--amber); }
 
-    /* Minimalist Share Modal */
+    /* Minimalist Share & Read Modals */
     .share-modal-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
     }
     .share-modal-type {
-        font-size: 0.72rem;
-        font-weight: 700;
+        font-size: 0.74rem;
+        font-weight: 750;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--label-2);
+        letter-spacing: 0.08em;
+        color: #0066CC;
+        background: rgba(0, 102, 204, 0.08);
+        padding: 3px 10px;
+        border-radius: 6px;
     }
     .share-modal-pills {
         display: inline-flex;
@@ -730,56 +769,364 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        padding: 2px 9px;
+        padding: 3px 10px;
         border-radius: var(--r-pill);
-        font-size: 0.7rem;
+        font-size: 0.72rem;
         font-weight: 600;
     }
-    .share-draft-pill--saved { background: var(--surface-muted); color: var(--label-2); }
-    .share-draft-pill--unsaved { background: var(--amber-soft); color: var(--amber); }
-    .share-draft-pill--sent { background: var(--green-soft); color: var(--green); }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-wrap: wrap !important;
-        gap: 10px !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
+    .share-draft-pill--saved { background: #F1F5F9; color: #334155; border: 1px solid rgba(15, 23, 42, 0.08); }
+    .share-draft-pill--unsaved { background: #FEF3C7; color: #B45309; border: 1px solid rgba(180, 83, 9, 0.2); }
+    .share-draft-pill--sent { background: #DCFCE7; color: #15803D; border: 1px solid rgba(21, 128, 61, 0.2); }
+
+    /* Dialog Container & Backdrop */
+    div[data-testid="stDialog"] {
+        border-radius: 16px !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
-        flex: 0 0 auto !important;
-        width: auto !important;
-        min-width: max-content !important;
+    div[data-testid="stDialog"] [data-testid="stDialogContent"] {
+        border-radius: 16px !important;
+        box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16) !important;
+        border: 1px solid rgba(15, 23, 42, 0.08) !important;
+        padding: 24px !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child {
-        margin-left: auto !important;
-    }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button {
-        height: 34px !important;
-        min-height: 34px !important;
-        border-radius: 999px !important;
-        padding: 0 14px !important;
-        font-size: 0.82rem !important;
+
+    /* Status Widget inside Modals */
+    div[data-testid="stStatusWidget"] {
+        border: 1px solid rgba(21, 128, 61, 0.22) !important;
+        background: #F0FDF4 !important;
+        border-radius: 9px !important;
+        padding: 6px 12px !important;
+        margin-bottom: 10px !important;
+        font-size: 0.78rem !important;
         font-weight: 600 !important;
+        color: #15803D !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button[kind="primary"] {
+    div[data-testid="stStatusWidget"] summary, div[data-testid="stStatusWidget"] summary * {
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        color: #15803D !important;
+    }
+
+    /* WhatsApp Destination Segmented Control in Modals */
+    .wa-dest-label {
+        font-size: 0.8rem;
+        font-weight: 650;
+        color: #475569;
+        letter-spacing: -0.01em;
+        margin: 12px 0 6px 0;
+    }
+    .wa-dest-val {
+        color: #0F172A;
+        font-weight: 700;
+    }
+    div[data-testid="stDialog"] div[data-testid="stSegmentedControl"] {
+        background: #F1F5F9 !important;
+        border-radius: 9px !important;
+        padding: 3px !important;
+        margin-bottom: 12px !important;
+        border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    }
+
+    /* Dialog Modal Action Toolbar Buttons */
+    div[data-testid="stDialog"] .stButton > button {
+        height: 36px !important;
+        min-height: 36px !important;
+        border-radius: 8px !important;
+        padding: 0 14px !important;
+        font-size: 0.83rem !important;
+        font-weight: 600 !important;
+        border: 1px solid rgba(15, 23, 42, 0.12) !important;
+        background: #FFFFFF !important;
+        color: #0F172A !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+        transition: all 0.15s ease !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        white-space: nowrap !important;
+    }
+    div[data-testid="stDialog"] .stButton > button:hover {
+        background: #F8FAFC !important;
+        border-color: rgba(15, 23, 42, 0.24) !important;
+        color: #0F172A !important;
+    }
+    div[data-testid="stDialog"] .stButton > button[kind="primary"] {
         background: #0066CC !important;
         color: #FFFFFF !important;
         border-color: #0066CC !important;
-        padding: 0 16px !important;
+        padding: 0 18px !important;
+        font-weight: 650 !important;
+        box-shadow: 0 2px 8px rgba(0, 102, 204, 0.22) !important;
     }
-    div[data-testid="stDialog"] div[data-testid="stVerticalBlock"]:has(.share-modal-anchor, .read-modal-anchor) .stButton > button[kind="primary"]:hover {
+    div[data-testid="stDialog"] .stButton > button[kind="primary"]:hover {
         background: #0052A3 !important;
         border-color: #0052A3 !important;
+        box-shadow: 0 4px 14px rgba(0, 102, 204, 0.32) !important;
     }
+    div[data-testid="stDialog"] .stButton > button[disabled] {
+        opacity: 0.55 !important;
+        cursor: not-allowed !important;
+    }
+
+    /* =========================================================================
+       EDITORIAL STUDIO: DIALOG INPUTS, TEXTAREAS & MOBILE EDITING CANVAS
+       ========================================================================= */
+    .editorial-edit-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
+        background: linear-gradient(135deg, rgba(0, 102, 204, 0.05), rgba(0, 102, 204, 0.09));
+        border: 1px solid rgba(0, 102, 204, 0.16);
+        border-radius: 11px;
+        padding: 8px 12px;
+        margin: 6px 0 12px 0;
+    }
+    .editorial-edit-banner__tag {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.72rem;
+        font-weight: 750;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #0066CC;
+    }
+    .editorial-edit-banner__hint {
+        font-size: 0.74rem;
+        font-weight: 500;
+        color: #64748B;
+    }
+
+    /* Dialog Headline Editor (stTextInput) - Override 34px pill chip constraint */
+    div[data-testid="stDialog"] div[data-testid="stTextInput"] div[data-baseweb="input"],
+    div[data-testid="stDialog"] div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+        border-radius: 11px !important;
+        min-height: 44px !important;
+        height: auto !important;
+        max-height: none !important;
+        background-color: #FFFFFF !important;
+        border: 1.5px solid rgba(15, 23, 42, 0.14) !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+        padding: 2px 8px !important;
+        transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease) !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within {
+        border-color: #0066CC !important;
+        box-shadow: 0 0 0 3.5px rgba(0, 102, 204, 0.16) !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stTextInput"] input {
+        font-family: var(--font) !important;
+        font-size: 1.04rem !important;
+        font-weight: 650 !important;
+        color: #0F172A !important;
+        line-height: 1.4 !important;
+        padding: 8px 6px !important;
+    }
+
+    /* Dialog Article Body & Brief Canvas (stTextArea) */
+    div[data-testid="stDialog"] div[data-testid="stTextArea"] div[data-baseweb="textarea"] {
+        border-radius: 13px !important;
+        border: 1.5px solid rgba(15, 23, 42, 0.14) !important;
+        background-color: #FFFFFF !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+        transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease) !important;
+        overflow: hidden !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stTextArea"] div[data-baseweb="textarea"]:focus-within {
+        border-color: #0066CC !important;
+        box-shadow: 0 0 0 3.5px rgba(0, 102, 204, 0.16) !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stTextArea"] textarea {
+        font-family: var(--font) !important;
+        font-size: 0.95rem !important;
+        line-height: 1.68 !important;
+        color: #1E293B !important;
+        padding: 12px 14px !important;
+        background-color: transparent !important;
+        resize: vertical !important;
+    }
+
+    /* Input & Textarea Micro-Labels */
+    div[data-testid="stDialog"] div[data-testid="stTextInput"] label,
+    div[data-testid="stDialog"] div[data-testid="stTextArea"] label {
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.06em !important;
+        text-transform: uppercase !important;
+        color: #64748B !important;
+        margin-bottom: 5px !important;
+    }
+
+    /* Edit Mode Actions Container & Balanced Button Toolbar */
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(.editorial-edit-actions-anchor) {
+        margin-top: 14px !important;
+        padding-top: 12px !important;
+        border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+        align-items: center !important;
+    }
+    div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(.editorial-edit-actions-anchor) .stButton > button {
+        height: 42px !important;
+        min-height: 42px !important;
+        border-radius: 10px !important;
+        font-size: 0.88rem !important;
+        font-weight: 650 !important;
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    /* Live Telemetry HUD Bar (Apple Inspired) */
+    .apple-telemetry-hud {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: #FFFFFF;
+        border: 1px solid rgba(0, 102, 204, 0.16);
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+        border-radius: 12px;
+        padding: 9px 16px;
+        margin-bottom: 14px;
+    }
+    .telemetry-hud-lead {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .telemetry-pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #0066CC;
+        box-shadow: 0 0 0 0 rgba(0, 102, 204, 0.7);
+        animation: radar-pulse 1.8s infinite;
+    }
+    @keyframes radar-pulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 102, 204, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 102, 204, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 102, 204, 0); }
+    }
+    .telemetry-hud-title {
+        font-size: 0.74rem;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #0066CC;
+    }
+    .telemetry-hud-elapsed {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #64748B;
+        background: #F1F5F9;
+        padding: 2px 7px;
+        border-radius: 999px;
+    }
+    .telemetry-hud-streams {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .telemetry-stream-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 7px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        background: #F8FAFC;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        color: #334155;
+    }
+    .telemetry-stream--done {
+        background: #F0FDF4;
+        border-color: rgba(21, 128, 61, 0.22);
+        color: #15803D;
+    }
+    .telemetry-stream--running {
+        background: #EFF6FF;
+        border-color: rgba(0, 102, 204, 0.24);
+        color: #0066CC;
+    }
+    .telemetry-stream--error {
+        background: #FEF2F2;
+        border-color: rgba(185, 28, 28, 0.22);
+        color: #B91C1C;
+    }
+    .telemetry-stream--idle {
+        background: #F8FAFC;
+        color: #64748B;
+    }
+    .telemetry-error-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: #FFFBEB;
+        border: 1px solid rgba(180, 83, 9, 0.2);
+        color: #92400E;
+        font-size: 0.82rem;
+    }
+
+    /* Floating New Stories Pill Bar */
+    .apple-new-stories-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #EFF6FF;
+        border: 1px solid rgba(0, 102, 204, 0.20);
+        border-radius: 999px;
+        padding: 7px 16px;
+        box-shadow: 0 2px 8px rgba(0, 102, 204, 0.06);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .new-stories-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #0066CC;
+        box-shadow: 0 0 0 0 rgba(0, 102, 204, 0.7);
+        animation: radar-pulse 1.8s infinite;
+    }
+    .new-stories-msg {
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #0066CC;
+    }
+    .new-stories-msg b {
+        font-weight: 750;
+    }
+    div[data-testid="stColumn"]:has(button[key^="btn_new_stories_"]) .stButton > button {
+        height: 36px !important;
+        border-radius: 999px !important;
+        background: #0066CC !important;
+        color: #FFFFFF !important;
+        border-color: #0066CC !important;
+        font-weight: 650 !important;
+        font-size: 0.82rem !important;
+        box-shadow: 0 2px 8px rgba(0, 102, 204, 0.22) !important;
+        transition: all 0.15s ease !important;
+    }
+    div[data-testid="stColumn"]:has(button[key^="btn_new_stories_"]) .stButton > button:hover {
+        background: #0052A3 !important;
+        border-color: #0052A3 !important;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.32) !important;
+    }
+
     .fulltext-reader-box__body {
         font-size: 0.95rem;
-        line-height: 1.72;
+        line-height: 1.74;
         color: var(--label);
         word-break: break-word;
         max-height: 54vh;
         overflow-y: auto;
         padding-right: 6px;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
     .reader-para {
         margin: 0 0 12px 0;
@@ -787,6 +1134,125 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
     }
     .reader-para:last-child {
         margin-bottom: 0;
+    }
+
+    /* ==========================================================
+       APPLE HIG / LINEAR EXECUTIVE TOAST NOTIFICATIONS & TOOLTIPS
+       ========================================================== */
+    div[data-testid="stToastContainer"],
+    section[data-testid="stToastContainer"] {
+        bottom: 24px !important;
+        right: 24px !important;
+        gap: 10px !important;
+        z-index: 999999 !important;
+    }
+
+    div[data-testid="stToast"] {
+        background: rgba(255, 255, 255, 0.94) !important;
+        backdrop-filter: blur(28px) saturate(200%) !important;
+        -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+        border: 1px solid rgba(15, 23, 42, 0.09) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 16px 36px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.04) !important;
+        padding: 10px 16px !important;
+        min-height: 48px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        color: #0F172A !important;
+        transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        animation: toast-slide-in 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    @keyframes toast-slide-in {
+        0% { transform: translateY(14px) scale(0.96); opacity: 0; }
+        100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    /* Toast Typography */
+    div[data-testid="stToast"] div[data-testid="stMarkdownContainer"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    div[data-testid="stToast"] div[data-testid="stMarkdownContainer"] p {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif !important;
+        font-size: 0.86rem !important;
+        font-weight: 550 !important;
+        line-height: 1.4 !important;
+        color: #0F172A !important;
+        letter-spacing: -0.012em !important;
+        margin: 0 !important;
+    }
+
+    /* Toast Icon: Apple Micro-Badge */
+    div[data-testid="stToast"] [data-testid="stIconMaterial"],
+    div[data-testid="stToast"] > span:first-child,
+    div[data-testid="stToast"] div:first-child > span:first-child {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        border-radius: 8px !important;
+        background: rgba(0, 102, 204, 0.08) !important;
+        color: #0066CC !important;
+        font-size: 1.1rem !important;
+        border: 1px solid rgba(0, 102, 204, 0.16) !important;
+    }
+
+    /* Toast Close Button */
+    div[data-testid="stToast"] button {
+        border: none !important;
+        background: transparent !important;
+        color: #64748B !important;
+        border-radius: 6px !important;
+        width: 24px !important;
+        height: 24px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        opacity: 0.6 !important;
+        transition: all 0.15s ease !important;
+    }
+
+    div[data-testid="stToast"] button:hover {
+        background: rgba(15, 23, 42, 0.06) !important;
+        color: #0F172A !important;
+        opacity: 1 !important;
+    }
+
+    /* Apple HIG Frosted Tooltips */
+    div[data-baseweb="tooltip"],
+    div[role="tooltip"],
+    div[data-testid="stTooltipContent"] {
+        border-radius: 9px !important;
+        box-shadow: 0 10px 26px -2px rgba(15, 23, 42, 0.12), 0 2px 6px -1px rgba(15, 23, 42, 0.05) !important;
+        background: rgba(255, 255, 255, 0.95) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+        border: 1px solid rgba(15, 23, 42, 0.09) !important;
+        padding: 6px 12px !important;
+        color: #0F172A !important;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif !important;
+        font-size: 0.78rem !important;
+        font-weight: 550 !important;
+        letter-spacing: -0.01em !important;
+        line-height: 1.36 !important;
+    }
+
+    div[data-baseweb="tooltip"] > div,
+    div[role="tooltip"] > div,
+    div[data-testid="stTooltipContent"] > div {
+        background: transparent !important;
+        color: #0F172A !important;
+        font-size: 0.78rem !important;
+        font-weight: 550 !important;
+        padding: 0 !important;
     }
 
     /* ==========================================================
@@ -1437,6 +1903,49 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + """
         .time-badge {
             margin-left: auto !important;
             font-size: 0.7rem !important;
+        }
+
+        /* Mobile Dialog Modal & Editorial Studio Touch Ergonomics */
+        div[data-testid="stDialog"] [data-testid="stDialogContent"] {
+            width: 95vw !important;
+            max-width: 95vw !important;
+            padding: 16px 14px 20px 14px !important;
+            border-radius: 18px !important;
+        }
+        /* Crucial: Prevent iOS Safari auto-zoom on input/textarea focus (< 16px triggers zoom) */
+        div[data-testid="stDialog"] div[data-testid="stTextInput"] input,
+        div[data-testid="stDialog"] div[data-testid="stTextArea"] textarea {
+            font-size: 16px !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stTextInput"] div[data-baseweb="input"],
+        div[data-testid="stDialog"] div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+            min-height: 46px !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stTextArea"] textarea {
+            min-height: 140px !important;
+            max-height: 38vh !important;
+            padding: 12px 14px !important;
+            line-height: 1.62 !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+        /* Apple HIG 44px minimum touch targets on mobile for all dialog buttons */
+        div[data-testid="stDialog"] .stButton > button {
+            height: 44px !important;
+            min-height: 44px !important;
+            font-size: 0.9rem !important;
+            border-radius: 10px !important;
+        }
+        /* Symmetrical 50% / 50% layout for mobile edit action buttons */
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(.editorial-edit-actions-anchor) {
+            display: flex !important;
+            flex-direction: row !important;
+            width: 100% !important;
+            gap: 8px !important;
+        }
+        div[data-testid="stDialog"] div[data-testid="stHorizontalBlock"]:has(.editorial-edit-actions-anchor) > div[data-testid="stColumn"] {
+            flex: 1 1 50% !important;
+            min-width: 0 !important;
+            width: 50% !important;
         }
     }
 

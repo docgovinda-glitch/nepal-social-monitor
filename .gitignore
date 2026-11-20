@@ -34,4 +34,4 @@ ENV/
 .vscode/
 *.log
 .claude/
-.agents/skills/developing-with-streamlit
+.agents/
