@@ -17,12 +17,12 @@ _DESIGN_TOKENS_CSS = """
         --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
 
         /* Neutrals */
-        --bg: #F6F8FA;
+        --bg: #F8FAFC;
         --surface: #FFFFFF;
         --surface-muted: #F1F5F9;
         --label: #0F172A;
-        --label-2: #475569;
-        --label-3: #64748B;
+        --label-2: #334155;
+        --label-3: #475569;
         --separator: rgba(15, 23, 42, 0.08);
         --separator-strong: rgba(15, 23, 42, 0.14);
 
@@ -132,13 +132,13 @@ _PILL_AND_FEED_CARD_CSS = """
     }
 
     @media (max-width: 768px) {
-        .apple-card-title { font-size: 0.97rem !important; line-height: 1.35 !important; }
-        .apple-card-summary, .x-post-text { font-size: 0.84rem !important; line-height: 1.48 !important; }
+        .apple-card-title { font-size: 0.98rem !important; line-height: 1.36 !important; }
+        .apple-card-summary, .x-post-text { font-size: 0.86rem !important; line-height: 1.50 !important; }
         .pill, .portal-tag, .indian-portal-tag, .cat-badge, .conf-review-badge, .x-metric-item {
-            font-size: 0.69rem !important; padding: 2px 7px !important;
+            font-size: 0.72rem !important; padding: 3px 8px !important;
         }
-        .sec-tag-chip { font-size: 0.67rem !important; padding: 2px 6px !important; }
-        .time-badge { margin-left: auto !important; font-size: 0.7rem !important; }
+        .sec-tag-chip { font-size: 0.70rem !important; padding: 3px 7px !important; }
+        .time-badge { margin-left: auto !important; font-size: 0.73rem !important; }
     }
 """
 
