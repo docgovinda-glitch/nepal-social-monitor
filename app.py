@@ -23,6 +23,11 @@ import os
 import concurrent.futures
 from typing import Any, Callable, Dict, List
 
+import importlib
+import apple_theme as _apple_theme
+
+# Hot deploys keep the old module in sys.modules; reload so new theme symbols are always present.
+importlib.reload(_apple_theme)
 from apple_theme import AUTH_CSS, theme_override_css
 
 
