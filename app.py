@@ -1100,6 +1100,11 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
     )
 
 
+def _set_pending_dest(kind: str, cache_id: str, idx: int) -> None:
+    st.session_state[f"pending_{kind}_send"] = cache_id
+    st.session_state[f"pending_{kind}_dest"] = idx
+
+
 def _remember_wa_group(key: str) -> None:
     st.session_state["wa_last_group"] = st.session_state.get(key)
 
@@ -1109,8 +1114,7 @@ def _wa_dest_from_state(targets: List[Dict[str, Any]], key: str) -> str:
     cur = st.session_state.get(key)
     if cur in names:
         return cur
-    last = st.session_state.get("wa_last_group")
-    return last if last in names else names[0]
+    return names[0]
 
 
 def _render_wa_group_chip(targets: List[Dict[str, Any]], key: str, uid: str) -> None:
@@ -1320,6 +1324,7 @@ def _render_read_send_fragment(
     saved_headline: str,
     saved_body: str,
     ft_src: str,
+    targets: Any = None,
 ) -> None:
     sent_ids = st.session_state.setdefault("whatsapp_sent_ids", set())
     persisted_sent = _get_wa_sent_map().get(cache_id)
@@ -1329,19 +1334,32 @@ def _render_read_send_fragment(
     btn_icon = ":material/check:" if is_sent else ":material/send:"
     btn_help = f"Already sent to {dest_name}" if is_sent else f"Send to {dest_name}: latest saved translation (v{ver}) to {dest_name}"
 
-    send_clicked = st.button(
-        btn_label,
-        icon=btn_icon,
-        type="secondary" if is_sent else "primary",
-        key=f"dlg_rd_conf_{item_uid}",
-        disabled=is_sent,
-        help=btn_help,
-        on_click=_on_read_req_send,
-        args=(cache_id,),
-        width="stretch",
-    )
-
-    should_send = (send_clicked or st.session_state.pop("pending_read_send", None) == cache_id) and not is_sent
+    _tg = targets if (targets and len(targets) > 1) else [{"name": dest_name, "id": selected_gid}]
+    _multi = len(_tg) > 1
+    _bcols = st.columns(len(_tg), gap="small") if _multi else [st.container()]
+    _clicked = None
+    for _i, _t in enumerate(_tg):
+        _short = " ".join(_t["name"].split()[:2]) if _multi else btn_label
+        with _bcols[_i]:
+            if st.button(
+                "Sent" if is_sent else _short,
+                icon=btn_icon,
+                type="secondary" if is_sent else "primary",
+                key=f"dlg_rd_conf_{item_uid}" + (f"_{_i}" if _multi else ""),
+                disabled=is_sent,
+                help=("Already sent" if is_sent else f"Send to {_t['name']}"),
+                on_click=_set_pending_dest,
+                args=("read", cache_id, _i),
+                width="stretch",
+            ):
+                _clicked = _i
+    if _clicked is None and st.session_state.get("pending_read_send") == cache_id:
+        _clicked = st.session_state.pop("pending_read_dest", 0)
+    st.session_state.pop("pending_read_send", None)
+    if _clicked is not None and _multi:
+        dest_name, selected_gid = _tg[_clicked]["name"], _tg[_clicked]["id"]
+    send_clicked = _clicked is not None
+    should_send = send_clicked and not is_sent
     if should_send:
         read_draft = st.session_state.get("read_translation_drafts", {}).get(cache_id, {})
         if has_unsaved:
@@ -1547,8 +1565,6 @@ def _show_read_in_app_dialog() -> None:
             _target_by_name = {t["name"]: t["id"] for t in _wa_targets}
             _default_grp = st.session_state.get(_wa_grp_key)
             if _default_grp not in _target_by_name:
-                _default_grp = st.session_state.get("wa_last_group")
-            if _default_grp not in _target_by_name:
                 _default_grp = _wa_targets[0]["name"]
             dest_name = _default_grp
             selected_gid = _target_by_name[dest_name]
@@ -1742,7 +1758,7 @@ def _show_read_in_app_dialog() -> None:
 
         if is_english_mode:
             _multi_wa = len(_wa_targets) > 1
-            _spec = ([1.25] if has_tr_btn else []) + [0.8, 0.95, 1.1] + ([1.1] if has_unsaved else []) + ([3] if _multi_wa else [])
+            _spec = ([1.25] if has_tr_btn else []) + [0.8, 0.95, 1.1] + ([1.1] if has_unsaved else [])
             with st.container(key=f"wa_actions_{item_uid}"):
                 cols = st.columns(_spec, vertical_alignment="center", gap="small")
                 ci = 0
@@ -1795,9 +1811,6 @@ def _show_read_in_app_dialog() -> None:
                             width="stretch",
                         )
                     ci += 1
-                if _multi_wa:
-                    with cols[ci]:
-                        _render_wa_group_chip(_wa_targets, _wa_grp_key, item_uid)
                 _render_read_send_fragment(
                     cache_id=cache_id,
                     item_uid=item_uid,
@@ -1809,6 +1822,7 @@ def _show_read_in_app_dialog() -> None:
                     saved_headline=saved_headline,
                     saved_body=saved_body,
                     ft_src=ft_src,
+                    targets=_wa_targets if _multi_wa else None,
                 )
         else:
             ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
@@ -1917,6 +1931,7 @@ def _render_share_send_fragment(
     has_unsaved: bool,
     ver: int,
     saved_formatted: str,
+    targets: Any = None,
 ) -> None:
     draft = st.session_state.get("share_drafts", {}).get(cache_id, {})
     sent_ids = st.session_state.setdefault("whatsapp_sent_ids", set())
@@ -1927,19 +1942,32 @@ def _render_share_send_fragment(
     btn_icon = ":material/check:" if is_sent else ":material/send:"
     btn_help = f"Already sent to {dest_name}" if is_sent else f"Send to {dest_name}: latest saved draft (v{ver}) to {dest_name}"
 
-    send_clicked = st.button(
-        btn_label,
-        icon=btn_icon,
-        type="secondary" if is_sent else "primary",
-        key=f"dlg_conf_{item_uid}",
-        disabled=is_sent,
-        help=btn_help,
-        on_click=_on_share_req_send,
-        args=(cache_id,),
-        width="stretch",
-    )
-
-    should_send = (send_clicked or st.session_state.pop("pending_share_send", None) == cache_id) and not is_sent
+    _tg = targets if (targets and len(targets) > 1) else [{"name": dest_name, "id": selected_gid}]
+    _multi = len(_tg) > 1
+    _bcols = st.columns(len(_tg), gap="small") if _multi else [st.container()]
+    _clicked = None
+    for _i, _t in enumerate(_tg):
+        _short = " ".join(_t["name"].split()[:2]) if _multi else btn_label
+        with _bcols[_i]:
+            if st.button(
+                "Sent" if is_sent else _short,
+                icon=btn_icon,
+                type="secondary" if is_sent else "primary",
+                key=f"dlg_conf_{item_uid}" + (f"_{_i}" if _multi else ""),
+                disabled=is_sent,
+                help=("Already sent" if is_sent else f"Send to {_t['name']}"),
+                on_click=_set_pending_dest,
+                args=("share", cache_id, _i),
+                width="stretch",
+            ):
+                _clicked = _i
+    if _clicked is None and st.session_state.get("pending_share_send") == cache_id:
+        _clicked = st.session_state.pop("pending_share_dest", 0)
+    st.session_state.pop("pending_share_send", None)
+    if _clicked is not None and _multi:
+        dest_name, selected_gid = _tg[_clicked]["name"], _tg[_clicked]["id"]
+    send_clicked = _clicked is not None
+    should_send = send_clicked and not is_sent
     if should_send:
         if has_unsaved:
             draft["unsaved_send_warn"] = True
@@ -2106,8 +2134,6 @@ def _show_share_dialog() -> None:
         _target_by_name = {t["name"]: t["id"] for t in _wa_targets}
         _default_grp = st.session_state.get(_wa_grp_key)
         if _default_grp not in _target_by_name:
-            _default_grp = st.session_state.get("wa_last_group")
-        if _default_grp not in _target_by_name:
             _default_grp = _wa_targets[0]["name"]
         dest_name = _default_grp
         selected_gid = _target_by_name[dest_name]
@@ -2260,7 +2286,7 @@ def _show_share_dialog() -> None:
         selected_gid = _target_by_name[dest_name]
 
     with st.container(key=f"wa_actions_{item_uid}"):
-        _spec = [1, 1, 1] + ([1] if has_unsaved else []) + ([3] if _multi_wa else [])
+        _spec = [1, 1, 1] + ([1] if has_unsaved else [])
         _cols = st.columns(_spec, vertical_alignment="center", gap="small")
         with _cols[0]:
             _render_copy_button(current_formatted, uid=f"dlg_{item_uid}", icon_only=False)
@@ -2298,9 +2324,6 @@ def _show_share_dialog() -> None:
                     width="stretch",
                 )
             _ci += 1
-        if _multi_wa:
-            with _cols[_ci]:
-                _render_wa_group_chip(_wa_targets, _wa_grp_key, item_uid)
         _render_share_send_fragment(
             cache_id=cache_id,
             item_uid=item_uid,
@@ -2310,6 +2333,7 @@ def _show_share_dialog() -> None:
             has_unsaved=has_unsaved,
             ver=ver,
             saved_formatted=saved_formatted,
+            targets=_wa_targets if _multi_wa else None,
         )
 
 
