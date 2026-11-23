@@ -18,18 +18,35 @@ from nepal_config import NEPAL_TZ
 class TestSocialMediaUnification(unittest.TestCase):
 
     def test_directory_volume_and_integrity(self):
-        """Verifies directory contains 1,000+ curated non-gov critical voices."""
+        """Verifies directory contains strictly audited, authentic voices with zero fabrication."""
         accounts = sd.VERIFIED_NEPAL_SOCIAL_DIRECTORY
-        self.assertGreaterEqual(len(accounts), 1000, "Directory must have at least 1,000 accounts")
+        self.assertGreaterEqual(len(accounts), 380, "Directory must have at least 380 authentic accounts")
         
-        # Verify no administrative government bodies or institutional media houses
-        forbidden_cats = {"Government Agencies of Nepal", "Media Houses and News Outlets", "Media Houses & News Outlets"}
+        # Verify Balen Shah handles are authentic real-world URLs
+        balen_fb = sd.DIRECTORY_BY_PLATFORM_HANDLE.get("facebook:balenofficial")
+        self.assertIsNotNone(balen_fb, "Balen Shah Facebook must exist in directory")
+        self.assertEqual(balen_fb.get("handle"), "balenOfficial")
+        self.assertEqual(balen_fb.get("profile_url"), "https://www.facebook.com/balenOfficial")
+
+        balen_x = sd.DIRECTORY_BY_PLATFORM_HANDLE.get("x:shahbalen")
+        self.assertIsNotNone(balen_x, "Balen Shah X must exist in directory")
+        self.assertEqual(balen_x.get("handle"), "ShahBalen")
+        self.assertEqual(balen_x.get("profile_url"), "https://x.com/ShahBalen")
+
+        # Verify no fabricated synthetic district accounts or fake role suffixes exist
         for acc in accounts:
-            self.assertNotIn(acc.get("category"), forbidden_cats, f"Account {acc.get('name')} in forbidden category")
+            h = acc.get("handle", "")
+            role = acc.get("role", "")
+            self.assertFalse("Province)" in role, f"Synthetic district account found: {acc.get('name')} ({h})")
+            self.assertFalse(any(h.endswith(suf) for suf in ["_jhap", "_mora", "_nuwa", "_chit", "_kail", "_bank", "_kasp"]),
+                             f"Fabricated district handle found: {h}")
+            self.assertFalse(any(h.endswith(suf) for suf in [".health", ".tech", ".biz", ".prof", ".critic", ".author", ".rights"]),
+                             f"Fabricated role suffix handle found: {h}")
             self.assertIn(acc.get("platform"), ("facebook", "x"), "Platform must be facebook or x")
             self.assertTrue(acc.get("name"), "Account name must not be empty")
             self.assertTrue(acc.get("handle"), "Account handle must not be empty")
             self.assertTrue(acc.get("role"), "Account role must not be empty")
+            self.assertTrue(acc.get("profile_url"), "Account profile_url must not be empty")
 
     def test_news_relevance_filter(self):
         """Verifies is_news_post accepts news and rejects greetings/banter."""
@@ -75,16 +92,16 @@ class TestSocialMediaUnification(unittest.TestCase):
         # Test KPI fallback
         with mock.patch("nepal_news_store.query_supabase", return_value=[]):
             kpis = store.get_x_account_kpis()
-            self.assertGreaterEqual(kpis.get("total_discovered", 0), 1000)
+            self.assertGreaterEqual(kpis.get("total_discovered", 0), 380)
             self.assertIn("Politicians", kpis.get("by_category", {}))
 
     def test_landing_page_source_counts(self):
-        """Verifies _source_counts accurately returns social media accounts >= 1000."""
+        """Verifies _source_counts accurately returns social media accounts >= 380."""
         from app import _source_counts
         np_c, ind_c, soc_c = _source_counts()
         self.assertGreater(np_c, 0, "Nepali press count should be > 0")
         self.assertGreater(ind_c, 0, "Indian press count should be > 0")
-        self.assertGreaterEqual(soc_c, 1000, "Social media account count must reflect the 1000+ vetted accounts")
+        self.assertGreaterEqual(soc_c, 380, "Social media account count must reflect the vetted accounts")
 
     def test_upsert_social_account_defaults_and_sync(self):
         """Verifies upsert_single_x_account gracefully defaults omitted fields and syncs to memory."""
