@@ -494,7 +494,7 @@ _BING_SEARCH_QUERIES: List[str] = [
 ]
 
 
-def _run_pool_bounded(fn, items, max_workers: int, timeout_secs: float = 20.0) -> List[Any]:
+def _run_pool_bounded(fn, items, max_workers: int, timeout_secs: float = 20.0, on_item=None) -> List[Any]:
     """Runs fn over items concurrently under a hard wall-clock budget."""
     results: List[Any] = []
     if not items:
@@ -508,6 +508,11 @@ def _run_pool_bounded(fn, items, max_workers: int, timeout_secs: float = 20.0) -
                     val = fut.result()
                     if val is not None:
                         results.append(val)
+                        if on_item is not None:
+                            try:
+                                on_item(len(results))
+                            except Exception:
+                                pass
                 except Exception:
                     pass
         except concurrent.futures.TimeoutError:
@@ -709,7 +714,7 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
     return _run_pool_bounded(_worker, raw_items, max_workers=24, timeout_secs=20.0)
 
 
-def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, Any]]:
+def scan_popular_nepal_x_posts(force_refresh: bool = False, on_progress=None) -> List[Dict[str, Any]]:
     """
     Comprehensive Daily X & Social Media Intelligence Scanner.
     Combines:
@@ -786,7 +791,7 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False) -> List[Dict[str, An
             known_account=meta["known_account"],
         )
 
-    enriched = _run_pool_bounded(_worker_enrich, enrich_items, max_workers=24, timeout_secs=20.0)
+    enriched = _run_pool_bounded(_worker_enrich, enrich_items, max_workers=24, timeout_secs=20.0, on_item=on_progress)
 
     all_posts: List[Dict[str, Any]] = []
     seen_ids = set()

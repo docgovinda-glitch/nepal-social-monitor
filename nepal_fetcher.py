@@ -2296,7 +2296,7 @@ def fetch_single_portal(
 
     return items
 
-def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False, return_all_stored: bool = True):
+def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False, return_all_stored: bool = True, on_progress=None):
     """
     Fetches real-time news items across all configured Top Nepal Online News Portals in parallel.
     If force_refresh=False and the SQLite store already holds recent articles, returns them
@@ -2336,6 +2336,11 @@ def fetch_top_nepal_media(max_workers: int = 25, force_refresh: bool = False, re
                     res = f.result(timeout=5)
                     if res:
                         all_articles.extend(res)
+                        if on_progress is not None:
+                            try:
+                                on_progress(len(all_articles))
+                            except Exception:
+                                pass
                 except Exception:
                     pass
         except concurrent.futures.TimeoutError:
@@ -3249,6 +3254,7 @@ def fetch_nepal_in_indian_media(
     include_borderline: bool = False,
     force_refresh: bool = False,
     return_all_stored: bool = True,
+    on_progress=None,
 ):
     """
     Fetches real-time Nepal news across Top Indian Media Outlets using decoupled fast discovery:
@@ -3316,6 +3322,11 @@ def fetch_nepal_in_indian_media(
                     res = f.result(timeout=3.0)
                     if res:
                         raw_candidates.extend(res)
+                        if on_progress is not None:
+                            try:
+                                on_progress(len(raw_candidates))
+                            except Exception:
+                                pass
                 except Exception as exc:
                     err_s = format_exc(exc, 200)
                     metrics_by_source[sname]["error"] = err_s

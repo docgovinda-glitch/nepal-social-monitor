@@ -343,6 +343,7 @@ def _run_concurrent_ingest_pipelines(
     indian_workers: int = 16,
     pipeline_timeout_secs: float = 90.0,
     on_pipeline_done: Optional[Any] = None,
+    on_pipeline_progress: Optional[Any] = None,
 ) -> Tuple[Dict[str, int], Dict[str, str]]:
     """
     Runs Nepali Media, Indian Press, and X ingestion pipelines concurrently with
@@ -355,17 +356,20 @@ def _run_concurrent_ingest_pipelines(
 
     def _run_nepali() -> int:
         from nepal_fetcher import fetch_top_nepal_media
-        items = fetch_top_nepal_media(max_workers=nepali_workers, force_refresh=True, return_all_stored=False)
+        items = fetch_top_nepal_media(max_workers=nepali_workers, force_refresh=True, return_all_stored=False,
+                                      on_progress=(lambda n: on_pipeline_progress("nepali", n)) if on_pipeline_progress else None)
         return len(items)
 
     def _run_indian() -> int:
         from nepal_fetcher import fetch_nepal_in_indian_media
-        items = fetch_nepal_in_indian_media(max_workers=indian_workers, force_refresh=True, return_all_stored=False)
+        items = fetch_nepal_in_indian_media(max_workers=indian_workers, force_refresh=True, return_all_stored=False,
+                                            on_progress=(lambda n: on_pipeline_progress("indian", n)) if on_pipeline_progress else None)
         return len(items)
 
     def _run_x() -> int:
         from nepal_x_scanner import scan_popular_nepal_x_posts
-        items = scan_popular_nepal_x_posts(force_refresh=True)
+        items = scan_popular_nepal_x_posts(force_refresh=True,
+                                           on_progress=(lambda n: on_pipeline_progress("x", n)) if on_pipeline_progress else None)
         return len(items)
 
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
@@ -454,6 +458,16 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             else:
                 _MANUAL_SYNC_STATE["errors"][name] = err
 
+    def _on_stream_progress(name: str, n: int) -> None:
+        with _MANUAL_SYNC_LOCK:
+            cur = _MANUAL_SYNC_STATE["pipelines"].get(name) or {}
+            if cur.get("status") in ("done", "error", "timeout"):
+                return
+            _MANUAL_SYNC_STATE["pipelines"][name] = {
+                "status": "running", "count": int(n),
+                "elapsed_secs": cur.get("elapsed_secs", 0.0), "error": "",
+            }
+
     try:
         target_set = set(target_streams)
         results, errors = _run_concurrent_ingest_pipelines(
@@ -464,6 +478,7 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             indian_workers=16,
             pipeline_timeout_secs=90.0,
             on_pipeline_done=_on_stream_done,
+            on_pipeline_progress=_on_stream_progress,
         )
     except Exception as exc:
         errors["sync"] = format_exc(exc)

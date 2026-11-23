@@ -3331,7 +3331,7 @@ div[data-testid="stElementContainer"]:has(> .st-key-busy_pill), div[data-testid=
 .st-key-busy_pill summary { padding: 8px 12px !important; font-size: .82rem !important; }
 .st-key-busy_pill [data-testid="stExpanderDetails"], .st-key-busy_pill details > div:last-child { display: none !important; }
 
-.st-key-new_stories_pill { position: fixed !important; top: 64px; left: 50%; transform: translateX(-50%);
+.st-key-new_stories_pill { position: fixed !important; bottom: 88px; left: 50%; transform: translateX(-50%);
   z-index: 999; width: auto !important; margin: 0 !important; }
 div[data-testid="stElementContainer"]:has(> .st-key-new_stories_pill),
 div[data-testid="stLayoutWrapper"]:has(> .st-key-new_stories_pill) { position: fixed !important; height: 0 !important; margin: 0 !important; }

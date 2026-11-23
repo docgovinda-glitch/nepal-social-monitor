@@ -3379,7 +3379,8 @@ def _sync_inline_html(pipes: Dict[str, Dict[str, Any]], final: bool = False) -> 
         p = pipes.get(k) or {}
         stt = p.get("status", "idle")
         if stt == "running":
-            body = '<span class="sp-spin"></span>'
+            _rn = int(p.get("count", 0))
+            body = '<span class="sp-spin"></span>' + (f'<b>+{_rn}</b>' if _rn > 0 else '')
         elif stt == "done":
             n = int(p.get("count", 0)); total += n
             body = f'<b>+{n}</b>' if n else '<span class="sp-ok">✓</span>'
