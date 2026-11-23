@@ -4545,7 +4545,6 @@ if selected_nav == "X":
     render_x_section()
 
 elif selected_nav == "Analytics & Export":
-    render_page_header("Export")
     _toolbar_columns("ex", {}, only_theme=True)
 
     ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
@@ -4828,7 +4827,7 @@ def _invalidate_ui_caches_after_nepali_ingest() -> None:
 def render_system_health_section() -> None:
     _tr = get_db_transport_info()
     _tr_label = "Supavisor Transaction Pool (port 6543)" if _tr.get("mode") == "supavisor_pool" else "Supabase Management API (fallback)"
-    render_page_header("Health", f"{_tr_label}", show_window=False)
+    st.caption(_tr_label)
 
     try:
         register_portal_sources(TOP_NEPAL_NEWS_PORTALS)
