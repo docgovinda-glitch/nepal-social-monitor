@@ -3440,8 +3440,10 @@ def _cycle_theme() -> None:
 def _render_theme_button(ws_suffix: str) -> None:
     mode = _THEME_MODE if _THEME_MODE in ("auto", "light", "dark") else "auto"
     icon = {"auto": ":material/brightness_auto:", "light": ":material/light_mode:", "dark": ":material/dark_mode:"}[mode]
-    st.button("", icon=icon, key=f"btn_theme_{ws_suffix}", width="stretch", on_click=_cycle_theme,
-              help=f"Appearance: {mode} · tap to change")
+    if st.button("", icon=icon, key=f"btn_theme_{ws_suffix}", width="stretch",
+                 help=f"Appearance: {mode} · tap to change"):
+        _cycle_theme()
+        st.rerun()  # full-app rerun: this button lives inside a fragment, and the theme CSS is applied at the top of the script
 
 
 with _nav_tabs:
