@@ -3302,6 +3302,14 @@ _SYNC_SPIN_CSS = """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _SYNC_SPIN_CSS)
 
 _NEW_PILL_CSS = """
+@keyframes nm-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.st-key-busy_pill summary p, .st-key-busy_pill summary span:not([data-testid="stIconMaterial"]), div[data-testid="stSpinner"] p, .feed-loading-pill span:last-child {
+  background: linear-gradient(90deg, currentColor 0%, currentColor 35%, #0A84FF 50%, currentColor 65%, currentColor 100%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: inherit;
+  animation: nm-shimmer 2.2s linear infinite; }
+.sync-inline .sp-spin { box-shadow: 0 0 8px rgba(10,132,255,.45); }
+@media (prefers-reduced-motion: reduce) { .st-key-busy_pill summary p, div[data-testid="stSpinner"] p { animation: none; -webkit-text-fill-color: currentColor; } }
+
 .sync-inline .sp-chip { display: inline-flex; align-items: center; gap: 3px; color: var(--text-primary, #1d1d1f); font-weight: 650; }
 .sync-inline .sp-chip b { color: #1a7f37; } .sync-inline .sp-err { color: #c0392b; font-weight: 800; } .sync-inline .sp-ok { color: #1a7f37; } .sync-inline .sp-wait { opacity: .4; }
 .sync-inline .sp-spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(0,113,227,.25); border-top-color: #0071e3; animation: nm-spin .8s linear infinite; display: inline-block; }

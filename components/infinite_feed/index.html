@@ -139,6 +139,8 @@
     justify-content: center;
     padding: 10px 0 6px 0;
   }
+  @keyframes nm-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .feed-loading-pill span:last-child { background: linear-gradient(90deg, currentColor 0%, currentColor 35%, #0A84FF 50%, currentColor 65%, currentColor 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: nm-shimmer 2.2s linear infinite; }
   .feed-loading-pill {
     display: inline-flex;
     align-items: center;
