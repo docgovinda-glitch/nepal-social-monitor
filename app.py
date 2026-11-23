@@ -3145,7 +3145,7 @@ NAV_ITEMS = [
     ("Live Feed", "🌐"),
     ("Nepali Media", "📰"),
     ("Indian Press", "🇮🇳"),
-    ("X", "𝕏"),
+    ("X", "💬"),
     ("Analytics & Export", "📈"),
     ("System Health", "🩺"),
 ]
@@ -3306,9 +3306,9 @@ _ws_counts = {
 
 _WS_TAB_META = {
     "Live Feed": (":material/newspaper:", "All"),
-    "Nepali Media": (":material/landscape:", "Nepal"),
+    "Nepali Media": (":material/landscape:", "Nepali"),
     "Indian Press": (":material/public:", "India"),
-    "X": (":material/tag:", "X"),
+    "X": (":material/forum:", "Social"),
     "Analytics & Export": (":material/ios_share:", "Export"),
     "System Health": (":material/monitor_heart:", "Health"),
 }
@@ -3371,11 +3371,17 @@ def _sync_age_label(epoch: float) -> Tuple[str, str]:
     return txt, col
 
 
+_SOCIAL_SVG = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">'
+               '<path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M12 13.2l-2.6-2.5a1.7 1.7 0 0 1 2.6-2.1 1.7 1.7 0 0 1 2.6 2.1z"/></svg>')
+
+_NAV_STREAMS = {"Live Feed": ("nepali", "indian", "x"), "Nepali Media": ("nepali",), "Indian Press": ("indian",), "X": ("x",)}
+
+
 def _sync_inline_html(pipes: Dict[str, Dict[str, Any]], final: bool = False) -> str:
-    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": "𝕏"}
+    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": _SOCIAL_SVG}
     out = []
     total = 0
-    for k in ("nepali", "indian", "x"):
+    for k in _NAV_STREAMS.get(selected_nav, ("nepali", "indian", "x")):
         p = pipes.get(k) or {}
         stt = p.get("status", "idle")
         if stt == "running":
@@ -3406,7 +3412,7 @@ def _render_brand_sync() -> None:
         col = "#0071E3"
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
-    _titles = {"Live Feed": "All feeds", "Nepali Media": "Nepal", "Indian Press": "India", "X": "X", "Analytics & Export": "Export", "System Health": "Health"}
+    _titles = {"Live Feed": "All feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feeds", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
     _title = _titles.get(selected_nav, "Media Monitor")
     st.markdown(
         f'<div class="editorial-brand-anchor hdr-title-wrap">'
@@ -3483,7 +3489,7 @@ def _render_sync_status_bar() -> None:
         return
 
     pills_html = []
-    for key, label, emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "X", "𝕏")]:
+    for key, label, emoji in [("nepali", "Nepali", "🇳🇵"), ("indian", "Indian", "🇮🇳"), ("x", "Social", "💬")]:
         pipe = pipes.get(key) or {}
         status = pipe.get("status", "idle")
         if status == "running":
@@ -3733,12 +3739,12 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
             disabled=_is_syncing_now,
             help=("Syncing…" if _is_syncing_now else "Sync now"),
         ):
-            trigger_manual_sync_async()
+            trigger_manual_sync_async(targets={"np": ["nepali"], "in": ["indian"], "x": ["x"]}.get(ws_suffix))
             st.rerun()
 
 
 def _format_sync_pipeline_pills(pipes: Dict[str, Dict[str, Any]]) -> str:
-    labels = {"nepali": "🇳🇵 Nepali", "indian": "🇮🇳 Indian", "x": "𝕏"}
+    labels = {"nepali": "🇳🇵 Nepali", "indian": "🇮🇳 Indian", "x": "💬 Social"}
     parts = []
     for k in ("nepali", "indian", "x"):
         p = pipes.get(k) or {}
@@ -3756,7 +3762,7 @@ def _render_telemetry_hud_html(elapsed: int, pipes: Dict[str, Dict[str, Any]]) -
     labels = {
         "nepali": ("🇳🇵", "Nepali Media"),
         "indian": ("🇮🇳", "Indian Press"),
-        "x": ("𝕏", "X Intelligence"),
+        "x": ("💬", "Social Media"),
     }
     pill_htmls = []
     for k in ("nepali", "indian", "x"):
@@ -4175,7 +4181,7 @@ def render_x_section() -> None:
             author_type=selected_acc_type,
             search_query=search_query or "",
             sort_mode=sort_mode,
-            empty_icon="𝕏",
+            empty_icon="💬",
             empty_title="No X posts found",
             empty_body="Try selecting 'All Account Types' or choosing 'All News'.",
             on_fetch_now=_fetch_x_now,
