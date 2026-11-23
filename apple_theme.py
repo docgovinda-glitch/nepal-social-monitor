@@ -579,6 +579,27 @@ _PILL_AND_FEED_CARD_CSS = """
         width: 36px; height: 36px; min-width: 36px; border-radius: 50%;
         display: inline-flex; align-items: center; justify-content: center;
         color: #FFFFFF; font-weight: 700; font-size: 0.76rem; letter-spacing: 0.02em;
+        position: relative; overflow: visible; flex: none;
+    }
+    .x-avatar-img {
+        width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+        position: absolute; top: 0; left: 0; z-index: 2;
+    }
+    .x-avatar-fb {
+        width: 100%; height: 100%; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        position: relative; z-index: 1;
+    }
+    .x-avatar-platform-badge {
+        position: absolute; bottom: -2px; right: -2px;
+        width: 14px; height: 14px; border-radius: 50%;
+        background: #000000; color: #FFFFFF;
+        display: inline-flex; align-items: center; justify-content: center;
+        box-shadow: 0 0 0 1.5px var(--card-bg, #FFFFFF);
+        z-index: 3;
+    }
+    .x-avatar-platform-badge svg {
+        width: 8px; height: 8px; fill: currentColor;
     }
     .x-author-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
     .x-author-name { font-size: 0.92rem; font-weight: 650; color: var(--label); display: inline-flex; align-items: center; gap: 4px; }
@@ -816,6 +837,17 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENT
         font-size: 0.84rem;
         box-shadow: 0 2px 6px rgba(0,0,0,0.12);
         flex-shrink: 0;
+        position: relative;
+        overflow: visible;
+    }
+    .acct-card-rich__avatar-img {
+        width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+        position: absolute; top: 0; left: 0; z-index: 2;
+    }
+    .acct-card-rich__avatar-fb {
+        width: 100%; height: 100%; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        position: relative; z-index: 1;
     }
     .acct-card-rich__name {
         font-weight: 700;
@@ -2949,7 +2981,12 @@ _DARK_CSS_BODY = """
     .sync-status-pill--idle { color: #A1A1AA !important; }
     .sync-fresh-chip { color: #A1A1AA !important; }
     .brand-tile { background: rgba(77, 163, 255, 0.18); color: #7DBBFF; }
-    .hl-av--in { background: rgba(255, 159, 10, 0.2) !important; color: #FFB340 !important; }
+    .hl-av { background: #1E293B !important; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14) !important; }
+    .hl-av-img { background: #FFFFFF !important; }
+    .hl-av--x { background: #000000 !important; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22) !important; }
+    .hl-av--in { background: rgba(255, 159, 10, 0.2) !important; color: #FFB340 !important; box-shadow: 0 0 0 1px rgba(255, 159, 10, 0.35) !important; }
+    .hl-av--in .hl-av-fb { background: rgba(255, 159, 10, 0.2) !important; color: #FFB340 !important; }
+    .x-avatar-platform-badge { box-shadow: 0 0 0 1.5px #1E293B !important; }
     .hl-src { color: #E5E5EA !important; }
     .live-status-inline { background: rgba(50, 215, 75, 0.18) !important; color: #6BE585 !important; }
     .wa-already-sent-notice { background: rgba(50, 215, 75, 0.14) !important; color: #6BE585 !important; }
@@ -3087,8 +3124,55 @@ _HEADLINE_UX_CSS = """
     /* ===== Headline-first cards, soft buttons, bottom tab bar ===== */
     .hl-card { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
     .hl-meta { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 0.74rem; color: var(--label-3); }
-    .hl-av { width: 22px; height: 22px; border-radius: 7px; background: var(--fill); color: var(--label-2); display: inline-flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; flex: none; text-transform: uppercase; }
-    .hl-av--in { background: rgba(244, 125, 32, 0.14); color: #C2410C; }
+    .hl-av {
+        width: 22px; height: 22px; min-width: 22px; border-radius: 6px;
+        background: #FFFFFF; color: var(--label-2);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.62rem; font-weight: 750; flex: none; text-transform: uppercase;
+        position: relative; overflow: hidden; vertical-align: middle;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .hl-av--in {
+        box-shadow: 0 0 0 1px rgba(194, 65, 12, 0.22), 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .hl-av--x {
+        background: #000000 !important; color: #FFFFFF !important;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+    .hl-av--social {
+        background: #FFFFFF !important;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+    }
+    .hl-av-img {
+        width: 100%; height: 100%; object-fit: contain;
+        border-radius: inherit; position: absolute; top: 0; left: 0;
+        background: #FFFFFF; z-index: 2; padding: 2px; box-sizing: border-box;
+    }
+    .hl-av-fb {
+        position: relative; z-index: 1; width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--fill, #F1F5F9); color: var(--label-2, #64748B);
+        font-size: 0.6rem; font-weight: 750; border-radius: inherit;
+    }
+    .hl-av--in .hl-av-fb {
+        background: rgba(244, 125, 32, 0.14); color: #C2410C;
+    }
+    .hl-av svg {
+        display: block; width: 13px; height: 13px;
+    }
+    .portal-tag, .indian-portal-tag {
+        display: inline-flex; align-items: center; gap: 4px;
+    }
+    .portal-tag .hl-av, .indian-portal-tag .hl-av {
+        width: 16px; height: 16px; min-width: 16px; border-radius: 4px;
+        box-shadow: none; margin: 0;
+    }
+    .portal-tag .hl-av-img, .indian-portal-tag .hl-av-img {
+        padding: 1px;
+    }
+    .portal-tag .hl-av-fb, .indian-portal-tag .hl-av-fb {
+        font-size: 0.48rem;
+    }
     .hl-src { color: var(--label-2); font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .hl-dot { flex: none; }
     .hl-time { flex: none; white-space: nowrap; }

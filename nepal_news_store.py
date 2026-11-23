@@ -1704,6 +1704,75 @@ def get_existing_indian_hydrated_ids(canonical_ids: List[str]) -> set:
     return found
 
 
+def update_article_link(old_link: str, new_link: str, canonical_id: str = "") -> None:
+    """Updates the link of an article in both indian_media_articles and articles tables."""
+    if not new_link or new_link == old_link:
+        return
+    stmts = []
+    for tbl in ("indian_media_articles", "articles"):
+        if canonical_id:
+            stmts.append(
+                f"UPDATE {tbl} SET link = {esc_sql(new_link)} "
+                f"WHERE canonical_id = {esc_sql(canonical_id)} OR link = {esc_sql(old_link)};"
+            )
+        else:
+            stmts.append(
+                f"UPDATE {tbl} SET link = {esc_sql(new_link)} "
+                f"WHERE link = {esc_sql(old_link)};"
+            )
+    try:
+        query_supabase("\n".join(stmts))
+    except Exception as exc:
+        logger.debug(f"Failed to update article link in DB: {exc}")
+
+
+def heal_stored_google_news_links(batch_size: int = 150) -> int:
+    """
+    Finds stored articles in indian_media_articles and articles with Google News redirect URLs,
+    resolves them to their original publisher links, and updates the database.
+    Returns the count of successfully resolved links.
+    """
+    try:
+        from nepal_fetcher import resolve_google_news_url
+    except Exception:
+        return 0
+
+    healed_count = 0
+    for tbl in ("indian_media_articles", "articles"):
+        try:
+            rows = query_supabase(
+                f"SELECT canonical_id, link FROM {tbl} WHERE link LIKE '%news.google.com%' LIMIT {int(batch_size)};"
+            )
+            if not rows:
+                continue
+            stmts = []
+            for r in rows:
+                old_lk = str(r.get("link") or "").strip()
+                cid = str(r.get("canonical_id") or "").strip()
+                if not old_lk or "news.google.com" not in old_lk.lower():
+                    continue
+                new_lk = resolve_google_news_url(old_lk)
+                if new_lk and new_lk != old_lk and "news.google.com" not in new_lk.lower():
+                    if cid:
+                        stmts.append(
+                            f"UPDATE {tbl} SET link = {esc_sql(new_lk)} "
+                            f"WHERE canonical_id = {esc_sql(cid)} OR link = {esc_sql(old_lk)};"
+                        )
+                    else:
+                        stmts.append(
+                            f"UPDATE {tbl} SET link = {esc_sql(new_lk)} "
+                            f"WHERE link = {esc_sql(old_lk)};"
+                        )
+                    healed_count += 1
+            if stmts:
+                for i in range(0, len(stmts), 25):
+                    query_supabase("\n".join(stmts[i : i + 25]))
+        except Exception as exc:
+            logger.warning(f"heal_stored_google_news_links error on {tbl}: {exc}")
+
+    return healed_count
+
+
 _INDIAN_HEALTH_TABLE_READY = False
 _INDIAN_HEALTH_LOCK = threading.Lock()
 

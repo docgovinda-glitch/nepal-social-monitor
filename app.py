@@ -337,6 +337,7 @@ from nepal_news_store import (
     get_whatsapp_sent_map,
 )
 from components.infinite_feed import render_infinite_feed_component
+from media_logos import get_source_logo_html, get_x_author_avatar_html, resolve_media_domain
 from nepal_news_scheduler import (
     start_monitoring_daemon,
     trigger_manual_sync_async,
@@ -834,7 +835,8 @@ def render_headline_card(item: Dict[str, Any], is_indian: bool = False, sent_tit
     raw_title = (item.get("title") or "").strip()
     headline_en = (item.get("headline_english") or "").strip()
     display_title = headline_en if (headline_en and not _has_devanagari(headline_en)) else raw_title
-    link = html.escape((item.get("link") or "").strip() or "#", quote=True)
+    raw_link = (item.get("link") or "").strip()
+    link = html.escape(raw_link or "#", quote=True)
     rel = html.escape(str(item.get("relative_time") or "Recent"))
     exact = html.escape(str(item.get("exact_time") or ""), quote=True)
 
@@ -853,9 +855,11 @@ def render_headline_card(item: Dict[str, Any], is_indian: bool = False, sent_tit
     else:
         chips += "<!--sent-->"
 
+    logo_html = get_source_logo_html(source_name, link=raw_link, is_indian=is_indian)
+
     return (
         f'<article class="hl-card" title="{html.escape(str(cat), quote=True)}">'
-        f'<header class="hl-meta"><span class="hl-av{" hl-av--in" if is_indian else ""}">{html.escape(_source_initials(source_name))}</span>'
+        f'<header class="hl-meta">{logo_html}'
         f'<b class="hl-src">{html.escape(source_name)}</b><span class="hl-dot">·</span>'
         f'<time class="hl-time" title="{exact}">{rel}</time><span class="hl-sp"></span>{chips}</header>'
         f'<h3 class="hl-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(display_title)}</a></h3>'
@@ -886,12 +890,15 @@ def _render_article_tags_html(item: Dict[str, Any], is_indian: bool = False) -> 
 
 
 def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, show_tags: bool = True) -> str:
-    source_name = html.escape(item.get("source", "Unknown"))
+    raw_source = (item.get("source") or "Unknown").strip()
+    source_name = html.escape(raw_source)
     cat = item.get("primary_section") or item.get("structured_category", "Nepal – Others")
+    raw_link = (item.get("link") or "").strip()
 
     if is_indian:
         accent = "indian-press"
-        source_tag = f'<span class="indian-portal-tag">🇮🇳 {source_name}</span>'
+        logo_html = get_source_logo_html(raw_source, link=raw_link, is_indian=True, extra_class="hl-av--tag")
+        source_tag = f'<span class="indian-portal-tag">{logo_html}<span>🇮🇳 {source_name}</span></span>'
         pct = int(round(float(item.get("nepal_relevance_score", 0.75)) * 100))
         reason = html.escape(str(item.get("relevance_reason", "Substantive Nepal connection")))
         if item.get("relevance_status") == "borderline_review":
@@ -900,7 +907,8 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
             review_flag = f'<span class="pill pill--success" title="Nepal relevance · {reason}">{pct}%</span>'
     else:
         accent = category_slug(cat)
-        source_tag = f'<span class="portal-tag">{source_name}</span>'
+        logo_html = get_source_logo_html(raw_source, link=raw_link, is_indian=False, extra_class="hl-av--tag")
+        source_tag = f'<span class="portal-tag">{logo_html}<span>{source_name}</span></span>'
         review_flag = '<span class="conf-review-badge" title="Needs review — classification confidence below 0.60, pending editorial verification">⚠<span class="rv-word"> Review</span></span>' if item.get("low_confidence") else ""
 
     sec_tags_html = _render_article_tags_html(item, is_indian=is_indian) if show_tags else ""
@@ -960,8 +968,6 @@ def _render_x_metrics_html(p: Dict[str, Any]) -> str:
 
 # X (Twitter) Post Card Renderer
 def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True, sent_title: str = "") -> str:
-    avatar_bg = html.escape(p.get("avatar_bg", "#1D9BF0"))
-    initials = html.escape(p.get("initials", "X"))
     author_name = html.escape(p.get("author_name", "Author"))
     handle = html.escape(p.get("handle", "@handle"))
     author_type = html.escape(p.get("author_type", "Public Figure"))
@@ -971,6 +977,7 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True, sent_t
     text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b>\1</b>', text).replace("\n", "<br>")
 
     footer_html = f'<footer class="x-engagement-bar">{_render_x_metrics_html(p)}</footer>' if show_footer else ""
+    avatar_html = get_x_author_avatar_html(p)
 
     # PHASE 1: Add card type color stripe for X posts
     return (
@@ -978,7 +985,7 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True, sent_t
         f'<div class="feed-card-stripe feed-card-stripe--x"></div>'
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
-        f'<div class="x-author-box"><div class="x-avatar" style="background:{avatar_bg};">{initials}</div>'
+        f'<div class="x-author-box">{avatar_html}'
         f'<div class="x-author-meta"><span class="x-author-name">{author_name}{verified_mark}</span>'
         f'<span class="x-author-handle">{handle} · <span class="x-type-badge">{author_type}</span></span></div></div>'
         f'<div class="x-post-header__meta">{get_badge_html(p.get("structured_category", "Others"))}'
@@ -1471,6 +1478,26 @@ def _show_read_in_app_dialog() -> None:
     cache_id = ctx.get("cache_id") or ""
     item_uid = ctx.get("item_uid") or cache_id
     item_link = (ctx.get("item_link") or item.get("link") or "").strip()
+
+    if "news.google.com" in item_link.lower():
+        try:
+            from nepal_fetcher import resolve_google_news_url
+            res_link = resolve_google_news_url(item_link)
+            if res_link and "news.google.com" not in res_link.lower():
+                item_link = res_link
+                item["link"] = res_link
+                ctx["item_link"] = res_link
+                try:
+                    from nepal_news_store import update_article_link
+                    update_article_link(
+                        old_link=ctx.get("item_link") or item.get("link") or "",
+                        new_link=res_link,
+                        canonical_id=cache_id,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     st.session_state.setdefault("ondemand_fulltext", {})
     st.session_state.setdefault("ondemand_fulltext_view", {})
@@ -2037,6 +2064,26 @@ def _show_share_dialog() -> None:
     item_uid = ctx.get("item_uid") or cache_id
     item_link = (ctx.get("item_link") or item.get("link") or "").strip()
 
+    if not is_x and "news.google.com" in item_link.lower():
+        try:
+            from nepal_fetcher import resolve_google_news_url
+            res_link = resolve_google_news_url(item_link)
+            if res_link and "news.google.com" not in res_link.lower():
+                item_link = res_link
+                item["link"] = res_link
+                ctx["item_link"] = res_link
+                try:
+                    from nepal_news_store import update_article_link
+                    update_article_link(
+                        old_link=ctx.get("item_link") or item.get("link") or "",
+                        new_link=res_link,
+                        canonical_id=cache_id,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     st.session_state.setdefault("ondemand_generated", {})
     st.session_state.setdefault("share_drafts", {})
     st.session_state.setdefault("wa_sent_registry", set())
@@ -2069,7 +2116,9 @@ def _show_share_dialog() -> None:
             st.rerun()
         return
 
-    src_url = generated.get("source_url", "")
+    src_url = generated.get("source_url", "") or item_link
+    if not is_x and "news.google.com" in (src_url or "").lower():
+        src_url = item_link
     profile_line = (generated.get("profile_line") or "").strip()
     gen_headline = "" if is_x else (generated.get("headline_english") or item.get("headline_english") or item.get("title") or "").strip()
     draft = st.session_state["share_drafts"].get(cache_id)
@@ -2091,10 +2140,13 @@ def _show_share_dialog() -> None:
             "unsaved_send_warn": False,
         }
         st.session_state["share_drafts"][cache_id] = draft
-    elif not is_x and "saved_headline" not in draft:
-        draft["original_headline"] = gen_headline
-        draft["saved_headline"] = gen_headline
-        draft["draft_headline"] = gen_headline
+    else:
+        if not is_x and "saved_headline" not in draft:
+            draft["original_headline"] = gen_headline
+            draft["saved_headline"] = gen_headline
+            draft["draft_headline"] = gen_headline
+        if not is_x and "news.google.com" in (draft.get("source_url") or "").lower():
+            draft["source_url"] = src_url
 
     if draft and draft.get("_just_saved"):
         st.toast(draft.pop("_just_saved"), icon=":material/bookmark_added:")
@@ -4479,7 +4531,7 @@ def render_x_section() -> None:
                     <div class="acct-card-rich">
                         <div>
                             <div class="acct-card-rich__head">
-                                <div class="acct-card-rich__avatar" style="background:{avatar_bg};">{initials}</div>
+                                {get_x_author_avatar_html(a, is_acct_card=True)}
                                 <div style="overflow:hidden; flex:1;">
                                     <div class="acct-card-rich__name">{html.escape(name)} <span style="color:#1D9BF0; font-size:0.82rem;">✓</span></div>
                                     <div class="acct-card-rich__handle">@{html.escape(h)} · {html.escape(followers)}</div>

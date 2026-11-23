@@ -209,6 +209,18 @@ def send_group_message(
 
     target_chat = (chat_id or "").strip()
     body = (message or "").strip()
+
+    if body and "news.google.com" in body.lower():
+        try:
+            import re
+            from nepal_fetcher import resolve_google_news_url
+            gnews_matches = re.findall(r"https://news\.google\.com/[^\s)\"'>]+", body)
+            for gm in set(gnews_matches):
+                orig = resolve_google_news_url(gm)
+                if orig and orig != gm and "news.google.com" not in orig.lower():
+                    body = body.replace(gm, orig)
+        except Exception as res_exc:
+            logger.debug(f"Google News URL resolution in send_group_message failed: {res_exc}")
     if not target_chat or not target_chat.endswith("@g.us"):
         return {
             "ok": False,

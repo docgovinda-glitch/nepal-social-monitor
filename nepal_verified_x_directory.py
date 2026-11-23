@@ -2339,16 +2339,16 @@ VERIFIED_NEPAL_X_DIRECTORY: List[Dict[str, Any]] = [
         "profile_url": "https://x.com/BasantaBasnet",
         "category": "Journalists and Media Professionals",
         "subcategory": "Journalists & Commentators",
-        "role": "Editor-in-Chief Shilapatra / Author of 'Mahabhara'",
-        "relevance": "Monitored Nepal Journalist / Analyst voice tracking current affairs, policy updates, and public discourse.",
+        "role": "Editor, OnlineKhabar (onlinekhabar.com) / Author of 'Mahabhara' / Former Editor-in-Chief Shilapatra",
+        "relevance": "Editor of OnlineKhabar (onlinekhabar.com), leading Nepal's premier digital news portal; veteran political journalist, analyst, and author tracking national politics, governance, and public policy.",
         "verification_status": "verified",
-        "source_url": "https://x.com/BasantaBasnet",
+        "source_url": "https://www.onlinekhabar.com",
         "followers": "165K",
         "avatar_bg": "#0284c7",
         "initials": "BB",
         "enabled": 1,
         "connection_status": "connected",
-        "last_verified_at": "2026-11-17T12:10:00+0545"
+        "last_verified_at": "2026-11-23T11:50:00+0545"
     },
     {
         "name": "Bhadra Sharma",

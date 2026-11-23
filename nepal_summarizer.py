@@ -1370,10 +1370,19 @@ def format_english_brief_payload(
     """
     Formats a 3-part English Brief (Headline, Brief, Link) with clean visual separation
     for WhatsApp sharing and single-click copy.
+    Ensures Google News redirect URLs are resolved to their canonical publisher source.
     """
     hl = re.sub(r"\s+", " ", (headline or "").strip()).strip("*").strip()
     body = (brief or "").strip()
     url = (source_url or "").strip()
+    if url and "news.google.com" in url.lower():
+        try:
+            from nepal_fetcher import resolve_google_news_url
+            res_u = resolve_google_news_url(url)
+            if res_u and "news.google.com" not in res_u.lower():
+                url = res_u
+        except Exception:
+            pass
 
     parts: List[str] = []
     if hl:
@@ -1398,10 +1407,19 @@ def format_reader_copy_payload(
     1. Headline (optionally bold for WhatsApp)
     2. Full Body
     3. Direct Article Link
+    Ensures Google News redirect URLs are resolved to their canonical publisher source.
     """
     hl = re.sub(r"\s+", " ", (headline or "").strip()).strip("*").strip()
     body = (full_body or "").strip()
     url = (source_url or "").strip()
+    if url and "news.google.com" in url.lower():
+        try:
+            from nepal_fetcher import resolve_google_news_url
+            res_u = resolve_google_news_url(url)
+            if res_u and "news.google.com" not in res_u.lower():
+                url = res_u
+        except Exception:
+            pass
 
     parts: List[str] = []
     if hl:
@@ -1420,10 +1438,29 @@ def generate_on_demand_news_brief(
     """
     On-demand user-initiated English Brief generator for Nepali, Hindi, and English news articles.
     Hydrates full content from DB/URL if needed, translates if non-English, summarizes concisely,
-    and returns unified 3-part output (English Headline, Brief, Direct URL) without altering original item fields.
+    resolves Google News aggregator URLs to canonical publisher links, and returns unified 3-part output.
     """
     work = dict(item)
     source_url = (work.get("link") or "").strip()
+    if source_url and "news.google.com" in source_url.lower():
+        try:
+            from nepal_fetcher import resolve_google_news_url
+            res_u = resolve_google_news_url(source_url)
+            if res_u and "news.google.com" not in res_u.lower():
+                source_url = res_u
+                work["link"] = res_u
+                try:
+                    from nepal_news_store import update_article_link
+                    update_article_link(
+                        old_link=item.get("link", ""),
+                        new_link=res_u,
+                        canonical_id=work.get("canonical_id", ""),
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     raw_title = (work.get("title") or "").strip()
     lang_code = detect_text_language(
         raw_title + " " + (work.get("summary") or ""),
@@ -1661,6 +1698,25 @@ def extract_on_demand_full_article(
     """
     work = dict(item)
     source_url = (work.get("link") or "").strip()
+    if source_url and "news.google.com" in source_url.lower():
+        try:
+            from nepal_fetcher import resolve_google_news_url
+            res_u = resolve_google_news_url(source_url)
+            if res_u and "news.google.com" not in res_u.lower():
+                source_url = res_u
+                work["link"] = res_u
+                try:
+                    from nepal_news_store import update_article_link
+                    update_article_link(
+                        old_link=item.get("link", ""),
+                        new_link=res_u,
+                        canonical_id=work.get("canonical_id", ""),
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     raw_title = (work.get("title") or "").strip()
 
     _emit_progress(on_progress, "Checking stored article content…", 0.15)

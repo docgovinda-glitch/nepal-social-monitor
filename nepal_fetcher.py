@@ -2786,10 +2786,10 @@ def _build_indian_article_record(
     }
 
 
-def resolve_google_news_url(url: str, timeout: float = 4.5) -> str:
+def resolve_google_news_url(url: str, timeout: float = 6.0) -> str:
     """
     Resolves a news.google.com/rss/articles/... redirect URL to its canonical publisher article URL
-    via fast base64 protobuf decode (v1 tokens) or Google News batchexecute (v2 AU_yqL tokens),
+    via fast base64 protobuf decode (v1 tokens), GoogleDecoder, or Google News batchexecute (v2 AU_yqL tokens),
     caching results in GNEWS_URL_CACHE. Falls back cleanly to the input URL if unresolved.
     """
     import base64
@@ -2824,48 +2824,83 @@ def resolve_google_news_url(url: str, timeout: float = 4.5) -> str:
     except Exception:
         pass
 
-    # 2. Decode Google News v2 tokens via article splash metadata + batchexecute
+    # 2. Decode Google News v2 tokens via GoogleDecoder with SSL verification disabled
     if resolved == clean_u:
         try:
-            r_page = requests.get(
-                f"https://news.google.com/articles/{art_id}",
-                headers=DEFAULT_HEADERS,
-                timeout=timeout,
-            )
-            if r_page.status_code == 200 and r_page.text:
-                m_sg = re.search(r'data-n-a-sg="([^"]+)"', r_page.text)
-                m_ts = re.search(r'data-n-a-ts="([^"]+)"', r_page.text)
-                if m_sg and m_ts:
-                    payload = [[
-                        "Fbv4je",
-                        json.dumps([
-                            "garturlreq",
-                            [
-                                ["X", "X", ["X", "X"], None, None, 1, 1, "IN:en", None, 1, None, None, None, None, None, 0, 1],
-                                "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
-                            ],
-                            art_id,
-                            int(m_ts.group(1)),
-                            m_sg.group(1),
-                        ]),
-                        None,
-                        "generic",
-                    ]]
-                    r_b = requests.post(
-                        "https://news.google.com/_/DotsSplashUi/data/batchexecute",
-                        data={"f.req": json.dumps([payload])},
-                        headers={
-                            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-                            "User-Agent": DEFAULT_HEADERS["User-Agent"],
-                        },
-                        timeout=timeout,
-                    )
-                    if r_b.status_code == 200 and r_b.text:
-                        m_u = re.search(r'"garturlres","(https?://[^"\\]+)', r_b.text.replace('\\"', '"'))
-                        if m_u and "news.google.com" not in m_u.group(1).lower():
-                            resolved = m_u.group(1)
+            from googlenewsdecoder.decoder import GoogleDecoder
+            import httpx
+            dec = GoogleDecoder(timeout=timeout)
+            dec.client = httpx.Client(verify=False, follow_redirects=True, timeout=timeout)
+            res = dec.decode_google_news_url(clean_u)
+            if res.get("success") and res.get("decoded_url"):
+                dec_u = res["decoded_url"].strip()
+                if dec_u and "news.google.com" not in dec_u.lower():
+                    resolved = dec_u
         except Exception as exc:
-            logger.debug(f"Google News URL decode skipped for {art_id[:16]}: {format_exc(exc, 120)}")
+            logger.debug(f"GoogleDecoder decode attempt failed for {art_id[:16]}: {exc}")
+
+    # 3. Direct batchexecute fallback with verify=False
+    if resolved == clean_u:
+        try:
+            fetch_urls = []
+            if "/rss/articles/" in clean_u:
+                fetch_urls.append(clean_u)
+            fetch_urls.append(f"https://news.google.com/rss/articles/{art_id}?oc=5&hl=en-US&gl=US&ceid=US:en")
+            fetch_urls.append(f"https://news.google.com/articles/{art_id}")
+
+            m_sg = None
+            m_ts = None
+            sess = requests.Session()
+            sess.verify = False
+
+            req_headers = {
+                "User-Agent": DEFAULT_HEADERS.get("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+
+            for target_u in fetch_urls:
+                try:
+                    r_page = sess.get(target_u, headers=req_headers, timeout=timeout, allow_redirects=True)
+                    if r_page.status_code == 200 and r_page.text:
+                        m_sg = re.search(r'data-n-a-sg="([^"]+)"', r_page.text)
+                        m_ts = re.search(r'data-n-a-ts="([^"]+)"', r_page.text)
+                        if m_sg and m_ts:
+                            break
+                except Exception:
+                    continue
+
+            if m_sg and m_ts:
+                payload = [[
+                    "Fbv4je",
+                    json.dumps([
+                        "garturlreq",
+                        [
+                            ["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
+                            "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
+                        ],
+                        art_id,
+                        int(m_ts.group(1)),
+                        m_sg.group(1),
+                    ]),
+                    None,
+                    "generic",
+                ]]
+                r_b = sess.post(
+                    "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                    data={"f.req": json.dumps([payload])},
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                        "User-Agent": req_headers["User-Agent"],
+                    },
+                    timeout=timeout,
+                )
+                if r_b.status_code == 200 and r_b.text:
+                    m_u = re.search(r'garturlres.*?["\\]+(https?://[^"\\\s]+)', r_b.text)
+                    if m_u and "news.google.com" not in m_u.group(1).lower():
+                        resolved = m_u.group(1)
+        except Exception as exc:
+            logger.debug(f"Direct Google News batchexecute fallback skipped for {art_id[:16]}: {format_exc(exc, 120)}")
 
     if resolved and resolved != clean_u:
         GNEWS_URL_CACHE[clean_u] = resolved
@@ -3026,15 +3061,15 @@ def _fetch_batched_google_news_indian_media(
     resolved_map: Dict[str, str] = {}
     dec_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
     try:
-        fut_to_raw = {dec_pool.submit(resolve_google_news_url, hit[5], 4.0): hit[5] for hit in to_decode}
-        for fut in concurrent.futures.as_completed(fut_to_raw, timeout=14.0):
+        fut_to_raw = {dec_pool.submit(resolve_google_news_url, hit[5], 6.0): hit[5] for hit in to_decode}
+        for fut in concurrent.futures.as_completed(fut_to_raw, timeout=25.0):
             raw_lk = fut_to_raw[fut]
             try:
                 resolved_map[raw_lk] = fut.result(timeout=1.0) or raw_lk
             except Exception:
                 resolved_map[raw_lk] = raw_lk
     except concurrent.futures.TimeoutError:
-        logger.warning("Google News URL resolution hit 14s budget; keeping unresolved links as fallback.")
+        logger.warning("Google News URL resolution hit 25s budget; keeping unresolved links as fallback.")
     finally:
         dec_pool.shutdown(wait=False, cancel_futures=True)
 
