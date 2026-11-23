@@ -3237,6 +3237,27 @@ _TOOLBAR_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TOOLBAR_CSS)
 
+_DESKTOP_CSS = """
+@media (min-width: 900px) {
+  /* Header: brand left, tabs centred, appearance at the far right */
+  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) { align-items: center !important; gap: 20px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) > div[data-testid="stColumn"]:has(.editorial-brand-anchor) { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; order: 1; }
+  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) > div[data-testid="stColumn"]:has(.st-key-app_nav_seg):not(:has(.st-key-theme_seg)) { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; order: 2; }
+  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) > div[data-testid="stColumn"]:has(.st-key-theme_seg) { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; order: 3; }
+  .st-key-app_nav_seg { max-width: 560px; margin: 0 auto; }
+  /* Toolbar: compact, equal-height icon buttons grouped on the left (same look for all four) */
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { gap: 8px !important; justify-content: flex-start !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(1), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(4) { width: 52px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(2) { width: 76px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { width: 92px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(5) { flex: 1 1 0 !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { height: 38px !important; min-height: 38px !important; background: rgba(60,60,67,.08) !important; border: 0 !important; box-shadow: none !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button:hover, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button:hover { background: rgba(60,60,67,.14) !important; }
+}
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _DESKTOP_CSS)
+
 
 _DIALOG_TIGHT_CSS = """
     /* ===== Dialogs: no spacer rows, smaller title, tighter rhythm ===== */
