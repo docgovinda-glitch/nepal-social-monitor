@@ -677,12 +677,16 @@ def _get_cached_x_workspace_bootstrap(
     author_type: str,
     search_query: str,
     sort_mode: str,
+    platform: str = "All Platforms",
     data_version: int = 0,
 ) -> Dict[str, Any]:
     """Single SQL round-trip bootstrap for X workspace (KPIs + page + count)."""
     s_dt = datetime.datetime.fromisoformat(start_iso)
     e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else datetime.datetime.now(NEPAL_TZ)
     sn_dt = datetime.datetime.fromisoformat(snap_iso) if snap_iso else e_dt
+    plat_val = None
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_val = "facebook" if "facebook" in platform.lower() else "x"
     try:
         res = get_x_workspace_bootstrap(
             start_dt=s_dt,
@@ -693,6 +697,7 @@ def _get_cached_x_workspace_bootstrap(
             search_query=search_query or None,
             sort_mode=sort_mode,
             limit=PAGE_SIZE,
+            platform=plat_val,
         )
         now_curr = datetime.datetime.now(NEPAL_TZ)
         cleaned = []
@@ -2709,12 +2714,16 @@ def _get_cached_feed_page_with_count(
     search_query: str,
     sort_mode: str,
     limit: int = PAGE_SIZE,
+    platform: str = "",
     data_version: int = 0,
 ) -> Dict[str, Any]:
     """Cached 90s initial page + exact filtered total count in ONE SQL round-trip."""
     s_dt = datetime.datetime.fromisoformat(start_iso) if start_iso else None
     e_dt = datetime.datetime.fromisoformat(end_iso) if end_iso else None
     sn_dt = datetime.datetime.fromisoformat(snap_iso) if snap_iso else None
+    plat_val = None
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_val = "facebook" if "facebook" in platform.lower() else "x"
     res = get_feed_page_with_count(
         workspace=workspace,
         start_dt=s_dt,
@@ -2731,6 +2740,7 @@ def _get_cached_feed_page_with_count(
         limit=limit,
         include_count=True,
         include_new_count=False,
+        platform=plat_val,
     )
     now_curr = datetime.datetime.now(NEPAL_TZ)
     cleaned: List[Dict[str, Any]] = []
@@ -2790,6 +2800,7 @@ def _fetch_workspace_keyset_page(
     search_query: str = "",
     sort_mode: str = "Newest First",
     limit: int = PAGE_SIZE,
+    platform: str = "",
 ) -> List[Dict[str, Any]]:
     """Fetches a single 20-item keyset page from Supabase for the given workspace."""
     now_curr = datetime.datetime.now(NEPAL_TZ)
@@ -2803,6 +2814,10 @@ def _fetch_workspace_keyset_page(
         c_metric, c_dt, c_id = cursor if cursor else (None, None, None)
     else:
         c_dt, c_id = cursor if cursor else (None, None)
+
+    plat_val = None
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_val = "facebook" if "facebook" in platform.lower() else "x"
 
     res = get_feed_page_with_count(
         workspace=workspace,
@@ -2824,6 +2839,7 @@ def _fetch_workspace_keyset_page(
         limit=limit,
         include_count=False,
         include_new_count=False,
+        platform=plat_val,
     )
     rows = res.get("rows", [])
     for r in rows:
@@ -2878,6 +2894,7 @@ def render_infinite_workspace_feed(
     on_fetch_now: Optional[Callable[[], None]] = None,
     wa_sent_map: Optional[Dict[str, Dict[str, Any]]] = None,
     prefetched_init: Optional[Dict[str, Any]] = None,
+    platform: str = "",
 ) -> Dict[str, int]:
     """
     Shared incremental infinite-scroll feed engine across Live Feed, Nepali Media, Indian Press, and X.
@@ -2961,6 +2978,7 @@ def render_infinite_workspace_feed(
                     search_query=search_query or "",
                     sort_mode=sort_mode,
                     limit=PAGE_SIZE,
+                    platform=platform,
                     data_version=data_ver,
                 )
             first_rows = init_res.get("rows", [])
@@ -3018,6 +3036,7 @@ def render_infinite_workspace_feed(
                         search_query=search_query,
                         sort_mode=sort_mode,
                         limit=PAGE_SIZE,
+                        platform=platform,
                     )
                     sess["error_msg"] = ""
                     if more_rows:
@@ -4259,15 +4278,17 @@ if selected_nav == "Indian Press":
 # ==========================================
 @st.fragment
 def render_x_section() -> None:
+    st.session_state.setdefault("x_plat_filter_select", "All Platforms")
     st.session_state.setdefault("x_cat_filter_select", CAT_FILTER_ALL_UNFILTERED)
     st.session_state.setdefault("x_acc_type_select", ALL_ACC_TYPES)
     st.session_state.setdefault("x_sort_mode_select", "Newest")
 
+    x_plat_filter = st.session_state.get("x_plat_filter_select", "All Platforms")
     x_cat_filter = st.session_state.get("x_cat_filter_select", CAT_FILTER_ALL_UNFILTERED)
     selected_acc_type = st.session_state.get("x_acc_type_select", ALL_ACC_TYPES)
     sort_mode = st.session_state.get("x_sort_mode_select", "Newest")
 
-    _x_sig = f"x|{active_preset}|tf{_tf_epoch}|v{_v_x}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
+    _x_sig = f"x|{active_preset}|tf{_tf_epoch}|v{_v_x}|{x_plat_filter}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
     _existing_x = st.session_state.get("feed_sessions", {}).get("x")
     _need_x_boot = (not _existing_x or _existing_x.get("filter_sig") != _x_sig)
     _x_boot = None
@@ -4280,6 +4301,7 @@ def render_x_section() -> None:
             author_type=selected_acc_type,
             search_query=search_query or "",
             sort_mode=sort_mode,
+            platform=x_plat_filter,
             data_version=_v_x,
         )
         x_kpis = _x_boot.get("kpis") or get_x_account_kpis()
@@ -4352,6 +4374,7 @@ def render_x_section() -> None:
                 author_type=selected_acc_type,
                 search_query=search_query or "",
                 sort_mode=sort_mode,
+                platform=x_plat_filter,
                 data_version=_v_x,
             )
 
@@ -4373,11 +4396,12 @@ def render_x_section() -> None:
             search_query=search_query or "",
             sort_mode=sort_mode,
             empty_icon="💬",
-            empty_title="No X posts found",
-            empty_body="Try selecting 'All Account Types' or choosing 'All News'.",
+            empty_title="No social media posts found",
+            empty_body="Try selecting 'All Platforms' or 'All Account Types' or choosing 'All News'.",
             on_fetch_now=_fetch_x_now,
             wa_sent_map=_shared_wa_sent_map,
             prefetched_init=_x_boot,
+            platform=x_plat_filter,
         )
 
         with st.expander(":material/search: Live X searches", expanded=False):

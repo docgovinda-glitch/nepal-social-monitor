@@ -65,7 +65,7 @@ INDIAN_FEED_COLUMNS = (
 X_FEED_COLUMNS = (
     "id, author_name, handle, raw_handle, author_type, verified, avatar_bg, initials, "
     "text, link, published_dt, relative_time, exact_time, likes, retweets, replies, "
-    "impressions, engagement_score, sentiment, structured_category, is_real_api, ingested_at"
+    "impressions, engagement_score, sentiment, structured_category, is_real_api, ingested_at, platform"
 )
 
 SEARCH_EXPANSIONS: Dict[str, List[str]] = {
@@ -2566,19 +2566,19 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
         chunk = deduped_posts[i:i + batch_size]
         val_rows = []
         for p in chunk:
-            pid = str(p.get("id", "")).strip()
-            handle = p.get("handle", "")
-            raw_handle = p.get("raw_handle") or handle.lstrip("@")
-            author_name = p.get("author_name", raw_handle)
-            author_type = p.get("author_type", "Civil Society and Public Voices")
-            role = p.get("role", "")
+            pid = str(p.get("id", "")).strip()[:64]
+            handle = str(p.get("handle", ""))[:64]
+            raw_handle = str(p.get("raw_handle") or handle.lstrip("@"))[:64]
+            author_name = str(p.get("author_name", raw_handle))[:255]
+            author_type = str(p.get("author_type", "Civil Society and Public Voices"))[:128]
+            role = str(p.get("role", ""))[:255]
             verified = True if p.get("verified", True) else False
-            avatar_bg = p.get("avatar_bg", "#2563eb")
-            initials = p.get("initials") or raw_handle[:2].upper()
+            avatar_bg = str(p.get("avatar_bg", "#2563eb"))[:32]
+            initials = str(p.get("initials") or raw_handle[:2].upper())[:16]
             title = p.get("title") or p.get("text", "")
             text = p.get("text", "")
             headline_en = p.get("headline_english", "")
-            cat = p.get("structured_category", "Others")
+            cat = str(p.get("structured_category", "Others"))[:128]
             likes = int(p.get("likes") or 0)
             retweets = int(p.get("retweets") or 0)
             replies = int(p.get("replies") or 0)
@@ -2591,13 +2591,14 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
             elif not pub_dt_raw:
                 pub_dt_raw = datetime.datetime.now(NEPAL_TZ).isoformat()
 
-            rel_time = p.get("relative_time", "")
-            exact_time = p.get("exact_time", "")
+            rel_time = str(p.get("relative_time", ""))[:64]
+            exact_time = str(p.get("exact_time", ""))[:64]
             link = p.get("link") or f"https://x.com/{raw_handle}/status/{pid}"
-            sentiment = p.get("sentiment", "Neutral")
+            sentiment = str(p.get("sentiment", "Neutral"))[:32]
             is_real = True if p.get("is_real_api", True) else False
+            plat = str(p.get("platform") or ("facebook" if "facebook.com" in str(link).lower() else "x")).lower()
 
-            row_str = f"({esc_sql(pid)}, {esc_sql(handle)}, {esc_sql(raw_handle)}, {esc_sql(author_name)}, {esc_sql(author_type)}, {esc_sql(role)}, {verified}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {esc_sql(title)}, {esc_sql(text)}, {esc_sql(headline_en)}, {esc_sql(cat)}, {likes}, {retweets}, {replies}, {impressions}, {eng}, {esc_sql(pub_dt_raw)}, {esc_sql(rel_time)}, {esc_sql(exact_time)}, {esc_sql(link)}, {esc_sql(sentiment)}, {is_real}, NOW(), NOW())"
+            row_str = f"({esc_sql(pid)}, {esc_sql(handle)}, {esc_sql(raw_handle)}, {esc_sql(author_name)}, {esc_sql(author_type)}, {esc_sql(role)}, {verified}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {esc_sql(title)}, {esc_sql(text)}, {esc_sql(headline_en)}, {esc_sql(cat)}, {likes}, {retweets}, {replies}, {impressions}, {eng}, {esc_sql(pub_dt_raw)}, {esc_sql(rel_time)}, {esc_sql(exact_time)}, {esc_sql(link)}, {esc_sql(sentiment)}, {is_real}, {esc_sql(plat)}, NOW(), NOW())"
             val_rows.append(row_str)
 
         if not val_rows:
@@ -2609,7 +2610,7 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
                 id, handle, raw_handle, author_name, author_type, role, verified,
                 avatar_bg, initials, title, text, headline_english, structured_category,
                 likes, retweets, replies, impressions, engagement_score, published_dt,
-                relative_time, exact_time, link, sentiment, is_real_api, ingested_at, updated_at
+                relative_time, exact_time, link, sentiment, is_real_api, platform, ingested_at, updated_at
             ) VALUES
             {", ".join(val_rows)}
             ON CONFLICT (id) DO UPDATE SET
@@ -2620,6 +2621,7 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
                 engagement_score = EXCLUDED.engagement_score,
                 structured_category = EXCLUDED.structured_category,
                 sentiment = EXCLUDED.sentiment,
+                platform = EXCLUDED.platform,
                 updated_at = NOW()
             RETURNING 1
         )
@@ -2918,6 +2920,7 @@ def _build_filtered_count_sql_parts(
     author_type: Optional[str] = None,
     search_query: Optional[str] = None,
     include_new_count: bool = True,
+    platform: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Returns (total_count_expr, new_since_snapshot_expr) SQL fragments."""
     def _pair_sql(table: str, where_list: List[str]) -> Tuple[str, str]:
@@ -2938,7 +2941,7 @@ def _build_filtered_count_sql_parts(
         w = _build_indian_where(eff_status="substantive", start_dt=start_dt, end_dt=end_dt, source=source, language=language, category_filter=category_filter, search_query=search_query)
         return _pair_sql("indian_media_articles", w)
     if workspace == "x":
-        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query, exclude_media_houses=True)
+        w = _build_x_where(category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt, search_query=search_query, exclude_media_houses=True, platform=platform)
         return _pair_sql("x_posts", w)
 
     tots, news = [], []
@@ -3013,6 +3016,7 @@ def _build_workspace_page_sql(
     cursor_id: Optional[str] = None,
     cursor_metric: Optional[int] = None,
     limit: int = 20,
+    platform: Optional[str] = None,
 ) -> str:
     """Shared SQL SELECT builder for paginated feeds across all 4 workspaces."""
     lim = int(limit)
@@ -3047,7 +3051,7 @@ def _build_workspace_page_sql(
         w = _build_x_where(
             category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt,
             search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
-            exclude_media_houses=True,
+            exclude_media_houses=True, platform=platform,
         )
         metric_col_map = {
             "Most engagement": "COALESCE(engagement_score, 0)",
@@ -3108,6 +3112,7 @@ def get_feed_page_with_count(
     limit: int = 20,
     include_count: bool = True,
     include_new_count: bool = False,
+    platform: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Fetches a workspace page and (optionally) exact filtered total_count in ONE SQL round-trip.
@@ -3132,7 +3137,7 @@ def get_feed_page_with_count(
                 category=category_filter, author_type=author_type, start_dt=start_dt, end_dt=end_dt,
                 search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
                 cursor_dt=cursor_dt, cursor_id=cursor_id, cursor_metric=cursor_metric,
-                sort_mode=sort_mode, limit=limit,
+                sort_mode=sort_mode, limit=limit, platform=platform,
             )
         else:
             rows = get_stored_live_feed_page(
@@ -3148,6 +3153,7 @@ def get_feed_page_with_count(
         stream_filter=stream_filter, category_filter=category_filter, source=source, language=language,
         author_type=author_type, search_query=search_query, sort_asc=sort_asc, sort_mode=sort_mode,
         cursor_dt=cursor_dt, cursor_rank=cursor_rank, cursor_id=cursor_id, cursor_metric=cursor_metric, limit=limit,
+        platform=platform,
     )
     tot_s, new_s = _build_filtered_count_sql_parts(
         workspace=workspace,
@@ -3161,6 +3167,7 @@ def get_feed_page_with_count(
         author_type=author_type,
         search_query=search_query,
         include_new_count=include_new_count and bool(snapshot_ingested_at),
+        platform=platform,
     )
 
     sql = f"""
@@ -3370,17 +3377,18 @@ def get_x_workspace_bootstrap(
     search_query: Optional[str] = None,
     sort_mode: str = "Newest",
     limit: int = 20,
+    platform: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Single SQL round-trip for X workspace: fetches x_account KPIs + category counts + page 0 + total_count."""
     page_sql = _build_workspace_page_sql(
         workspace="x", start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
         category_filter=category_filter, author_type=author_type, search_query=search_query,
-        sort_mode=sort_mode, limit=limit,
+        sort_mode=sort_mode, limit=limit, platform=platform,
     )
     tot_s, _ = _build_filtered_count_sql_parts(
         workspace="x", start_dt=start_dt, end_dt=end_dt, snapshot_ingested_at=snapshot_ingested_at,
         category_filter=category_filter, author_type=author_type, search_query=search_query,
-        include_new_count=False,
+        include_new_count=False, platform=platform,
     )
     sql = f"""
     WITH page_rows AS (
