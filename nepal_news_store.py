@@ -538,7 +538,8 @@ def esc_sql(v: Any) -> str:
         return "TRUE" if v else "FALSE"
     if isinstance(v, (datetime.datetime, datetime.date)):
         return f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'"
-    s = str(v).replace("'", "''").replace("\\", "\\\\").replace("\x00", "")
+    s = str(v).encode("utf-8", "ignore").decode("utf-8")
+    s = s.replace("'", "''").replace("\\", "\\\\").replace("\x00", "")
     return f"'{s}'"
 
 def normalize_canonical_url(url: str) -> str:
@@ -2034,12 +2035,18 @@ def get_stored_counts_by_stream(
 
 
 def count_enabled_x_accounts() -> int:
-    """Number of monitored (enabled) X accounts in the admin-managed table; 0 when unavailable."""
+    """Number of monitored (enabled) social media accounts in the admin-managed table; falls back to verified directory."""
     try:
         rows = query_supabase("SELECT COUNT(*) AS n FROM x_accounts WHERE enabled = 1;")
-        return int((rows[0].get("n") if rows else 0) or 0)
+        val = int((rows[0].get("n") if rows else 0) or 0)
+        if val > 0:
+            return val
     except Exception as exc:
         logger.warning(f"Failed to query enabled x_accounts count: {format_exc(exc)}")
+    try:
+        from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY
+        return len([a for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY if int(a.get("enabled", 1)) == 1])
+    except Exception:
         return 0
 
 
@@ -2117,23 +2124,24 @@ def batch_upsert_x_accounts(accounts: List[Dict[str, Any]], batch_size: int = 50
             h = normalize_x_handle(acc.get("handle", ""))
             if not h:
                 continue
+            plat = (acc.get("platform") or ("facebook" if "facebook.com" in str(acc.get("profile_url", "")) else "x")).lower()
             name = acc.get("name", h)
-            profile_url = acc.get("profile_url") or f"https://x.com/{h}"
+            profile_url = acc.get("profile_url") or (f"https://www.facebook.com/{h}" if plat == "facebook" else f"https://x.com/{h}")
             cat = acc.get("category", "Civil Society and Public Voices")
             subcat = acc.get("subcategory", "General")
             role = acc.get("role", "")
-            relevance = acc.get("relevance", "")
+            brief = (acc.get("profile_brief") or role or "").strip()
+            relevance = acc.get("relevance") or f"Monitored {plat.title()} voice: {name} ({role or 'Public Figure'})"
             ver_status = acc.get("verification_status", "verified")
             source_url = acc.get("source_url") or profile_url
             followers = acc.get("followers", "N/A")
-            avatar_bg = acc.get("avatar_bg", "#2563eb")
+            avatar_bg = acc.get("avatar_bg") or ("#1877f2" if plat == "facebook" else "#1d9bf0")
             initials = acc.get("initials") or "".join([w[0].upper() for w in name.split()[:2]]) or "NP"
             enabled = 1 if acc.get("enabled", 1) in (1, True, "1") else 0
             conn_status = acc.get("connection_status", "connected")
             last_ver = acc.get("last_verified_at") or datetime.datetime.now(NEPAL_TZ).isoformat()
 
-            brief = (acc.get("profile_brief") or role or "").strip()
-            val_str = f"({esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)}, {esc_sql(role)}, {esc_sql(brief)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)}, {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled}, {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW())"
+            val_str = f"({esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)}, {esc_sql(role)}, {esc_sql(brief)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)}, {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled}, {esc_sql(conn_status)}, {esc_sql(last_ver)}, {esc_sql(plat)}, NOW(), NOW())"
             values_rows.append(val_str)
 
         if not values_rows:
@@ -2143,10 +2151,10 @@ def batch_upsert_x_accounts(accounts: List[Dict[str, Any]], batch_size: int = 50
         INSERT INTO x_accounts (
             handle, name, profile_url, category, subcategory, role, profile_brief, relevance,
             verification_status, source_url, followers, avatar_bg, initials,
-            enabled, connection_status, last_verified_at, created_at, updated_at
+            enabled, connection_status, last_verified_at, platform, created_at, updated_at
         ) VALUES
         {", ".join(values_rows)}
-        ON CONFLICT (handle) DO UPDATE SET
+        ON CONFLICT (platform, handle) DO UPDATE SET
             name = EXCLUDED.name,
             profile_url = EXCLUDED.profile_url,
             category = EXCLUDED.category,
@@ -2185,6 +2193,8 @@ def get_all_x_accounts(
     falling back to nepal_social_directory when Supabase rows are unavailable.
     """
     clauses = ["1=1"]
+    if platform and platform.lower() not in ("all", "all platforms"):
+        clauses.append(f"COALESCE(platform, 'x') = {esc_sql(platform.lower())}")
     if category and category.lower() != "all":
         clauses.append(f"category = {esc_sql(category)}")
     if verification_status and verification_status.lower() != "all":
@@ -2310,59 +2320,76 @@ def get_x_account_kpis() -> Dict[str, Any]:
 def _clear_x_caches() -> None:
     fn = globals().get("get_x_account_kpis")
     if fn is not None and hasattr(fn, "clear"):
-        fn.clear()
+        try:
+            fn.clear()
+        except Exception:
+            pass
+    _X_PROFILE_CACHE["ts"] = 0.0
+    _X_PROFILE_CACHE["data"] = {}
+    try:
+        import streamlit as st
+        st.cache_data.clear()
+    except Exception:
+        pass
 
 
-def set_x_account_enabled(handle: str, enabled: bool) -> bool:
+def set_x_account_enabled(handle: str, enabled: bool, platform: Optional[str] = None) -> bool:
     """Toggles monitoring status for an account (enabled=1 vs paused=0)."""
     norm_h = normalize_x_handle(handle)
     if not norm_h:
         return False
     status_val = 1 if enabled else 0
+    plat_clause = f"AND platform = {esc_sql(platform.lower())}" if platform else ""
     sql = f"""
     UPDATE x_accounts 
     SET enabled = {status_val}, updated_at = NOW() 
-    WHERE handle = {esc_sql(norm_h)} 
+    WHERE handle = {esc_sql(norm_h)} {plat_clause}
     RETURNING handle;
     """
     res = query_supabase(sql)
     _clear_x_caches()
+    try:
+        from nepal_social_directory import set_memory_account_enabled
+        set_memory_account_enabled(norm_h, enabled, platform=platform)
+    except Exception:
+        pass
     return bool(res)
 
 
 def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
-    """Inserts or updates a single X account with duplicate detection on normalized handle."""
+    """Inserts or updates a single social media account (X or Facebook) with duplicate detection on (platform, handle)."""
     h = normalize_x_handle(acc.get("handle", ""))
     if not h:
         return False
+    plat = (acc.get("platform") or ("facebook" if "facebook.com" in str(acc.get("profile_url", "")) else "x")).lower()
     name = acc.get("name", h)
-    profile_url = acc.get("profile_url") or f"https://x.com/{h}"
+    profile_url = acc.get("profile_url") or (f"https://www.facebook.com/{h}" if plat == "facebook" else f"https://x.com/{h}")
     cat = acc.get("category", "Civil Society and Public Voices")
     subcat = acc.get("subcategory", "General")
     role = acc.get("role", "")
-    relevance = acc.get("relevance", "")
+    brief = (acc.get("profile_brief") or role or "").strip()
+    relevance = acc.get("relevance") or f"Monitored {plat.title()} voice: {name} ({role or 'Public Figure'})"
     ver_status = acc.get("verification_status", "verified")
     source_url = acc.get("source_url") or profile_url
     followers = acc.get("followers", "N/A")
-    avatar_bg = acc.get("avatar_bg", "#2563eb")
+    avatar_bg = acc.get("avatar_bg") or ("#1877f2" if plat == "facebook" else "#1d9bf0")
     initials = acc.get("initials") or "".join([w[0].upper() for w in name.split()[:2]]) or "NP"
     enabled = 1 if acc.get("enabled", 1) in (1, True, "1") else 0
     conn_status = acc.get("connection_status", "connected")
     last_ver = acc.get("last_verified_at") or datetime.datetime.now(NEPAL_TZ).isoformat()
 
-    brief = (acc.get("profile_brief") or role or "").strip()
     sql = f"""
     INSERT INTO x_accounts (
         handle, name, profile_url, category, subcategory, role, profile_brief, relevance,
         verification_status, source_url, followers, avatar_bg, initials,
-        enabled, connection_status, last_verified_at, created_at, updated_at
+        enabled, connection_status, last_verified_at, platform, created_at, updated_at
     ) VALUES (
         {esc_sql(h)}, {esc_sql(name)}, {esc_sql(profile_url)}, {esc_sql(cat)}, {esc_sql(subcat)},
         {esc_sql(role)}, {esc_sql(brief)}, {esc_sql(relevance)}, {esc_sql(ver_status)}, {esc_sql(source_url)},
         {esc_sql(followers)}, {esc_sql(avatar_bg)}, {esc_sql(initials)}, {enabled},
-        {esc_sql(conn_status)}, {esc_sql(last_ver)}, NOW(), NOW()
+        {esc_sql(conn_status)}, {esc_sql(last_ver)}, {esc_sql(plat)}, NOW(), NOW()
     )
-    ON CONFLICT (handle) DO UPDATE SET
+    ON CONFLICT (platform, handle) DO UPDATE SET
         name = EXCLUDED.name,
         profile_url = EXCLUDED.profile_url,
         category = EXCLUDED.category,
@@ -2384,6 +2411,30 @@ def upsert_single_x_account(acc: Dict[str, Any]) -> bool:
     res = query_supabase(sql)
     _X_PROFILE_CACHE["ts"] = 0.0
     _clear_x_caches()
+    try:
+        from nepal_social_directory import sync_account_to_memory
+        sync_account_to_memory({
+            "id": acc.get("id") or f"{plat}_{h}",
+            "platform": plat,
+            "name": name,
+            "handle": h,
+            "profile_url": profile_url,
+            "category": cat,
+            "subcategory": subcat,
+            "role": role,
+            "profile_brief": brief,
+            "relevance": relevance,
+            "verification_status": ver_status,
+            "source_url": source_url,
+            "followers": followers,
+            "avatar_bg": avatar_bg,
+            "initials": initials,
+            "enabled": enabled,
+            "connection_status": conn_status,
+            "last_verified_at": last_ver,
+        })
+    except Exception:
+        pass
     return bool(res)
 
 
@@ -2413,15 +2464,21 @@ def get_x_profile_brief_map(ttl_seconds: int = 300) -> Dict[str, Dict[str, str]]
     return out
 
 
-def delete_x_account(handle: str) -> bool:
+def delete_x_account(handle: str, platform: Optional[str] = None) -> bool:
     """Removes an account from x_accounts."""
     norm_h = normalize_x_handle(handle)
     if not norm_h:
         return False
-    sql = f"DELETE FROM x_accounts WHERE handle = {esc_sql(norm_h)} RETURNING handle;"
+    plat_clause = f"AND platform = {esc_sql(platform.lower())}" if platform else ""
+    sql = f"DELETE FROM x_accounts WHERE handle = {esc_sql(norm_h)} {plat_clause} RETURNING handle;"
     res = query_supabase(sql)
     _X_PROFILE_CACHE["ts"] = 0.0
     _clear_x_caches()
+    try:
+        from nepal_social_directory import delete_memory_account
+        delete_memory_account(norm_h, platform=platform)
+    except Exception:
+        pass
     return bool(res)
 
 

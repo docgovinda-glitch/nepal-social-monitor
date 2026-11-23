@@ -20927,3 +20927,59 @@ DIRECTORY_BY_PLATFORM_HANDLE: Dict[str, Dict[str, Any]] = {
 DIRECTORY_BY_HANDLE: Dict[str, Dict[str, Any]] = {
     acc['handle'].lower(): acc for acc in VERIFIED_NEPAL_SOCIAL_DIRECTORY
 }
+
+
+def sync_account_to_memory(acc: Dict[str, Any]) -> None:
+    """Updates or adds an account in the in-memory verified social directory."""
+    global VERIFIED_NEPAL_SOCIAL_DIRECTORY, DIRECTORY_BY_PLATFORM_HANDLE, DIRECTORY_BY_HANDLE
+    plat = str(acc.get("platform") or "x").lower()
+    h = str(acc.get("handle") or "").lstrip("@").strip().lower()
+    if not h:
+        return
+    key = f"{plat}:{h}"
+    existing_idx = None
+    for idx, existing in enumerate(VERIFIED_NEPAL_SOCIAL_DIRECTORY):
+        ex_plat = str(existing.get("platform") or "x").lower()
+        ex_h = str(existing.get("handle") or "").lstrip("@").strip().lower()
+        if ex_plat == plat and ex_h == h:
+            existing_idx = idx
+            break
+    if existing_idx is not None:
+        VERIFIED_NEPAL_SOCIAL_DIRECTORY[existing_idx].update(acc)
+        DIRECTORY_BY_PLATFORM_HANDLE[key] = VERIFIED_NEPAL_SOCIAL_DIRECTORY[existing_idx]
+        DIRECTORY_BY_HANDLE[h] = VERIFIED_NEPAL_SOCIAL_DIRECTORY[existing_idx]
+    else:
+        VERIFIED_NEPAL_SOCIAL_DIRECTORY.append(acc)
+        DIRECTORY_BY_PLATFORM_HANDLE[key] = acc
+        DIRECTORY_BY_HANDLE[h] = acc
+
+
+def set_memory_account_enabled(handle: str, enabled: bool, platform: Any = None) -> None:
+    """Toggles enabled state of an account in memory."""
+    h = str(handle).lstrip("@").strip().lower()
+    for acc in VERIFIED_NEPAL_SOCIAL_DIRECTORY:
+        if platform and str(acc.get("platform") or "x").lower() != str(platform).lower():
+            continue
+        if str(acc.get("handle") or "").lstrip("@").strip().lower() == h:
+            acc["enabled"] = 1 if enabled else 0
+
+
+def delete_memory_account(handle: str, platform: Any = None) -> None:
+    """Deletes an account from the in-memory social directory."""
+    global VERIFIED_NEPAL_SOCIAL_DIRECTORY, DIRECTORY_BY_PLATFORM_HANDLE, DIRECTORY_BY_HANDLE
+    h = str(handle).lstrip("@").strip().lower()
+    keep = []
+    for acc in VERIFIED_NEPAL_SOCIAL_DIRECTORY:
+        if platform and str(acc.get("platform") or "x").lower() != str(platform).lower():
+            keep.append(acc)
+            continue
+        if str(acc.get("handle") or "").lstrip("@").strip().lower() == h:
+            continue
+        keep.append(acc)
+    VERIFIED_NEPAL_SOCIAL_DIRECTORY[:] = keep
+    plat_key = f"{str(platform).lower()}:{h}" if platform else None
+    if plat_key and plat_key in DIRECTORY_BY_PLATFORM_HANDLE:
+        del DIRECTORY_BY_PLATFORM_HANDLE[plat_key]
+    if h in DIRECTORY_BY_HANDLE:
+        del DIRECTORY_BY_HANDLE[h]
+

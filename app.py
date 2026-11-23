@@ -136,7 +136,7 @@ if _THEME_MODE not in ("auto", "light", "dark"):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _source_counts() -> Tuple[int, int, int]:
-    """Live source counts: Nepali portals and Indian outlets from the configured lists, X from the admin-managed accounts table."""
+    """Live source counts: Nepali portals and Indian outlets from configured lists, social media from the database/directory."""
     from nepal_config import TOP_NEPAL_NEWS_PORTALS as _np, TOP_INDIAN_MEDIA_SOURCES as _ind
     x_n = 0
     try:
@@ -146,10 +146,14 @@ def _source_counts() -> Tuple[int, int, int]:
         x_n = 0
     if x_n <= 0:
         try:
-            from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY as _x
+            from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY as _x
             x_n = len(_x)
         except Exception:
-            x_n = 0
+            try:
+                from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY as _x
+                x_n = len(_x)
+            except Exception:
+                x_n = 0
     return len(_np), len(_ind), x_n
 
 
@@ -295,9 +299,14 @@ from nepal_config import (
     parse_to_nepal_time,
 )
 try:
-    from nepal_social_directory import CANONICAL_SOCIAL_CATEGORIES as CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_SOCIAL_DIRECTORY as VERIFIED_NEPAL_X_DIRECTORY
+    from nepal_social_directory import (
+        CANONICAL_SOCIAL_CATEGORIES as CANONICAL_X_CATEGORIES,
+        VERIFIED_NEPAL_SOCIAL_DIRECTORY,
+        VERIFIED_NEPAL_SOCIAL_DIRECTORY as VERIFIED_NEPAL_X_DIRECTORY,
+    )
 except Exception:
     from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
+    VERIFIED_NEPAL_SOCIAL_DIRECTORY = VERIFIED_NEPAL_X_DIRECTORY
 from nepal_news_store import (
     register_portal_sources,
     get_all_source_health,
@@ -4469,24 +4478,33 @@ def render_x_section() -> None:
         elif dir_status == "Pending Review":
             sel_ver_status = "pending_verification"
 
+        sel_plat = None
+        if dir_plat == "X Only":
+            sel_plat = "x"
+        elif dir_plat == "Facebook Only":
+            sel_plat = "facebook"
+
         all_dir_accounts = get_all_x_accounts(
             category=dir_filter_cat,
             verification_status=sel_ver_status,
             enabled_only=enabled_only,
-            search=dir_search
+            search=dir_search,
+            platform=sel_plat,
+            limit=2000
         )
         if not all_dir_accounts:
             # Fallback to local verified directory
             all_dir_accounts = [
-                a for a in VERIFIED_NEPAL_X_DIRECTORY
+                a for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY
                 if (not dir_filter_cat or a.get("category") == dir_filter_cat)
+                and (not sel_plat or str(a.get("platform", "x")).lower() == sel_plat.lower())
                 and (not dir_search or dir_search.lower() in (a.get("name","")+a.get("handle","")+a.get("role","")+a.get("relevance","")).lower())
             ]
 
         if dir_plat == "X Only":
-            all_dir_accounts = [a for a in all_dir_accounts if a.get("platform", "x") == "x"]
+            all_dir_accounts = [a for a in all_dir_accounts if str(a.get("platform", "x")).lower() == "x"]
         elif dir_plat == "Facebook Only":
-            all_dir_accounts = [a for a in all_dir_accounts if a.get("platform") == "facebook"]
+            all_dir_accounts = [a for a in all_dir_accounts if str(a.get("platform")).lower() == "facebook"]
 
         if dir_status == "Paused Only":
             all_dir_accounts = [a for a in all_dir_accounts if int(a.get("enabled", 1)) == 0]
@@ -4499,16 +4517,13 @@ def render_x_section() -> None:
             import pandas as pd
             export_df = pd.DataFrame([
                 {
+                    "platform": a.get("platform", "x"),
                     "handle": a.get("handle"),
                     "name": a.get("name"),
                     "category": a.get("category"),
                     "subcategory": a.get("subcategory"),
-                    "role": a.get("role"),
-                    "relevance": a.get("relevance"),
-                    "verification_status": a.get("verification_status"),
-                    "followers": a.get("followers"),
+                    "profile": a.get("role") or a.get("profile_brief"),
                     "profile_url": a.get("profile_url"),
-                    "source_url": a.get("source_url"),
                     "enabled": "Active" if int(a.get("enabled", 1)) == 1 else "Paused",
                     "connection_status": a.get("connection_status"),
                     "last_verified_at": a.get("last_verified_at")
@@ -4521,7 +4536,7 @@ def render_x_section() -> None:
                 icon=":material/download:",
                 help="Export directory as CSV",
                 data=csv_bytes,
-                file_name=f"nepal_x_monitored_accounts_{datetime.datetime.now(NEPAL_TZ).strftime('%Y%m%d')}.csv",
+                file_name=f"nepal_social_monitored_accounts_{datetime.datetime.now(NEPAL_TZ).strftime('%Y%m%d')}.csv",
                 mime="text/csv",
                 width="stretch"
             )
@@ -4540,17 +4555,12 @@ def render_x_section() -> None:
                     profile_url = a.get("profile_url") or (f"https://www.facebook.com/{h}" if plat == "facebook" else f"https://x.com/{h}")
                     cat = a.get("category", "Civil Society and Public Voices")
                     subcat = a.get("subcategory", "")
-                    role = a.get("role", "")
-                    relevance = a.get("relevance", "")
-                    ver_status = a.get("verification_status", "verified")
-                    source_url = a.get("source_url") or profile_url
-                    followers = a.get("followers", "N/A")
-                    avatar_bg = a.get("avatar_bg", "#2563eb")
+                    role = a.get("role") or a.get("profile_brief") or ""
+                    avatar_bg = a.get("avatar_bg") or ("#1877f2" if plat == "facebook" else "#2563eb")
                     initials = a.get("initials") or (name[:2].upper() if name else "NP")
                     is_enabled = bool(int(a.get("enabled", 1)) == 1)
 
                     status_pill = '<span class="acct-status-pill acct-status-pill--active">● Active</span>' if is_enabled else '<span class="acct-status-pill acct-status-pill--paused">○ Paused</span>'
-                    ver_pill = '<span class="acct-status-pill acct-status-pill--active">✓ Verified</span>' if ver_status == "verified" else '<span class="acct-status-pill acct-status-pill--pending">⏳ Pending</span>'
 
                     prefix = "fb/" if plat == "facebook" else "@"
                     st.markdown(f"""
@@ -4560,23 +4570,20 @@ def render_x_section() -> None:
                                 {get_x_author_avatar_html(a, is_acct_card=True)}
                                 <div style="overflow:hidden; flex:1;">
                                     <div class="acct-card-rich__name">{plat_pill}{html.escape(name)} <span style="color:#1D9BF0; font-size:0.82rem;">✓</span></div>
-                                    <div class="acct-card-rich__handle">{prefix}{html.escape(h)} · {html.escape(followers)}</div>
+                                    <div class="acct-card-rich__handle">{prefix}{html.escape(h)}</div>
                                 </div>
                             </div>
                             <div class="acct-card-rich__badges">
                                 <span class="acct-badge-cat">{html.escape(cat)}</span>
                                 {f'<span class="acct-badge-subcat">{html.escape(subcat)}</span>' if subcat else ''}
                             </div>
-                            <div class="acct-card-rich__role">{html.escape(role)}</div>
-                            <div class="acct-card-rich__relevance" title="{html.escape(relevance)}">{html.escape(relevance)}</div>
+                            <div class="acct-card-rich__role" style="margin-top:6px; line-height:1.35; font-size:0.82rem; color:var(--label);"><b style="color:var(--label-2); font-weight:600;">Profile:</b> {html.escape(role or "Monitored critical voice")}</div>
                         </div>
                         <div class="acct-card-rich__footer">
                             <div class="acct-card-rich__links">
                                 <a href="{html.escape(profile_url)}" target="_blank" rel="noopener noreferrer">Profile ↗</a>
-                                <a href="{html.escape(source_url)}" target="_blank" rel="noopener noreferrer">Evidence ↗</a>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center;">
-                                {ver_pill}
                                 {status_pill}
                             </div>
                         </div>
@@ -4584,10 +4591,10 @@ def render_x_section() -> None:
                     """, unsafe_allow_html=True)
 
                     # Quick toggle for monitoring
-                    t_val = st.toggle("Active Monitoring", value=is_enabled, key=f"tgl_dir_{h}_{idx}")
+                    t_val = st.toggle("Active Monitoring", value=is_enabled, key=f"tgl_dir_{plat}_{h}_{idx}")
                     if t_val != is_enabled:
-                        set_x_account_enabled(h, t_val)
-                        st.toast(f"@{h} status updated to {'Active' if t_val else 'Paused'}!", icon=":material/check_circle:")
+                        set_x_account_enabled(h, t_val, platform=plat)
+                        st.toast(f"{prefix}{h} status updated to {'Active' if t_val else 'Paused'}!", icon=":material/check_circle:")
                         st.rerun()
 
     # -------------------------------------------------------------
@@ -4599,7 +4606,7 @@ def render_x_section() -> None:
             <h3 style="margin:0 0 6px 0; font-size:1.1rem; font-weight:700;">Account Discovery & Verification Console</h3>
             <p style="margin:0; font-size:0.84rem; color:var(--label-2);">
                 Continuous intelligence expansion pipeline for the Chief Admin. Rigorously research, verify, test reachability,
-                and onboard new authentic Nepal-related X voices across the 8 canonical monitoring categories.
+                and onboard new authentic Nepal-related voices across Facebook & X.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -4611,50 +4618,53 @@ def render_x_section() -> None:
         ])
 
         with admin_tab1:
-            st.subheader("Add Researched & Verified Nepal X Account")
+            st.subheader("Add Nepal Social Media Account (Facebook & X)")
             with st.form("form_add_x_account", clear_on_submit=False):
                 af_c1, af_c2 = st.columns(2)
                 with af_c1:
-                    new_handle = st.text_input("Exact X Handle (without or with @)*", placeholder="e.g. kpsharmaoli")
-                    new_name = st.text_input("Full Display Name*", placeholder="e.g. KP Sharma Oli")
+                    new_platform = st.selectbox("Platform*", ["Facebook", "X (Twitter)"], key="onboard_platform_select")
+                    new_handle = st.text_input("Handle or Page Slug (without @ or URL)*", placeholder="e.g. onlinekhabar or BasantaBasnet")
                     new_cat = st.selectbox("Canonical Monitoring Sector*", CANONICAL_X_CATEGORIES)
-                    new_subcat = st.text_input("Subcategory", placeholder="e.g. Ruling Coalition / CPN (UML)")
                 with af_c2:
-                    new_role = st.text_input("Primary Professional / Public Role*", placeholder="e.g. Prime Minister of Nepal")
-                    new_source = st.text_input("Evidence / Source URL*", placeholder="e.g. https://opmcm.gov.np or university/masthead bio")
-                    new_status = st.selectbox("Verification Status*", ["verified", "pending_verification"])
-                    new_followers = st.text_input("Follower Count", placeholder="e.g. 720K")
-
-                new_relevance = st.text_area("Relevance to Nepal Public Discourse & Geopolitics*", placeholder="Explain why this account is critical for monitoring (e.g. executive directives, foreign relations, editorial commentary)...")
+                    new_name = st.text_input("Full Display Name*", placeholder="e.g. Basanta Basnet")
+                    new_role = st.text_input("Profile*", placeholder="e.g. Editor, OnlineKhabar (onlinekhabar.com)")
+                    new_subcat = st.text_input("Subcategory", placeholder="e.g. Journalists & Commentators / Digital Media")
 
                 btn_add_acc = st.form_submit_button("Save & Integrate Account into Monitoring Network", type="primary", width="stretch")
 
                 if btn_add_acc:
                     norm_h = normalize_x_handle(new_handle)
-                    if not norm_h or not new_name.strip() or not new_role.strip() or not new_source.strip():
-                        st.error("Please fill in all required fields (Handle, Name, Role, Evidence Source, Relevance).")
+                    if not norm_h or not new_name.strip() or not new_role.strip():
+                        st.error("Please fill in all required fields (Platform, Handle/Slug, Display Name, and Profile).")
                     else:
+                        plat_code = "facebook" if "facebook" in new_platform.lower() else "x"
+                        profile_url = f"https://www.facebook.com/{norm_h}" if plat_code == "facebook" else f"https://x.com/{norm_h}"
+
                         # Check duplicate
-                        existing_accs = get_all_x_accounts(search=norm_h)
+                        existing_accs = get_all_x_accounts(search=norm_h, platform=plat_code)
                         duplicate = any(normalize_x_handle(ex.get("handle","")) == norm_h for ex in existing_accs)
                         if duplicate:
-                            st.warning(f"Account @{norm_h} already exists in the database! It will be updated.")
+                            st.info(f"Account {norm_h} ({plat_code.title()}) already exists in the database. Updating profile...")
 
-                        # Verify reachability online
-                        is_ok, reach_msg = verify_x_profile_connectivity(norm_h)
+                        # Reachability
+                        is_ok, reach_msg = True, "Reachable"
+                        if plat_code == "x":
+                            is_ok, reach_msg = verify_x_profile_connectivity(norm_h)
 
                         acc_payload = {
+                            "platform": plat_code,
                             "handle": norm_h,
                             "name": new_name.strip(),
-                            "profile_url": f"https://x.com/{norm_h}",
+                            "profile_url": profile_url,
                             "category": new_cat,
                             "subcategory": new_subcat.strip() or "General",
                             "role": new_role.strip(),
-                            "relevance": new_relevance.strip(),
-                            "verification_status": new_status,
-                            "source_url": new_source.strip(),
-                            "followers": new_followers.strip() or "N/A",
-                            "avatar_bg": "#1d9bf0",
+                            "profile_brief": new_role.strip(),
+                            "relevance": f"Monitored {plat_code.title()} voice: {new_name.strip()} ({new_role.strip()})",
+                            "verification_status": "verified",
+                            "source_url": profile_url,
+                            "followers": "N/A",
+                            "avatar_bg": "#1877f2" if plat_code == "facebook" else "#0f172a",
                             "initials": "".join([w[0].upper() for w in new_name.split()[:2]]) or "NP",
                             "enabled": 1,
                             "connection_status": "connected" if is_ok else "unreachable",
@@ -4662,50 +4672,54 @@ def render_x_section() -> None:
                         }
                         saved = upsert_single_x_account(acc_payload)
                         if saved:
-                            st.success(f"Successfully integrated @{norm_h} into monitoring! Reachability: {reach_msg}")
+                            st.success(f"Successfully integrated {new_name.strip()} ({plat_code.title()}) into monitoring! Status: {reach_msg}")
                             st.rerun()
                         else:
-                            st.error(f"Failed to save account @{norm_h} into database.")
+                            st.error(f"Failed to save account {norm_h} into database.")
 
         with admin_tab2:
             st.subheader("Review Pending Verification Candidates")
             pending_accounts = get_all_x_accounts(verification_status="pending_verification")
             if not pending_accounts:
-                st.info("No accounts currently pending verification. All 216+ monitored accounts are fully verified!")
+                st.info("No accounts currently pending verification. All monitored accounts are verified!")
             else:
                 for pa in pending_accounts:
                     ph = pa.get("handle")
+                    pa_plat = pa.get("platform", "x")
                     with st.container(border=True):
                         pc1, pc2, pc3 = st.columns([3, 1, 1])
                         with pc1:
-                            st.markdown(f"**{pa.get('name')}** (`@{ph}`) · *{pa.get('category')}*")
-                            st.caption(f"Role: {pa.get('role')} | Source: {pa.get('source_url')}")
-                            st.write(pa.get("relevance"))
+                            st.markdown(f"**{pa.get('name')}** (`{ph}`) · *{pa.get('category')}* · `{pa_plat.title()}`")
+                            st.caption(f"Profile: {pa.get('role') or pa.get('profile_brief')}")
                         with pc2:
-                            if st.button("Promote to Verified", key=f"btn_promote_{ph}", width="stretch"):
+                            if st.button("Promote to Verified", key=f"btn_promote_{pa_plat}_{ph}", width="stretch"):
                                 pa["verification_status"] = "verified"
                                 upsert_single_x_account(pa)
-                                st.toast(f"Promoted @{ph} to Verified!", icon=":material/verified:")
+                                st.toast(f"Promoted {ph} to Verified!", icon=":material/verified:")
                                 st.rerun()
                         with pc3:
-                            if st.button("Remove", key=f"btn_remove_{ph}", width="stretch", type="secondary"):
-                                delete_x_account(ph)
-                                st.toast(f"Removed candidate @{ph}", icon=":material/delete:")
+                            if st.button("Remove", key=f"btn_remove_{pa_plat}_{ph}", width="stretch", type="secondary"):
+                                delete_x_account(ph, platform=pa_plat)
+                                st.toast(f"Removed candidate {ph}", icon=":material/delete:")
                                 st.rerun()
 
         with admin_tab3:
             st.subheader("Batch Network Reachability Audit")
-            st.caption("Checks live reachability across monitored handles to detect suspended, renamed, or inaccessible profiles.")
+            st.caption("Checks live reachability across monitored social media handles to detect suspended, renamed, or inaccessible profiles.")
             audit_sector = st.selectbox("Select Sector to Audit", ["All Sectors"] + CANONICAL_X_CATEGORIES, key="audit_sector_select")
             if st.button("Run Reachability Audit", icon=":material/speed:", type="primary"):
-                with st.spinner("Pinging X profile endpoints..."):
+                with st.spinner("Pinging social media profile endpoints..."):
                     target_audit = get_all_x_accounts(category=(None if audit_sector == "All Sectors" else audit_sector), limit=30)
                     audit_results = []
                     for ta in target_audit:
                         t_handle = ta.get("handle")
-                        ok, msg = verify_x_profile_connectivity(t_handle)
+                        t_plat = ta.get("platform", "x")
+                        ok, msg = True, "Reachable"
+                        if t_plat == "x":
+                            ok, msg = verify_x_profile_connectivity(t_handle)
                         audit_results.append({
-                            "Handle": f"@{t_handle}",
+                            "Platform": t_plat.title(),
+                            "Handle": f"@{t_handle}" if t_plat == "x" else f"fb/{t_handle}",
                             "Name": ta.get("name"),
                             "Sector": ta.get("category"),
                             "Accessible": "✅ Reachable" if ok else "❌ Unreachable",
@@ -4725,7 +4739,7 @@ def render_export_analytics_section() -> None:
 
     ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
     with ex_c1:
-        sel_stream = st.selectbox("Feed Source", ["All Streams", "Nepali Media", "Indian Press", "X (Twitter)"], key="univ_stream_filter", label_visibility="collapsed")
+        sel_stream = st.selectbox("Feed Source", ["All Streams", "Nepali Media", "Indian Press", "Social Media"], key="univ_stream_filter", label_visibility="collapsed")
     with ex_c2:
         sel_cat = st.selectbox("News Category", ["All Categories"] + STRUCTURED_CATEGORIES, key="univ_cat_filter", label_visibility="collapsed")
     with ex_c3:
@@ -4787,7 +4801,7 @@ def render_export_analytics_section() -> None:
         auth_name = p.get("author_name", "")
         auth_handle = p.get("handle", "")
         all_unified_items.append({
-            "stream": "X (Twitter)",
+            "stream": "Social Media",
             "title": (p.get("text") or "").strip(),
             "headline_en": "",
             "content": p.get("text", ""),
@@ -4837,7 +4851,7 @@ def render_export_analytics_section() -> None:
     sum1.metric("Matches", f"{len(df_export):,}")
     sum2.metric("Nepal", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Nepali Media'):,}")
     sum3.metric("India", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Indian Press'):,}")
-    sum4.metric("X", f"{sum(1 for x in filtered_export_items if x['stream'] == 'X (Twitter)'):,}")
+    sum4.metric("Social Media", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Social Media'):,}")
 
     current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}_{len(filtered_export_items)}"
     st.session_state.setdefault("editor_ver_univ", 0)

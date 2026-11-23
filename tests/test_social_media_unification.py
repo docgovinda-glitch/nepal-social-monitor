@@ -78,6 +78,44 @@ class TestSocialMediaUnification(unittest.TestCase):
             self.assertGreaterEqual(kpis.get("total_discovered", 0), 1000)
             self.assertIn("Politicians", kpis.get("by_category", {}))
 
+    def test_landing_page_source_counts(self):
+        """Verifies _source_counts accurately returns social media accounts >= 1000."""
+        from app import _source_counts
+        np_c, ind_c, soc_c = _source_counts()
+        self.assertGreater(np_c, 0, "Nepali press count should be > 0")
+        self.assertGreater(ind_c, 0, "Indian press count should be > 0")
+        self.assertGreaterEqual(soc_c, 1000, "Social media account count must reflect the 1000+ vetted accounts")
+
+    def test_upsert_social_account_defaults_and_sync(self):
+        """Verifies upsert_single_x_account gracefully defaults omitted fields and syncs to memory."""
+        test_acc = {
+            "platform": "facebook",
+            "handle": "test_nepal_voice_unique",
+            "name": "Test Nepal Voice",
+            "category": "Civil Society and Public Voices",
+            "subcategory": "Civic Oversight",
+            "role": "Civic Researcher / Governance Watchdog",
+            # Note: source_url, verification_status, followers, and relevance are omitted!
+        }
+        with mock.patch("nepal_news_store.query_supabase", return_value=[{"handle": "test_nepal_voice_unique"}]):
+            saved = store.upsert_single_x_account(test_acc)
+            self.assertTrue(saved)
+
+        # Check in-memory sync
+        mem_acc = sd.DIRECTORY_BY_PLATFORM_HANDLE.get("facebook:test_nepal_voice_unique")
+        self.assertIsNotNone(mem_acc)
+        self.assertEqual(mem_acc.get("verification_status"), "verified")
+        self.assertEqual(mem_acc.get("followers"), "N/A")
+        self.assertEqual(mem_acc.get("profile_url"), "https://www.facebook.com/test_nepal_voice_unique")
+
+        # Toggle state in memory
+        sd.set_memory_account_enabled("test_nepal_voice_unique", False, platform="facebook")
+        self.assertEqual(mem_acc.get("enabled"), 0)
+
+        # Cleanup test entry
+        sd.delete_memory_account("test_nepal_voice_unique", platform="facebook")
+        self.assertNotIn("facebook:test_nepal_voice_unique", sd.DIRECTORY_BY_PLATFORM_HANDLE)
+
 
 if __name__ == "__main__":
     unittest.main()
