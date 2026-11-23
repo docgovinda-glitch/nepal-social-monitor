@@ -21,7 +21,7 @@ import html
 import re
 import os
 import concurrent.futures
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import importlib
 import apple_theme as _apple_theme
@@ -3186,6 +3186,28 @@ st.session_state.setdefault("committed_search_query", "")
 _active_sq = st.session_state.get("committed_search_query", "")
 _data_ver = int(st.session_state.get("data_version", 0))
 
+def _sync_pill_html(pipes: Dict[str, Dict[str, Any]], verb: str, final: bool = False) -> str:
+    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": "𝕏"}
+    chips = []
+    total = 0
+    for k in ("nepali", "indian", "x"):
+        p = pipes.get(k) or {}
+        stt = p.get("status", "idle")
+        if stt == "running":
+            body = '<span class="sp-spin"></span>'
+        elif stt == "done":
+            n = int(p.get("count", 0))
+            total += n
+            body = f'<b>+{n}</b>' if n else '<span class="sp-ok">✓</span>'
+        elif stt in ("error", "timeout"):
+            body = '<span class="sp-err">!</span>'
+        else:
+            body = '<span class="sp-wait">·</span>'
+        chips.append(f'<span class="sp-chip">{icons[k]} {body}</span>')
+    head = f"{'✓ ' if final else ''}{html.escape(verb)}" if not final else (f"+{total} new" if total else "Up to date")
+    return f'<div class="sync-pill{" sync-pill--final" if final else ""}"><span class="sp-verb">{head}</span>{"".join(chips)}</div>'
+
+
 # Check per-stream incremental sync completion & invalidate ONLY completed stream(s)
 _sync_snap = get_manual_sync_status()
 _seen_stream_seqs = st.session_state.setdefault("_seen_stream_seqs", {"nepali": 0, "indian": 0, "x": 0})
@@ -3328,15 +3350,70 @@ def _on_ws_seg_change() -> None:
 st.session_state["app_nav_seg"] = selected_nav
 
 _nav_brand, _nav_theme, _nav_tabs = st.columns([1.75, 0.9, 4.35], gap="small", vertical_alignment="center")
-with _nav_brand:
+@st.cache_data(ttl=60, show_spinner=False)
+def _latest_ingest_epoch() -> float:
+    """Newest source poll time recorded in Supabase (written by GitHub Actions or the in-app daemon)."""
+    best = 0.0
+    try:
+        rows = get_all_source_health() or []
+    except Exception:
+        return 0.0
+    now = time.time()
+    for row in rows:
+        raw = row.get("last_discovery_time")
+        ts = 0.0
+        try:
+            if isinstance(raw, datetime.datetime):
+                dt = raw if raw.tzinfo else raw.replace(tzinfo=datetime.timezone.utc)
+                ts = dt.timestamp()
+            elif isinstance(raw, str) and raw.strip():
+                dt = datetime.datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+                dt = dt if dt.tzinfo else dt.replace(tzinfo=datetime.timezone.utc)
+                ts = dt.timestamp()
+        except Exception:
+            continue
+        if ts <= now + 60:
+            best = max(best, ts)
+    return best
+
+
+def _sync_age_label(epoch: float) -> Tuple[str, str]:
+    """('Synced 2m', colour) from the newest successful ingest; colour reflects freshness."""
+    if not epoch:
+        return "Synced", "#8E8E93"
+    mins = max(0, int((time.time() - epoch) // 60))
+    if mins < 1:
+        txt = "Synced now"
+    elif mins < 60:
+        txt = f"Synced {mins}m"
+    elif mins < 1440:
+        txt = f"Synced {mins // 60}h"
+    else:
+        txt = f"Synced {mins // 1440}d"
+    col = "#15803D" if mins < 20 else ("#B45309" if mins < 60 else "#B91C1C")
+    return txt, col
+
+
+@st.fragment(run_every=30)
+def _render_brand_sync() -> None:
+    snap = get_manual_sync_status()
+    epoch = max(float(snap.get("finished_at") or 0), _latest_ingest_epoch())
+    label, col = _sync_age_label(epoch)
+    exact = datetime.datetime.fromtimestamp(epoch, NEPAL_TZ).strftime("%d %b, %I:%M %p").lstrip("0") + " NPT" if epoch else ""
     st.markdown(
         f'<div class="editorial-brand-anchor" style="display:flex;align-items:center;gap:8px;height:36px;margin:0;padding:0;white-space:nowrap;">'
         f'<span class="brand-tile">{_ico("news", 15)}</span>'
         f'<span class="brand-name">Media Monitor</span>'
-        f'<span class="live-status-inline" style="background:#E8F5EC;color:#15803D;padding:2px 7px;border-radius:999px;font-size:0.62rem;font-weight:700;letter-spacing:0.06em;" title="Synced {html.escape(st.session_state["last_sync_npt"])} NPT · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts"><span class="live-pill__dot" style="width:5px;height:5px;"></span>Live</span>'
+        f'<span class="live-status-inline" style="background:color-mix(in srgb, {col} 14%, transparent);color:{col};padding:2px 8px;border-radius:999px;font-size:0.66rem;font-weight:700;" '
+        f'title="{html.escape(exact)} · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts">'
+        f'<span class="live-pill__dot" style="width:5px;height:5px;background:{col};"></span>{html.escape(label)}</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
+
+
+with _nav_brand:
+    _render_brand_sync()
 def _on_theme_change() -> None:
     chosen = st.session_state.get("theme_seg") or "auto"
     st.query_params["theme"] = chosen
@@ -3376,33 +3453,6 @@ def _format_sync_age(finished_at: float) -> str:
     if age < 86400:
         return f"{age // 3600}h ago"
     return f"{age // 86400}d ago"
-
-
-@st.cache_data(ttl=60, show_spinner=False)
-def _latest_ingest_epoch() -> float:
-    """Newest source poll time recorded in Supabase (written by GitHub Actions or the in-app daemon)."""
-    best = 0.0
-    try:
-        rows = get_all_source_health() or []
-    except Exception:
-        return 0.0
-    now = time.time()
-    for row in rows:
-        raw = row.get("last_discovery_time")
-        ts = 0.0
-        try:
-            if isinstance(raw, datetime.datetime):
-                dt = raw if raw.tzinfo else raw.replace(tzinfo=datetime.timezone.utc)
-                ts = dt.timestamp()
-            elif isinstance(raw, str) and raw.strip():
-                dt = datetime.datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
-                dt = dt if dt.tzinfo else dt.replace(tzinfo=datetime.timezone.utc)
-                ts = dt.timestamp()
-        except Exception:
-            continue
-        if ts <= now + 60:
-            best = max(best, ts)
-    return best
 
 
 @st.fragment(run_every=2)
@@ -3731,28 +3781,6 @@ def _render_telemetry_hud_html(elapsed: int, pipes: Dict[str, Dict[str, Any]]) -
         f'<div class="telemetry-hud-streams">{"".join(pill_htmls)}</div>'
         f'</div>'
     )
-
-
-def _sync_pill_html(pipes: Dict[str, Dict[str, Any]], verb: str, final: bool = False) -> str:
-    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": "𝕏"}
-    chips = []
-    total = 0
-    for k in ("nepali", "indian", "x"):
-        p = pipes.get(k) or {}
-        stt = p.get("status", "idle")
-        if stt == "running":
-            body = '<span class="sp-spin"></span>'
-        elif stt == "done":
-            n = int(p.get("count", 0))
-            total += n
-            body = f'<b>+{n}</b>' if n else '<span class="sp-ok">✓</span>'
-        elif stt in ("error", "timeout"):
-            body = '<span class="sp-err">!</span>'
-        else:
-            body = '<span class="sp-wait">·</span>'
-        chips.append(f'<span class="sp-chip">{icons[k]} {body}</span>')
-    head = f"{'✓ ' if final else ''}{html.escape(verb)}" if not final else (f"+{total} new" if total else "Up to date")
-    return f'<div class="sync-pill{" sync-pill--final" if final else ""}"><span class="sp-verb">{head}</span>{"".join(chips)}</div>'
 
 
 @st.fragment(run_every=1.5)
