@@ -3369,6 +3369,25 @@ html[data-rail="collapsed"] div[data-testid="stMainBlockContainer"], html[data-r
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_TOGGLE_CSS)
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _FIELD_CSS)
 AUTH_CSS = _append_css(AUTH_CSS, _FIELD_CSS)
+_AUTH_INK_CSS = """
+/* ===== Login: ink text on soft grey (same as the toolbar buttons); source-count tiles; one plain field ===== */
+.auth-header__icon-ring:not(#a):not(#b) { background: color-mix(in srgb, var(--label) 8%, transparent) !important; color: var(--label) !important; box-shadow: none !important; }
+.auth-header__icon-ring:not(#a):not(#b) svg path { fill: none !important; stroke: var(--label) !important; fill-opacity: 0 !important; }
+.auth-header__title:not(#a):not(#b) { color: var(--label) !important; }
+.auth-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 14px 0 6px; }
+.auth-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px; border-radius: 12px; background: color-mix(in srgb, var(--label) 6%, transparent); }
+.auth-stat b { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; color: var(--label); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.auth-stat span { font-size: 0.68rem; font-weight: 600; color: var(--label-3); text-align: center; line-height: 1.2; }
+div[data-testid="stForm"] div[data-baseweb="input"] > div:not(#a):not(#b), div[data-testid="stForm"] [data-testid="stTextInputRootElement"]:not(#a):not(#b) { background: color-mix(in srgb, var(--label) 8%, transparent) !important; border: 0 !important; box-shadow: none !important; }
+div[data-testid="stForm"] [data-testid="stTextInputRootElement"]:focus-within:not(#a):not(#b), div[data-testid="stForm"] div[data-baseweb="input"] > div:focus-within:not(#a):not(#b) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--label) 18%, transparent) !important; background: color-mix(in srgb, var(--label) 8%, transparent) !important; }
+div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:not(#a):not(#b):not(#c) {
+  background: color-mix(in srgb, var(--label) 12%, transparent) !important; color: var(--label) !important; border: 0 !important; box-shadow: none !important;
+}
+div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:not(#a):not(#b):not(#c) * { color: var(--label) !important; }
+div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] button:not(#a):not(#b):not(#c):hover { filter: none !important; background: color-mix(in srgb, var(--label) 18%, transparent) !important; box-shadow: none !important; }
+"""
+AUTH_CSS = _append_css(AUTH_CSS, _AUTH_INK_CSS)
+
 
 
 

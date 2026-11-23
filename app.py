@@ -91,7 +91,7 @@ _ensure_reloaded_daemon_on_code_update()
 # 1. Page Configuration
 _PAGE_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icon-192.png")
 st.set_page_config(
-    page_title="Media Monitor",
+    page_title="Monitor & Analytics",
     page_icon=_PAGE_ICON if os.path.exists(_PAGE_ICON) else "📰",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -137,6 +137,40 @@ if _THEME_MODE not in ("auto", "light", "dark"):
     _THEME_MODE = "auto"
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _source_counts() -> Tuple[int, int, int]:
+    """Live source counts: Nepali portals and Indian outlets from the configured lists, X from the admin-managed accounts table."""
+    from nepal_config import TOP_NEPAL_NEWS_PORTALS as _np, TOP_INDIAN_MEDIA_SOURCES as _ind
+    x_n = 0
+    try:
+        from nepal_news_store import count_enabled_x_accounts
+        x_n = count_enabled_x_accounts()
+    except Exception:
+        x_n = 0
+    if x_n <= 0:
+        try:
+            from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY as _x
+            x_n = len(_x)
+        except Exception:
+            x_n = 0
+    return len(_np), len(_ind), x_n
+
+
+def _auth_stats_html() -> str:
+    """Source counts under the login title; nothing is hard-coded, so adding or removing sources updates it."""
+    try:
+        n1, n2, n3 = _source_counts()
+    except Exception:
+        return ""
+    return (
+        '<div class="auth-stats">'
+        f'<div class="auth-stat"><b>{n1}</b><span>Nepali Press</span></div>'
+        f'<div class="auth-stat"><b>{n2}</b><span>Indian Press</span></div>'
+        f'<div class="auth-stat"><b>{n3}</b><span>Social Media</span></div>'
+        '</div>'
+    )
+
+
 def check_password() -> bool:
     """Returns True if the user entered the correct password or has a persisted session cookie/token."""
     if st.session_state.get("authenticated", False):
@@ -160,15 +194,15 @@ def check_password() -> bool:
     with auth_slot.container():
         st.markdown(AUTH_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=False):
-            st.markdown("""
+            st.markdown(f"""
             <div class="auth-header">
                 <div class="auth-header__icon-ring">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                         <path d="M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z"/><path d="M17 9h3v9a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h3"/>
                     </svg>
                 </div>
-                <h1 class="auth-header__title">Media Monitor</h1>
-                <p class="auth-header__subtitle">News Intelligence Platform</p>
+                <h1 class="auth-header__title">Monitor &amp; Analytics</h1>
+                {_auth_stats_html()}
             </div>
             """, unsafe_allow_html=True)
             pwd = st.text_input("Password", type="password", placeholder="Enter password", label_visibility="collapsed")
@@ -214,7 +248,7 @@ put("link",{rel:"apple-touch-icon",href:"/app/static/apple-touch-icon.png"});
 put("link",{rel:"manifest",href:"/app/static/manifest.json"});
 put("meta",{name:"apple-mobile-web-app-capable",content:"yes"});
 put("meta",{name:"mobile-web-app-capable",content:"yes"});
-put("meta",{name:"apple-mobile-web-app-title",content:"Media Monitor"});
+put("meta",{name:"apple-mobile-web-app-title",content:"Monitor & Analytics"});
 put("meta",{name:"apple-mobile-web-app-status-bar-style",content:"default"});
 d.querySelectorAll('meta[name="theme-color"]').forEach(function(x){if(x.id.indexOf("nmm-")===0)x.remove();});
 if(m==="dark"){put("meta",{name:"theme-color",content:"#000000"});}
@@ -3472,7 +3506,7 @@ def _render_brand_sync() -> None:
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
     _titles = {"Live Feed": "All Feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feed", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
-    _title = _titles.get(selected_nav, "Media Monitor")
+    _title = _titles.get(selected_nav, "Monitor & Analytics")
     st.markdown(
         f'<div class="editorial-brand-anchor hdr-title-wrap">'
         f'<div class="hdr-title">{html.escape(_title)}</div>'

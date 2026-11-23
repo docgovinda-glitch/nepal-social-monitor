@@ -1941,6 +1941,15 @@ def get_stored_counts_by_stream(
     return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
 
+def count_enabled_x_accounts() -> int:
+    """Number of monitored (enabled) X accounts in the admin-managed table; 0 when unavailable."""
+    try:
+        rows = query_supabase("SELECT COUNT(*) AS n FROM x_accounts WHERE enabled = 1;")
+        return int((rows[0].get("n") if rows else 0) or 0)
+    except Exception:
+        return 0
+
+
 def get_stream_freshness() -> Dict[str, float]:
     """Newest successful poll per stream (epoch seconds): Nepali portals, Indian outlets, X posts. 0.0 when unknown."""
     sql = """

@@ -1,6 +1,6 @@
 {
- "name": "Media Monitor",
- "short_name": "Media Monitor",
+ "name": "Monitor & Analytics",
+ "short_name": "Monitor",
  "start_url": "/",
  "display": "standalone",
  "background_color": "#F5F5F7",
