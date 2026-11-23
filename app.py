@@ -1825,40 +1825,54 @@ def _show_read_in_app_dialog() -> None:
                     targets=_wa_targets if _multi_wa else None,
                 )
         else:
-            ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
-            col_i = 0
-            if needs_tr and not has_tr:
+            with st.container(key=f"wa_actions_{item_uid}"):
+                ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
+                col_i = 0
+                if needs_tr and not has_tr:
+                    with ft_cols[col_i]:
+                        st.button(
+                            "Translate",
+                            help="Translate to English",
+                            icon=":material/translate:",
+                            width="stretch",
+                            type="primary",
+                            key=f"dlg_ft_tr_{item_uid}",
+                            on_click=_on_req_read_translate,
+                            args=(cache_id,),
+                        )
+                    col_i += 1
+                elif has_tr and needs_tr:
+                    with ft_cols[col_i]:
+                        st.button(
+                            "English",
+                            help="Show English translation",
+                            icon=":material/swap_horiz:",
+                            width="stretch",
+                            type="primary",
+                            key=f"dlg_ft_tog_{item_uid}",
+                            on_click=_on_toggle_read_view,
+                            args=(cache_id,),
+                        )
+                    col_i += 1
                 with ft_cols[col_i]:
-                    st.button(
-                        "Translate",
-                        help="Translate to English",
-                        icon=":material/translate:",
-                        width="stretch",
-                        type="primary",
-                        key=f"dlg_ft_tr_{item_uid}",
-                        on_click=_on_req_read_translate,
-                        args=(cache_id,),
-                    )
-                col_i += 1
-            elif has_tr and needs_tr:
-                with ft_cols[col_i]:
-                    st.button(
-                        "English",
-                        help="Show English translation",
-                        icon=":material/swap_horiz:",
-                        width="stretch",
-                        type="primary",
-                        key=f"dlg_ft_tog_{item_uid}",
-                        on_click=_on_toggle_read_view,
-                        args=(cache_id,),
-                    )
-                col_i += 1
-            with ft_cols[col_i]:
-                _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
-            with ft_cols[col_i + 1]:
-                if st.button("", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close", width="stretch"):
-                    st.session_state["active_modal"] = None
-                    st.rerun()
+                    _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
+                with ft_cols[col_i + 1]:
+                    if st.button("", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close", width="stretch"):
+                        st.session_state["active_modal"] = None
+                        st.rerun()
+                _render_read_send_fragment(
+                    cache_id=cache_id,
+                    item_uid=item_uid,
+                    dest_name=dest_name,
+                    selected_gid=selected_gid,
+                    item_link=item_link,
+                    has_unsaved=False,
+                    ver=0,
+                    saved_headline=shown_title,
+                    saved_body=copy_body,
+                    ft_src=ft_src,
+                    targets=_wa_targets if len(_wa_targets) > 1 else None,
+                )
     else:
         st.warning("Full article could not be extracted (the publisher may block scraping or require a subscription). Use View Original to read on the publisher's site.")
         c1, c2 = st.columns(2, gap="small")
