@@ -1449,7 +1449,8 @@ def _show_read_in_app_dialog() -> None:
 
     if st.session_state.pop("pending_read_translate", None) == cache_id:
         from nepal_summarizer import extract_on_demand_full_article
-        _tr_ph = st.empty()
+        with st.container(key="busy_pill"):
+            _tr_ph = st.empty()
         _tr_failed = False
         with _tr_ph.status(_busy("translate"), expanded=True) as tr_status:
             def _tr_prog(msg: str, pct: float) -> None:
@@ -1497,7 +1498,8 @@ def _show_read_in_app_dialog() -> None:
     fulltext_data = st.session_state["ondemand_fulltext"].get(cache_id)
     if not fulltext_data:
         from nepal_summarizer import extract_on_demand_full_article
-        _op_ph = st.empty()
+        with st.container(key="busy_pill"):
+            _op_ph = st.empty()
         with _op_ph.status(_busy("read"), expanded=True) as status:
             def _read_prog(msg: str, pct: float) -> None:
                 status.update(label=f"{_busy('read')} {int(pct * 100)}%")
@@ -2020,7 +2022,8 @@ def _show_share_dialog() -> None:
 
     generated = st.session_state["ondemand_generated"].get(cache_id)
     if not generated:
-        _pr_ph = st.empty()
+        with st.container(key="busy_pill"):
+            _pr_ph = st.empty()
         with _pr_ph.status(_busy("prepare"), expanded=True) as status:
             def _gen_prog(msg: str, pct: float) -> None:
                 status.update(label=f"{_busy('read')} {int(pct * 100)}%")

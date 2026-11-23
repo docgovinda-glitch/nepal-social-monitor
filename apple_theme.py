@@ -3302,6 +3302,11 @@ _SYNC_SPIN_CSS = """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _SYNC_SPIN_CSS)
 
 _NEW_PILL_CSS = """
+.st-key-busy_pill:not(#a):not(#b) { position: fixed !important; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 100000; width: min(92vw, 360px) !important; }
+div[data-testid="stElementContainer"]:has(> .st-key-busy_pill), div[data-testid="stLayoutWrapper"]:has(> .st-key-busy_pill) { position: fixed !important; height: 0 !important; margin: 0 !important; }
+.st-key-busy_pill [data-testid="stExpander"], .st-key-busy_pill details { border-radius: 999px !important; box-shadow: 0 8px 28px rgba(0,0,0,.22) !important; background: var(--surface) !important; border: 0 !important; overflow: hidden; }
+.st-key-busy_pill summary { justify-content: center; }
+
 .st-key-new_stories_pill { position: fixed !important; top: 64px; left: 50%; transform: translateX(-50%);
   z-index: 999; width: auto !important; margin: 0 !important; }
 div[data-testid="stElementContainer"]:has(> .st-key-new_stories_pill),
