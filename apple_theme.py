@@ -3285,6 +3285,14 @@ _WA_ACTIONS_CSS = """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _WA_ACTIONS_CSS)
 
 
+_SYNC_SPIN_CSS = """
+    @keyframes nm-spin { to { transform: rotate(360deg); } }
+    [class*="st-key-btn_sync_run_"] [data-testid="stIconMaterial"] { display: inline-block; animation: nm-spin 1s linear infinite; }
+    @media (prefers-reduced-motion: reduce) { [class*="st-key-btn_sync_run_"] [data-testid="stIconMaterial"] { animation: none; } }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _SYNC_SPIN_CSS)
+
+
 import re as _re
 
 

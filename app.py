@@ -819,6 +819,8 @@ def render_headline_card(item: Dict[str, Any], is_indian: bool = False, sent_tit
         chips += f'<span class="hl-chip hl-chip--warn" title="Needs review: classification confidence below 0.60">{_HL_ALERT_SVG}</span>'
     if sent_title:
         chips += f'<span class="hl-chip hl-chip--ok" title="{html.escape(sent_title, quote=True)}">{_HL_CHECK_SVG}</span>'
+    else:
+        chips += "<!--sent-->"
 
     return (
         f'<article class="hl-card" title="{html.escape(str(cat), quote=True)}">'
@@ -926,7 +928,7 @@ def _render_x_metrics_html(p: Dict[str, Any]) -> str:
 
 
 # X (Twitter) Post Card Renderer
-def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True) -> str:
+def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True, sent_title: str = "") -> str:
     avatar_bg = html.escape(p.get("avatar_bg", "#1D9BF0"))
     initials = html.escape(p.get("initials", "X"))
     author_name = html.escape(p.get("author_name", "Author"))
@@ -949,7 +951,9 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True) -> str
         f'<div class="x-author-meta"><span class="x-author-name">{author_name}{verified_mark}</span>'
         f'<span class="x-author-handle">{handle} · <span class="x-type-badge">{author_type}</span></span></div></div>'
         f'<div class="x-post-header__meta">{get_badge_html(p.get("structured_category", "Others"))}'
-        f'{time_badge_html(p.get("relative_time", "Recent"), p.get("exact_time", ""))}</div>'
+        f'{time_badge_html(p.get("relative_time", "Recent"), p.get("exact_time", ""))}'
+        + (f'<span class="hl-chip hl-chip--ok" title="{html.escape(sent_title, quote=True)}">{_HL_CHECK_SVG}</span>' if sent_title else "<!--sent-->")
+        + f'</div>'
         f'</header>'
         f'<div class="x-post-text">{text}</div>'
         f'{footer_html}'
@@ -1096,10 +1100,17 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
     )
 
 
+def _remember_wa_group(key: str) -> None:
+    st.session_state["wa_last_group"] = st.session_state.get(key)
+
+
 def _wa_dest_from_state(targets: List[Dict[str, Any]], key: str) -> str:
     names = [t["name"] for t in targets]
     cur = st.session_state.get(key)
-    return cur if cur in names else names[0]
+    if cur in names:
+        return cur
+    last = st.session_state.get("wa_last_group")
+    return last if last in names else names[0]
 
 
 def _render_wa_group_chip(targets: List[Dict[str, Any]], key: str, uid: str) -> None:
@@ -1111,7 +1122,7 @@ def _render_wa_group_chip(targets: List[Dict[str, Any]], key: str, uid: str) -> 
     _w = cur.split()
     short = " ".join(_w[:2]) if len(" ".join(_w[:2])) <= 12 else _w[0]
     with st.popover(f":material/chat: {short}", help=cur, key=f"wa_pop_{uid}", width="stretch"):
-        st.radio("WhatsApp group", names, key=key, label_visibility="collapsed")
+        st.radio("WhatsApp group", names, key=key, label_visibility="collapsed", on_change=_remember_wa_group, args=(key,))
 
 
 def _compute_item_uid(item: Dict[str, Any], prefix: str) -> str:
@@ -1367,7 +1378,9 @@ def _render_read_send_fragment(
                     except Exception as log_exc:
                         wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
                     sent_ids.add(cache_id)
-                    st.toast(f"Sent translation to {dest_name}!", icon=":material/send:")
+                    _mark_feed_card_sent(cache_id, dest_name)
+                    st.session_state["active_modal"] = None
+                    st.rerun()
                 else:
                     st.error(wa_res.get("error") or "Failed to send WhatsApp message.")
 
@@ -1533,6 +1546,8 @@ def _show_read_in_app_dialog() -> None:
         else:
             _target_by_name = {t["name"]: t["id"] for t in _wa_targets}
             _default_grp = st.session_state.get(_wa_grp_key)
+            if _default_grp not in _target_by_name:
+                _default_grp = st.session_state.get("wa_last_group")
             if _default_grp not in _target_by_name:
                 _default_grp = _wa_targets[0]["name"]
             dest_name = _default_grp
@@ -1953,7 +1968,9 @@ def _render_share_send_fragment(
                     except Exception as log_exc:
                         wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
                     sent_ids.add(cache_id)
-                    st.toast(f"Sent to {dest_name}!", icon=":material/send:")
+                    _mark_feed_card_sent(cache_id, dest_name)
+                    st.session_state["active_modal"] = None
+                    st.rerun()
                 else:
                     st.error(wa_res.get("error") or "Failed to send WhatsApp message.")
 
@@ -2088,6 +2105,8 @@ def _show_share_dialog() -> None:
     else:
         _target_by_name = {t["name"]: t["id"] for t in _wa_targets}
         _default_grp = st.session_state.get(_wa_grp_key)
+        if _default_grp not in _target_by_name:
+            _default_grp = st.session_state.get("wa_last_group")
         if _default_grp not in _target_by_name:
             _default_grp = _wa_targets[0]["name"]
         dest_name = _default_grp
@@ -2464,6 +2483,33 @@ def _safe_http_url(raw_url: str) -> str:
     return ""
 
 
+def _mark_feed_card_sent(cache_id: str, group_name: str) -> None:
+    """Shows the sent tick on the card right away by patching the stored feed HTML and forcing a full re-send."""
+    chip = (
+        f'<span class="hl-chip hl-chip--ok" title="Sent to {html.escape(group_name or "WhatsApp", quote=True)}">{_HL_CHECK_SVG}</span>'
+    )
+    for sess in (st.session_state.get("feed_sessions") or {}).values():
+        if not isinstance(sess, dict):
+            continue
+        changed = False
+        for uid, row in (sess.get("items_by_uid") or {}).items():
+            if _compute_item_uid(row, "global") != cache_id:
+                continue
+            marker = f'data-uid="{uid}"'
+            for b in sess.get("batches", []):
+                h = b.get("html", "")
+                i = h.find(marker)
+                if i < 0:
+                    continue
+                j = h.find("<!--sent-->", i)
+                nxt = h.find('class="feed-card-wrap"', i + len(marker))
+                if j >= 0 and (nxt < 0 or j < nxt):
+                    b["html"] = h[:j] + chip + h[j + len("<!--sent-->"):]
+                    changed = True
+        if changed:
+            sess["_mounted_nav_seq"] = -1
+
+
 def _build_card_wrapper_html(
     item: Dict[str, Any],
     renderer: Callable[[Dict[str, Any]], str],
@@ -2474,7 +2520,13 @@ def _build_card_wrapper_html(
     is_indian, is_x = _resolve_item_flags(item, renderer)
     cache_id = _compute_item_uid(item, "global")
     if is_x:
-        card_html = render_apple_x_post_card(item, show_footer=False)
+        _x_sent = wa_sent_map.get(cache_id)
+        _x_sent_title = ""
+        if _x_sent:
+            _xg = str(_x_sent.get("group_name") or "WhatsApp")
+            _xt = _format_wa_sent_time(_x_sent.get("sent_at"))
+            _x_sent_title = f"Sent to {_xg}" + (f" · {_xt}" if _xt else "")
+        card_html = render_apple_x_post_card(item, show_footer=False, sent_title=_x_sent_title)
         tags_html = _render_x_metrics_html(item)
     else:
         persisted_for_chip = wa_sent_map.get(cache_id)
@@ -2487,7 +2539,7 @@ def _build_card_wrapper_html(
         tags_html = ""
 
     wa_html = ""
-    persisted_sent = wa_sent_map.get(cache_id) if is_x else None
+    persisted_sent = None
     if persisted_sent:
         sent_gname = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
         sent_ts = _format_wa_sent_time(persisted_sent.get("sent_at"))
@@ -2914,31 +2966,22 @@ def render_infinite_workspace_feed(
             new_since_snap = 0
 
     if new_since_snap > 0:
-        b_col1, b_col2 = st.columns([3.8, 1.4], vertical_alignment="center", gap="small")
-        with b_col1:
-            st.markdown(
-                f'<div class="apple-new-stories-pill">'
-                f'<span class="new-stories-dot"></span>'
-                f'<span class="new-stories-msg"><b>{new_since_snap:,}</b> new {noun} available since you opened this feed</span>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        with b_col2:
-            if st.button("Refresh feed", icon=":material/refresh:", key=f"btn_new_stories_{workspace}", width="stretch"):
-                sessions.pop(workspace, None)
-                _get_cached_feed_page_with_count.clear()
-                _get_cached_filtered_count.clear()
-                get_cached_header_bundle.clear()
-                get_cached_login_bootstrap.clear()
-                _get_cached_indian_workspace_bootstrap.clear()
-                _get_cached_x_workspace_bootstrap.clear()
-                st.session_state.pop("_hdr_state_cache", None)
-                sv = st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
-                for sk in (("nepali", "indian", "x") if workspace == "live" else (workspace,)):
-                    if sk in sv:
-                        sv[sk] = int(sv.get(sk, 0)) + 1
-                st.session_state["data_version"] = data_ver + 1
-                _safe_fragment_rerun()
+        if st.button(f"{new_since_snap:,} new", icon=":material/arrow_upward:", key=f"btn_new_stories_{workspace}", type="primary", width="stretch", help=f"{new_since_snap:,} new {noun} since you opened this feed"):
+            sessions.pop(workspace, None)
+            _get_cached_feed_page_with_count.clear()
+            _get_cached_filtered_count.clear()
+            get_cached_header_bundle.clear()
+            get_cached_login_bootstrap.clear()
+            _get_cached_indian_workspace_bootstrap.clear()
+            _get_cached_x_workspace_bootstrap.clear()
+            st.session_state.pop("_hdr_state_cache", None)
+            sv = st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+            for sk in (("nepali", "indian", "x") if workspace == "live" else (workspace,)):
+                if sk in sv:
+                    sv[sk] = int(sv.get(sk, 0)) + 1
+            st.session_state["data_version"] = data_ver + 1
+            _safe_fragment_rerun()
+
 
     if not sess["batches"] and not sess["error_msg"]:
         render_empty_state(empty_icon, empty_title, empty_body)
@@ -3171,7 +3214,7 @@ _seen_sync_seq = int(st.session_state.get("_seen_sync_seq", 0))
 if not _sync_snap.get("running") and int(_sync_snap.get("completed_seq", 0)) > _seen_sync_seq:
     st.session_state["_seen_sync_seq"] = int(_sync_snap["completed_seq"])
     if _changed_streams and not _sync_snap.get("errors"):
-        st.toast("Live feeds synced!", icon=":material/check_circle:")
+        pass
 
 # Cold login 1-query bootstrap when Live Feed needs initial load; cached header otherwise
 _prefetched_live_init = None
@@ -3391,8 +3434,6 @@ def _render_sync_status_bar() -> None:
     st.markdown(f'<div class="sync-status-bar">{"".join(pills_html)}</div>', unsafe_allow_html=True)
 
 
-# PHASE 1: Render inline sync status bar
-_render_sync_status_bar()
 
 
 def _apply_fresh_data_refresh(epoch: float) -> None:
@@ -3431,9 +3472,6 @@ def _render_new_data_banner() -> None:
     if st.button("New stories", icon=":material/arrow_upward:", key="btn_load_new_data", type="primary", width="stretch", help=f"Updated {_format_sync_age(epoch)}"):
         _apply_fresh_data_refresh(epoch)
         st.rerun()
-
-
-_render_new_data_banner()
 
 
 @st.fragment
@@ -3612,15 +3650,13 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
         if st.button(
             "",
             icon=":material/sync:",
-            key=f"btn_sync_{ws_suffix}",
+            key=(f"btn_sync_run_{ws_suffix}" if _is_syncing_now else f"btn_sync_{ws_suffix}"),
             width="stretch",
-            help=("Refreshing live feeds in background…" if _is_syncing_now else f"Synced {st.session_state['last_sync_npt']} NPT — click to sync live feeds"),
+            disabled=_is_syncing_now,
+            help=("Syncing…" if _is_syncing_now else f"Synced {st.session_state['last_sync_npt']} NPT · tap to sync"),
         ):
-            started, _ = trigger_manual_sync_async()
-            if started:
-                st.toast("Refreshing live intelligence feeds in background…", icon=":material/bolt:")
-            else:
-                st.toast("Sync already in progress…", icon=":material/hourglass_top:")
+            trigger_manual_sync_async()
+            st.rerun()
 
 
 def _format_sync_pipeline_pills(pipes: Dict[str, Dict[str, Any]]) -> str:
@@ -3692,10 +3728,7 @@ def _render_active_sync_monitor() -> None:
     has_new_stream = any(int(snap_seqs.get(k, 0)) > int(seen_seqs.get(k, 0)) for k in ("nepali", "indian", "x"))
     if has_new_stream:
         st.rerun()
-    if snap.get("running"):
-        elapsed = int(max(1, time.time() - float(snap.get("started_at") or time.time())))
-        st.markdown(_render_telemetry_hud_html(elapsed, pipes), unsafe_allow_html=True)
-    elif int(snap.get("completed_seq", 0)) > int(st.session_state.get("_seen_sync_seq", 0)):
+    if not snap.get("running") and int(snap.get("completed_seq", 0)) > int(st.session_state.get("_seen_sync_seq", 0)):
         st.rerun()
 
 
