@@ -1941,6 +1941,29 @@ def get_stored_counts_by_stream(
     return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
 
+def get_stream_freshness() -> Dict[str, float]:
+    """Newest successful poll per stream (epoch seconds): Nepali portals, Indian outlets, X posts. 0.0 when unknown."""
+    sql = """
+    SELECT
+        (SELECT EXTRACT(EPOCH FROM MAX(last_discovery_time)) FROM source_health) AS np_ts,
+        (SELECT EXTRACT(EPOCH FROM MAX(last_discovery_time)) FROM indian_source_health) AS in_ts,
+        (SELECT EXTRACT(EPOCH FROM MAX(updated_at)) FROM x_posts) AS x_ts;
+    """
+    out = {"nepali": 0.0, "indian": 0.0, "x": 0.0}
+    try:
+        rows = query_supabase(sql)
+    except Exception:
+        return out
+    if rows:
+        r = rows[0]
+        for key, col in (("nepali", "np_ts"), ("indian", "in_ts"), ("x", "x_ts")):
+            try:
+                out[key] = float(r.get(col) or 0.0)
+            except Exception:
+                out[key] = 0.0
+    return out
+
+
 def count_ingested_since(since_dt: datetime.datetime) -> Dict[str, int]:
     """Net-new rows per stream stored at/after `since_dt` (used for live sync progress; never counts re-seen items)."""
     ts = _fmt_sql_ts(since_dt, as_utc=True)

@@ -3398,6 +3398,16 @@ def _latest_ingest_epoch() -> float:
     return best
 
 
+@st.cache_data(ttl=20, show_spinner=False)
+def _stream_freshness() -> Dict[str, float]:
+    """Per-stream newest poll time, cached briefly (not stacked on top of other caches)."""
+    try:
+        from nepal_news_store import get_stream_freshness
+        return get_stream_freshness()
+    except Exception:
+        return {"nepali": 0.0, "indian": 0.0, "x": 0.0}
+
+
 def _sync_age_label(epoch: float) -> Tuple[str, str]:
     """('Updated 2m ago', colour) from the newest successful ingest; colour reflects freshness."""
     if not epoch:
@@ -3447,11 +3457,16 @@ def _render_brand_sync() -> None:
     snap = get_manual_sync_status()
     running = bool(snap.get("running"))
     fin = float(snap.get("finished_at") or 0)
-    epoch = max(fin, _latest_ingest_epoch())
+    _fresh = _stream_freshness()
+    _scope = _NAV_STREAMS.get(selected_nav, ("nepali", "indian", "x"))
+    # Freshness comes from each stream's own newest poll in the database (no cross-stream guessing).
+    epoch = max([float(_fresh.get(k) or 0.0) for k in _scope] or [0.0])
     label, col = _sync_age_label(epoch)
-    exact = datetime.datetime.fromtimestamp(epoch, NEPAL_TZ).strftime("%d %b, %I:%M %p").lstrip("0") + " NPT" if epoch else ""
+    _names = {"nepali": "Nepali", "indian": "Indian", "x": "Social"}
+    _per = " · ".join(f"{_names[k]} {_sync_age_label(float(_fresh.get(k) or 0.0))[0].replace('Updated ', '')}" for k in ("nepali", "indian", "x"))
+    exact = _per
     inner = html.escape(label)
-    tip = f'{exact} · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts'
+    tip = f'{exact}'
     if running or (fin and time.time() - fin < 8):
         col = "#0071E3"
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
