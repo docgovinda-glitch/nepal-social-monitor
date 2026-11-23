@@ -3186,28 +3186,6 @@ st.session_state.setdefault("committed_search_query", "")
 _active_sq = st.session_state.get("committed_search_query", "")
 _data_ver = int(st.session_state.get("data_version", 0))
 
-def _sync_pill_html(pipes: Dict[str, Dict[str, Any]], verb: str, final: bool = False) -> str:
-    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": "𝕏"}
-    chips = []
-    total = 0
-    for k in ("nepali", "indian", "x"):
-        p = pipes.get(k) or {}
-        stt = p.get("status", "idle")
-        if stt == "running":
-            body = '<span class="sp-spin"></span>'
-        elif stt == "done":
-            n = int(p.get("count", 0))
-            total += n
-            body = f'<b>+{n}</b>' if n else '<span class="sp-ok">✓</span>'
-        elif stt in ("error", "timeout"):
-            body = '<span class="sp-err">!</span>'
-        else:
-            body = '<span class="sp-wait">·</span>'
-        chips.append(f'<span class="sp-chip">{icons[k]} {body}</span>')
-    head = f"{'✓ ' if final else ''}{html.escape(verb)}" if not final else (f"+{total} new" if total else "Up to date")
-    return f'<div class="sync-pill{" sync-pill--final" if final else ""}"><span class="sp-verb">{head}</span>{"".join(chips)}</div>'
-
-
 # Check per-stream incremental sync completion & invalidate ONLY completed stream(s)
 _sync_snap = get_manual_sync_status()
 _seen_stream_seqs = st.session_state.setdefault("_seen_stream_seqs", {"nepali": 0, "indian": 0, "x": 0})
@@ -3249,8 +3227,7 @@ if _changed_streams:
 _seen_sync_seq = int(st.session_state.get("_seen_sync_seq", 0))
 if not _sync_snap.get("running") and int(_sync_snap.get("completed_seq", 0)) > _seen_sync_seq:
     st.session_state["_seen_sync_seq"] = int(_sync_snap["completed_seq"])
-    with st.container(key="sync_pill"):
-        st.markdown(_sync_pill_html(_sync_snap.get("pipelines") or {}, "", final=True), unsafe_allow_html=True)
+    pass
 
 # Cold login 1-query bootstrap when Live Feed needs initial load; cached header otherwise
 _prefetched_live_init = None
@@ -3394,19 +3371,47 @@ def _sync_age_label(epoch: float) -> Tuple[str, str]:
     return txt, col
 
 
-@st.fragment(run_every=30)
+def _sync_inline_html(pipes: Dict[str, Dict[str, Any]], final: bool = False) -> str:
+    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": "𝕏"}
+    out = []
+    total = 0
+    for k in ("nepali", "indian", "x"):
+        p = pipes.get(k) or {}
+        stt = p.get("status", "idle")
+        if stt == "running":
+            body = '<span class="sp-spin"></span>'
+        elif stt == "done":
+            n = int(p.get("count", 0)); total += n
+            body = f'<b>+{n}</b>' if n else '<span class="sp-ok">✓</span>'
+        elif stt in ("error", "timeout"):
+            body = '<span class="sp-err">!</span>'
+        else:
+            body = '<span class="sp-wait">·</span>'
+        out.append(f'<span class="sp-chip">{icons[k]}{body}</span>')
+    return "".join(out)
+
+
+@st.fragment(run_every=2)
 def _render_brand_sync() -> None:
     snap = get_manual_sync_status()
-    epoch = max(float(snap.get("finished_at") or 0), _latest_ingest_epoch())
+    running = bool(snap.get("running"))
+    fin = float(snap.get("finished_at") or 0)
+    epoch = max(fin, _latest_ingest_epoch())
     label, col = _sync_age_label(epoch)
     exact = datetime.datetime.fromtimestamp(epoch, NEPAL_TZ).strftime("%d %b, %I:%M %p").lstrip("0") + " NPT" if epoch else ""
+    inner = html.escape(label)
+    tip = f'{exact} · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts'
+    if running or (fin and time.time() - fin < 8):
+        col = "#0071E3"
+        inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
+        tip = "Syncing…" if running else "Sync finished"
     st.markdown(
         f'<div class="editorial-brand-anchor" style="display:flex;align-items:center;gap:8px;height:36px;margin:0;padding:0;white-space:nowrap;">'
         f'<span class="brand-tile">{_ico("news", 15)}</span>'
         f'<span class="brand-name">Media Monitor</span>'
-        f'<span class="live-status-inline" style="background:color-mix(in srgb, {col} 14%, transparent);color:{col};padding:2px 8px;border-radius:999px;font-size:0.66rem;font-weight:700;" '
-        f'title="{html.escape(exact)} · {len(TOP_NEPAL_NEWS_PORTALS)} Portals · {len(TOP_INDIAN_MEDIA_SOURCES)} Indian · {len(VERIFIED_NEPAL_X_DIRECTORY)} X Accounts">'
-        f'<span class="live-pill__dot" style="width:5px;height:5px;background:{col};"></span>{html.escape(label)}</span>'
+        f'<span class="live-status-inline sync-inline" style="background:color-mix(in srgb, {col} 14%, transparent);color:{col};padding:2px 8px;border-radius:999px;font-size:0.66rem;font-weight:700;display:inline-flex;align-items:center;gap:6px;" title="{html.escape(tip)}">'
+        + ('' if (running or (fin and time.time() - fin < 8)) else f'<span class="live-pill__dot" style="width:5px;height:5px;background:{col};"></span>')
+        + f'{inner}</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -3792,8 +3797,6 @@ def _render_active_sync_monitor() -> None:
     if st.session_state.get("_sync_verb_for") != started:
         st.session_state["_sync_verb_for"] = started
         st.session_state["_sync_verb"] = _busy("feed").rstrip("…")
-    with st.container(key="sync_pill"):
-        st.markdown(_sync_pill_html(pipes, st.session_state.get("_sync_verb", "Syncing") + "…"), unsafe_allow_html=True)
     seen_seqs = st.session_state.get("_seen_stream_seqs", {"nepali": 0, "indian": 0, "x": 0})
     has_new_stream = any(int(snap_seqs.get(k, 0)) > int(seen_seqs.get(k, 0)) for k in ("nepali", "indian", "x"))
     if has_new_stream:
