@@ -8,7 +8,7 @@ import os
 import re
 import datetime
 import zoneinfo
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
 
@@ -129,11 +129,43 @@ TOP_INDIAN_MEDIA_SOURCES: List[Dict[str, Any]] = [
     {"name": "Dainik Bhaskar", "type": "search_rss", "domain": "bhaskar.com", "url": "https://www.bhaskar.com/", "lang": "Hindi", "desc": "Largest-circulation Hindi daily covering national & border developments"},
 ]
 
+DEFAULT_HEADERS: Dict[str, str] = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "ne-NP,ne;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+}
+
 _DEVANAGARI_RE = re.compile(r"[\u0900-\u097F]")
 
 
 def _has_devanagari(text: str) -> bool:
     return bool(text and _DEVANAGARI_RE.search(text))
+
+
+def format_nepal_relative_time(pub_dt: datetime.datetime, now_npt: Optional[datetime.datetime] = None) -> str:
+    """Consolidated relative time formatter with standard NPT boundaries."""
+    if not pub_dt:
+        return "Date unlisted"
+    if now_npt is None:
+        now_npt = datetime.datetime.now(NEPAL_TZ)
+    if pub_dt.tzinfo is None:
+        pub_dt = pub_dt.replace(tzinfo=NEPAL_TZ)
+    diff = now_npt - pub_dt
+    secs = diff.total_seconds()
+    if secs < 0 or secs < 60:
+        return "Just now"
+    if secs < 3600:
+        mins = max(1, int(secs // 60))
+        return f"{mins}m ago"
+    elif secs < 86400:
+        hours = int(secs // 3600)
+        return f"{hours}h ago"
+    elif secs < 86400 * 7:
+        days = int(secs // 86400)
+        return f"{days}d ago"
+    else:
+        return pub_dt.strftime("%b %d")
 
 
 def parse_to_nepal_time(raw_date_val: Any, now_npt: datetime.datetime):

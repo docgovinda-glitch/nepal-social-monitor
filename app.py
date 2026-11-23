@@ -23,11 +23,6 @@ import os
 import concurrent.futures
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import importlib
-import apple_theme as _apple_theme
-
-# Hot deploys keep the old module in sys.modules; reload so new theme symbols are always present.
-importlib.reload(_apple_theme)
 from apple_theme import AUTH_CSS, theme_override_css
 
 
@@ -50,43 +45,45 @@ load_env()
 from nepal_config import is_background_daemon_disabled
 
 
-def _ensure_reloaded_daemon_on_code_update() -> None:
-    """Automatically stops stale @st.cache_resource daemon threads and reloads submodules on hot git deploys."""
-    if is_background_daemon_disabled():
-        return
-    import sys
-    import importlib
+# Daemon hot-reloading is disabled in production to guarantee fast reruns and zero thread churn.
+# Set DEV_HOT_RELOAD=1 in development environments if submodule reloads are explicitly desired.
+if os.getenv("DEV_HOT_RELOAD") == "1":
+    def _ensure_reloaded_daemon_on_code_update() -> None:
+        """Automatically stops stale @st.cache_resource daemon threads and reloads submodules on hot git deploys."""
+        if is_background_daemon_disabled():
+            return
+        import sys
+        import importlib
 
-    target_ver = "2026-11-20-v8"
-    old_sched = sys.modules.get("nepal_news_scheduler")
-    if old_sched is not None and getattr(old_sched, "_DAEMON_CODE_VERSION", None) != target_ver:
-        try:
-            old_stop = getattr(old_sched, "_STOP_EVENT", None)
-            if old_stop is not None and hasattr(old_stop, "set"):
-                old_stop.set()
-            old_start = getattr(old_sched, "start_monitoring_daemon", None)
-            if old_start is not None and hasattr(old_start, "clear"):
-                old_start.clear()
-            for mod_name in (
-                "nepal_config",
-                "nepal_verified_x_directory",
-                "nepal_news_store",
-                "nepal_summarizer",
-                "nepal_fetcher",
-                "nepal_x_scanner",
-                "nepal_news_scheduler",
-            ):
-                mod = sys.modules.get(mod_name)
-                if mod is not None:
-                    importlib.reload(mod)
-            new_sched = sys.modules.get("nepal_news_scheduler")
-            if new_sched is not None and hasattr(new_sched, "start_monitoring_daemon"):
-                new_sched.start_monitoring_daemon()
-        except Exception:
-            pass
+        target_ver = "2026-11-20-v8"
+        old_sched = sys.modules.get("nepal_news_scheduler")
+        if old_sched is not None and getattr(old_sched, "_DAEMON_CODE_VERSION", None) != target_ver:
+            try:
+                old_stop = getattr(old_sched, "_STOP_EVENT", None)
+                if old_stop is not None and hasattr(old_stop, "set"):
+                    old_stop.set()
+                old_start = getattr(old_sched, "start_monitoring_daemon", None)
+                if old_start is not None and hasattr(old_start, "clear"):
+                    old_start.clear()
+                for mod_name in (
+                    "nepal_config",
+                    "nepal_verified_x_directory",
+                    "nepal_news_store",
+                    "nepal_summarizer",
+                    "nepal_fetcher",
+                    "nepal_x_scanner",
+                    "nepal_news_scheduler",
+                ):
+                    mod = sys.modules.get(mod_name)
+                    if mod is not None:
+                        importlib.reload(mod)
+                new_sched = sys.modules.get("nepal_news_scheduler")
+                if new_sched is not None and hasattr(new_sched, "start_monitoring_daemon"):
+                    new_sched.start_monitoring_daemon()
+            except Exception:
+                pass
 
-
-_ensure_reloaded_daemon_on_code_update()
+    _ensure_reloaded_daemon_on_code_update()
 
 # 1. Page Configuration
 _PAGE_ICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icon-192.png")
@@ -3069,6 +3066,9 @@ def render_infinite_workspace_feed(
         batches_to_send = []
         theme_css_to_send = ""
 
+    if sess.get("error_msg"):
+        st.warning(f"⚠️ {sess['error_msg']}. Showing cached data or retry shortly.", icon=":material/wifi_off:")
+
     ev = render_infinite_feed_component(
         session_key=sess["session_key"],
         batches=batches_to_send,
@@ -4637,10 +4637,8 @@ def render_x_section() -> None:
 # ==========================================
 # SECTION 4: Analytics & Export
 # ==========================================
-if selected_nav == "X":
-    render_x_section()
-
-elif selected_nav == "Analytics & Export":
+@st.fragment
+def render_export_analytics_section() -> None:
     _toolbar_columns("ex", {}, only_theme=True)
 
     ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
@@ -4863,6 +4861,12 @@ elif selected_nav == "Analytics & Export":
                 st.caption(":material/info: Select rows to build the Word digest.")
     else:
         render_empty_state("📊", "No export records", "Try adjusting the search keyword or selecting 'All Streams'.")
+
+
+if selected_nav == "X":
+    render_x_section()
+elif selected_nav == "Analytics & Export":
+    render_export_analytics_section()
 
 
 # ==========================================

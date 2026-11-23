@@ -54,20 +54,85 @@ from nepal_config import (
     TOP_INDIAN_MEDIA_SOURCES,
     parse_to_nepal_time,
     format_exc,
+    DEFAULT_HEADERS,
+    _has_devanagari,
+    format_nepal_relative_time,
 )
 
 SSL_CTX = ssl._create_unverified_context()
-DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "ne-NP,ne;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Cache-Control": "no-cache",
-}
 
 from nepal_summarizer import (
-    _has_devanagari,
     enrich_articles_with_english_summaries,
 )
+
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
+_HTTP_SESSION_LOCAL = threading.local()
+_FEED_HTTP_CACHE: Dict[str, Dict[str, Any]] = {}
+_FEED_HTTP_CACHE_LOCK = threading.Lock()
+
+
+def get_worker_session() -> requests.Session:
+    """Returns a thread-local persistent requests.Session with connection pooling."""
+    sess = getattr(_HTTP_SESSION_LOCAL, "session", None)
+    if sess is None:
+        sess = requests.Session()
+        retries = Retry(total=2, backoff_factor=0.3, status_forcelist=[500, 502, 503, 504])
+        adapter = HTTPAdapter(pool_connections=25, pool_maxsize=25, max_retries=retries)
+        sess.mount("https://", adapter)
+        sess.mount("http://", adapter)
+        _HTTP_SESSION_LOCAL.session = sess
+    return sess
+
+
+def fetch_feed_with_conditional_cache(
+    url: str,
+    timeout_secs: float = 8.0,
+    headers: Optional[Dict[str, str]] = None,
+    verify: bool = False,
+) -> Tuple[Optional[bytes], bool, int]:
+    """
+    Fetches raw bytes for a feed or page using persistent HTTP session and conditional headers (ETag / If-Modified-Since).
+    Returns (content_bytes, is_modified, status_code).
+    If server returns 304 Not Modified, content_bytes is None (or cached), is_modified=False, status_code=304.
+    """
+    sess = get_worker_session()
+    req_headers = dict(DEFAULT_HEADERS)
+    if headers:
+        req_headers.update(headers)
+
+    parsed_u = urllib.parse.urlparse(url)
+    origin = f"{parsed_u.scheme}://{parsed_u.netloc}/" if parsed_u.scheme and parsed_u.netloc else url
+    req_headers.setdefault("Referer", origin)
+
+    with _FEED_HTTP_CACHE_LOCK:
+        cached_meta = _FEED_HTTP_CACHE.get(url, {})
+
+    if cached_meta.get("etag"):
+        req_headers["If-None-Match"] = cached_meta["etag"]
+    if cached_meta.get("last_modified"):
+        req_headers["If-Modified-Since"] = cached_meta["last_modified"]
+
+    try:
+        resp = sess.get(url, headers=req_headers, timeout=timeout_secs, verify=verify)
+        if resp.status_code == 304:
+            return None, False, 304
+        if resp.status_code == 200:
+            etag = resp.headers.get("ETag") or resp.headers.get("etag")
+            last_mod = resp.headers.get("Last-Modified") or resp.headers.get("last-modified")
+            if etag or last_mod:
+                with _FEED_HTTP_CACHE_LOCK:
+                    _FEED_HTTP_CACHE[url] = {
+                        "etag": etag,
+                        "last_modified": last_mod,
+                        "updated_at": time.time(),
+                    }
+            return resp.content, True, 200
+        return resp.content, True, resp.status_code
+    except Exception as exc:
+        logger.debug(f"Conditional fetch failed for {url}: {exc}")
+        raise
 
 class _ThreadSafeLRUCache:
     """Thread-safe, bounded in-memory LRU cache with dict-like semantics."""
@@ -2197,27 +2262,38 @@ def fetch_single_portal(
             })
         return parsed_html
 
-    def _fetch_bytes(target_url: str, timeout_secs: float) -> bytes:
-        try:
-            req = urllib.request.Request(target_url, headers=DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout_secs) as response:
-                return response.read()
-        except Exception as primary_err:
-            # Retry once with requests session + Referer header before propagating error
+    def _fetch_bytes(target_url: str, timeout_secs: float, allow_conditional: bool = False) -> Tuple[Optional[bytes], bool]:
+        if allow_conditional:
             try:
-                parsed_u = urllib.parse.urlparse(target_url)
-                origin = f"{parsed_u.scheme}://{parsed_u.netloc}/" if parsed_u.scheme and parsed_u.netloc else target_url
-                r_resp = requests.get(
-                    target_url,
-                    headers={**DEFAULT_HEADERS, "Referer": origin},
-                    timeout=timeout_secs,
-                    verify=False,
-                )
-                if r_resp.ok and r_resp.content:
-                    return r_resp.content
+                c_bytes, is_mod, st_code = fetch_feed_with_conditional_cache(target_url, timeout_secs=timeout_secs)
+                if not is_mod or st_code == 304:
+                    return None, False
+                if c_bytes is not None:
+                    return c_bytes, True
+            except Exception as cond_err:
+                logger.debug(f"Conditional fetcher failed for {target_url}, falling back: {cond_err}")
+
+        sess = get_worker_session()
+        parsed_u = urllib.parse.urlparse(target_url)
+        origin = f"{parsed_u.scheme}://{parsed_u.netloc}/" if parsed_u.scheme and parsed_u.netloc else target_url
+        try:
+            r_resp = sess.get(
+                target_url,
+                headers={**DEFAULT_HEADERS, "Referer": origin},
+                timeout=timeout_secs,
+                verify=False,
+            )
+            if r_resp.ok and r_resp.content:
+                return r_resp.content, True
+        except Exception as primary_err:
+            try:
+                req = urllib.request.Request(target_url, headers=DEFAULT_HEADERS)
+                with urllib.request.urlopen(req, context=SSL_CTX, timeout=timeout_secs) as response:
+                    return response.read(), True
             except Exception:
                 pass
             raise primary_err
+        return b"", True
 
     def _ingest_endpoint_bytes(raw_bytes: bytes, endpoint_url: str, p_info: Dict[str, Any], limit_items: int) -> List[Dict[str, Any]]:
         head_low = raw_bytes[:1024].lstrip().lower()
@@ -2249,8 +2325,11 @@ def fetch_single_portal(
                 last_exc = e
         else:
             try:
-                primary_bytes = _fetch_bytes(portal["url"], 6.0)
-                if portal["type"] == "rss":
+                primary_bytes, is_mod = _fetch_bytes(portal["url"], 6.0, allow_conditional=(portal["type"] == "rss"))
+                if not is_mod or primary_bytes is None:
+                    # 304 Not Modified: feed has not changed since last cycle
+                    logger.info(f"Feed unchanged (HTTP 304): {portal['name']} ({portal['url']})")
+                elif portal["type"] == "rss":
                     items.extend(process_rss_content(primary_bytes, portal, entry_limit=max_entries))
                 else:
                     items.extend(_process_html_content(primary_bytes.decode("utf-8", errors="ignore"), portal["url"], portal, entry_limit=max_entries))
@@ -2267,8 +2346,9 @@ def fetch_single_portal(
                 if len(items) >= total_cap:
                     break
                 try:
-                    alt_bytes = _fetch_bytes(alt_url, 4.5)
-                    items.extend(_ingest_endpoint_bytes(alt_bytes, alt_url, portal, limit_items=per_alt_limit))
+                    alt_bytes, alt_mod = _fetch_bytes(alt_url, 4.5, allow_conditional=True)
+                    if alt_mod and alt_bytes:
+                        items.extend(_ingest_endpoint_bytes(alt_bytes, alt_url, portal, limit_items=per_alt_limit))
                 except Exception as e:
                     if last_exc is None:
                         last_exc = e

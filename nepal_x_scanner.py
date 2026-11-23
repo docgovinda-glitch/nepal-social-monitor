@@ -35,10 +35,7 @@ from typing import List, Dict, Any, Tuple, Optional
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-NEPAL_TZ = zoneinfo.ZoneInfo("Asia/Kathmandu")
-DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
+from nepal_config import NEPAL_TZ, DEFAULT_HEADERS, format_nepal_relative_time as format_relative_time
 SSL_CTX = ssl._create_unverified_context()
 _X_HTTP_LOCAL = threading.local()
 

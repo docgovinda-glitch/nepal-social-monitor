@@ -6,6 +6,7 @@ and global metric aggregation for Nepali Media Portals and Indian press on Nepal
 """
 
 import os
+import re
 import time
 import random
 import base64
@@ -166,11 +167,25 @@ def _esc_like(val: str) -> str:
     return esc_sql(f"%{escaped}%")
 
 
-def _build_search_sql(search_query: Optional[str], corpus_cols: List[str]) -> Optional[str]:
-    """Builds a PostgreSQL WHERE predicate matching smart_search_match and GIN pg_trgm expression indexes."""
+def _build_search_sql(search_query: Optional[str], corpus_cols: List[str], use_fts: bool = False) -> Optional[str]:
+    """
+    Builds a PostgreSQL WHERE predicate matching smart_search_match, GIN pg_trgm,
+    and tsvector full-text search indexes.
+    """
     groups = expand_search_tokens(search_query or "")
     if not groups:
         return None
+
+    # When FTS is requested and applicable for multi-token full text
+    if use_fts:
+        fts_corpus = " || ' ' || ".join(f"COALESCE({c}, '')" for c in corpus_cols)
+        clean_q = re.sub(r"['\":&|!<>()*]", " ", search_query or "").strip()
+        tokens = [t for t in clean_q.split() if len(t) >= 2]
+        if tokens:
+            ts_tokens = [esc_sql(t).strip("'") for t in tokens]
+            tsquery_str = " & ".join(f"'{tok}'" for tok in ts_tokens)
+            return f"(to_tsvector('simple', {fts_corpus}) @@ to_tsquery('simple', {esc_sql(tsquery_str)}))"
+
     corpus_expr = "(" + " || ' ' || ".join(f"COALESCE({c}, '')" for c in corpus_cols) + ")"
     and_parts = []
     for syns in groups:
@@ -1946,7 +1961,8 @@ def count_enabled_x_accounts() -> int:
     try:
         rows = query_supabase("SELECT COUNT(*) AS n FROM x_accounts WHERE enabled = 1;")
         return int((rows[0].get("n") if rows else 0) or 0)
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"Failed to query enabled x_accounts count: {format_exc(exc)}")
         return 0
 
 
@@ -1961,7 +1977,8 @@ def get_stream_freshness() -> Dict[str, float]:
     out = {"nepali": 0.0, "indian": 0.0, "x": 0.0}
     try:
         rows = query_supabase(sql)
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"Failed to query stream freshness: {format_exc(exc)}")
         return out
     if rows:
         r = rows[0]

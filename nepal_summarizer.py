@@ -20,6 +20,7 @@ import urllib.parse
 import concurrent.futures
 from collections import Counter
 from typing import List, Dict, Any, Callable, Optional, Tuple
+from nepal_config import _has_devanagari
 
 logger = logging.getLogger("nepal_summarizer")
 
@@ -587,13 +588,6 @@ def detect_text_language(text: str, declared_lang: str = "") -> str:
     if len(non_ascii_letters) >= 4:
         return "auto"
     return "en"
-
-
-def _has_devanagari(text: str) -> bool:
-    """Returns True if text contains Devanagari characters."""
-    if not text:
-        return False
-    return any(0x0900 <= ord(ch) <= 0x097F for ch in text)
 
 
 def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -> str:
