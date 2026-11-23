@@ -4614,12 +4614,27 @@ def render_x_section() -> None:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # Quick toggle for monitoring
-                    t_val = st.toggle("Active Monitoring", value=is_enabled, key=f"tgl_dir_{plat}_{h}_{idx}")
-                    if t_val != is_enabled:
-                        set_x_account_enabled(h, t_val, platform=plat)
-                        st.toast(f"{prefix}{h} status updated to {'Active' if t_val else 'Paused'}!", icon=":material/check_circle:")
-                        st.rerun()
+                    # Account controls: Monitor (On/Off) & Remove
+                    ctrl_c1, ctrl_c2 = st.columns([1.6, 1], vertical_alignment="center")
+                    with ctrl_c1:
+                        t_val = st.toggle("Monitor", value=is_enabled, key=f"tgl_dir_{plat}_{h}_{idx}")
+                        if t_val != is_enabled:
+                            set_x_account_enabled(h, t_val, platform=plat)
+                            st.session_state["data_version"] = int(st.session_state.get("data_version", 0)) + 1
+                            _get_cached_x_workspace_bootstrap.clear()
+                            get_cached_header_bundle.clear()
+                            get_cached_login_bootstrap.clear()
+                            st.toast(f"{prefix}{h} monitoring {'activated' if t_val else 'paused'}!", icon=":material/check_circle:")
+                            st.rerun()
+                    with ctrl_c2:
+                        if st.button("Remove", key=f"btn_rm_dir_{plat}_{h}_{idx}", icon=":material/delete:", help=f"Remove {prefix}{h} from database & directory", width="stretch"):
+                            delete_x_account(h, platform=plat)
+                            st.session_state["data_version"] = int(st.session_state.get("data_version", 0)) + 1
+                            _get_cached_x_workspace_bootstrap.clear()
+                            get_cached_header_bundle.clear()
+                            get_cached_login_bootstrap.clear()
+                            st.toast(f"Removed {prefix}{h} from database & directory!", icon=":material/delete:")
+                            st.rerun()
 
     # -------------------------------------------------------------
     # SUBVIEW 3: DISCOVERY & ACCOUNT ADMIN (CHIEF ADMIN)

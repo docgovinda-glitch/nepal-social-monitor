@@ -2335,22 +2335,33 @@ def _clear_x_caches() -> None:
 
 def set_x_account_enabled(handle: str, enabled: bool, platform: Optional[str] = None) -> bool:
     """Toggles monitoring status for an account (enabled=1 vs paused=0)."""
+    raw_h = str(handle or "").lstrip("@").strip()
     norm_h = normalize_x_handle(handle)
-    if not norm_h:
+    if not raw_h and not norm_h:
         return False
     status_val = 1 if enabled else 0
-    plat_clause = f"AND platform = {esc_sql(platform.lower())}" if platform else ""
+    plat_clause = ""
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_clean = "facebook" if "facebook" in platform.lower() else "x"
+        plat_clause = f"AND (platform = {esc_sql(plat_clean)} OR (platform IS NULL AND {esc_sql(plat_clean)} = 'x'))"
+
+    targets = list({raw_h.lower(), (norm_h or '').lower(), f"@{raw_h}".lower(), str(handle).lower()})
+    targets = [t for t in targets if t]
+    in_clause = ", ".join(esc_sql(t) for t in targets)
+
     sql = f"""
     UPDATE x_accounts 
     SET enabled = {status_val}, updated_at = NOW() 
-    WHERE handle = {esc_sql(norm_h)} {plat_clause}
+    WHERE LOWER(handle) IN ({in_clause}) {plat_clause}
     RETURNING handle;
     """
     res = query_supabase(sql)
     _clear_x_caches()
     try:
         from nepal_social_directory import set_memory_account_enabled
-        set_memory_account_enabled(norm_h, enabled, platform=platform)
+        set_memory_account_enabled(raw_h, enabled, platform=platform)
+        if norm_h and norm_h != raw_h:
+            set_memory_account_enabled(norm_h, enabled, platform=platform)
     except Exception:
         pass
     return bool(res)
@@ -2465,21 +2476,34 @@ def get_x_profile_brief_map(ttl_seconds: int = 300) -> Dict[str, Dict[str, str]]
 
 
 def delete_x_account(handle: str, platform: Optional[str] = None) -> bool:
-    """Removes an account from x_accounts."""
+    """Removes an account from x_accounts and directory."""
+    raw_h = str(handle or "").lstrip("@").strip()
     norm_h = normalize_x_handle(handle)
-    if not norm_h:
+    if not raw_h and not norm_h:
         return False
-    plat_clause = f"AND platform = {esc_sql(platform.lower())}" if platform else ""
-    sql = f"DELETE FROM x_accounts WHERE handle = {esc_sql(norm_h)} {plat_clause} RETURNING handle;"
+
+    plat_clause = ""
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_clean = "facebook" if "facebook" in platform.lower() else "x"
+        plat_clause = f"AND (platform = {esc_sql(plat_clean)} OR (platform IS NULL AND {esc_sql(plat_clean)} = 'x'))"
+
+    targets = list({raw_h.lower(), (norm_h or '').lower(), f"@{raw_h}".lower(), str(handle).lower()})
+    targets = [t for t in targets if t]
+    in_clause = ", ".join(esc_sql(t) for t in targets)
+
+    sql = f"DELETE FROM x_accounts WHERE LOWER(handle) IN ({in_clause}) {plat_clause} RETURNING handle;"
     res = query_supabase(sql)
     _X_PROFILE_CACHE["ts"] = 0.0
+    _X_PROFILE_CACHE["data"] = {}
     _clear_x_caches()
     try:
         from nepal_social_directory import delete_memory_account
-        delete_memory_account(norm_h, platform=platform)
+        delete_memory_account(raw_h, platform=platform)
+        if norm_h and norm_h != raw_h:
+            delete_memory_account(norm_h, platform=platform)
     except Exception:
         pass
-    return bool(res)
+    return bool(res) if res else True
 
 
 def verify_x_profile_connectivity(handle: str) -> Tuple[bool, str]:

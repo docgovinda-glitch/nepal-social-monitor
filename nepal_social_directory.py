@@ -7792,8 +7792,10 @@ def sync_account_to_memory(acc: Dict[str, Any]) -> None:
 def set_memory_account_enabled(handle: str, enabled: bool, platform: Any = None) -> None:
     """Toggles enabled state of an account in memory."""
     h = str(handle).lstrip("@").strip().lower()
+    plat_val = str(platform).lower() if platform else None
     for acc in VERIFIED_NEPAL_SOCIAL_DIRECTORY:
-        if platform and str(acc.get("platform") or "x").lower() != str(platform).lower():
+        acc_plat = str(acc.get("platform") or "x").lower()
+        if plat_val and acc_plat != plat_val:
             continue
         if str(acc.get("handle") or "").lstrip("@").strip().lower() == h:
             acc["enabled"] = 1 if enabled else 0
@@ -7803,17 +7805,24 @@ def delete_memory_account(handle: str, platform: Any = None) -> None:
     """Deletes an account from the in-memory social directory."""
     global VERIFIED_NEPAL_SOCIAL_DIRECTORY, DIRECTORY_BY_PLATFORM_HANDLE, DIRECTORY_BY_HANDLE
     h = str(handle).lstrip("@").strip().lower()
+    plat_val = str(platform).lower() if platform else None
     keep = []
     for acc in VERIFIED_NEPAL_SOCIAL_DIRECTORY:
-        if platform and str(acc.get("platform") or "x").lower() != str(platform).lower():
+        acc_plat = str(acc.get("platform") or "x").lower()
+        if plat_val and acc_plat != plat_val:
             keep.append(acc)
             continue
         if str(acc.get("handle") or "").lstrip("@").strip().lower() == h:
             continue
         keep.append(acc)
     VERIFIED_NEPAL_SOCIAL_DIRECTORY[:] = keep
-    plat_key = f"{str(platform).lower()}:{h}" if platform else None
-    if plat_key and plat_key in DIRECTORY_BY_PLATFORM_HANDLE:
-        del DIRECTORY_BY_PLATFORM_HANDLE[plat_key]
-    if h in DIRECTORY_BY_HANDLE:
-        del DIRECTORY_BY_HANDLE[h]
+    if plat_val:
+        DIRECTORY_BY_PLATFORM_HANDLE.pop(f"{plat_val}:{h}", None)
+    else:
+        DIRECTORY_BY_PLATFORM_HANDLE.pop(f"x:{h}", None)
+        DIRECTORY_BY_PLATFORM_HANDLE.pop(f"facebook:{h}", None)
+    DIRECTORY_BY_HANDLE.pop(h, None)
+
+
+# Alias for compatibility
+update_memory_account_status = set_memory_account_enabled

@@ -133,6 +133,57 @@ class TestSocialMediaUnification(unittest.TestCase):
         sd.delete_memory_account("test_nepal_voice_unique", platform="facebook")
         self.assertNotIn("facebook:test_nepal_voice_unique", sd.DIRECTORY_BY_PLATFORM_HANDLE)
 
+    def test_account_monitoring_toggle_and_remove(self):
+        """Verifies toggle monitoring on/off and remove trigger DB operations and directory updates."""
+        test_h = "temp_audit_del_voice"
+        test_plat = "facebook"
+        test_acc = {
+            "platform": test_plat,
+            "handle": test_h,
+            "name": "Temp Audit Voice",
+            "category": "Politicians",
+            "subcategory": "Party Leadership",
+            "role": "Civic Leader",
+            "enabled": 1,
+            "verification_status": "verified"
+        }
+        with mock.patch("nepal_news_store.query_supabase", return_value=[{"handle": test_h}]):
+            store.upsert_single_x_account(test_acc)
+
+        # Verify added to memory
+        self.assertIn(f"{test_plat}:{test_h}", sd.DIRECTORY_BY_PLATFORM_HANDLE)
+
+        # 1. Test Monitor toggle off
+        executed_sqls = []
+        def _mock_query(sql):
+            executed_sqls.append(sql)
+            if "UPDATE x_accounts" in sql:
+                return [{"handle": test_h}]
+            if "DELETE FROM x_accounts" in sql:
+                return [{"handle": test_h}]
+            return []
+
+        with mock.patch("nepal_news_store.query_supabase", side_effect=_mock_query):
+            ok_toggle = store.set_x_account_enabled(test_h, False, platform=test_plat)
+            self.assertTrue(ok_toggle)
+            self.assertTrue(any("UPDATE x_accounts" in s and "enabled = 0" in s for s in executed_sqls))
+            # Verify memory enabled updated
+            acc_in_mem = sd.DIRECTORY_BY_PLATFORM_HANDLE.get(f"{test_plat}:{test_h}")
+            self.assertEqual(acc_in_mem.get("enabled"), 0)
+
+            # 2. Test Monitor toggle on
+            ok_toggle_on = store.set_x_account_enabled(test_h, True, platform=test_plat)
+            self.assertTrue(ok_toggle_on)
+            self.assertTrue(any("UPDATE x_accounts" in s and "enabled = 1" in s for s in executed_sqls))
+            self.assertEqual(acc_in_mem.get("enabled"), 1)
+
+            # 3. Test Remove
+            ok_remove = store.delete_x_account(test_h, platform=test_plat)
+            self.assertTrue(ok_remove)
+            self.assertTrue(any("DELETE FROM x_accounts" in s for s in executed_sqls))
+            # Verify removed from memory
+            self.assertNotIn(f"{test_plat}:{test_h}", sd.DIRECTORY_BY_PLATFORM_HANDLE)
+
 
 if __name__ == "__main__":
     unittest.main()
