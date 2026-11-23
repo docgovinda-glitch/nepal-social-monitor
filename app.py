@@ -3326,7 +3326,7 @@ def _on_ws_seg_change() -> None:
 
 st.session_state["app_nav_seg"] = selected_nav
 
-_nav_brand, _nav_theme, _nav_tabs = st.columns([1.75, 0.9, 4.35], gap="small", vertical_alignment="center")
+_nav_brand, _nav_tabs = st.columns([6, 0.2], gap="small", vertical_alignment="center")
 @st.cache_data(ttl=60, show_spinner=False)
 def _latest_ingest_epoch() -> float:
     """Newest source poll time recorded in Supabase (written by GitHub Actions or the in-app daemon)."""
@@ -3428,18 +3428,22 @@ def _on_theme_change() -> None:
     st.session_state.pop("feed_sessions", None)
 
 
-with _nav_theme:
-    st.markdown('<div class="theme-row-anchor"></div>', unsafe_allow_html=True)
-    st.segmented_control(
-        "Theme",
-        options=["auto", "light", "dark"],
-        format_func=lambda m: {"auto": ":material/brightness_auto:", "light": ":material/light_mode:", "dark": ":material/dark_mode:"}[m],
-        default=_THEME_MODE,
-        key="theme_seg",
-        on_change=_on_theme_change,
-        label_visibility="collapsed",
-        help="Appearance: auto, light, dark",
-    )
+def _cycle_theme() -> None:
+    """One button: auto -> light -> dark -> auto."""
+    order = ["auto", "light", "dark"]
+    cur = st.query_params.get("theme", "auto")
+    nxt = order[(order.index(cur) + 1) % 3] if cur in order else "light"
+    st.query_params["theme"] = nxt
+    st.session_state.pop("feed_sessions", None)
+
+
+def _render_theme_button(ws_suffix: str) -> None:
+    mode = _THEME_MODE if _THEME_MODE in ("auto", "light", "dark") else "auto"
+    icon = {"auto": ":material/brightness_auto:", "light": ":material/light_mode:", "dark": ":material/dark_mode:"}[mode]
+    st.button("", icon=icon, key=f"btn_theme_{ws_suffix}", width="stretch", on_click=_cycle_theme,
+              help=f"Appearance: {mode} · tap to change")
+
+
 with _nav_tabs:
     st.segmented_control(
         "Workspace",
@@ -3843,9 +3847,17 @@ search_query = st.session_state.get("committed_search_query", "")
 # ==========================================
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
-def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any]) -> Any:
-    """One row of four icon buttons: search | filters | time range | sync. Returns the filters popover for the caller to fill."""
-    c = st.columns([1, 1, 1, 1, 3], gap="small")
+def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool = False) -> Any:
+    """One row of five icon buttons: search | filters | time range | sync | appearance. Returns the filters popover for the caller to fill."""
+    c = st.columns([1, 1, 1, 1, 1, 3], gap="small")
+    if only_theme:
+        with c[1]:
+            st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
+        with c[4]:
+            _render_theme_button(ws_suffix)
+        return None
+    with c[4]:
+        _render_theme_button(ws_suffix)
     with c[1]:
         st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
         n_active = sum(1 for k, d in defaults.items() if st.session_state.get(k, d) != d)
@@ -4512,6 +4524,7 @@ if selected_nav == "X":
 
 elif selected_nav == "Analytics & Export":
     render_page_header("Export")
+    _toolbar_columns("ex", {}, only_theme=True)
 
     ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
     with ex_c1:
@@ -5148,5 +5161,6 @@ def render_system_health_section() -> None:
 
 
 if selected_nav == "System Health":
+    _toolbar_columns("hl", {}, only_theme=True)
     render_system_health_section()
 
