@@ -1699,33 +1699,25 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENT
         opacity: 1 !important;
     }
 
-    /* Apple HIG Frosted Tooltips */
-    div[data-baseweb="tooltip"],
-    div[role="tooltip"],
-    div[data-testid="stTooltipContent"] {
-        border-radius: 9px !important;
-        box-shadow: 0 10px 26px -2px rgba(15, 23, 42, 0.12), 0 2px 6px -1px rgba(15, 23, 42, 0.05) !important;
-        background: rgba(255, 255, 255, 0.95) !important;
-        backdrop-filter: blur(20px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-        border: 1px solid rgba(15, 23, 42, 0.09) !important;
-        padding: 6px 12px !important;
-        color: #0F172A !important;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif !important;
-        font-size: 0.78rem !important;
-        font-weight: 550 !important;
-        letter-spacing: -0.01em !important;
-        line-height: 1.36 !important;
+    /* Tooltips: one compact dark glass tip (outer layers are transparent so nothing stacks into a box-in-a-box) */
+    div[data-baseweb="tooltip"], div[role="tooltip"], div[data-baseweb="popover"]:has(div[data-testid="stTooltipContent"]) {
+        background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
     }
-
-    div[data-baseweb="tooltip"] > div,
-    div[role="tooltip"] > div,
-    div[data-testid="stTooltipContent"] > div {
-        background: transparent !important;
-        color: #0F172A !important;
-        font-size: 0.78rem !important;
-        font-weight: 550 !important;
-        padding: 0 !important;
+    div[data-testid="stTooltipContent"] {
+        background: rgba(29, 29, 31, 0.92) !important; color: #F5F5F7 !important;
+        backdrop-filter: blur(16px) saturate(160%) !important; -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+        border: 0 !important; border-radius: 8px !important; padding: 6px 10px !important; max-width: 260px !important;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22) !important;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif !important;
+        font-size: 0.74rem !important; font-weight: 550 !important; letter-spacing: 0 !important; line-height: 1.3 !important;
+    }
+    div[data-testid="stTooltipContent"], div[data-testid="stTooltipContent"] * {
+        color: #F5F5F7 !important;
+    }
+    div[data-testid="stTooltipContent"] > div, div[data-testid="stTooltipContent"] p, div[data-testid="stTooltipContent"] [data-testid="stMarkdownContainer"] {
+        background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; border-radius: 0 !important;
+        font-size: inherit !important; font-weight: inherit !important; white-space: normal !important;
     }
 
     /* ==========================================================

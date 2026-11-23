@@ -3441,7 +3441,7 @@ def _render_theme_button(ws_suffix: str) -> None:
     mode = _THEME_MODE if _THEME_MODE in ("auto", "light", "dark") else "auto"
     icon = {"auto": ":material/brightness_auto:", "light": ":material/light_mode:", "dark": ":material/dark_mode:"}[mode]
     if st.button("", icon=icon, key=f"btn_theme_{ws_suffix}", width="stretch",
-                 help=f"Appearance: {mode} · tap to change"):
+                 help=f"Appearance · {mode.capitalize()}"):
         _cycle_theme()
         st.rerun()  # full-app rerun: this button lives inside a fragment, and the theme CSS is applied at the top of the script
 
@@ -3692,7 +3692,7 @@ def _render_phase3_onboarding_card() -> None:
 def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffix: str) -> None:
     """Renders [ 🕒 12h ▾ | 🔍 | 🔄 ] on the right side of Row 2."""
     with col_time:
-        with st.popover(f":material/schedule: {active_preset}", help=f"Timeframe: {window_label} (Synced {st.session_state['last_sync_npt']} NPT)", width="stretch"):
+        with st.popover(f":material/schedule: {active_preset}", help=window_label, width="stretch"):
             st.segmented_control(
                 "Timeframe",
                 options=TIMEFRAME_PRESETS,
@@ -3719,7 +3719,7 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
             st.button("Reset All Filters", icon=":material/restart_alt:", key=f"btn_rst_{ws_suffix}", width="stretch", on_click=reset_all_filters)
     with col_srch:
         _srch_btn_type = "primary" if _active_sq else "secondary"
-        _srch_help = f"Searching: {_active_sq} (click to edit/clear)" if _active_sq else "Search across all streams"
+        _srch_help = f"“{_active_sq}” · tap to edit" if _active_sq else "Search"
         if st.button("", icon=":material/search:", key=f"btn_srch_{ws_suffix}", type=_srch_btn_type, width="stretch", help=_srch_help):
             _show_search_dialog()
     with col_sync:
@@ -3731,7 +3731,7 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
             key=(f"btn_sync_run_{ws_suffix}" if _is_syncing_now else f"btn_sync_{ws_suffix}"),
             width="stretch",
             disabled=_is_syncing_now,
-            help=("Syncing…" if _is_syncing_now else f"Synced {st.session_state['last_sync_npt']} NPT · tap to sync"),
+            help=("Syncing…" if _is_syncing_now else "Sync now"),
         ):
             trigger_manual_sync_async()
             st.rerun()
