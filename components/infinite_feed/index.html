@@ -108,6 +108,25 @@
     height: 15px;
     flex-shrink: 0;
   }
+  /* Read button: the icon cross-fades between "read" and "translate" on a loop (click still fires the Read action) */
+  .ico-swap { position: relative; display: inline-block; width: 15px; height: 15px; flex: none; pointer-events: none; }
+  .ico-swap svg { position: absolute; inset: 0; width: 15px; height: 15px; will-change: opacity, transform; }
+  .ico-swap .ico-read { animation: ico-read 6s ease-in-out infinite; }
+  .ico-swap .ico-translate { animation: ico-translate 6s ease-in-out infinite; }
+  @keyframes ico-read {
+    0%, 38% { opacity: 1; transform: scale(1) rotate(0deg); }
+    50%, 88% { opacity: 0; transform: scale(0.6) rotate(-14deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  @keyframes ico-translate {
+    0%, 38% { opacity: 0; transform: scale(0.6) rotate(14deg); }
+    50%, 88% { opacity: 1; transform: scale(1) rotate(0deg); }
+    100% { opacity: 0; transform: scale(0.6) rotate(14deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ico-swap .ico-read { animation: none; opacity: 1; }
+    .ico-swap .ico-translate { animation: none; opacity: 0; }
+  }
   @media (max-width: 640px) {
     #feed-root, .feed-batch {
       gap: 10px;
