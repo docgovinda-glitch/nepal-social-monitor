@@ -336,6 +336,38 @@
       }
 
       // Attach capturing scroll listener on parent document and clean up on unload to prevent memory leaks
+      // ---- Scroll guard: remember the reader's position; restore it if a re-render/remount resets it ----
+      let lastGesture = 0;
+      let guardTimer = null;
+      let firstRender = true;
+      function scrollEl() {
+        try { const d = window.parent.document; return d.querySelector('[data-testid="stMain"]') || d.scrollingElement; } catch (e) { return null; }
+      }
+      function noteScroll() {
+        // Only user-driven scrolls are remembered, so a programmatic reset to 0 never overwrites the saved spot.
+        if (Date.now() - lastGesture > 2500) return;
+        const el = scrollEl(); if (!el) return;
+        try { window.parent.__nmScroll = { key: currentSessionKey, y: el.scrollTop }; } catch (e) {}
+      }
+      function guardScroll(ms) {
+        let saved = null;
+        try { saved = window.parent.__nmScroll; } catch (e) {}
+        if (!saved || saved.key !== currentSessionKey || saved.y < 300) return;
+        const started = Date.now();
+        if (guardTimer) clearInterval(guardTimer);
+        guardTimer = setInterval(function () {
+          const el = scrollEl();
+          if (!el || lastGesture > started || Date.now() - started > ms) { clearInterval(guardTimer); guardTimer = null; return; }
+          if (el.scrollTop < saved.y - 150 && el.scrollHeight > saved.y + el.clientHeight * 0.5) el.scrollTop = saved.y;
+        }, 80);
+      }
+      function markGesture() { lastGesture = Date.now(); }
+
+      // Touches/wheel over the feed happen inside this iframe, so listen here too
+      ["touchstart", "touchmove", "touchend", "wheel", "keydown", "mousedown"].forEach(function (evn) {
+        document.addEventListener(evn, markGesture, { capture: true, passive: true });
+      });
+
       function bindParentScroll() {
         let pWin = null;
         try {
@@ -343,6 +375,10 @@
           pWin.addEventListener("scroll", scheduleScrollCheck, { passive: true });
           pWin.addEventListener("resize", scheduleScrollCheck, { passive: true });
           pWin.document.addEventListener("scroll", scheduleScrollCheck, { capture: true, passive: true });
+          pWin.document.addEventListener("scroll", noteScroll, { capture: true, passive: true });
+          ["touchstart", "touchmove", "touchend", "wheel", "keydown", "mousedown"].forEach(function (evn) {
+            pWin.document.addEventListener(evn, markGesture, { capture: true, passive: true });
+          });
         } catch (e) {
           pWin = null;
           window.addEventListener("scroll", scheduleScrollCheck, { passive: true });
@@ -396,6 +432,7 @@
           lastRequestedSeq = -1;
         }
 
+        let patchedNow = false;
         const batches = Array.isArray(args.batches) ? args.batches : [];
         const incomingLoaded = Number(args.loaded_count || 0);
         // Recovery safety guard: if a remounted iframe receives only a delta batch (or empty) when prior batches exist, request full sync
@@ -410,7 +447,7 @@
             if (b && typeof b.seq === "number" && renderedSeqs.has(b.seq) && (b.rev || 0) !== (renderedRevs.get(b.seq) || 0)) {
               // Same batch, patched content (e.g. sent tick): swap in place, no scroll change
               const cur = feedRoot.querySelector('.feed-batch[data-seq="' + b.seq + '"]');
-              if (cur) { cur.replaceChildren(sanitizeBatchHtml(b.html)); renderedRevs.set(b.seq, b.rev || 0); }
+              if (cur) { cur.replaceChildren(sanitizeBatchHtml(b.html)); renderedRevs.set(b.seq, b.rev || 0); patchedNow = true; }
             } else if (b && typeof b.seq === "number" && !renderedSeqs.has(b.seq)) {
               renderedRevs.set(b.seq, b.rev || 0);
               const batchDiv = document.createElement("div");
@@ -446,6 +483,8 @@
         );
         scheduleFrameHeight();
         setTimeout(scheduleScrollCheck, 80);
+        if (patchedNow || firstRender) guardScroll(4000);
+        firstRender = false;
       });
 
       bindParentScroll();
