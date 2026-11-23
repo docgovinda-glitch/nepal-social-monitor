@@ -510,8 +510,7 @@ _PHASE1_ENHANCEMENTS_CSS = """
 
     /* 1.5: Modal Focus Trap & Accessibility */
     div[data-testid="stDialog"] {
-        outline: 2px solid var(--tint) !important;
-        outline-offset: -1px !important;
+        outline: none !important;
     }
     div[data-testid="stDialog"] [role="button"]:last-of-type {
         margin-right: 8px !important;

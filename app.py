@@ -1230,6 +1230,7 @@ def _format_wa_sent_time(sent_at_val: Any) -> str:
 
 def _clear_active_modal() -> None:
     st.session_state["active_modal"] = None
+    st.session_state["_active_modal_opened"] = False
 
 
 def _render_source_link_html(url: str, inline: bool = False) -> str:
@@ -1359,7 +1360,6 @@ def _on_toggle_read_view(cache_id: str) -> None:
     st.session_state.setdefault("ondemand_fulltext_view", {})[cache_id] = "orig" if cur == "en" else "en"
 
 
-@st.fragment
 def _render_read_send_fragment(
     cache_id: str,
     item_uid: str,
@@ -1933,7 +1933,6 @@ def _on_share_req_close_guard(cache_id: str) -> None:
         d["close_guard"] = True
 
 
-@st.fragment
 def _render_share_send_fragment(
     cache_id: str,
     item_uid: str,
@@ -2977,6 +2976,7 @@ def render_infinite_workspace_feed(
                     "item_uid": uid,
                     "item_link": item_link,
                 }
+                st.session_state["_active_modal_opened"] = False
                 modal_action_requested = {"action": ev_obj.get("action"), "is_x": is_x}
 
     _process_component_event(pre_ev, is_pre_pass=True)
@@ -3085,7 +3085,8 @@ def render_infinite_workspace_feed(
         _process_component_event(ev, is_pre_pass=False)
 
     active_m = st.session_state.get("active_modal")
-    if active_m:
+    if active_m and not st.session_state.get("_active_modal_opened"):
+        st.session_state["_active_modal_opened"] = True
         m_mode = active_m.get("mode")
         m_is_x = bool(active_m.get("is_x", False))
         if m_mode == "read" and not m_is_x:
@@ -3488,6 +3489,9 @@ def _sync_inline_html(pipes: Dict[str, Dict[str, Any]], final: bool = False) -> 
 
 @st.fragment(run_every=2)
 def _render_brand_sync() -> None:
+    # Pause background polling while any modal dialog is active to avoid visual flickering
+    if st.session_state.get("active_modal"):
+        return
     snap = get_manual_sync_status()
     running = bool(snap.get("running"))
     fin = float(snap.get("finished_at") or 0)
