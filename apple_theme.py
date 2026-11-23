@@ -3288,7 +3288,23 @@ div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(v
 @media (max-width: 640px) { div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(var(--rail-w) + 8px) !important; padding-right: 10px !important; } }
 .st-key-new_stories_pill:not(#a):not(#b) { bottom: 24px !important; left: calc(50% + var(--rail-w) / 2) !important; }
 """
+_TITLEBAR_CSS = """
+/* ===== Title bar: page title + sync pill; on desktop the tool buttons sit on the same row ===== */
+.hdr-title-wrap { display: flex; align-items: center; gap: 8px; min-height: 44px; white-space: nowrap; }
+.hdr-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--text-primary, #1d1d1f); }
+.hdr-meta { display: inline-flex; align-items: center; }
+.hdr-title-wrap .live-status-inline.sync-inline { padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; }
+@media (min-width: 900px) {
+  .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; min-height: 64px; }
+  .hdr-title { font-size: 1.7rem; }
+  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(.tb-anchor) { margin-top: -67px !important; margin-bottom: 29px !important; padding-right: 150px !important; position: relative; z-index: 2; pointer-events: none; }
+  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(.tb-anchor) * { pointer-events: auto; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { justify-content: flex-end !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(5) { order: -1; }
+}
+"""
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_CSS)
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TITLEBAR_CSS)
 
 
 

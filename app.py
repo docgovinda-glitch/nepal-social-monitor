@@ -3406,13 +3406,15 @@ def _render_brand_sync() -> None:
         col = "#0071E3"
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
+    _titles = {"Live Feed": "All stories", "Nepali Media": "Nepal", "Indian Press": "India", "X": "X", "Analytics & Export": "Export", "System Health": "Health"}
+    _title = _titles.get(selected_nav, "Media Monitor")
     st.markdown(
-        f'<div class="editorial-brand-anchor" style="display:flex;align-items:center;gap:8px;height:36px;margin:0;padding:0;white-space:nowrap;">'
-        f'<span class="brand-tile">{_ico("news", 15)}</span>'
-        f'<span class="brand-name">Media Monitor</span>'
-        f'<span class="live-status-inline sync-inline" style="background:color-mix(in srgb, {col} 14%, transparent);color:{col};padding:2px 8px;border-radius:999px;font-size:0.66rem;font-weight:700;display:inline-flex;align-items:center;gap:6px;" title="{html.escape(tip)}">'
+        f'<div class="editorial-brand-anchor hdr-title-wrap">'
+        f'<div class="hdr-title">{html.escape(_title)}</div>'
+        f'<div class="hdr-meta"><span class="live-status-inline sync-inline" style="background:color-mix(in srgb, {col} 14%, transparent);color:{col};" '
+        f'title="{html.escape(tip)}">'
         + ('' if (running or (fin and time.time() - fin < 8)) else f'<span class="live-pill__dot" style="width:5px;height:5px;background:{col};"></span>')
-        + f'{inner}</span>'
+        + f'{inner}</span></div>'
         f'</div>',
         unsafe_allow_html=True,
     )
