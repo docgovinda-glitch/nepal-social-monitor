@@ -3326,7 +3326,7 @@ def _on_ws_seg_change() -> None:
 
 st.session_state["app_nav_seg"] = selected_nav
 
-_nav_brand, _nav_tabs = st.columns([6, 0.2], gap="small", vertical_alignment="center")
+_nav_tabs = st.container(key="rail_host")
 @st.cache_data(ttl=60, show_spinner=False)
 def _latest_ingest_epoch() -> float:
     """Newest source poll time recorded in Supabase (written by GitHub Actions or the in-app daemon)."""
@@ -3426,8 +3426,6 @@ def _render_brand_sync() -> None:
     )
 
 
-with _nav_brand:
-    _render_brand_sync()
 def _on_theme_change() -> None:
     chosen = st.session_state.get("theme_seg") or "auto"
     st.query_params["theme"] = chosen
@@ -3856,25 +3854,30 @@ search_query = st.session_state.get("committed_search_query", "")
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
 def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool = False, admin: bool = False) -> Any:
-    """One row of five icon buttons: search | filters | time range | sync | appearance. Returns the filters popover for the caller to fill."""
-    c = st.columns([1, 1, 1, 1, 1, 1, 3] if admin else [1, 1, 1, 1, 1, 3], gap="small")
-    if admin:
-        with c[5]:
-            st.button("", icon=":material/admin_panel_settings:", key="btn_x_admin", help="Admin", width="stretch",
-                      on_click=lambda: st.session_state.update({"x_subview_active_tab": "Admin"}))
+    """One row: title + sync status on the left; search | filters | time | sync | appearance (| admin) on the right.
+    Returns the filters popover for the caller to fill."""
     if only_theme:
+        c = st.columns([6, 1], gap="small", vertical_alignment="center")
+        with c[0]:
+            st.markdown('<div class="tb-anchor tb-only-theme"></div>', unsafe_allow_html=True)
+            _render_brand_sync()
         with c[1]:
-            st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
-        with c[4]:
             _render_theme_button(ws_suffix)
         return None
-    with c[4]:
+    c = st.columns([6, 1, 1, 1, 1, 1, 1] if admin else [6, 1, 1, 1, 1, 1], gap="small", vertical_alignment="center")
+    with c[0]:
+        _render_brand_sync()
+    with c[5]:
         _render_theme_button(ws_suffix)
-    with c[1]:
+    if admin:
+        with c[6]:
+            st.button("", icon=":material/admin_panel_settings:", key="btn_x_admin", help="Admin", width="stretch",
+                      on_click=lambda: st.session_state.update({"x_subview_active_tab": "Admin"}))
+    with c[2]:
         st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
         n_active = sum(1 for k, d in defaults.items() if st.session_state.get(k, d) != d)
         pop = st.popover(f":material/tune: {n_active}" if n_active else ":material/tune:", help="Filters", width="stretch")
-    _render_row2_utilities(c[2], c[0], c[3], ws_suffix)
+    _render_row2_utilities(c[3], c[1], c[4], ws_suffix)
     return pop
 
 

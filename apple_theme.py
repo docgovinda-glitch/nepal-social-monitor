@@ -3218,36 +3218,13 @@ AUTH_CSS = _append_css(AUTH_CSS, _NAV_ICONS_CSS)
 
 
 _TOOLBAR_CSS = """
-    /* ===== Icon bar: search | filters | time | sync in one row ===== */
+    /* ===== Toolbar row (title + tools) ===== */
     div[data-testid="stElementContainer"]:has(.tb-anchor) { display: none !important; }
-    @media (max-width: 640px) {
-        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) { flex-direction: row !important; flex-wrap: nowrap !important; gap: 8px !important; align-items: center !important; }
-        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"] { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; max-width: none !important; }
-        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:last-child { display: none !important; }
-        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { flex: 1.9 1 0 !important; }
-    }
     div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { padding: 0 8px !important; min-width: 0 !important; }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TOOLBAR_CSS)
 
 _DESKTOP_CSS = """
-@media (min-width: 900px) {
-  /* Header: brand left, tabs centred, appearance at the far right */
-  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) { align-items: center !important; gap: 20px !important; }
-  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) > div[data-testid="stColumn"]:has(.editorial-brand-anchor) { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; order: 1; }
-  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) > div[data-testid="stColumn"]:has(.st-key-app_nav_seg):not(:has(.st-key-theme_seg)) { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; order: 2; }
-  div[data-testid="stHorizontalBlock"]:has(.st-key-app_nav_seg) > div[data-testid="stColumn"]:has(.st-key-theme_seg) { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; order: 3; }
-  .st-key-app_nav_seg { max-width: 560px; margin: 0 auto; }
-  /* Toolbar: compact, equal-height icon buttons grouped on the left (same look for all four) */
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { gap: 8px !important; justify-content: flex-start !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(1), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(4), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(5), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(6):not(:last-child) { width: 52px !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(2) { width: 76px !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { width: 92px !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:last-child { flex: 1 1 0 !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { height: 38px !important; min-height: 38px !important; background: rgba(60,60,67,.08) !important; border: 0 !important; box-shadow: none !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button:hover, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button:hover { background: rgba(60,60,67,.14) !important; }
-}
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _DESKTOP_CSS)
 
@@ -3291,14 +3268,6 @@ _TITLEBAR_CSS = """
 .sync-dot--live { animation: nm-dot 2.4s ease-in-out infinite; }
 @keyframes nm-dot { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot) 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 @media (prefers-reduced-motion: reduce) { .sync-dot--live { animation: none; } }
-@media (min-width: 900px) {
-  .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; height: 72px; min-height: 72px; }
-  .hdr-title { font-size: 1.7rem; }
-  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .tb-anchor) { margin-top: -67px !important; margin-bottom: 29px !important; padding-right: 0 !important; position: relative; z-index: 2; pointer-events: none; }
-  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .tb-anchor) * { pointer-events: auto; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { justify-content: flex-end !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:last-child { order: -1; }
-}
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_CSS)
 
@@ -3338,6 +3307,33 @@ _RAIL_ICONS_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TITLEBAR_CSS)
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_ICONS_CSS)
+
+_TB2_CSS = """
+/* ===== Title + tools share one row (Streamlit columns); the rail host takes no space ===== */
+.st-key-rail_host, div[data-testid="stLayoutWrapper"]:has(> .st-key-rail_host), div[data-testid="stElementContainer"]:has(> .st-key-rail_host) { position: fixed !important; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
+div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { gap: 8px !important; row-gap: 6px !important; align-items: center !important; }
+div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { height: 38px !important; min-height: 38px !important; background: rgba(60,60,67,.08) !important; border: 0 !important; box-shadow: none !important; }
+div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button:hover, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button:hover { background: rgba(60,60,67,.14) !important; }
+@media (min-width: 900px) {
+  .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; min-height: 64px; }
+  .hdr-title { font-size: 1.7rem; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { flex-wrap: nowrap !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"] { flex: 0 0 auto !important; min-width: 0 !important; width: 52px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(1) { flex: 1 1 0 !important; width: auto !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { width: 76px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(4) { width: 92px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-only-theme) > div[data-testid="stColumn"]:nth-child(2) { width: 52px !important; }
+}
+@media (max-width: 899px) {
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) { flex-wrap: wrap !important; flex-direction: row !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"] { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(1) { flex: 0 0 100% !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(4) { flex: 1.9 1 0 !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-only-theme):has(.tb-only-theme):has(.tb-only-theme):has(.tb-only-theme):has(.tb-only-theme) > div[data-testid="stColumn"]:nth-child(1) { flex: 1 1 0 !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-only-theme):has(.tb-only-theme):has(.tb-only-theme):has(.tb-only-theme):has(.tb-only-theme) > div[data-testid="stColumn"]:nth-child(2) { flex: 0 0 52px !important; }
+}
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TB2_CSS)
 
 
 
