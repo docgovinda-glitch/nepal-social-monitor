@@ -1189,12 +1189,13 @@ def _hydrate_indian_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _hydrate_x_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalizes published_dt and relative timestamps for X post rows."""
+    """Normalizes published_dt, relative timestamps, and platform for social post rows."""
     now_npt = datetime.datetime.now(NEPAL_TZ)
     for p in rows:
         p["published_dt"] = _parse_utc_to_npt_ts(p.get("published_dt"))
         p["is_real_api"] = bool(p.get("is_real_api", True))
         p["verified"] = bool(p.get("verified", True))
+        p["platform"] = str(p.get("platform") or ("facebook" if "facebook.com" in str(p.get("link", "")).lower() else "x")).lower()
         if not p.get("relative_time") and p.get("published_dt"):
             secs = (now_npt - p["published_dt"]).total_seconds()
             if secs < 60:
@@ -1286,8 +1287,15 @@ def _build_x_where(
     search_query: Optional[str] = None,
     snapshot_ingested_at: Optional[datetime.datetime] = None,
     exclude_media_houses: bool = False,
+    platform: Optional[str] = None,
 ) -> List[str]:
     clauses = ["1=1"]
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_val = platform.lower()
+        if plat_val == "x":
+            clauses.append("(platform = 'x' OR platform IS NULL)")
+        else:
+            clauses.append(f"platform = {esc_sql(plat_val)}")
     if start_dt:
         clauses.append(f"published_dt >= '{_fmt_sql_ts(start_dt, as_utc=True)}'")
     if end_dt:
@@ -2169,10 +2177,12 @@ def get_all_x_accounts(
     verification_status: Optional[str] = None,
     enabled_only: bool = False,
     search: Optional[str] = None,
-    limit: int = 1000
+    limit: int = 1500,
+    platform: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Retrieves accounts from the Supabase x_accounts table with filtering and search support.
+    Retrieves accounts from the Supabase x_accounts table with filtering and search support,
+    falling back to nepal_social_directory when Supabase rows are unavailable.
     """
     clauses = ["1=1"]
     if category and category.lower() != "all":
@@ -2188,6 +2198,34 @@ def get_all_x_accounts(
     where = "WHERE " + " AND ".join(clauses)
     sql = f"SELECT * FROM x_accounts {where} ORDER BY category ASC, name ASC LIMIT {limit};"
     rows = query_supabase(sql)
+    if not rows:
+        try:
+            from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY
+            base_dir = VERIFIED_NEPAL_SOCIAL_DIRECTORY
+        except Exception:
+            try:
+                from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY
+                base_dir = VERIFIED_NEPAL_X_DIRECTORY
+            except Exception:
+                base_dir = []
+        filtered = []
+        for a in base_dir:
+            if platform and platform.lower() not in ("all", "all platforms"):
+                if str(a.get("platform", "x")).lower() != platform.lower():
+                    continue
+            if category and category.lower() != "all" and a.get("category") != category:
+                continue
+            if verification_status and verification_status.lower() != "all" and a.get("verification_status") != verification_status:
+                continue
+            if enabled_only and int(a.get("enabled", 1)) != 1:
+                continue
+            if search and search.strip():
+                s = search.strip().lower()
+                blob = f"{a.get('name','')} {a.get('handle','')} {a.get('role','')} {a.get('subcategory','')} {a.get('relevance','')}".lower()
+                if s not in blob:
+                    continue
+            filtered.append(a)
+        return filtered[:limit]
     return rows if rows else []
 
 
@@ -2247,6 +2285,25 @@ def get_x_account_kpis() -> Dict[str, Any]:
                 cat_name = cr.get("category")
                 if cat_name:
                     res["by_category"][cat_name] = int(cr.get("cnt") or 0)
+    if not rows or int(res.get("total_discovered") or 0) == 0:
+        try:
+            from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY
+            total = len(VERIFIED_NEPAL_SOCIAL_DIRECTORY)
+            ver = sum(1 for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY if a.get("verification_status") == "verified")
+            act = sum(1 for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY if int(a.get("enabled", 1)) == 1)
+            cat_map = {}
+            for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY:
+                c = a.get("category")
+                if c:
+                    cat_map[c] = cat_map.get(c, 0) + 1
+            res["total_discovered"] = total
+            res["total_verified"] = ver
+            res["pending_verification"] = total - ver
+            res["active_monitored"] = act
+            res["inactive_monitored"] = total - act
+            res["by_category"] = cat_map
+        except Exception:
+            pass
     return res
 
 
@@ -2536,8 +2593,9 @@ def get_stored_x_posts(
     cursor_metric: Optional[int] = None,
     sort_mode: str = "Newest",
     exclude_media_houses: bool = False,
+    platform: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Retrieves X posts from Supabase PostgreSQL with optional keyset cursor."""
+    """Retrieves social posts from Supabase PostgreSQL with optional keyset cursor and platform filter."""
     clauses = _build_x_where(
         category=category,
         author_type=author_type,
@@ -2546,6 +2604,7 @@ def get_stored_x_posts(
         search_query=search_query,
         snapshot_ingested_at=snapshot_ingested_at,
         exclude_media_houses=exclude_media_houses,
+        platform=platform,
     )
     metric_col_map = {
         "Most engagement": "COALESCE(engagement_score, 0)",
@@ -2563,7 +2622,18 @@ def get_stored_x_posts(
     order_sql = f"{metric_col} DESC, published_dt DESC, id DESC" if metric_col else "published_dt DESC, id DESC"
     where = "WHERE " + " AND ".join(clauses)
     sql = f"SELECT {X_FEED_COLUMNS} FROM x_posts {where} ORDER BY {order_sql} LIMIT {int(limit)};"
-    return _hydrate_x_rows(query_supabase(sql))
+    rows = _hydrate_x_rows(query_supabase(sql))
+    if platform and platform.lower() not in ("all", "all platforms"):
+        rows = [r for r in rows if r.get("platform", "x") == platform.lower()]
+    return rows
+
+
+# Aliases for unified social intelligence naming
+save_social_posts = save_x_posts
+get_stored_social_posts = get_stored_x_posts
+get_all_social_accounts = get_all_x_accounts
+count_enabled_social_accounts = count_enabled_x_accounts
+get_social_account_kpis = get_x_account_kpis
 
 
 def _parse_json_val(raw_val: Any, default: Any = None) -> Any:

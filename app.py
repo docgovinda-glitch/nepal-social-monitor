@@ -294,7 +294,10 @@ from nepal_config import (
     _has_devanagari,
     parse_to_nepal_time,
 )
-from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
+try:
+    from nepal_social_directory import CANONICAL_SOCIAL_CATEGORIES as CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_SOCIAL_DIRECTORY as VERIFIED_NEPAL_X_DIRECTORY
+except Exception:
+    from nepal_verified_x_directory import CANONICAL_X_CATEGORIES, VERIFIED_NEPAL_X_DIRECTORY
 from nepal_news_store import (
     register_portal_sources,
     get_all_source_health,
@@ -973,21 +976,28 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True, sent_t
     author_type = html.escape(p.get("author_type", "Public Figure"))
     verified_mark = ' <span class="x-verified-badge" title="Verified account">✓</span>' if p.get("verified") else ""
 
+    plat = str(p.get("platform") or ("facebook" if "facebook.com" in str(p.get("link", "")).lower() else "x")).lower()
+    stripe_cls = "feed-card-stripe--fb" if plat == "facebook" else "feed-card-stripe--x"
+    plat_badge = (
+        '<span style="background:#1877F2; color:#fff; font-size:0.65rem; font-weight:700; padding:1px 5px; border-radius:3px; margin-right:4px;">FB</span>'
+        if plat == "facebook"
+        else '<span style="background:#0f172a; color:#fff; font-size:0.65rem; font-weight:700; padding:1px 5px; border-radius:3px; margin-right:4px;">𝕏</span>'
+    )
+
     text = html.escape(p.get("text", ""), quote=False)
     text = re.sub(r'(#[A-Za-z0-9_]+)', r'<b>\1</b>', text).replace("\n", "<br>")
 
     footer_html = f'<footer class="x-engagement-bar">{_render_x_metrics_html(p)}</footer>' if show_footer else ""
     avatar_html = get_x_author_avatar_html(p)
 
-    # PHASE 1: Add card type color stripe for X posts
     return (
         f'<div class="feed-card-inner">'
-        f'<div class="feed-card-stripe feed-card-stripe--x"></div>'
+        f'<div class="feed-card-stripe {stripe_cls}"></div>'
         f'<article class="x-post-card">'
         f'<header class="x-post-header">'
         f'<div class="x-author-box">{avatar_html}'
         f'<div class="x-author-meta"><span class="x-author-name">{author_name}{verified_mark}</span>'
-        f'<span class="x-author-handle">{handle} · <span class="x-type-badge">{author_type}</span></span></div></div>'
+        f'<span class="x-author-handle">{plat_badge}{handle} · <span class="x-type-badge">{author_type}</span></span></div></div>'
         f'<div class="x-post-header__meta">{get_badge_html(p.get("structured_category", "Others"))}'
         f'{time_badge_html(p.get("relative_time", "Recent"), p.get("exact_time", ""))}'
         + (f'<span class="hl-chip hl-chip--ok" title="{html.escape(sent_title, quote=True)}">{_HL_CHECK_SVG}</span>' if sent_title else "<!--sent-->")
@@ -3232,11 +3242,12 @@ NAV_ITEMS = [
     ("Live Feed", "🌐"),
     ("Nepali Media", "📰"),
     ("Indian Press", "🇮🇳"),
-    ("X", "💬"),
+    ("Social Media", "💬"),
     ("Analytics & Export", "📈"),
     ("System Health", "🩺"),
 ]
 _NAV_ICON_MAP = dict(NAV_ITEMS)
+_NAV_ICON_MAP["X"] = "💬"
 
 
 def nav_label(name: str) -> str:
@@ -3247,6 +3258,8 @@ def _resolve_nav_from_query_param() -> str:
     param_nav = str(st.query_params.get("nav", "") or "").strip().lower()
     if not param_nav:
         return "Live Feed"
+    if param_nav in ("x", "twitter", "social", "social media"):
+        return "Social Media"
     for n, _ in NAV_ITEMS:
         if n.lower() == param_nav or (param_nav == "x" and n == "X") or (param_nav in ("live", "feed", "unified", "combined") and "Live" in n):
             return n
@@ -3515,7 +3528,7 @@ def _sync_age_label(epoch: float) -> Tuple[str, str]:
 _SOCIAL_SVG = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">'
                '<path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M12 13.2l-2.6-2.5a1.7 1.7 0 0 1 2.6-2.1 1.7 1.7 0 0 1 2.6 2.1z"/></svg>')
 
-_NAV_STREAMS = {"Live Feed": ("nepali", "indian", "x"), "Nepali Media": ("nepali",), "Indian Press": ("indian",), "X": ("x",)}
+_NAV_STREAMS = {"Live Feed": ("nepali", "indian", "x"), "Nepali Media": ("nepali",), "Indian Press": ("indian",), "Social Media": ("x",), "X": ("x",)}
 
 
 def _sync_inline_html(pipes: Dict[str, Dict[str, Any]], final: bool = False) -> str:
@@ -3561,7 +3574,7 @@ def _render_brand_sync() -> None:
         col = "#0071E3"
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
-    _titles = {"Live Feed": "All Feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feed", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
+    _titles = {"Live Feed": "All Feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feed", "Social Media": "Social Media Feed", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
     _title = _titles.get(selected_nav, "Monitor & Analytics")
     st.markdown(
         f'<div class="editorial-brand-anchor hdr-title-wrap">'
@@ -4298,13 +4311,16 @@ def render_x_section() -> None:
             c for c in CANONICAL_X_CATEGORIES
             if c not in ("Media Houses and News Outlets", "Media Houses & News Outlets")
         ]
-        _x_pop = _toolbar_columns("x", {"x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"}, admin=True)
+        _x_pop = _toolbar_columns("x", {"x_plat_filter_select": "All Platforms", "x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"}, admin=True)
         with _x_pop:
+            x_plat_filter = st.selectbox("Platform", ["All Platforms", "X (Twitter)", "Facebook"], key="x_plat_filter_select")
             x_cat_filter = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
             selected_acc_type = st.selectbox("Account type", x_acc_types, key="x_acc_type_select")
             sort_mode = st.selectbox("Sort", ["Newest", "Most engagement", "Most liked", "Most reposted"], key="x_sort_mode_select")
 
         _x_active = []
+        if x_plat_filter != "All Platforms":
+            _x_active.append(x_plat_filter)
         if x_cat_filter != CAT_FILTER_ALL_UNFILTERED:
             _x_active.append(x_cat_filter)
         if selected_acc_type != ALL_ACC_TYPES:
@@ -4313,11 +4329,11 @@ def render_x_section() -> None:
             _x_active.append(sort_mode)
         _render_active_filters_bar(
             _x_active,
-            {"x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"},
+            {"x_plat_filter_select": "All Platforms", "x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"},
             "x",
         )
 
-        _sig = f"x|{active_preset}|tf{_tf_epoch}|v{_v_x}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
+        _sig = f"x|{active_preset}|tf{_tf_epoch}|v{_v_x}|{x_plat_filter}|{x_cat_filter}|{selected_acc_type}|{sort_mode}|{search_query or ''}"
         if _sig != _x_sig:
             _x_boot = _get_cached_x_workspace_bootstrap(
                 start_iso=filter_start_dt.isoformat(),
@@ -4331,10 +4347,10 @@ def render_x_section() -> None:
             )
 
         def _fetch_x_now():
-            with st.spinner(_busy("feed", "X accounts")):
+            with st.spinner(_busy("feed", "Social Media accounts")):
                 try:
-                    from nepal_x_scanner import scan_popular_nepal_x_posts
-                    scan_popular_nepal_x_posts(force_refresh=True)
+                    from nepal_social_scanner import scan_popular_nepal_social_posts
+                    scan_popular_nepal_social_posts(force_refresh=True)
                 except Exception:
                     pass
 
@@ -4432,12 +4448,14 @@ def render_x_section() -> None:
         st.markdown(f'<div style="margin: 6px 0 16px 0; display:flex; flex-wrap:wrap; gap:6px;">{badge_html}</div>', unsafe_allow_html=True)
 
         # Filters Row
-        flt_c1, flt_c2, flt_c3 = st.columns([2.5, 2, 1.5])
+        flt_c1, flt_c2, flt_c3, flt_c4 = st.columns([2.2, 1.8, 1.3, 1.2])
         with flt_c1:
             dir_search = st.text_input("Search directory", placeholder="Search by name, handle (@...), role, or keywords…", label_visibility="collapsed", key="dir_search_input")
         with flt_c2:
             dir_cat = st.selectbox("Canonical Sector", [f"All Sectors ({len(CANONICAL_X_CATEGORIES)})"] + CANONICAL_X_CATEGORIES, label_visibility="collapsed", key="dir_cat_select")
         with flt_c3:
+            dir_plat = st.selectbox("Platform", ["All Platforms", "X Only", "Facebook Only"], label_visibility="collapsed", key="dir_plat_select")
+        with flt_c4:
             dir_status = st.selectbox("Status Filter", ["All Statuses", "Verified Only", "Active Monitored", "Paused Only", "Pending Review"], label_visibility="collapsed", key="dir_status_select")
 
         # Query Accounts from DB (or fallback)
@@ -4464,6 +4482,11 @@ def render_x_section() -> None:
                 if (not dir_filter_cat or a.get("category") == dir_filter_cat)
                 and (not dir_search or dir_search.lower() in (a.get("name","")+a.get("handle","")+a.get("role","")+a.get("relevance","")).lower())
             ]
+
+        if dir_plat == "X Only":
+            all_dir_accounts = [a for a in all_dir_accounts if a.get("platform", "x") == "x"]
+        elif dir_plat == "Facebook Only":
+            all_dir_accounts = [a for a in all_dir_accounts if a.get("platform") == "facebook"]
 
         if dir_status == "Paused Only":
             all_dir_accounts = [a for a in all_dir_accounts if int(a.get("enabled", 1)) == 0]
@@ -4512,7 +4535,9 @@ def render_x_section() -> None:
                 with cols[idx % 3]:
                     h = a.get("handle", "")
                     name = a.get("name", h)
-                    profile_url = a.get("profile_url") or f"https://x.com/{h}"
+                    plat = str(a.get("platform") or ("facebook" if "facebook.com" in str(a.get("profile_url","")) else "x")).lower()
+                    plat_pill = '<span style="background:#1877F2; color:#fff; font-size:0.65rem; font-weight:700; padding:1px 5px; border-radius:3px; margin-right:4px;">FB</span>' if plat == "facebook" else '<span style="background:#0f172a; color:#fff; font-size:0.65rem; font-weight:700; padding:1px 5px; border-radius:3px; margin-right:4px;">𝕏</span>'
+                    profile_url = a.get("profile_url") or (f"https://www.facebook.com/{h}" if plat == "facebook" else f"https://x.com/{h}")
                     cat = a.get("category", "Civil Society and Public Voices")
                     subcat = a.get("subcategory", "")
                     role = a.get("role", "")
@@ -4527,14 +4552,15 @@ def render_x_section() -> None:
                     status_pill = '<span class="acct-status-pill acct-status-pill--active">● Active</span>' if is_enabled else '<span class="acct-status-pill acct-status-pill--paused">○ Paused</span>'
                     ver_pill = '<span class="acct-status-pill acct-status-pill--active">✓ Verified</span>' if ver_status == "verified" else '<span class="acct-status-pill acct-status-pill--pending">⏳ Pending</span>'
 
+                    prefix = "fb/" if plat == "facebook" else "@"
                     st.markdown(f"""
                     <div class="acct-card-rich">
                         <div>
                             <div class="acct-card-rich__head">
                                 {get_x_author_avatar_html(a, is_acct_card=True)}
                                 <div style="overflow:hidden; flex:1;">
-                                    <div class="acct-card-rich__name">{html.escape(name)} <span style="color:#1D9BF0; font-size:0.82rem;">✓</span></div>
-                                    <div class="acct-card-rich__handle">@{html.escape(h)} · {html.escape(followers)}</div>
+                                    <div class="acct-card-rich__name">{plat_pill}{html.escape(name)} <span style="color:#1D9BF0; font-size:0.82rem;">✓</span></div>
+                                    <div class="acct-card-rich__handle">{prefix}{html.escape(h)} · {html.escape(followers)}</div>
                                 </div>
                             </div>
                             <div class="acct-card-rich__badges">
@@ -4919,7 +4945,7 @@ def render_export_analytics_section() -> None:
         render_empty_state("📊", "No export records", "Try adjusting the search keyword or selecting 'All Streams'.")
 
 
-if selected_nav == "X":
+if selected_nav in ("Social Media", "X"):
     render_x_section()
 elif selected_nav == "Analytics & Export":
     render_export_analytics_section()

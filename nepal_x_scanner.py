@@ -90,8 +90,8 @@ ACCOUNT_BY_HANDLE: Dict[str, Dict[str, Any]] = {
 
 def get_monitored_x_accounts(enabled_only: bool = True) -> List[Dict[str, Any]]:
     """
-    Dynamically retrieves enabled monitored X accounts from Supabase cloud database,
-    falling back to VERIFIED_NEPAL_X_DIRECTORY.
+    Dynamically retrieves enabled monitored accounts from Supabase cloud database,
+    falling back to nepal_social_directory (1,000+ non-governmental critical voices).
     """
     try:
         from nepal_news_store import get_all_x_accounts
@@ -108,11 +108,19 @@ def get_monitored_x_accounts(enabled_only: bool = True) -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    return [
-        {**a, "type": a.get("category", "Civil Society and Public Voices"), "verified": True}
-        for a in VERIFIED_NEPAL_X_DIRECTORY
-        if (not enabled_only or a.get("enabled", 1) in (1, True, "1"))
-    ]
+    try:
+        from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY
+        return [
+            {**a, "type": a.get("category", "Civil Society and Public Voices"), "verified": True}
+            for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY
+            if (not enabled_only or a.get("enabled", 1) in (1, True, "1"))
+        ]
+    except Exception:
+        return [
+            {**a, "type": a.get("category", "Civil Society and Public Voices"), "verified": True}
+            for a in VERIFIED_NEPAL_X_DIRECTORY
+            if (not enabled_only or a.get("enabled", 1) in (1, True, "1"))
+        ]
 
 
 def classify_x_post(text: str, author_name: str = "", handle: str = "", role: str = "") -> str:
@@ -802,6 +810,20 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, on_progress=None) ->
             seen_ids.add(sid)
             seen_texts.add(norm)
             all_posts.append(p)
+
+    # Advance the unified 10-account circular social loop (Facebook + X news posts)
+    try:
+        from nepal_social_scanner import scan_social_batch
+        social_posts, _ = scan_social_batch(batch_size=10)
+        for sp in (social_posts or []):
+            sid = sp.get("id")
+            norm = sp.get("text", "")[:40].lower()
+            if sid and sid not in seen_ids and norm not in seen_texts:
+                seen_ids.add(sid)
+                seen_texts.add(norm)
+                all_posts.append(sp)
+    except Exception:
+        pass
 
     # Sort strictly descending by newest publication time
     all_posts.sort(key=lambda x: x["published_dt"], reverse=True)

@@ -490,6 +490,9 @@ _PHASE1_ENHANCEMENTS_CSS = """
     .feed-card-stripe--x {
         background: linear-gradient(180deg, #1D9BF0 0%, #1A8CD8 100%);
     }
+    .feed-card-stripe--fb {
+        background: linear-gradient(180deg, #1877F2 0%, #0C63D4 100%);
+    }
     :is(.main, [data-testid="stMain"]) div[data-testid="stVerticalBlockBorderWrapper"]:has(.feed-card-anchor) {
         position: relative !important;
         overflow: hidden !important;
