@@ -3335,6 +3335,21 @@ div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button:hover, div
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TB2_CSS)
 
+_FIELD_CSS = """
+/* ===== One continuous field: no inner rounded outlines/dividers; focus shows once, around the whole box ===== */
+[data-testid="stSelectbox"] input:not(#a):not(#b), [data-testid="stMultiSelect"] input:not(#a):not(#b), [data-testid="stTextInput"] input:not(#a):not(#b), [data-testid="stNumberInput"] input:not(#a):not(#b),
+[data-testid="stSelectbox"] input:not(#a):not(#b):focus, [data-testid="stSelectbox"] input:not(#a):not(#b):focus-visible, [data-testid="stMultiSelect"] input:not(#a):not(#b):focus, [data-testid="stMultiSelect"] input:not(#a):not(#b):focus-visible,
+[data-testid="stTextInput"] input:not(#a):not(#b):focus, [data-testid="stTextInput"] input:not(#a):not(#b):focus-visible, [data-testid="stNumberInput"] input:not(#a):not(#b):focus, [data-testid="stNumberInput"] input:not(#a):not(#b):focus-visible {
+  outline: none !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; -webkit-tap-highlight-color: transparent;
+}
+[data-testid="stSelectbox"] [role="group"]:not(#a):not(#b) *, [data-testid="stTextInputRootElement"]:not(#a):not(#b) *, [data-testid="stNumberInputContainer"]:not(#a):not(#b) * { border-left: 0 !important; border-right: 0 !important; }
+[data-testid="stSelectbox"] [role="group"]:focus-within:not(#a):not(#b), [data-testid="stMultiSelect"] [role="group"]:focus-within:not(#a):not(#b),
+[data-testid="stTextInputRootElement"]:focus-within:not(#a):not(#b), [data-testid="stNumberInputContainer"]:focus-within:not(#a):not(#b) {
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.22) !important;
+}
+[data-testid="stSelectbox"] input:not(#a):not(#b) { caret-color: transparent; cursor: pointer; }
+"""
+
 _RAIL_TOGGLE_CSS = """
 /* ===== Collapsible sidebar: expanded by default on every load; collapses only when the user taps the handle ===== */
 #rail-toggle { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: calc(var(--rail-w) - 14px); width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
@@ -3352,6 +3367,8 @@ html[data-rail="collapsed"] div[data-testid="stMainBlockContainer"], html[data-r
 @media (prefers-reduced-motion: reduce) { #rail-toggle, #rail-toggle svg, .st-key-app_nav_seg { transition: none !important; } }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_TOGGLE_CSS)
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _FIELD_CSS)
+AUTH_CSS = _append_css(AUTH_CSS, _FIELD_CSS)
 
 
 

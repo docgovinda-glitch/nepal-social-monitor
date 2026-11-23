@@ -3346,6 +3346,26 @@ _RAIL_TOGGLE_JS = """
   } catch (e) {}
 })();
 </script>
+<script>
+(function () {
+  try {
+    var w = window.parent, d = w.document;
+    if (w.__nmSelectFix) return;
+    w.__nmSelectFix = true;
+    // Phones/tablets: tapping a filter opens its option list directly; the search box inside must not pull up the keyboard.
+    var coarse = (w.matchMedia && w.matchMedia('(pointer: coarse)').matches) || w.innerWidth <= 820;
+    if (!coarse) return;
+    function fix(root) {
+      root.querySelectorAll('[data-testid="stSelectbox"] input, [data-testid="stMultiSelect"] input').forEach(function (i) {
+        if (i.getAttribute('data-nm-nokb')) return;
+        i.setAttribute('data-nm-nokb', '1'); i.setAttribute('inputmode', 'none'); i.setAttribute('readonly', 'readonly'); i.setAttribute('autocomplete', 'off');
+      });
+    }
+    fix(d);
+    new MutationObserver(function () { fix(d); }).observe(d.body, { childList: true, subtree: true });
+  } catch (e) {}
+})();
+</script>
 """
 
 _nav_tabs = st.container(key="rail_host")
