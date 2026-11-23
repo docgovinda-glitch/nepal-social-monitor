@@ -1941,6 +1941,22 @@ def get_stored_counts_by_stream(
     return {"nepali_count": 0, "indian_count": 0, "x_count": 0}
 
 
+def count_ingested_since(since_dt: datetime.datetime) -> Dict[str, int]:
+    """Net-new rows per stream stored at/after `since_dt` (used for live sync progress; never counts re-seen items)."""
+    ts = _fmt_sql_ts(since_dt, as_utc=True)
+    sql = f"""
+    SELECT
+        (SELECT COUNT(*) FROM articles WHERE ingested_at >= '{ts}') as np_count,
+        (SELECT COUNT(*) FROM indian_media_articles WHERE ingested_at >= '{ts}') as in_count,
+        (SELECT COUNT(*) FROM x_posts WHERE ingested_at >= '{ts}') as x_count;
+    """
+    rows = query_supabase(sql)
+    if rows:
+        r = rows[0]
+        return {"nepali": int(r.get("np_count") or 0), "indian": int(r.get("in_count") or 0), "x": int(r.get("x_count") or 0)}
+    return {"nepali": 0, "indian": 0, "x": 0}
+
+
 # ==============================================================================
 # X (TWITTER) NEPAL ACCOUNTS MANAGEMENT & REPOSITORY
 # ==============================================================================

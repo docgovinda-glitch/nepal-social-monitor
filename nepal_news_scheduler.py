@@ -439,6 +439,7 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
 
     def _on_stream_done(name: str, status: str, count: int, elapsed: float, err: str) -> None:
         if status == "done":
+            count = _net_new(name, count)
             # X ingestion also bridges @Annapurna_Post into articles, so clear Nepali health caches too
             inv_targets = ("nepali", "x") if name == "x" else (name,)
             _invalidate_store_caches_after_sync(targets=inv_targets)
@@ -458,13 +459,29 @@ def _manual_sync_worker(target_streams: Tuple[str, ...]) -> None:
             else:
                 _MANUAL_SYNC_STATE["errors"][name] = err
 
+    _last_count_poll = {"t": 0.0}
+    _since_dt = datetime.datetime.fromtimestamp(t0 - 2.0, datetime.timezone.utc)
+
+    def _net_new(name: str, fallback: int) -> int:
+        """Net-new stored rows since this sync began (discovered-but-already-known items are not counted)."""
+        try:
+            import nepal_news_store as _store
+            return int(_store.count_ingested_since(_since_dt).get(name, 0))
+        except Exception:
+            return int(fallback)
+
     def _on_stream_progress(name: str, n: int) -> None:
+        now = time.time()
+        if now - _last_count_poll["t"] < 3.0:
+            return
+        _last_count_poll["t"] = now
+        shown = _net_new(name, 0)
         with _MANUAL_SYNC_LOCK:
             cur = _MANUAL_SYNC_STATE["pipelines"].get(name) or {}
             if cur.get("status") in ("done", "error", "timeout"):
                 return
             _MANUAL_SYNC_STATE["pipelines"][name] = {
-                "status": "running", "count": int(n),
+                "status": "running", "count": int(shown),
                 "elapsed_secs": cur.get("elapsed_secs", 0.0), "error": "",
             }
 
