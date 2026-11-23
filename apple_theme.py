@@ -3258,6 +3258,37 @@ _DESKTOP_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _DESKTOP_CSS)
 
+_RAIL_CSS = """
+/* ===== Side rail: the workspace control becomes a fixed left rail on every screen size ===== */
+:root { --rail-w: 76px; }
+@media (max-width: 640px) { :root { --rail-w: 60px; } }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) {
+  position: fixed !important; left: 0 !important; top: 0 !important; bottom: 0 !important; right: auto !important; width: var(--rail-w) !important; max-width: none !important; margin: 0 !important;
+  z-index: 999 !important; background: var(--surface) !important; box-shadow: 1px 0 0 var(--hair, rgba(0,0,0,.06)) !important;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 4px calc(12px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)) !important; overflow-y: auto !important;
+}
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) div[data-testid="stButtonGroup"], .st-key-app_nav_seg:not(#a):not(#b):not(#c) [role="radiogroup"] {
+  display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; align-items: stretch !important; justify-content: flex-start !important; gap: 6px !important; width: 100% !important; overflow: visible !important; background: transparent !important; padding: 0 !important;
+}
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) {
+  flex: 0 0 auto !important; width: 100% !important; min-width: 0 !important; height: auto !important; min-height: 54px !important; padding: 7px 2px !important;
+  border-radius: 14px !important; background: transparent !important; color: var(--label-3, #8E8E93) !important; flex-direction: column !important; box-shadow: none !important;
+}
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) * { font-size: 0.64rem !important; line-height: 1.15 !important; font-weight: 600 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div { width: 100% !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div > span { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 4px !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) p { margin: 0 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) [data-testid="stIconMaterial"] { font-size: 1.45rem !important; line-height: 1 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button[aria-checked="true"]:not(#a):not(#b):not(#c) { background: var(--tint-soft) !important; color: var(--tint) !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button[aria-checked="true"]:not(#a):not(#b):not(#c) * { font-weight: 700 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div > span > span:first-child { padding: 0 !important; background: transparent !important; }
+div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(var(--rail-w) + 14px) !important; padding-bottom: 28px !important; }
+@media (max-width: 640px) { div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(var(--rail-w) + 8px) !important; padding-right: 10px !important; } }
+.st-key-new_stories_pill:not(#a):not(#b) { bottom: 24px !important; left: calc(50% + var(--rail-w) / 2) !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_CSS)
+
+
 
 _DIALOG_TIGHT_CSS = """
     /* ===== Dialogs: no spacer rows, smaller title, tighter rhythm ===== */
