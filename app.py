@@ -3406,7 +3406,7 @@ def _render_brand_sync() -> None:
         col = "#0071E3"
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
-    _titles = {"Live Feed": "All stories", "Nepali Media": "Nepal", "Indian Press": "India", "X": "X", "Analytics & Export": "Export", "System Health": "Health"}
+    _titles = {"Live Feed": "All feeds", "Nepali Media": "Nepal", "Indian Press": "India", "X": "X", "Analytics & Export": "Export", "System Health": "Health"}
     _title = _titles.get(selected_nav, "Media Monitor")
     st.markdown(
         f'<div class="editorial-brand-anchor hdr-title-wrap">'
