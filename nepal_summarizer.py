@@ -158,6 +158,8 @@ atexit.register(_TRANSLATION_CACHE.close)
 ENABLE_LOCAL_TRANSLATION_FALLBACK = (
     os.getenv("ENABLE_LOCAL_TRANSLATION_FALLBACK", "false").lower() in ("true", "1", "yes")
 )
+# "google" (default): Google first, local NLLB as fallback. "local": local NLLB first, Google as backup.
+TRANSLATION_PRIMARY = os.getenv("TRANSLATION_PRIMARY", "google").strip().lower()
 CIRCUIT_BREAKER_THRESHOLD = int(os.getenv("TRANSLATION_CIRCUIT_BREAKER_THRESHOLD", "3"))
 CIRCUIT_BREAKER_COOLDOWN_SECS = int(os.getenv("TRANSLATION_CIRCUIT_COOLDOWN_SECS", "600"))
 
@@ -600,6 +602,12 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
     clean_chunk = (chunk or "").strip()
     if not clean_chunk:
         return ""
+
+    if TRANSLATION_PRIMARY == "local" and ENABLE_LOCAL_TRANSLATION_FALLBACK:
+        _loc = _translate_with_local_model(clean_chunk, source_lang=sl_code)
+        if _loc and _loc.strip() != clean_chunk and not _has_devanagari(_loc):
+            return _loc
+        logger.info("Local NLLB gave no usable result; trying Google endpoints.")
 
     if is_circuit_breaker_open():
         if ENABLE_LOCAL_TRANSLATION_FALLBACK:

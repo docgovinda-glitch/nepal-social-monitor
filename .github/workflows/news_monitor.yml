@@ -54,6 +54,7 @@ jobs:
           SUPABASE_POOLER_HOST: ${{ secrets.SUPABASE_POOLER_HOST }}
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           ENABLE_LOCAL_TRANSLATION_FALLBACK: "true"
+          TRANSLATION_PRIMARY: "google"  # change to "local" to use CTranslate2 first
           TRANSLATION_CACHE_DIR: ${{ github.workspace }}/.cache/translation_cache
           GREEN_API_URL: ${{ secrets.GREEN_API_URL }}
           GREEN_API_ID_INSTANCE: ${{ secrets.GREEN_API_ID_INSTANCE }}
