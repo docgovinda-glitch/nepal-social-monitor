@@ -2529,6 +2529,7 @@ def _mark_feed_card_sent(cache_id: str, group_name: str) -> None:
                 nxt = h.find('class="feed-card-wrap"', i + len(marker))
                 if j >= 0 and (nxt < 0 or j < nxt):
                     b["html"] = h[:j] + chip + h[j + len("<!--sent-->"):]
+                    b["rev"] = int(b.get("rev", 0)) + 1
                     changed = True
         if changed:
             sess["_mounted_nav_seq"] = -1
@@ -2990,7 +2991,10 @@ def render_infinite_workspace_feed(
             new_since_snap = 0
 
     if new_since_snap > 0:
-        if st.button(f"{new_since_snap:,} new", icon=":material/arrow_upward:", key=f"btn_new_stories_{workspace}", type="primary", width="stretch", help=f"{new_since_snap:,} new {noun} since you opened this feed"):
+        with st.container(key="new_stories_pill"):
+            _new_clicked = st.button(f"{new_since_snap:,} new", icon=":material/arrow_upward:", key=f"btn_new_stories_{workspace}", help=f"{new_since_snap:,} new {noun}")
+        if _new_clicked:
+            st.session_state["_scroll_top_once"] = True
             sessions.pop(workspace, None)
             _get_cached_feed_page_with_count.clear()
             _get_cached_filtered_count.clear()
@@ -3006,6 +3010,12 @@ def render_infinite_workspace_feed(
             st.session_state["data_version"] = data_ver + 1
             _safe_fragment_rerun()
 
+
+    if st.session_state.pop("_scroll_top_once", False):
+        components.html(
+            "<script>try{const d=window.parent.document;const m=d.querySelector('[data-testid=\"stMain\"]')||d.scrollingElement;m.scrollTo({top:0,behavior:'smooth'});}catch(e){}</script>",
+            height=0,
+        )
 
     if not sess["batches"] and not sess["error_msg"]:
         render_empty_state(empty_icon, empty_title, empty_body)

@@ -3292,6 +3292,21 @@ _SYNC_SPIN_CSS = """
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _SYNC_SPIN_CSS)
 
+_NEW_PILL_CSS = """
+.st-key-new_stories_pill { position: fixed !important; top: 64px; left: 50%; transform: translateX(-50%);
+  z-index: 999; width: auto !important; margin: 0 !important; }
+div[data-testid="stElementContainer"]:has(> .st-key-new_stories_pill),
+div[data-testid="stLayoutWrapper"]:has(> .st-key-new_stories_pill) { position: fixed !important; height: 0 !important; margin: 0 !important; }
+.st-key-new_stories_pill .stButton button { height: 34px !important; padding: 0 14px !important; border-radius: 999px !important;
+  background: rgba(0,113,227,.14) !important; color: #0a58ca !important; border: 0 !important; font-weight: 650 !important;
+  backdrop-filter: blur(14px) saturate(1.6); -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow: 0 4px 16px rgba(0,0,0,.14) !important; }
+@media (prefers-color-scheme: dark) { .st-key-new_stories_pill .stButton button { color: #7db8ff !important; background: rgba(10,132,255,.22) !important; } }
+:root[data-theme="dark"] .st-key-new_stories_pill .stButton button { color: #7db8ff !important; background: rgba(10,132,255,.22) !important; }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _NEW_PILL_CSS)
+FEED_CARD_CSS = _append_css(FEED_CARD_CSS, ".x-post-header__meta { flex-grow: 1; } .x-post-header__meta .hl-chip--ok { margin-left: auto; }")
+
 
 import re as _re
 

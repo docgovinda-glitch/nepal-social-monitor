@@ -194,6 +194,7 @@
 
       let currentSessionKey = null;
       let renderedSeqs = new Set();
+      let renderedRevs = new Map();
       let hasMore = false;
       let inFlight = false;
       let lastRequestedSeq = -1;
@@ -389,6 +390,7 @@
           currentSessionKey = args.session_key;
           feedRoot.innerHTML = "";
           renderedSeqs = new Set();
+          renderedRevs = new Map();
           lastRequestedSeq = -1;
         }
 
@@ -403,7 +405,12 @@
         if (batches.length > 0) {
           const appendFrag = document.createDocumentFragment();
           for (const b of batches) {
-            if (b && typeof b.seq === "number" && !renderedSeqs.has(b.seq)) {
+            if (b && typeof b.seq === "number" && renderedSeqs.has(b.seq) && (b.rev || 0) !== (renderedRevs.get(b.seq) || 0)) {
+              // Same batch, patched content (e.g. sent tick): swap in place, no scroll change
+              const cur = feedRoot.querySelector('.feed-batch[data-seq="' + b.seq + '"]');
+              if (cur) { cur.replaceChildren(sanitizeBatchHtml(b.html)); renderedRevs.set(b.seq, b.rev || 0); }
+            } else if (b && typeof b.seq === "number" && !renderedSeqs.has(b.seq)) {
+              renderedRevs.set(b.seq, b.rev || 0);
               const batchDiv = document.createElement("div");
               batchDiv.className = "feed-batch";
               batchDiv.setAttribute("data-seq", String(b.seq));
