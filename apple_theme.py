@@ -3286,7 +3286,11 @@ _TITLEBAR_CSS = """
 .hdr-title-wrap { display: flex; align-items: center; gap: 8px; min-height: 44px; white-space: nowrap; }
 .hdr-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; color: var(--text-primary, #1d1d1f); }
 .hdr-meta { display: inline-flex; align-items: center; }
-.hdr-title-wrap .live-status-inline.sync-inline { padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; }
+.hdr-title-wrap .live-status-inline.sync-inline { background: none !important; padding: 0 !important; border-radius: 0; font-size: 0.8rem; font-weight: 550; color: var(--label-3, #6E6E73) !important; display: inline-flex; align-items: center; gap: 7px; letter-spacing: 0; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dot, #8E8E93); flex: none; }
+.sync-dot--live { animation: nm-dot 2.4s ease-in-out infinite; }
+@keyframes nm-dot { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dot) 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@media (prefers-reduced-motion: reduce) { .sync-dot--live { animation: none; } }
 @media (min-width: 900px) {
   .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; height: 72px; min-height: 72px; }
   .hdr-title { font-size: 1.7rem; }

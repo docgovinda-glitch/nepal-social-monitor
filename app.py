@@ -3355,18 +3355,18 @@ def _latest_ingest_epoch() -> float:
 
 
 def _sync_age_label(epoch: float) -> Tuple[str, str]:
-    """('Synced 2m', colour) from the newest successful ingest; colour reflects freshness."""
+    """('Updated 2m ago', colour) from the newest successful ingest; colour reflects freshness."""
     if not epoch:
-        return "Synced", "#8E8E93"
+        return "Not synced yet", "#8E8E93"
     mins = max(0, int((time.time() - epoch) // 60))
     if mins < 1:
-        txt = "Synced now"
+        txt = "Updated just now"
     elif mins < 60:
-        txt = f"Synced {mins}m"
+        txt = f"Updated {mins}m ago"
     elif mins < 1440:
-        txt = f"Synced {mins // 60}h"
+        txt = f"Updated {mins // 60}h ago"
     else:
-        txt = f"Synced {mins // 1440}d"
+        txt = f"Updated {mins // 1440}d ago"
     col = "#15803D" if mins < 20 else ("#B45309" if mins < 60 else "#B91C1C")
     return txt, col
 
@@ -3412,14 +3412,14 @@ def _render_brand_sync() -> None:
         col = "#0071E3"
         inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
-    _titles = {"Live Feed": "All feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feeds", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
+    _titles = {"Live Feed": "All Feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feed", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
     _title = _titles.get(selected_nav, "Media Monitor")
     st.markdown(
         f'<div class="editorial-brand-anchor hdr-title-wrap">'
         f'<div class="hdr-title">{html.escape(_title)}</div>'
-        f'<div class="hdr-meta"><span class="live-status-inline sync-inline" style="background:color-mix(in srgb, {col} 14%, transparent);color:{col};" '
+        f'<div class="hdr-meta"><span class="live-status-inline sync-inline" style="--dot:{col}" '
         f'title="{html.escape(tip)}">'
-        + ('' if (running or (fin and time.time() - fin < 8)) else f'<span class="live-pill__dot" style="width:5px;height:5px;background:{col};"></span>')
+        + ('' if (running or (fin and time.time() - fin < 8)) else f'<span class="sync-dot{" sync-dot--live" if col == "#15803D" else ""}"></span>')
         + f'{inner}</span></div>'
         f'</div>',
         unsafe_allow_html=True,
