@@ -3326,7 +3326,31 @@ def _on_ws_seg_change() -> None:
 
 st.session_state["app_nav_seg"] = selected_nav
 
+_RAIL_TOGGLE_JS = """
+<script>
+(function () {
+  try {
+    var d = window.parent.document;
+    if (d.getElementById('rail-toggle')) return;
+    var b = d.createElement('button');
+    b.id = 'rail-toggle'; b.type = 'button';
+    b.setAttribute('aria-label', 'Hide sidebar'); b.title = 'Hide sidebar';
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+    b.addEventListener('click', function () {
+      var h = d.documentElement, collapsed = h.getAttribute('data-rail') === 'collapsed';
+      if (collapsed) { h.removeAttribute('data-rail'); } else { h.setAttribute('data-rail', 'collapsed'); }
+      var label = collapsed ? 'Hide sidebar' : 'Show sidebar';
+      b.setAttribute('aria-label', label); b.title = label;
+    });
+    d.body.appendChild(b);
+  } catch (e) {}
+})();
+</script>
+"""
+
 _nav_tabs = st.container(key="rail_host")
+with _nav_tabs:
+    components.html(_RAIL_TOGGLE_JS, height=0)
 @st.cache_data(ttl=60, show_spinner=False)
 def _latest_ingest_epoch() -> float:
     """Newest source poll time recorded in Supabase (written by GitHub Actions or the in-app daemon)."""

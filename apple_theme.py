@@ -3335,6 +3335,24 @@ div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button:hover, div
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TB2_CSS)
 
+_RAIL_TOGGLE_CSS = """
+/* ===== Collapsible sidebar: expanded by default on every load; collapses only when the user taps the handle ===== */
+#rail-toggle { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: calc(var(--rail-w) - 14px); width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--surface, #fff); color: var(--label-2, #424245); box-shadow: 0 1px 5px rgba(0,0,0,.2); display: grid; place-items: center; cursor: pointer; z-index: 1000001;
+  transition: left .22s ease, background-color .15s ease; -webkit-tap-highlight-color: transparent; }
+#rail-toggle:hover { background: var(--fill, #f0f0f3); }
+#rail-toggle svg { transition: transform .22s ease; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) { transition: transform .22s ease, box-shadow .22s ease; }
+div[data-testid="stMainBlockContainer"], .block-container { transition: padding-left .22s ease; }
+html[data-rail="collapsed"] { --rail-w: 0px !important; }
+html[data-rail="collapsed"] #rail-toggle { left: max(8px, env(safe-area-inset-left, 0px)); }
+html[data-rail="collapsed"] #rail-toggle svg { transform: rotate(180deg); }
+html[data-rail="collapsed"] .st-key-app_nav_seg:not(#a):not(#b):not(#c) { transform: translateX(-110%); box-shadow: none !important; }
+html[data-rail="collapsed"] div[data-testid="stMainBlockContainer"], html[data-rail="collapsed"] .block-container { padding-left: 16px !important; padding-top: 3.2rem !important; }
+@media (prefers-reduced-motion: reduce) { #rail-toggle, #rail-toggle svg, .st-key-app_nav_seg { transition: none !important; } }
+"""
+APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_TOGGLE_CSS)
+
 
 
 _DIALOG_TIGHT_CSS = """
