@@ -3294,8 +3294,8 @@ _TITLEBAR_CSS = """
 @media (min-width: 900px) {
   .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; height: 72px; min-height: 72px; }
   .hdr-title { font-size: 1.7rem; }
-  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(.tb-anchor) { margin-top: -67px !important; margin-bottom: 29px !important; padding-right: 0 !important; position: relative; z-index: 2; pointer-events: none; }
-  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(.tb-anchor) * { pointer-events: auto; }
+  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .tb-anchor) { margin-top: -67px !important; margin-bottom: 29px !important; padding-right: 0 !important; position: relative; z-index: 2; pointer-events: none; }
+  div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .tb-anchor) * { pointer-events: auto; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { justify-content: flex-end !important; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(6) { order: -1; }
 }
