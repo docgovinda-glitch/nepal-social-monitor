@@ -3295,7 +3295,7 @@ _TITLEBAR_CSS = """
 .hdr-meta { display: inline-flex; align-items: center; }
 .hdr-title-wrap .live-status-inline.sync-inline { padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; }
 @media (min-width: 900px) {
-  .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; min-height: 64px; }
+  .hdr-title-wrap { flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; height: 72px; min-height: 72px; }
   .hdr-title { font-size: 1.7rem; }
   div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(.tb-anchor) { margin-top: -67px !important; margin-bottom: 29px !important; padding-right: 150px !important; position: relative; z-index: 2; pointer-events: none; }
   div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(.tb-anchor) * { pointer-events: auto; }
