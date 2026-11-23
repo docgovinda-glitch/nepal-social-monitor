@@ -275,7 +275,7 @@
           spinner.className = "feed-spinner";
           const label = document.createElement("span");
           label.textContent = inFlight
-            ? `Loading next 20 ${noun}… (${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()} loaded)`
+            ? `${["Gathering","Sifting","Scouting","Fetching","Unrolling"][Math.floor(Math.random()*5)]} more ${noun}… ${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()}`
             : `Scroll for more · ${loadedCount.toLocaleString()} of ${totalCount.toLocaleString()} ${noun} loaded`;
           pill.appendChild(spinner);
           pill.appendChild(label);

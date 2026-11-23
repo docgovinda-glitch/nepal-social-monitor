@@ -1100,6 +1100,22 @@ def _render_copy_button(text_to_copy: str, uid: str, icon_only: bool = False) ->
     )
 
 
+_BUSY_VERBS = {
+    "read": ["Unfolding", "Fetching", "Skimming", "Gathering", "Opening up"],
+    "translate": ["Translating", "Decoding", "Weaving words", "Untangling", "Rephrasing"],
+    "send": ["Sending", "Dispatching", "Beaming", "Delivering", "Launching"],
+    "prepare": ["Preparing", "Composing", "Polishing", "Drafting", "Shaping"],
+    "feed": ["Gathering", "Scouting", "Collecting", "Sifting", "Tuning in"],
+}
+
+
+def _busy(kind: str = "feed", detail: str = "") -> str:
+    """Playful progress label (e.g. 'Untangling…') so no wait is ever silent."""
+    import random
+    v = random.choice(_BUSY_VERBS.get(kind, _BUSY_VERBS["feed"]))
+    return f"{v}… {detail}".strip() if detail else f"{v}…"
+
+
 def _set_pending_dest(kind: str, cache_id: str, idx: int) -> None:
     st.session_state[f"pending_{kind}_send"] = cache_id
     st.session_state[f"pending_{kind}_dest"] = idx
@@ -1366,7 +1382,7 @@ def _render_read_send_fragment(
             read_draft["unsaved_send_warn"] = True
             st.warning("Please save changes before sending.")
         else:
-            with st.spinner(f"Sending translation to {dest_name}…"):
+            with st.spinner(_busy("send", dest_name)):
                 from whatsapp_greenapi import send_group_message as send_wa_group_message
                 from nepal_summarizer import format_reader_copy_payload
                 wa_payload = format_reader_copy_payload(
@@ -1435,9 +1451,9 @@ def _show_read_in_app_dialog() -> None:
         from nepal_summarizer import extract_on_demand_full_article
         _tr_ph = st.empty()
         _tr_failed = False
-        with _tr_ph.status("Translating…", expanded=True) as tr_status:
+        with _tr_ph.status(_busy("translate"), expanded=True) as tr_status:
             def _tr_prog(msg: str, pct: float) -> None:
-                tr_status.update(label=f"{msg} ({int(pct * 100)}%)")
+                tr_status.update(label=f"{_busy('translate')} {int(pct * 100)}%")
             ft_tr = extract_on_demand_full_article(item, translate_to_english=True, on_progress=_tr_prog)
             st.session_state["ondemand_fulltext"][cache_id] = ft_tr
             if ft_tr.get("translated_text") or ft_tr.get("translated_title"):
@@ -1482,9 +1498,9 @@ def _show_read_in_app_dialog() -> None:
     if not fulltext_data:
         from nepal_summarizer import extract_on_demand_full_article
         _op_ph = st.empty()
-        with _op_ph.status("Opening…", expanded=True) as status:
+        with _op_ph.status(_busy("read"), expanded=True) as status:
             def _read_prog(msg: str, pct: float) -> None:
-                status.update(label=f"{msg} ({int(pct * 100)}%)")
+                status.update(label=f"{_busy('read')} {int(pct * 100)}%")
             fulltext_data = extract_on_demand_full_article(item, translate_to_english=False, on_progress=_read_prog)
             status.update(label="Article ready", state="complete", expanded=False)
             st.session_state["ondemand_fulltext"][cache_id] = fulltext_data
@@ -1511,8 +1527,9 @@ def _show_read_in_app_dialog() -> None:
         )
         ft_src = (fulltext_data.get("source_url") or item_link or "").strip()
 
-        read_draft = st.session_state["read_translation_drafts"].get(cache_id)
-        if is_english_mode:
+        dkey = cache_id if is_english_mode else f"{cache_id}::orig"
+        read_draft = st.session_state["read_translation_drafts"].get(dkey)
+        if True:
             if not read_draft:
                 read_draft = {
                     "original_headline": base_shown_title,
@@ -1528,13 +1545,13 @@ def _show_read_in_app_dialog() -> None:
                     "close_guard": False,
                     "unsaved_send_warn": False,
                 }
-                st.session_state["read_translation_drafts"][cache_id] = read_draft
+                st.session_state["read_translation_drafts"][dkey] = read_draft
             if read_draft.get("_just_saved"):
                 st.toast(read_draft.pop("_just_saved"), icon=":material/bookmark_added:")
 
         hl_key = f"dlg_rd_hl_{item_uid}"
         ta_key = f"dlg_rd_ta_{item_uid}"
-        if read_draft and read_draft.get("is_editing") and is_english_mode:
+        if read_draft and read_draft.get("is_editing"):
             if hl_key in st.session_state:
                 read_draft["draft_headline"] = str(st.session_state[hl_key] or "")
             if ta_key in st.session_state:
@@ -1545,15 +1562,15 @@ def _show_read_in_app_dialog() -> None:
         saved_body = (read_draft.get("saved_body") if read_draft else base_shown_text) or ""
         current_draft_body = (read_draft.get("draft_body") if read_draft else base_shown_text) or ""
 
-        has_unsaved = bool(is_english_mode and read_draft and (
+        has_unsaved = bool(read_draft and (
             (current_draft_body.strip() != saved_body.strip()) or
             (current_draft_headline.strip() != saved_headline.strip())
         ))
         active_headline = current_draft_headline if (has_unsaved and current_draft_headline != saved_headline) else saved_headline
         active_body = current_draft_body if (has_unsaved and current_draft_body != saved_body) else saved_body
 
-        shown_title = active_headline if is_english_mode else base_shown_title
-        shown_text = active_body if is_english_mode else base_shown_text
+        shown_title = active_headline
+        shown_text = active_body
 
         from whatsapp_greenapi import get_share_targets
         _wa_targets = get_share_targets(is_x_post=False)
@@ -1582,7 +1599,7 @@ def _show_read_in_app_dialog() -> None:
         saved_at = read_draft.get("saved_at") or "" if read_draft else ""
 
         status_pill = ""
-        if is_english_mode and read_draft:
+        if read_draft:
             status_pill = (
                 '<span class="share-draft-pill share-draft-pill--unsaved">● Unsaved</span>'
                 if has_unsaved
@@ -1603,7 +1620,7 @@ def _show_read_in_app_dialog() -> None:
 
         st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
 
-        if is_english_mode and read_draft and read_draft.get("is_editing"):
+        if read_draft and read_draft.get("is_editing"):
             st.markdown(
                 f'<div class="share-modal-head">'
                 f'<span class="share-modal-pills">{"<span class=share-draft-pill>●</span>" if has_unsaved else ""}</span>'
@@ -1621,7 +1638,7 @@ def _show_read_in_app_dialog() -> None:
                 unsafe_allow_html=True,
             )
             edited_hl = st.text_input(
-                "Headline (English)",
+                f"Headline ({lang_lbl if not is_english_mode else 'English'})",
                 value=read_draft.get("draft_headline") or "",
                 key=hl_key,
             )
@@ -1629,7 +1646,7 @@ def _show_read_in_app_dialog() -> None:
             current_draft_headline = read_draft["draft_headline"].strip()
 
             edited_body = st.text_area(
-                "Article Body (English)",
+                f"Article Body ({lang_lbl if not is_english_mode else 'English'})",
                 value=read_draft.get("draft_body") or "",
                 height=260,
                 key=ta_key,
@@ -1650,7 +1667,7 @@ def _show_read_in_app_dialog() -> None:
                     key=f"dlg_rd_save_{item_uid}",
                     help="Save draft without sending",
                     on_click=_on_read_save,
-                    args=(cache_id, ta_key, hl_key),
+                    args=(dkey, ta_key, hl_key),
                     use_container_width=True,
                 )
             with ec2:
@@ -1660,7 +1677,7 @@ def _show_read_in_app_dialog() -> None:
                     key=f"dlg_rd_cancel_{item_uid}",
                     help="Discard unsaved edits",
                     on_click=_on_read_cancel_edit,
-                    args=(cache_id,),
+                    args=(dkey,),
                     use_container_width=True,
                 )
             return
@@ -1678,7 +1695,7 @@ def _show_read_in_app_dialog() -> None:
         ft_src_html = _render_source_link_html(ft_src)
 
         _partial_chip = '' if is_complete else '<span class="extraction-badge extraction-badge--partial" title="Partial extraction">⚠</span>'
-        _rd_unsaved = '<span class="share-draft-pill share-draft-pill--unsaved" title="Unsaved changes">●</span>' if (is_english_mode and read_draft and has_unsaved) else ''
+        _rd_unsaved = '<span class="share-draft-pill share-draft-pill--unsaved" title="Unsaved changes">●</span>' if (read_draft and has_unsaved) else ''
         _rd_sent = f'<span class="share-draft-pill share-draft-pill--sent" title="Already sent to WhatsApp">✓ Sent</span>' if persisted_sent else ''
         header_pills = f'{_partial_chip}{_rd_unsaved}{_rd_sent}'
         st.markdown(
@@ -1694,7 +1711,7 @@ def _show_read_in_app_dialog() -> None:
         if fulltext_data.get("error"):
             st.warning(fulltext_data["error"])
 
-        if is_english_mode and read_draft:
+        if read_draft:
             if read_draft.get("close_guard") and has_unsaved:
                 st.warning("Save changes before closing?")
                 g1, g2, g3 = st.columns(3, gap="small")
@@ -1716,7 +1733,7 @@ def _show_read_in_app_dialog() -> None:
                         icon=":material/edit:",
                         key=f"dlg_rd_ke_{item_uid}",
                         on_click=_on_read_enter_edit,
-                        args=(cache_id,),
+                        args=(dkey,),
                     )
                 return
 
@@ -1730,7 +1747,7 @@ def _show_read_in_app_dialog() -> None:
                         type="primary",
                         key=f"dlg_rd_sd_{item_uid}",
                         on_click=_on_read_save,
-                        args=(cache_id, "", ""),
+                        args=(dkey, "", ""),
                     )
                 with u2:
                     st.button(
@@ -1738,13 +1755,13 @@ def _show_read_in_app_dialog() -> None:
                         icon=":material/undo:",
                         key=f"dlg_rd_dd_{item_uid}",
                         on_click=_on_read_cancel_edit,
-                        args=(cache_id,),
+                        args=(dkey,),
                     )
 
         needs_tr = (ft_lang != "en") or _has_devanagari(raw_title) or _has_devanagari(fulltext_data.get("original_text", ""))
         has_tr_btn = needs_tr or has_tr
 
-        if is_english_mode and len(_wa_targets) > 1:
+        if len(_wa_targets) > 1:
             dest_name = _wa_dest_from_state(_wa_targets, _wa_grp_key)
             selected_gid = _target_by_name[dest_name]
 
@@ -1756,7 +1773,7 @@ def _show_read_in_app_dialog() -> None:
             whatsapp_bold=False,
         )
 
-        if is_english_mode:
+        if True:
             _multi_wa = len(_wa_targets) > 1
             _spec = ([1.25] if has_tr_btn else []) + [0.8, 0.95, 1.1] + ([1.1] if has_unsaved else [])
             with st.container(key=f"wa_actions_{item_uid}"):
@@ -1764,16 +1781,13 @@ def _show_read_in_app_dialog() -> None:
                 ci = 0
                 if has_tr_btn:
                     with cols[ci]:
-                        st.button(
-                            "Original",
-                            help="Switch between original and English",
-                            icon=":material/swap_horiz:",
-                            type="secondary",
-                            key=f"dlg_ft_tog_{item_uid}",
-                            on_click=_on_toggle_read_view,
-                            args=(cache_id,),
-                            width="stretch",
-                        )
+                        if needs_tr and not has_tr:
+                            st.button("Translate", help="Translate to English", icon=":material/translate:", type="primary",
+                                      key=f"dlg_ft_tr_{item_uid}", on_click=_on_req_read_translate, args=(cache_id,), width="stretch")
+                        else:
+                            st.button("Original" if is_english_mode else "English", help="Switch between original and English",
+                                      icon=":material/swap_horiz:", type="secondary", key=f"dlg_ft_tog_{item_uid}",
+                                      on_click=_on_toggle_read_view, args=(cache_id,), width="stretch")
                     ci += 1
                 with cols[ci]:
                     _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}", icon_only=False)
@@ -1782,9 +1796,9 @@ def _show_read_in_app_dialog() -> None:
                         "Edit",
                         icon=":material/edit:",
                         key=f"dlg_rd_edit_{item_uid}",
-                        help="Edit translation",
+                        help="Edit",
                         on_click=_on_read_enter_edit,
-                        args=(cache_id,),
+                        args=(dkey,),
                         width="stretch",
                     )
                 with cols[ci + 2]:
@@ -1795,7 +1809,7 @@ def _show_read_in_app_dialog() -> None:
                         disabled=not has_unsaved,
                         help="Save draft without sending" if has_unsaved else "All changes saved",
                         on_click=_on_read_save,
-                        args=(cache_id, "", ""),
+                        args=(dkey, "", ""),
                         width="stretch",
                     )
                 ci += 3
@@ -1807,7 +1821,7 @@ def _show_read_in_app_dialog() -> None:
                             key=f"dlg_ft_cls_{item_uid}",
                             help="Close",
                             on_click=_on_read_req_close_guard,
-                            args=(cache_id,),
+                            args=(dkey,),
                             width="stretch",
                         )
                     ci += 1
@@ -1823,55 +1837,6 @@ def _show_read_in_app_dialog() -> None:
                     saved_body=saved_body,
                     ft_src=ft_src,
                     targets=_wa_targets if _multi_wa else None,
-                )
-        else:
-            with st.container(key=f"wa_actions_{item_uid}"):
-                ft_cols = st.columns(3 if has_tr_btn else 2, gap="small")
-                col_i = 0
-                if needs_tr and not has_tr:
-                    with ft_cols[col_i]:
-                        st.button(
-                            "Translate",
-                            help="Translate to English",
-                            icon=":material/translate:",
-                            width="stretch",
-                            type="primary",
-                            key=f"dlg_ft_tr_{item_uid}",
-                            on_click=_on_req_read_translate,
-                            args=(cache_id,),
-                        )
-                    col_i += 1
-                elif has_tr and needs_tr:
-                    with ft_cols[col_i]:
-                        st.button(
-                            "English",
-                            help="Show English translation",
-                            icon=":material/swap_horiz:",
-                            width="stretch",
-                            type="primary",
-                            key=f"dlg_ft_tog_{item_uid}",
-                            on_click=_on_toggle_read_view,
-                            args=(cache_id,),
-                        )
-                    col_i += 1
-                with ft_cols[col_i]:
-                    _render_copy_button(ft_copy_payload, uid=f"dlg_ft_{item_uid}")
-                with ft_cols[col_i + 1]:
-                    if st.button("", icon=":material/close:", key=f"dlg_ft_cls_{item_uid}", help="Close", width="stretch"):
-                        st.session_state["active_modal"] = None
-                        st.rerun()
-                _render_read_send_fragment(
-                    cache_id=cache_id,
-                    item_uid=item_uid,
-                    dest_name=dest_name,
-                    selected_gid=selected_gid,
-                    item_link=item_link,
-                    has_unsaved=False,
-                    ver=0,
-                    saved_headline=shown_title,
-                    saved_body=copy_body,
-                    ft_src=ft_src,
-                    targets=_wa_targets if len(_wa_targets) > 1 else None,
                 )
     else:
         st.warning("Full article could not be extracted (the publisher may block scraping or require a subscription). Use View Original to read on the publisher's site.")
@@ -1987,7 +1952,7 @@ def _render_share_send_fragment(
             draft["unsaved_send_warn"] = True
             st.warning("Please save changes before sending.")
         else:
-            with st.spinner(f"Sending to {dest_name}…"):
+            with st.spinner(_busy("send", dest_name)):
                 from whatsapp_greenapi import send_group_message as send_wa_group_message
                 wa_res = send_wa_group_message(
                     chat_id=selected_gid,
@@ -2056,9 +2021,9 @@ def _show_share_dialog() -> None:
     generated = st.session_state["ondemand_generated"].get(cache_id)
     if not generated:
         _pr_ph = st.empty()
-        with _pr_ph.status("Preparing…", expanded=True) as status:
+        with _pr_ph.status(_busy("prepare"), expanded=True) as status:
             def _gen_prog(msg: str, pct: float) -> None:
-                status.update(label=f"{msg} ({int(pct * 100)}%)")
+                status.update(label=f"{_busy('read')} {int(pct * 100)}%")
             generated = _generate_unified_item_content(item, is_x=is_x, on_progress=_gen_prog)
             status.update(label=f"{content_type_lbl} ready", state="complete", expanded=False)
             st.session_state["ondemand_generated"][cache_id] = generated
@@ -2878,6 +2843,7 @@ def render_infinite_workspace_feed(
             if prefetched_init is not None:
                 init_res = prefetched_init
             else:
+              with st.spinner(_busy("feed", noun)):
                 init_res = _get_cached_feed_page_with_count(
                     workspace=workspace,
                     start_iso=sess["snapshot_start_dt"].isoformat(),
@@ -3856,7 +3822,7 @@ def render_live_feed_section() -> None:
     _sig = f"live|{active_preset}|tf{_tf_epoch}|v{_v_live}|{sel_comb_stream}|{sel_comb_cat}|{comb_sort_mode}|{search_query or ''}"
 
     def _fetch_all_now():
-        with st.spinner("Fetching latest stories concurrently across all streams…"):
+        with st.spinner(_busy("feed", "all streams")):
             from nepal_news_scheduler import _run_concurrent_ingest_pipelines
             _run_concurrent_ingest_pipelines(include_nepali=True, include_indian=True, include_x=True, nepali_workers=12, indian_workers=8)
 
@@ -3909,7 +3875,7 @@ def render_nepali_media_section() -> None:
     _sig = f"nepali|{active_preset}|tf{_tf_epoch}|v{_v_np}|{sel_np_portal}|{sel_np_cat}|{sel_np_lang}|{search_query or ''}"
 
     def _fetch_np_now():
-        with st.spinner("Fetching latest Nepali news portals…"):
+        with st.spinner(_busy("feed", "Nepali portals")):
             from nepal_fetcher import fetch_top_nepal_media
             fetch_top_nepal_media(max_workers=15, force_refresh=True, return_all_stored=False)
 
@@ -3971,7 +3937,7 @@ def render_indian_press_section() -> None:
     _ind_prefetched = _ind_boot if (not _existing_ind or _existing_ind.get("filter_sig") != _sig) else None
 
     def _fetch_in_now():
-        with st.spinner("Fetching latest Indian press coverage…"):
+        with st.spinner(_busy("feed", "Indian press")):
             from nepal_fetcher import fetch_nepal_in_indian_media
             fetch_nepal_in_indian_media(max_workers=12, force_refresh=True, return_all_stored=False)
 
@@ -4117,7 +4083,7 @@ def render_x_section() -> None:
             )
 
         def _fetch_x_now():
-            with st.spinner("Scanning verified X accounts…"):
+            with st.spinner(_busy("feed", "X accounts")):
                 try:
                     from nepal_x_scanner import scan_popular_nepal_x_posts
                     scan_popular_nepal_x_posts(force_refresh=True)
