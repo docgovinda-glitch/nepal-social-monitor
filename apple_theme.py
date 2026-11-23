@@ -3267,6 +3267,8 @@ _RAIL_CSS = """
   z-index: 999 !important; background: var(--surface) !important; box-shadow: 1px 0 0 var(--hair, rgba(0,0,0,.06)) !important;
   padding: calc(12px + env(safe-area-inset-top, 0px)) 4px calc(12px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)) !important; overflow-y: auto !important;
 }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) { display: flex !important; flex-direction: column !important; justify-content: center !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) > * { flex: 0 0 auto !important; width: 100% !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) div[data-testid="stButtonGroup"], .st-key-app_nav_seg:not(#a):not(#b):not(#c) [role="radiogroup"] {
   display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; align-items: stretch !important; justify-content: flex-start !important; gap: 6px !important; width: 100% !important; overflow: visible !important; background: transparent !important; padding: 0 !important;
 }
