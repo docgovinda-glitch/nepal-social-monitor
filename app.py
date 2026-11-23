@@ -3855,9 +3855,13 @@ search_query = st.session_state.get("committed_search_query", "")
 # ==========================================
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
-def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool = False) -> Any:
+def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool = False, admin: bool = False) -> Any:
     """One row of five icon buttons: search | filters | time range | sync | appearance. Returns the filters popover for the caller to fill."""
-    c = st.columns([1, 1, 1, 1, 1, 3], gap="small")
+    c = st.columns([1, 1, 1, 1, 1, 1, 3] if admin else [1, 1, 1, 1, 1, 3], gap="small")
+    if admin:
+        with c[5]:
+            st.button("", icon=":material/admin_panel_settings:", key="btn_x_admin", help="Admin", width="stretch",
+                      on_click=lambda: st.session_state.update({"x_subview_active_tab": "Admin"}))
     if only_theme:
         with c[1]:
             st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
@@ -4112,17 +4116,27 @@ def render_x_section() -> None:
     active_acc_count = x_kpis.get("active_monitored", len(VERIFIED_NEPAL_X_DIRECTORY))
     pending_acc_count = x_kpis.get("pending_verification", 0)
 
-    x_tab_options = ["Live Feed", f"Directory ({total_acc_count})", "Admin"]
-    if st.session_state.get("x_subview_active_tab") not in x_tab_options:
-        st.session_state["x_subview_active_tab"] = "Live Feed"
+    _xs = st.session_state.get("x_subview_active_tab", "Live Feed")
+    x_subview = "Directory" if str(_xs).startswith("Directory") else (_xs if _xs in ("Live Feed", "Admin") else "Live Feed")
+    st.session_state["x_subview_active_tab"] = x_subview
 
-    x_subview = st.segmented_control(
-        "X Monitoring Navigation",
-        options=x_tab_options,
-        format_func=lambda o: ":material/rss_feed: Live" if o == "Live Feed" else (":material/admin_panel_settings: Admin" if o == "Admin" else f":material/groups: {o.split('(')[-1].rstrip(')')}"),
-        key="x_subview_active_tab",
-        label_visibility="collapsed"
-    ) or "Live Feed"
+    def _x_go(view: str) -> None:
+        st.session_state["x_subview_active_tab"] = view
+
+    if x_subview != "Live Feed":
+        _bk, _sg = st.columns([1, 5], gap="small", vertical_alignment="center")
+        with _bk:
+            st.button("", icon=":material/arrow_back:", key="btn_x_back", help="Back to feed", on_click=_x_go, args=("Live Feed",), width="stretch")
+        with _sg:
+            st.segmented_control(
+                "Social Media admin",
+                options=["Directory", "Admin"],
+                format_func=lambda o: ":material/groups: Directory" if o == "Directory" else ":material/admin_panel_settings: Admin",
+                default=x_subview,
+                key="x_admin_seg",
+                on_change=lambda: _x_go(st.session_state.get("x_admin_seg") or "Directory"),
+                label_visibility="collapsed",
+            )
 
     # -------------------------------------------------------------
     # SUBVIEW 1: LIVE FEED
@@ -4132,7 +4146,7 @@ def render_x_section() -> None:
             c for c in CANONICAL_X_CATEGORIES
             if c not in ("Media Houses and News Outlets", "Media Houses & News Outlets")
         ]
-        _x_pop = _toolbar_columns("x", {"x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"})
+        _x_pop = _toolbar_columns("x", {"x_cat_filter_select": CAT_FILTER_ALL_UNFILTERED, "x_acc_type_select": ALL_ACC_TYPES, "x_sort_mode_select": "Newest"}, admin=True)
         with _x_pop:
             x_cat_filter = st.selectbox("Topic", CATEGORY_FILTER_OPTIONS, key="x_cat_filter_select")
             selected_acc_type = st.selectbox("Account type", x_acc_types, key="x_acc_type_select")
@@ -4213,7 +4227,7 @@ def render_x_section() -> None:
     # -------------------------------------------------------------
     # SUBVIEW 2: MONITORED DIRECTORY (200+ ACCOUNTS)
     # -------------------------------------------------------------
-    elif x_subview and x_subview.startswith("Directory"):
+    elif x_subview == "Directory":
         # Top KPI Metrics Cards Row (Apple HIG cards)
         kc1, kc2, kc3, kc4, kc5 = st.columns(5)
         with kc1:

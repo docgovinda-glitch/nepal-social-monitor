@@ -3223,8 +3223,8 @@ _TOOLBAR_CSS = """
     @media (max-width: 640px) {
         div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) { flex-direction: row !important; flex-wrap: nowrap !important; gap: 8px !important; align-items: center !important; }
         div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"] { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; max-width: none !important; }
-        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(6) { display: none !important; }
-        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { flex: 1.5 1 0 !important; }
+        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:last-child { display: none !important; }
+        div[data-testid="stHorizontalBlock"]:has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor):has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { flex: 1.9 1 0 !important; }
     }
     div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { padding: 0 8px !important; min-width: 0 !important; }
 """
@@ -3241,10 +3241,10 @@ _DESKTOP_CSS = """
   /* Toolbar: compact, equal-height icon buttons grouped on the left (same look for all four) */
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { gap: 8px !important; justify-content: flex-start !important; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"] { flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(1), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(4), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(5) { width: 52px !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(1), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(4), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(5), div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(6):not(:last-child) { width: 52px !important; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(2) { width: 76px !important; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(3) { width: 92px !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(6) { flex: 1 1 0 !important; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:last-child { flex: 1 1 0 !important; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button { height: 38px !important; min-height: 38px !important; background: rgba(60,60,67,.08) !important; border: 0 !important; box-shadow: none !important; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) .stButton button:hover, div[data-testid="stHorizontalBlock"]:has(.tb-anchor) [data-testid="stPopover"] button:hover { background: rgba(60,60,67,.14) !important; }
 }
@@ -3297,7 +3297,7 @@ _TITLEBAR_CSS = """
   div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .tb-anchor) { margin-top: -67px !important; margin-bottom: 29px !important; padding-right: 0 !important; position: relative; z-index: 2; pointer-events: none; }
   div[data-testid="stLayoutWrapper"]:has(.st-key-app_nav_seg) + div[data-testid="stLayoutWrapper"]:has(> div[data-testid="stHorizontalBlock"] .tb-anchor) * { pointer-events: auto; }
   div[data-testid="stHorizontalBlock"]:has(.tb-anchor) { justify-content: flex-end !important; }
-  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:nth-child(6) { order: -1; }
+  div[data-testid="stHorizontalBlock"]:has(.tb-anchor) > div[data-testid="stColumn"]:last-child { order: -1; }
 }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_CSS)
