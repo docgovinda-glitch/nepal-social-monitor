@@ -2953,7 +2953,7 @@ def render_infinite_workspace_feed(
     # Check for newly ingested stories since snapshot (throttled to 60s cache buckets, skipped during active scroll/action)
     new_since_snap = 0
     _snap_age_secs = (datetime.datetime.now(NEPAL_TZ) - sess["snapshot_ingested_at"]).total_seconds()
-    if is_to_current and sess["batches"] and _snap_age_secs >= 45 and handled_ev_type not in ("load_more", "retry", "action", "sync_all"):
+    if is_to_current and sess["batches"] and _snap_age_secs >= 8 and handled_ev_type not in ("load_more", "retry", "action", "sync_all"):
         try:
             delta_now_bucket = _floor_60s(datetime.datetime.now(NEPAL_TZ))
             delta_info = _get_cached_filtered_count(
@@ -3197,12 +3197,9 @@ _changed_streams = [
 if _changed_streams:
     _sess_map = st.session_state.get("feed_sessions")
     for s_name in _changed_streams:
+        # Do NOT bump _stream_vers here: it is part of each feed's filter signature and would reset the user's scroll.
+        # New stories surface through the floating "N new" pill instead.
         _seen_stream_seqs[s_name] = int(_snap_stream_seqs.get(s_name, 0))
-        _stream_vers[s_name] = int(_stream_vers.get(s_name, 0)) + 1
-        if isinstance(_sess_map, dict):
-            _sess_map.pop(s_name, None)
-    if isinstance(_sess_map, dict):
-        _sess_map.pop("live", None)
     _v_np = int(_stream_vers.get("nepali", 0))
     _v_in = int(_stream_vers.get("indian", 0))
     _v_x = int(_stream_vers.get("x", 0))
@@ -3230,8 +3227,8 @@ if _changed_streams:
 _seen_sync_seq = int(st.session_state.get("_seen_sync_seq", 0))
 if not _sync_snap.get("running") and int(_sync_snap.get("completed_seq", 0)) > _seen_sync_seq:
     st.session_state["_seen_sync_seq"] = int(_sync_snap["completed_seq"])
-    if _changed_streams and not _sync_snap.get("errors"):
-        pass
+    with st.container(key="sync_pill"):
+        st.markdown(_sync_pill_html(_sync_snap.get("pipelines") or {}, "", final=True), unsafe_allow_html=True)
 
 # Cold login 1-query bootstrap when Live Feed needs initial load; cached header otherwise
 _prefetched_live_init = None
@@ -3736,11 +3733,39 @@ def _render_telemetry_hud_html(elapsed: int, pipes: Dict[str, Dict[str, Any]]) -
     )
 
 
-@st.fragment(run_every=3)
+def _sync_pill_html(pipes: Dict[str, Dict[str, Any]], verb: str, final: bool = False) -> str:
+    icons = {"nepali": "🇳🇵", "indian": "🇮🇳", "x": "𝕏"}
+    chips = []
+    total = 0
+    for k in ("nepali", "indian", "x"):
+        p = pipes.get(k) or {}
+        stt = p.get("status", "idle")
+        if stt == "running":
+            body = '<span class="sp-spin"></span>'
+        elif stt == "done":
+            n = int(p.get("count", 0))
+            total += n
+            body = f'<b>+{n}</b>' if n else '<span class="sp-ok">✓</span>'
+        elif stt in ("error", "timeout"):
+            body = '<span class="sp-err">!</span>'
+        else:
+            body = '<span class="sp-wait">·</span>'
+        chips.append(f'<span class="sp-chip">{icons[k]} {body}</span>')
+    head = f"{'✓ ' if final else ''}{html.escape(verb)}" if not final else (f"+{total} new" if total else "Up to date")
+    return f'<div class="sync-pill{" sync-pill--final" if final else ""}"><span class="sp-verb">{head}</span>{"".join(chips)}</div>'
+
+
+@st.fragment(run_every=1.5)
 def _render_active_sync_monitor() -> None:
     snap = get_manual_sync_status()
     pipes = snap.get("pipelines") or {}
     snap_seqs = snap.get("stream_seqs") or {}
+    started = float(snap.get("started_at") or 0)
+    if st.session_state.get("_sync_verb_for") != started:
+        st.session_state["_sync_verb_for"] = started
+        st.session_state["_sync_verb"] = _busy("feed").rstrip("…")
+    with st.container(key="sync_pill"):
+        st.markdown(_sync_pill_html(pipes, st.session_state.get("_sync_verb", "Syncing") + "…"), unsafe_allow_html=True)
     seen_seqs = st.session_state.get("_seen_stream_seqs", {"nepali": 0, "indian": 0, "x": 0})
     has_new_stream = any(int(snap_seqs.get(k, 0)) > int(seen_seqs.get(k, 0)) for k in ("nepali", "indian", "x"))
     if has_new_stream:
