@@ -158,16 +158,16 @@ def _source_counts() -> Tuple[int, int, int]:
 
 
 def _auth_stats_html() -> str:
-    """Source counts under the login title; nothing is hard-coded, so adding or removing sources updates it."""
+    """Live source coverage rows in the login left pane."""
     try:
         n1, n2, n3 = _source_counts()
     except Exception:
         return ""
     return (
-        '<div class="auth-stats">'
-        f'<div class="auth-stat"><b>{n1}</b><span>Nepali Press</span></div>'
-        f'<div class="auth-stat"><b>{n2}</b><span>Indian Press</span></div>'
-        f'<div class="auth-stat"><b>{n3}</b><span>Social Media</span></div>'
+        '<div class="auth-coverage">'
+        f'<div class="auth-cov-row"><span class="auth-cov-label">🇳🇵 Nepali Press</span><span class="auth-cov-val">{n1} portals</span></div>'
+        f'<div class="auth-cov-row"><span class="auth-cov-label">🇮🇳 Indian Press</span><span class="auth-cov-val">{n2} outlets</span></div>'
+        f'<div class="auth-cov-row"><span class="auth-cov-label">💬 Social Media</span><span class="auth-cov-val">{n3:,} voices</span></div>'
         '</div>'
     )
 
@@ -195,30 +195,43 @@ def check_password() -> bool:
     with auth_slot.container():
         st.markdown(AUTH_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
         with st.form("auth_form", clear_on_submit=False):
-            st.markdown(f"""
-            <div class="auth-header">
-                <div class="auth-header__icon-ring">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z"/><path d="M17 9h3v9a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h3"/>
-                    </svg>
+            c_left, c_right = st.columns([1.08, 1], gap=None)
+            with c_left:
+                st.markdown(f"""
+                <div class="auth-split-left">
+                    <div class="auth-split-top">
+                        <div class="auth-live-pill"><span class="auth-live-dot"></span> LIVE MONITORING · NPT</div>
+                        <div class="auth-header__title">Monitor &amp; Analytics</div>
+                        <div class="auth-header__subtitle">Unified intelligence across Nepali newsrooms, Indian press, and verified social voices.</div>
+                    </div>
+                    {_auth_stats_html()}
                 </div>
-                <h1 class="auth-header__title">Monitor &amp; Analytics</h1>
-                {_auth_stats_html()}
-            </div>
-            """, unsafe_allow_html=True)
-            pwd = st.text_input("Password", type="password", placeholder="Enter password", label_visibility="collapsed")
-            submit = st.form_submit_button("Unlock", width="stretch", type="primary")
-            st.markdown(
-                '<div class="auth-footer">'
-                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-                'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
-                '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>'
-                '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
-                '</svg>'
-                'Secure access · Authorised users only'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+                """, unsafe_allow_html=True)
+            with c_right:
+                st.markdown("""
+                <div class="auth-split-right-head">
+                    <div class="auth-header__icon-ring">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                    </div>
+                    <div class="auth-right-title">Workspace Access</div>
+                    <div class="auth-right-sub">Enter passcode to continue</div>
+                </div>
+                """, unsafe_allow_html=True)
+                pwd = st.text_input("Password", type="password", placeholder="Enter password", label_visibility="collapsed")
+                submit = st.form_submit_button("Unlock Workspace", icon=":material/arrow_forward:", width="stretch", type="primary")
+                st.markdown(
+                    '<div class="auth-footer">'
+                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                    'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+                    '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>'
+                    '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+                    '</svg>'
+                    'Secure access · Authorised users only'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
 
         if submit:
             if pwd and hmac.compare_digest(pwd.strip(), app_pwd):
@@ -363,28 +376,51 @@ if not is_background_daemon_disabled():
     except Exception:
         pass
 
-# 3. Time Reference (separate actual filtering timestamp from 3-minute cache-bucket anchor)
-actual_now_npt = datetime.datetime.now(NEPAL_TZ)
+# 3. Time Reference (single session-pinned timeframe clock shared strictly across sidebar, header, feeds, and export)
+_wall_now_npt = datetime.datetime.now(NEPAL_TZ)
+st.session_state.setdefault("last_sync_npt", _wall_now_npt.strftime("%I:%M %p").lstrip("0"))
+st.session_state.setdefault("auto_sync_enabled", True)
+st.session_state.setdefault("cp_timeframe_segment", "12h")
+st.session_state.setdefault("tf_epoch", 1)
+st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
+_tf_anchor_state = st.session_state.get("_tf_anchor_state")
+_cur_tf_ep_top = int(st.session_state.get("tf_epoch", 1))
+_cur_dv_top = int(st.session_state.get("data_version", 0))
+if (
+    not isinstance(_tf_anchor_state, dict)
+    or not isinstance(_tf_anchor_state.get("dt"), datetime.datetime)
+    or int(_tf_anchor_state.get("epoch", -1)) != _cur_tf_ep_top
+    or int(_tf_anchor_state.get("data_ver", -1)) != _cur_dv_top
+    or (time.time() - float(_tf_anchor_state.get("ts") or 0.0)) >= 60.0
+):
+    _tf_anchor_state = {
+        "epoch": _cur_tf_ep_top,
+        "data_ver": _cur_dv_top,
+        "ts": time.time(),
+        "dt": _wall_now_npt,
+    }
+    st.session_state["_tf_anchor_state"] = _tf_anchor_state
+actual_now_npt = _tf_anchor_state["dt"]
 now_npt = actual_now_npt.replace(minute=(actual_now_npt.minute // 3) * 3, second=0, microsecond=0)
 formatted_now_time = actual_now_npt.strftime("%I:%M %p NPT").lstrip("0")
 past_12h_ref = actual_now_npt - datetime.timedelta(hours=12)
 default_start_date = past_12h_ref.date()
 default_start_time = past_12h_ref.time().replace(second=0, microsecond=0)
-st.session_state.setdefault("last_sync_npt", actual_now_npt.strftime("%I:%M %p").lstrip("0"))
-st.session_state.setdefault("auto_sync_enabled", True)
-st.session_state.setdefault("cp_timeframe_segment", "12h")
-st.session_state.setdefault("tf_epoch", 1)
-st.session_state.setdefault("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
 
 # ==========================================
 # 4. TIME WINDOW
-# Presets (12h / 24h / Today) always run up to "now".
+# Presets (2h / 6h / 12h / 24h / Today) always run up to "now".
 # "Custom" exposes start/end pickers plus an "Up to now" toggle.
 # ==========================================
-TIMEFRAME_PRESETS = ["12h", "24h", "Today", "Custom"]
+TIMEFRAME_PRESETS = ["2h", "6h", "12h", "24h", "Today", "Custom"]
+QUICK_TIME_PRESETS = ["6h", "12h", "24h", "Today"]
 PAGE_SIZE = 20
 
 def _preset_start(preset: str, ref: datetime.datetime) -> datetime.datetime:
+    if preset == "2h":
+        return ref - datetime.timedelta(hours=2)
+    if preset == "6h":
+        return ref - datetime.timedelta(hours=6)
     if preset == "24h":
         return ref - datetime.timedelta(hours=24)
     if preset == "Today":
@@ -396,30 +432,42 @@ def on_timeframe_preset_change():
     if not st.session_state.get("cp_timeframe_segment"):
         st.session_state["cp_timeframe_segment"] = "12h"
     preset = st.session_state["cp_timeframe_segment"]
+    now_curr = datetime.datetime.now(NEPAL_TZ)
     if preset != "Custom":
-        start = _preset_start(preset, datetime.datetime.now(NEPAL_TZ))
+        start = _preset_start(preset, now_curr)
         st.session_state["filter_start_date"] = start.date()
         st.session_state["filter_start_time"] = start.time().replace(second=0, microsecond=0)
-    st.session_state["tf_epoch"] = int(st.session_state.get("tf_epoch", 1)) + 1
+    new_ep = int(st.session_state.get("tf_epoch", 1)) + 1
+    st.session_state["tf_epoch"] = new_ep
+    st.session_state["_tf_anchor_state"] = {
+        "epoch": new_ep,
+        "data_ver": int(st.session_state.get("data_version", 0)),
+        "ts": time.time(),
+        "dt": now_curr,
+    }
+    st.session_state.pop("_hdr_state_cache", None)
+    st.session_state["_pending_tf_rerun"] = True
 
 active_preset = st.session_state.get("cp_timeframe_segment") or "12h"
 if active_preset == "Custom":
+    st.session_state.setdefault("filter_start_date", default_start_date)
+    st.session_state.setdefault("filter_start_time", default_start_time)
+    st.session_state.setdefault("filter_use_current_time", True)
     filter_start_dt = datetime.datetime.combine(
         st.session_state.get("filter_start_date", default_start_date),
         st.session_state.get("filter_start_time", default_start_time),
         tzinfo=NEPAL_TZ,
     )
-    cache_start_dt = filter_start_dt
-    is_to_current = st.session_state.get("filter_use_current_time", True)
+    is_to_current = bool(st.session_state.get("filter_use_current_time", True))
 else:
     filter_start_dt = _preset_start(active_preset, actual_now_npt)
-    cache_start_dt = _preset_start(active_preset, now_npt)
     is_to_current = True
 
 if is_to_current:
     filter_end_dt = actual_now_npt
-    cache_end_dt = None
 else:
+    st.session_state.setdefault("filter_end_date", actual_now_npt.date())
+    st.session_state.setdefault("filter_end_time", actual_now_npt.time().replace(second=0, microsecond=0))
     filter_end_dt = datetime.datetime.combine(
         st.session_state.get("filter_end_date", actual_now_npt.date()),
         st.session_state.get("filter_end_time", actual_now_npt.time().replace(second=0, microsecond=0)),
@@ -427,7 +475,8 @@ else:
     )
     if filter_end_dt < filter_start_dt:
         filter_end_dt = filter_start_dt + datetime.timedelta(hours=1)
-    cache_end_dt = filter_end_dt
+cache_start_dt = filter_start_dt
+cache_end_dt = filter_end_dt
 
 if active_preset == "Custom":
     _custom_key = (
@@ -440,9 +489,30 @@ if active_preset == "Custom":
     if st.session_state.get("_prev_custom_tf") != _custom_key:
         if "_prev_custom_tf" in st.session_state:
             st.session_state["tf_epoch"] = int(st.session_state.get("tf_epoch", 1)) + 1
+            st.session_state.pop("_hdr_state_cache", None)
         st.session_state["_prev_custom_tf"] = _custom_key
 
 _tf_epoch = int(st.session_state.get("tf_epoch", 1))
+
+
+def _tf_state_sig() -> Tuple[Any, ...]:
+    p = st.session_state.get("cp_timeframe_segment") or "12h"
+    ep = int(st.session_state.get("tf_epoch", 1))
+    if p != "Custom":
+        return (p, ep)
+    use_now = bool(st.session_state.get("filter_use_current_time", True))
+    return (
+        p,
+        ep,
+        str(st.session_state.get("filter_start_date", default_start_date)),
+        str(st.session_state.get("filter_start_time", default_start_time)),
+        use_now,
+        "" if use_now else str(st.session_state.get("filter_end_date", actual_now_npt.date())),
+        "" if use_now else str(st.session_state.get("filter_end_time", actual_now_npt.time().replace(second=0, microsecond=0))),
+    )
+
+
+_TOP_LEVEL_TF_SIG = _tf_state_sig()
 _stream_vers = st.session_state.get("stream_versions", {"nepali": 0, "indian": 0, "x": 0})
 _v_np = int(_stream_vers.get("nepali", 0))
 _v_in = int(_stream_vers.get("indian", 0))
@@ -473,7 +543,9 @@ INDIAN_OUTLET_NAMES = sorted({s["name"] for s in TOP_INDIAN_MEDIA_SOURCES})
 india_rel_threshold = DEFAULT_NEPAL_RELEVANCE_THRESHOLD
 
 def reset_all_filters():
-    start = _preset_start("12h", datetime.datetime.now(NEPAL_TZ))
+    now_curr = datetime.datetime.now(NEPAL_TZ)
+    start = _preset_start("12h", now_curr)
+    new_ep = int(st.session_state.get("tf_epoch", 1)) + 1
     st.session_state.update({
         "global_search_input": "",
         "committed_search_query": "",
@@ -499,8 +571,16 @@ def reset_all_filters():
         "np_fetch_limit": 500,
         "in_fetch_limit": 500,
         "x_fetch_limit": 500,
+        "tf_epoch": new_ep,
+        "_tf_anchor_state": {
+            "epoch": new_ep,
+            "data_ver": int(st.session_state.get("data_version", 0)),
+            "ts": time.time(),
+            "dt": now_curr,
+        },
+        "_pending_tf_rerun": True,
     })
-    st.session_state["tf_epoch"] = int(st.session_state.get("tf_epoch", 1)) + 1
+    st.session_state.pop("_hdr_state_cache", None)
     st.session_state.pop("feed_sessions", None)
 
 
@@ -513,8 +593,25 @@ def _clear_workspace_filters(defaults: Dict[str, Any], workspace_key: str) -> No
         sessions.pop(workspace_key, None)
 
 
+def _render_active_search_chip() -> None:
+    """Renders the active search query pill below the header with a one-click clear button."""
+    if not _active_sq:
+        return
+    _sq_c1, _sq_c2 = st.columns([5.0, 1.0], gap="small")
+    with _sq_c1:
+        st.markdown(
+            f'<div style="padding:2px 0;"><span class="pill pill--tint">{_ico("search", 12)} {html.escape(_active_sq)}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with _sq_c2:
+        if st.button("Clear search", icon=":material/close:", key="btn_clr_top_search", width="stretch"):
+            st.session_state["committed_search_query"] = ""
+            st.rerun()
+
+
 def _render_active_filters_bar(active_labels: List[str], defaults: Dict[str, Any], workspace_key: str) -> None:
     """Shows active contextual filter pills and a one-click Clear button when non-default filters are applied."""
+    _render_active_search_chip()
     if not active_labels:
         return
     pills_html = "".join(
@@ -594,7 +691,7 @@ def get_cached_login_bootstrap(
             pdt = r.get("published_dt")
             if isinstance(pdt, datetime.datetime):
                 _, r["relative_time"], r["exact_time"] = parse_to_nepal_time(pdt, now_curr)
-        lp["rows"] = [r for r in lp.get("rows", []) if l_start <= (r.get("published_dt") or l_start) <= l_end]
+        lp["rows"] = [r for r in lp.get("rows", []) if in_window(r, l_start, l_end)]
         lp["snapshot_start_dt"] = l_start
         lp["snapshot_end_dt"] = l_end
         lp["snapshot_ingested_at"] = l_end
@@ -2915,7 +3012,7 @@ def render_infinite_workspace_feed(
             snap_ing = prefetched_init.get("snapshot_ingested_at") or snap_end
         else:
             snap_start = filter_start_dt
-            snap_end = datetime.datetime.now(NEPAL_TZ) if is_to_current else filter_end_dt
+            snap_end = filter_end_dt
             snap_ing = datetime.datetime.now(NEPAL_TZ)
         sess = {
             "filter_sig": filter_sig,
@@ -3112,7 +3209,7 @@ def render_infinite_workspace_feed(
                 if sk in sv:
                     sv[sk] = int(sv.get(sk, 0)) + 1
             st.session_state["data_version"] = data_ver + 1
-            _safe_fragment_rerun()
+            st.rerun()
 
 
     if st.session_state.pop("_scroll_top_once", False):
@@ -3360,7 +3457,7 @@ if not _sync_snap.get("running") and int(_sync_snap.get("completed_seq", 0)) > _
 # Cold login 1-query bootstrap when Live Feed needs initial load; cached header otherwise
 _prefetched_live_init = None
 _prefetched_live_sig = None
-_hdr_cache_key = (cache_start_dt.isoformat(), cache_end_dt.isoformat() if cache_end_dt else "", _data_ver)
+_hdr_cache_key = (active_preset, _tf_epoch, filter_start_dt.isoformat(), filter_end_dt.isoformat(), _data_ver)
 _hdr_cached_entry = st.session_state.get("_hdr_state_cache")
 _live_sess_existing = st.session_state.get("feed_sessions", {}).get("live")
 if selected_nav == "Live Feed" and not _live_sess_existing:
@@ -3429,6 +3526,7 @@ _ws_counts = {
     "Live Feed": total_combined_count,
     "Nepali Media": stream_counts.get("nepali_count", 0),
     "Indian Press": stream_counts.get("indian_count", 0),
+    "Social Media": stream_counts.get("x_count", 0),
     "X": stream_counts.get("x_count", 0),
 }
 
@@ -3436,6 +3534,7 @@ _WS_TAB_META = {
     "Live Feed": (":material/newspaper:", "All"),
     "Nepali Media": (":material/landscape:", "Nepali"),
     "Indian Press": (":material/public:", "India"),
+    "Social Media": (":material/forum:", "Social"),
     "X": (":material/forum:", "Social"),
     "Analytics & Export": (":material/ios_share:", "Export"),
     "System Health": (":material/monitor_heart:", "Health"),
@@ -3463,7 +3562,7 @@ _RAIL_TOGGLE_JS = """
     var b = d.createElement('button');
     b.id = 'rail-toggle'; b.type = 'button';
     b.setAttribute('aria-label', 'Hide sidebar'); b.title = 'Hide sidebar';
-    b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="9" y1="4" x2="9" y2="20"/><path class="rt-arr" d="M16 9.5L13.5 12l2.5 2.5"/></svg>';
     b.addEventListener('click', function () {
       var h = d.documentElement, collapsed = h.getAttribute('data-rail') === 'collapsed';
       if (collapsed) { h.removeAttribute('data-rail'); } else { h.setAttribute('data-rail', 'collapsed'); }
@@ -3491,6 +3590,23 @@ _RAIL_TOGGLE_JS = """
     }
     fix(d);
     new MutationObserver(function () { fix(d); }).observe(d.body, { childList: true, subtree: true });
+  } catch (e) {}
+})();
+</script>
+<script>
+(function () {
+  try {
+    var w = window.parent, d = w.document;
+    if (w.__nmCmdK) return;
+    w.__nmCmdK = true;
+    d.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        var el = d.activeElement, tag = (el && el.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || (el && el.isContentEditable)) return;
+        var btn = d.querySelector('[class*="st-key-btn_srch_"] button');
+        if (btn) { e.preventDefault(); btn.click(); }
+      }
+    });
   } catch (e) {}
 })();
 </script>
@@ -3595,22 +3711,60 @@ def _render_brand_sync() -> None:
     label, col = _sync_age_label(epoch)
     _names = {"nepali": "Nepali", "indian": "Indian", "x": "Social"}
     _per = " · ".join(f"{_names[k]} {_sync_age_label(float(_fresh.get(k) or 0.0))[0].replace('Updated ', '')}" for k in ("nepali", "indian", "x"))
-    exact = _per
-    inner = html.escape(label)
-    tip = f'{exact}'
-    if running or (fin and time.time() - fin < 8):
-        col = "#0071E3"
-        inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
+    tip = _per
+    is_syncing = running or (fin and time.time() - fin < 8)
+    try:
+        _n_np, _n_in, _n_x = _source_counts()
+        _src_labels = {
+            "Live Feed": f"{_n_np + _n_in + _n_x:,} sources",
+            "Nepali Media": f"{_n_np} portals",
+            "Indian Press": f"{_n_in} outlets",
+            "Social Media": f"{_n_x:,} voices",
+            "X": f"{_n_x:,} voices",
+            "Analytics & Export": f"{_n_np + _n_in + _n_x:,} sources",
+            "System Health": f"{_n_np + _n_in} portals",
+        }
+        _src_txt = _src_labels.get(selected_nav, "")
+    except Exception:
+        _src_txt = ""
+    if is_syncing:
+        dot_col = "#0071E3"
+        meta_inner = _sync_inline_html(snap.get("pipelines") or {}, final=not running)
         tip = "Syncing…" if running else "Sync finished"
-    _titles = {"Live Feed": "All Feeds", "Nepali Media": "Nepali Feed", "Indian Press": "Indian Feed", "Social Media": "Social Media Feed", "X": "Social Media Feed", "Analytics & Export": "Export", "System Health": "Health"}
+    else:
+        is_fresh = col == "#15803D"
+        dot_col = "#34C759" if is_fresh else col
+        parts = [f'<span class="sync-dot{" sync-dot--live" if is_fresh else ""}"></span>']
+        if is_fresh:
+            parts.append('<span class="hdr-live-word">Live</span><span class="hdr-sep">·</span>')
+        parts.append(f'<span>{html.escape(label)}</span>')
+        if _src_txt:
+            parts.append(f'<span class="hdr-sep">·</span><span>{html.escape(_src_txt)}</span>')
+        meta_inner = "".join(parts)
+    _titles = {
+        "Live Feed": "All Feeds",
+        "Nepali Media": "Nepali Media",
+        "Indian Press": "Indian Press",
+        "Social Media": "Social Media",
+        "X": "Social Media",
+        "Analytics & Export": "Analytics & Export",
+        "System Health": "System Health",
+    }
+    _ws_counts_map = {
+        "Live Feed": total_combined_count,
+        "Nepali Media": stream_counts.get("nepali_count", 0),
+        "Indian Press": stream_counts.get("indian_count", 0),
+        "Social Media": stream_counts.get("x_count", 0),
+        "X": stream_counts.get("x_count", 0),
+    }
     _title = _titles.get(selected_nav, "Monitor & Analytics")
+    _item_n = _ws_counts_map.get(selected_nav)
+    _count_html = f'<span class="hdr-count">({int(_item_n):,})</span>' if _item_n is not None else ""
     st.markdown(
         f'<div class="editorial-brand-anchor hdr-title-wrap">'
-        f'<div class="hdr-title">{html.escape(_title)}</div>'
-        f'<div class="hdr-meta"><span class="live-status-inline sync-inline" style="--dot:{col}" '
-        f'title="{html.escape(tip)}">'
-        + ('' if (running or (fin and time.time() - fin < 8)) else f'<span class="sync-dot{" sync-dot--live" if col == "#15803D" else ""}"></span>')
-        + f'{inner}</span></div>'
+        f'<div class="hdr-title-row"><div class="hdr-title">{html.escape(_title)}</div>{_count_html}</div>'
+        f'<div class="hdr-meta"><span class="live-status-inline sync-inline" style="--dot:{dot_col}" '
+        f'title="{html.escape(tip)}">{meta_inner}</span></div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -3634,13 +3788,53 @@ def _cycle_theme() -> None:
 def _render_theme_button(ws_suffix: str) -> None:
     mode = _THEME_MODE if _THEME_MODE in ("auto", "light", "dark") else "auto"
     icon = {"auto": ":material/brightness_auto:", "light": ":material/light_mode:", "dark": ":material/dark_mode:"}[mode]
-    if st.button("", icon=icon, key=f"btn_theme_{ws_suffix}", width="stretch",
+    if st.button("", icon=icon, key=f"btn_theme_{ws_suffix}", width="content",
                  help=f"Appearance · {mode.capitalize()}"):
         _cycle_theme()
         st.rerun()  # full-app rerun: this button lives inside a fragment, and the theme CSS is applied at the top of the script
 
 
+def _fmt_rail_badge(count: Any) -> str:
+    try:
+        n = max(0, int(count or 0))
+    except (TypeError, ValueError):
+        return "0"
+    if n < 1000:
+        return str(n)
+    if n < 10000:
+        return f"{n / 1000:.1f}k".replace(".0k", "k")
+    return f"{n // 1000}k"
+
+
+def _rail_health_dot_color() -> str:
+    try:
+        if (_sync_snap or {}).get("errors"):
+            return "#FF9F0A"
+        fresh = _stream_freshness() or {}
+        newest = max([float(v or 0.0) for v in fresh.values()] or [0.0])
+        if newest > 0:
+            mins = max(0, int((time.time() - newest) // 60))
+            if mins < 20:
+                return "#34C759"
+            if mins < 60:
+                return "#FF9F0A"
+            return "#FF453A"
+    except Exception:
+        pass
+    return "#34C759" if total_combined_count > 0 else "#8E8E93"
+
+
 with _nav_tabs:
+    st.markdown(
+        f'<style>:root{{'
+        f'--rail-c1:"{_fmt_rail_badge(total_combined_count)}";'
+        f'--rail-c2:"{_fmt_rail_badge(stream_counts.get("nepali_count", 0))}";'
+        f'--rail-c3:"{_fmt_rail_badge(stream_counts.get("indian_count", 0))}";'
+        f'--rail-c4:"{_fmt_rail_badge(stream_counts.get("x_count", 0))}";'
+        f'--rail-health-dot:{_rail_health_dot_color()};'
+        f'}}</style>',
+        unsafe_allow_html=True,
+    )
     st.segmented_control(
         "Workspace",
         options=[n for n, _ in NAV_ITEMS],
@@ -3787,8 +3981,7 @@ def _render_phase2_search_sidebar() -> None:
         )
 
 
-# PHASE 2: Render persistent search sidebar
-_render_phase2_search_sidebar()
+# Search query pills are rendered cleanly inside _render_active_filters_bar below the sticky header.
 
 
 @st.fragment
@@ -3883,23 +4076,62 @@ def _render_phase3_onboarding_card() -> None:
             st.rerun()
 
 
-def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffix: str) -> None:
-    """Renders [ 🕒 12h ▾ | 🔍 | 🔄 ] on the right side of Row 2."""
-    with col_time:
-        with st.popover(f":material/schedule: {active_preset}", help=window_label, width="stretch"):
+def _sync_tf_from_widget(seg_key: str) -> None:
+    chosen = st.session_state.get(seg_key)
+    if not chosen:
+        cur = st.session_state.get("cp_timeframe_segment") or "12h"
+        chosen = cur if cur in QUICK_TIME_PRESETS else "12h"
+        st.session_state[seg_key] = chosen
+    st.session_state["cp_timeframe_segment"] = chosen
+    on_timeframe_preset_change()
+
+
+def _sync_pop_tf_from_widget(seg_key: str) -> None:
+    chosen = st.session_state.get(seg_key) or "12h"
+    st.session_state["cp_timeframe_segment"] = chosen
+    on_timeframe_preset_change()
+
+
+def _render_time_capsule(ws_suffix: str) -> None:
+    """Renders the unified Apple segmented time capsule: [ 6h | 12h | 24h | Today | 📅▾ ]."""
+    # Timeframe lives inside workspace @st.fragment blocks; rerun the full app whenever
+    # a preset, popover range, custom picker, or reset changes so sidebar badges, header
+    # counts, and every workspace stay strictly aligned to the chosen window.
+    if st.session_state.pop("_pending_tf_rerun", False) or _tf_state_sig() != _TOP_LEVEL_TF_SIG:
+        st.session_state.pop("_hdr_state_cache", None)
+        st.rerun(scope="app")
+
+    cur_preset = st.session_state.get("cp_timeframe_segment") or "12h"
+    quick_key = f"cp_tf_quick_{ws_suffix}"
+    pop_seg_key = f"cp_tf_seg_{ws_suffix}"
+    is_extra_tf = cur_preset not in QUICK_TIME_PRESETS
+    st.session_state[quick_key] = cur_preset if not is_extra_tf else None
+    st.session_state[pop_seg_key] = cur_preset
+
+    cap_key = f"hdr_time_custom_{ws_suffix}" if is_extra_tf else f"hdr_time_{ws_suffix}"
+    with st.container(key=cap_key, horizontal=True, horizontal_alignment="left", vertical_alignment="center", gap=None, wrap=False, width="content"):
+        st.segmented_control(
+            "Timeframe",
+            options=QUICK_TIME_PRESETS,
+            key=quick_key,
+            on_change=_sync_tf_from_widget,
+            args=(quick_key,),
+            label_visibility="collapsed",
+            width="content",
+        )
+        pop_label = cur_preset if is_extra_tf else ""
+        pop_icon = ":material/schedule:" if cur_preset == "2h" else ":material/date_range:"
+        with st.popover(pop_label, icon=pop_icon, key=f"pop_time_{ws_suffix}", help=f"{window_label} · Custom range & reset", width="content"):
             st.segmented_control(
-                "Timeframe",
+                "All timeframes",
                 options=TIMEFRAME_PRESETS,
-                default=st.session_state.get("cp_timeframe_segment", "12h"),
-                key=f"cp_tf_seg_{ws_suffix}",
-                on_change=lambda: (
-                    st.session_state.update({"cp_timeframe_segment": st.session_state.get(f"cp_tf_seg_{ws_suffix}") or "12h"}),
-                    on_timeframe_preset_change(),
-                ),
+                key=pop_seg_key,
+                on_change=_sync_pop_tf_from_widget,
+                args=(pop_seg_key,),
                 label_visibility="collapsed",
                 width="stretch",
             )
-            if active_preset == "Custom":
+            if cur_preset == "Custom":
                 c_dt1, c_dt2 = st.columns(2)
                 with c_dt1:
                     st.date_input("From", value=st.session_state.get("filter_start_date", default_start_date), max_value=now_npt.date(), key="filter_start_date")
@@ -3911,24 +4143,6 @@ def _render_row2_utilities(col_time: Any, col_srch: Any, col_sync: Any, ws_suffi
                         st.time_input("Time ", value=st.session_state.get("filter_end_time", now_npt.time().replace(second=0, microsecond=0)), key="filter_end_time")
             st.caption(f"{window_label} · Synced {st.session_state['last_sync_npt']} NPT")
             st.button("Reset All Filters", icon=":material/restart_alt:", key=f"btn_rst_{ws_suffix}", width="stretch", on_click=reset_all_filters)
-    with col_srch:
-        _srch_btn_type = "primary" if _active_sq else "secondary"
-        _srch_help = f"“{_active_sq}” · tap to edit" if _active_sq else "Search"
-        if st.button("", icon=":material/search:", key=f"btn_srch_{ws_suffix}", type=_srch_btn_type, width="stretch", help=_srch_help):
-            _show_search_dialog()
-    with col_sync:
-        _sync_now = get_manual_sync_status()
-        _is_syncing_now = bool(_sync_now.get("running"))
-        if st.button(
-            "",
-            icon=":material/sync:",
-            key=(f"btn_sync_run_{ws_suffix}" if _is_syncing_now else f"btn_sync_{ws_suffix}"),
-            width="stretch",
-            disabled=_is_syncing_now,
-            help=("Syncing…" if _is_syncing_now else "Sync now"),
-        ):
-            trigger_manual_sync_async(targets={"np": ["nepali"], "in": ["indian"], "x": ["x"]}.get(ws_suffix))
-            st.rerun()
 
 
 def _format_sync_pipeline_pills(pipes: Dict[str, Dict[str, Any]]) -> str:
@@ -4029,46 +4243,73 @@ elif _sync_snap.get("errors"):
                     st.toast(f"Retrying {', '.join(_failed_streams)}…", icon=":material/refresh:")
                 st.rerun()
 
-if _active_sq:
-    _sq_c1, _sq_c2 = st.columns([5.0, 1.0], gap="small")
-    with _sq_c1:
-        st.markdown(f'<div style="padding:2px 0;"><span class="pill pill--tint">{_ico("search", 12)} {html.escape(_active_sq)}</span></div>', unsafe_allow_html=True)
-    with _sq_c2:
-        if st.button("Clear search", icon=":material/close:", key="btn_clr_top_search", width="stretch"):
-            st.session_state["committed_search_query"] = ""
-            st.rerun()
-
 search_query = st.session_state.get("committed_search_query", "")
 
 # ==========================================
 # SECTION 0: Live Feed (Nepali Media, Indian Press, X Posts)
 # ==========================================
-def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool = False, admin: bool = False) -> Any:
-    """One row: title + sync status on the left; search | filters | time | sync | appearance (| admin) on the right.
+def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool = False, admin: bool = False, show_timeframe: bool = False) -> Any:
+    """Sticky Apple-grade header: large title + live status on the left; unified capsule controls on the right.
     Returns the filters popover for the caller to fill."""
-    if only_theme:
-        c = st.columns([6, 1], gap="small", vertical_alignment="center")
-        with c[0]:
-            st.markdown('<div class="tb-anchor tb-only-theme"></div>', unsafe_allow_html=True)
-            _render_brand_sync()
-        with c[1]:
-            _render_theme_button(ws_suffix)
-        return None
-    c = st.columns([6, 1, 1, 1, 1, 1, 1] if admin else [6, 1, 1, 1, 1, 1], gap="small", vertical_alignment="center")
-    with c[0]:
-        _render_brand_sync()
-    with c[5]:
-        _render_theme_button(ws_suffix)
-    if admin:
-        with c[6]:
-            st.button("", icon=":material/admin_panel_settings:", key="btn_x_admin", help="Admin", width="stretch",
-                      on_click=lambda: st.session_state.update({"x_subview_active_tab": "Admin"}))
-    with c[2]:
-        st.markdown('<div class="tb-anchor"></div>', unsafe_allow_html=True)
-        n_active = sum(1 for k, d in defaults.items() if st.session_state.get(k, d) != d)
-        pop = st.popover(f":material/tune: {n_active}" if n_active else ":material/tune:", help="Filters", width="stretch")
-    _render_row2_utilities(c[3], c[1], c[4], ws_suffix)
-    return pop
+    with st.container(key=f"hdr_shell_{ws_suffix}", width="stretch"):
+        with st.container(
+            key=f"hdr_bar_{ws_suffix}",
+            horizontal=True,
+            horizontal_alignment="distribute",
+            vertical_alignment="center",
+            gap="small",
+            wrap=True,
+            width="stretch",
+        ):
+            with st.container(key=f"hdr_left_{ws_suffix}", width="content"):
+                _render_brand_sync()
+            with st.container(
+                key=f"hdr_tools_{ws_suffix}",
+                horizontal=True,
+                horizontal_alignment="right",
+                vertical_alignment="center",
+                gap="xsmall",
+                wrap=True,
+                width="content",
+            ):
+                if only_theme:
+                    if show_timeframe:
+                        _render_time_capsule(ws_suffix)
+                    _render_theme_button(ws_suffix)
+                    return None
+                _srch_btn_type = "primary" if _active_sq else "secondary"
+                _srch_help = f"“{_active_sq}” · tap to edit (⌘K)" if _active_sq else "Search (⌘K)"
+                _srch_lbl = (f"“{_active_sq[:12]}…”" if len(_active_sq) > 12 else f"“{_active_sq}”") if _active_sq else "Search"
+                if st.button(_srch_lbl, icon=":material/search:", key=f"btn_srch_{ws_suffix}", type=_srch_btn_type, width="content", help=_srch_help):
+                    _show_search_dialog()
+                _render_time_capsule(ws_suffix)
+                n_active = sum(1 for k, d in defaults.items() if st.session_state.get(k, d) != d)
+                _flt_key = f"pop_flt_on_{ws_suffix}" if n_active else f"pop_flt_{ws_suffix}"
+                _flt_lbl = f"Filter · {n_active}" if n_active else "Filter"
+                pop = st.popover(_flt_lbl, icon=":material/tune:", key=_flt_key, help="Filters", width="content")
+                _sync_now = get_manual_sync_status()
+                _is_syncing_now = bool(_sync_now.get("running"))
+                if st.button(
+                    "",
+                    icon=":material/sync:",
+                    key=(f"btn_sync_run_{ws_suffix}" if _is_syncing_now else f"btn_sync_{ws_suffix}"),
+                    width="content",
+                    disabled=_is_syncing_now,
+                    help=("Syncing…" if _is_syncing_now else "Refresh feeds"),
+                ):
+                    trigger_manual_sync_async(targets={"np": ["nepali"], "in": ["indian"], "x": ["x"]}.get(ws_suffix))
+                    st.rerun()
+                _render_theme_button(ws_suffix)
+                if admin:
+                    st.button(
+                        "",
+                        icon=":material/admin_panel_settings:",
+                        key="btn_x_admin",
+                        help="Directory & Admin",
+                        width="content",
+                        on_click=lambda: st.session_state.update({"x_subview_active_tab": "Admin"}),
+                    )
+                return pop
 
 
 @st.fragment
@@ -4774,7 +5015,8 @@ def render_x_section() -> None:
 # ==========================================
 @st.fragment
 def render_export_analytics_section() -> None:
-    _toolbar_columns("ex", {}, only_theme=True)
+    _toolbar_columns("ex", {}, only_theme=True, show_timeframe=True)
+    _render_active_search_chip()
 
     ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
     with ex_c1:
