@@ -2943,13 +2943,10 @@ _DARK_CSS_BODY = """
         --hdr-seg-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
         --hdr-kbd-bg: rgba(255, 255, 255, 0.08);
         --hdr-kbd-border: rgba(255, 255, 255, 0.10);
-        --rail-bg: rgba(28, 28, 30, 0.88);
-        --rail-border: rgba(255, 255, 255, 0.11);
-        --rail-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
-        --rail-badge-bg: rgba(255, 255, 255, 0.14);
-        --rail-badge-fg: #E5E5EA;
-        --rail-badge-ring: #1C1C1E;
-        --rail-badge-active-bg: #0A84FF;
+        --rail-bg: rgba(26, 26, 28, 0.88);
+        --rail-border: rgba(255, 255, 255, 0.08);
+        --rail-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
+        --rail-badge-ring: #1A1A1C;
         --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.6); --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.6);
     }
     html, body, .stApp, [data-testid="stAppViewContainer"], .main, [data-testid="stMain"] { background: #000000 !important; color: #F5F5F7 !important; }
@@ -3365,19 +3362,16 @@ _DESKTOP_CSS = """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _DESKTOP_CSS)
 
 _RAIL_CSS = """
-/* ===== Floating Glass Pill Side Rail + Micro Count Badges (Option 2) ===== */
+/* ===== Decluttered Floating Glass Pill Rail: top collapse toggle, spaced icons, quiet inline counts ===== */
 :root {
   --rail-w: 76px;
   --rail-gap: 10px;
-  --rail-bg: rgba(255, 255, 255, 0.86);
-  --rail-border: rgba(0, 0, 0, 0.07);
-  --rail-shadow: 0 8px 28px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --rail-badge-bg: rgba(0, 0, 0, 0.065);
-  --rail-badge-fg: #3A3A3C;
+  --rail-bg: rgba(255, 255, 255, 0.84);
+  --rail-border: rgba(0, 0, 0, 0.055);
+  --rail-shadow: 0 4px 20px rgba(0, 0, 0, 0.045), 0 1px 2px rgba(0, 0, 0, 0.03);
   --rail-badge-ring: rgba(255, 255, 255, 0.94);
-  --rail-badge-active-bg: var(--tint, #0066CC);
 }
-@media (max-width: 640px) { :root { --rail-w: 60px; --rail-gap: 6px; } }
+@media (max-width: 640px) { :root { --rail-w: 62px; --rail-gap: 5px; } }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) {
   position: fixed !important;
   left: max(var(--rail-gap), env(safe-area-inset-left, 0px)) !important;
@@ -3386,56 +3380,49 @@ _RAIL_CSS = """
   right: auto !important;
   width: var(--rail-w) !important; max-width: none !important; margin: 0 !important;
   z-index: 999 !important;
-  border-radius: 22px !important;
+  border-radius: 20px !important;
   background: var(--rail-bg) !important;
-  backdrop-filter: blur(24px) saturate(1.8) !important; -webkit-backdrop-filter: blur(24px) saturate(1.8) !important;
+  backdrop-filter: blur(22px) saturate(1.7) !important; -webkit-backdrop-filter: blur(22px) saturate(1.7) !important;
   border: 1px solid var(--rail-border) !important;
   box-shadow: var(--rail-shadow) !important;
-  padding: 12px 6px 46px 6px !important; overflow-y: auto !important;
+  padding: 12px 6px 14px 6px !important; overflow-y: auto !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) { display: flex !important; flex-direction: column !important; justify-content: flex-start !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c)::before {
   content: "";
   display: block; flex: 0 0 auto;
-  width: 34px; height: 34px; margin: 0 auto 12px auto; border-radius: 50%;
-  background-image:
-    url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.4%22 stroke-linecap=%22round%22%3E%3Cpath d=%22M12 19v-6M7 19v-9M17 19V5%22/%3E%3C/svg%3E"),
-    linear-gradient(145deg, #0A84FF 0%, #0055B3 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-position: center, center;
-  background-size: 16px 16px, 100% 100%;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--tint, #0066CC) 32%, transparent);
+  width: 24px; height: 1px; margin: 36px auto 12px auto;
+  background: var(--separator, rgba(0, 0, 0, 0.07));
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) > * { flex: 1 1 auto !important; width: 100% !important; min-height: 0 !important; display: flex !important; flex-direction: column !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) div[data-testid="stButtonGroup"], .st-key-app_nav_seg:not(#a):not(#b):not(#c) [role="radiogroup"] {
-  display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; align-items: stretch !important; justify-content: flex-start !important; gap: 4px !important; width: 100% !important; flex: 1 1 auto !important; height: 100% !important; overflow: visible !important; background: transparent !important; padding: 0 !important;
+  display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; align-items: stretch !important; justify-content: flex-start !important; gap: 10px !important; width: 100% !important; flex: 1 1 auto !important; height: 100% !important; overflow: visible !important; background: transparent !important; padding: 0 !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(5):not(#a):not(#b):not(#c) {
   margin-top: auto !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:nth-of-type(5):not(#a):not(#b):not(#c)::before {
-  content: ""; position: absolute; top: -8px; left: 10px; right: 10px; height: 1px;
-  background: var(--separator, rgba(0, 0, 0, 0.08)); pointer-events: none;
+  content: ""; position: absolute; top: -10px; left: 12px; right: 12px; height: 1px;
+  background: var(--separator, rgba(0, 0, 0, 0.07)); pointer-events: none;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) {
   position: relative !important;
-  flex: 0 0 auto !important; width: 100% !important; min-width: 0 !important; height: auto !important; min-height: 54px !important; padding: 11px 3px 7px 3px !important;
-  border-radius: 14px !important; background: transparent !important; color: var(--label-3, #6E6E73) !important; flex-direction: column !important; box-shadow: none !important; overflow: visible !important;
+  flex: 0 0 auto !important; width: 100% !important; min-width: 0 !important; height: auto !important; min-height: 54px !important; padding: 8px 3px 7px 3px !important;
+  border-radius: 13px !important; background: transparent !important; color: var(--label-3, #6E6E73) !important; flex-direction: column !important; box-shadow: none !important; overflow: visible !important;
   transition: background-color 0.14s ease, color 0.14s ease, transform 0.08s ease !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) * { font-size: 0.65rem !important; line-height: 1.15 !important; font-weight: 550 !important; letter-spacing: -0.01em !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div { width: 100% !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div > span { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 4px !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) p { margin: 0 !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) [data-testid="stIconMaterial"] { font-size: 1.35rem !important; line-height: 1 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div > span { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 3px !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) p { margin: 0 !important; white-space: nowrap !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) [data-testid="stIconMaterial"] { font-size: 1.25rem !important; line-height: 1 !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button[aria-checked="true"]:not(#a):not(#b):not(#c) {
-  background: var(--tint-soft) !important; color: var(--tint) !important;
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--tint) 18%, transparent) !important;
+  background: var(--tint-soft) !important; color: var(--tint) !important; box-shadow: none !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button[aria-checked="true"]:not(#a):not(#b):not(#c) * { font-weight: 650 !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) > div > span > span:first-child { padding: 0 !important; background: transparent !important; }
 
-/* Micro count badges on feed buttons (1..4) + live Health dot (6) */
+/* Quiet inline tabular counts under feed labels (1..4) + subtle Health dot (6) */
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(1):not(#z)::after { content: var(--rail-c1); }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(2):not(#z)::after { content: var(--rail-c2); }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(3):not(#z)::after { content: var(--rail-c3); }
@@ -3444,59 +3431,64 @@ _RAIL_CSS = """
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(2):not(#z)::after,
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(3):not(#z)::after,
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(4):not(#z)::after {
-  position: absolute !important;
-  top: 3px !important;
-  right: 3px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-width: 15px !important;
-  height: 14px !important;
-  padding: 0 4px !important;
-  border-radius: 999px !important;
-  font-size: 9px !important;
-  font-weight: 700 !important;
+  position: static !important;
+  display: block !important;
+  margin-top: 2px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 9.5px !important;
+  font-weight: 550 !important;
   line-height: 1 !important;
-  letter-spacing: -0.02em !important;
+  letter-spacing: -0.01em !important;
   font-variant-numeric: tabular-nums !important;
-  background: var(--rail-badge-bg, rgba(0, 0, 0, 0.065)) !important;
-  color: var(--rail-badge-fg, #3A3A3C) !important;
-  box-shadow: 0 0 0 1.5px var(--rail-badge-ring, rgba(255, 255, 255, 0.94)) !important;
+  color: var(--label-3, #86868B) !important;
+  opacity: 0.78 !important;
   pointer-events: none !important;
-  transition: background-color 0.14s ease, color 0.14s ease !important;
+  transition: color 0.14s ease, opacity 0.14s ease !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:nth-of-type(1):not(#z)::after,
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:nth-of-type(2):not(#z)::after,
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:nth-of-type(3):not(#z)::after,
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:nth-of-type(4):not(#z)::after {
-  background: var(--rail-badge-active-bg, var(--tint, #0066CC)) !important;
-  color: #FFFFFF !important;
-  box-shadow: 0 0 0 1.5px var(--rail-badge-ring, rgba(255, 255, 255, 0.94)), 0 2px 6px color-mix(in srgb, var(--tint, #0066CC) 35%, transparent) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--tint, #0066CC) !important;
+  font-weight: 650 !important;
+  opacity: 0.92 !important;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(6):not(#z)::after {
   content: "" !important;
   position: absolute !important;
-  top: 9px !important;
-  right: 17px !important;
-  width: 7px !important;
-  height: 7px !important;
+  top: 8px !important;
+  right: 19px !important;
+  width: 6px !important;
+  height: 6px !important;
   border-radius: 50% !important;
   background: var(--rail-health-dot, #34C759) !important;
-  box-shadow: 0 0 0 2px var(--rail-badge-ring, rgba(255, 255, 255, 0.94)) !important;
+  box-shadow: 0 0 0 1.5px var(--rail-badge-ring, rgba(255, 255, 255, 0.94)) !important;
   pointer-events: none !important;
 }
 
 div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(var(--rail-w) + var(--rail-gap) + 14px) !important; padding-bottom: 28px !important; }
 @media (max-width: 640px) {
-  .st-key-app_nav_seg:not(#a):not(#b):not(#c) { border-radius: 18px !important; padding: 10px 3px 42px 3px !important; }
-  .st-key-app_nav_seg:not(#a):not(#b):not(#c)::before { width: 30px !important; height: 30px !important; margin-bottom: 10px !important; }
-  .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) { min-height: 50px !important; padding: 10px 2px 6px 2px !important; border-radius: 12px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c) { border-radius: 17px !important; padding: 10px 4px 12px 4px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c)::before { width: 20px !important; margin: 34px auto 10px auto !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c) div[data-testid="stButtonGroup"], .st-key-app_nav_seg:not(#a):not(#b):not(#c) [role="radiogroup"] { gap: 12px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c) button:not(#a):not(#b):not(#c) { min-height: 46px !important; padding: 6px 2px 5px 2px !important; border-radius: 11px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g) p { font-size: 0.60rem !important; }
   .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(1):not(#z)::after,
   .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(2):not(#z)::after,
   .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(3):not(#z)::after,
-  .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(4):not(#z)::after { top: 2px !important; right: 2px !important; font-size: 8.5px !important; height: 13px !important; padding: 0 3.5px !important; }
-  .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(6):not(#z)::after { top: 8px !important; right: 12px !important; }
-  div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(var(--rail-w) + var(--rail-gap) + 6px) !important; padding-right: 8px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(4):not(#z)::after { font-size: 8.5px !important; margin-top: 1px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(6):not(#z)::after { top: 6px !important; right: 14px !important; }
+  div[data-testid="stMainBlockContainer"], .block-container { padding-left: calc(var(--rail-w) + var(--rail-gap) + 7px) !important; padding-right: 8px !important; padding-top: 0.25rem !important; }
+}
+@media (max-height: 540px) {
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c) div[data-testid="stButtonGroup"], .st-key-app_nav_seg:not(#a):not(#b):not(#c) [role="radiogroup"] { gap: 4px !important; }
+  .st-key-app_nav_seg:not(#a):not(#b):not(#c)::before { margin-bottom: 6px !important; }
 }
 .st-key-new_stories_pill:not(#a):not(#b) { bottom: 24px !important; left: calc(50% + (var(--rail-w) + var(--rail-gap)) / 2) !important; }
 """
@@ -3555,7 +3547,7 @@ _RAIL_ICONS_CSS = """
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(4):not(#z) [data-testid="stIconMaterial"],
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(5):not(#z) [data-testid="stIconMaterial"],
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(6):not(#z) [data-testid="stIconMaterial"] {
-  display: inline-block !important; font-size: 0 !important; width: 22px !important; min-width: 22px !important; max-width: none !important; height: 22px !important; flex: 0 0 auto !important; background: currentColor !important;
+  display: inline-block !important; font-size: 0 !important; width: 20px !important; min-width: 20px !important; max-width: none !important; height: 20px !important; flex: 0 0 auto !important; background: currentColor !important;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;
 }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(1):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z%22/%3E%3Cpath d=%22M17 9h3v9a2 2 0 0 1-2 2%22/%3E%3Cpath d=%22M8 8h6M8 12h6M8 16h3%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M5 4h11a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z%22/%3E%3Cpath d=%22M17 9h3v9a2 2 0 0 1-2 2%22/%3E%3Cpath d=%22M8 8h6M8 12h6M8 16h3%22/%3E%3C/svg%3E"); }
@@ -3571,14 +3563,14 @@ _RAIL_ICONS_CSS = """
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:nth-of-type(6):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M3 12h4l3-8 4 16 3-8h4%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M3 12h4l3-8 4 16 3-8h4%22/%3E%3C/svg%3E"); }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:nth-of-type(6):not(#z) [data-testid="stIconMaterial"] { -webkit-mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M3 12h4l3-8 4 16 3-8h4%22/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22black%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M3 12h4l3-8 4 16 3-8h4%22/%3E%3C/svg%3E"); }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g) { color: color-mix(in srgb, var(--label, #1d1d1f) 74%, transparent) !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g) * { font-size: 0.68rem !important; font-weight: 650 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g) * { font-size: 0.65rem !important; font-weight: 550 !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:not(#z):not(#e):not(#f):not(#g) { color: var(--tint) !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:not(#z):not(#e):not(#f):not(#g) * { font-weight: 750 !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g):hover { background: var(--fill, rgba(60,60,67,.08)) !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:not(#z):not(#e):not(#f):not(#g) * { font-weight: 650 !important; }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g):hover { background: var(--fill, rgba(60,60,67,.06)) !important; }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button[aria-checked="true"]:not(#z):not(#e):not(#f):not(#g):hover { background: var(--tint-soft) !important; }
-.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g):active { transform: scale(0.95); }
+.st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z):not(#e):not(#f):not(#g):active { transform: scale(0.96); }
 .st-key-app_nav_seg:not(#a):not(#b):not(#c):not(#d) button:not(#z) [data-testid="stIconMaterial"] { font-size: 0 !important; }
-@media (max-width: 640px) { :root { --rail-w: 60px; --rail-gap: 6px; } }
+@media (max-width: 640px) { :root { --rail-w: 62px; --rail-gap: 5px; } }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TITLEBAR_CSS)
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _RAIL_ICONS_CSS)
@@ -3677,19 +3669,33 @@ _TB2_CSS = """
 @media (max-width: 640px) {
   div[data-testid="stLayoutWrapper"]:has(> [class*="st-key-hdr_shell_"]),
   div[data-testid="stElementContainer"]:has(> [class*="st-key-hdr_shell_"]) {
-    margin: 0 -6px 6px -6px !important; padding: 6px 6px 10px 6px !important;
+    margin: 0 -6px 4px -6px !important; padding: 4px 6px 8px 6px !important;
   }
-  .editorial-brand-anchor.hdr-title-wrap:not(#a):not(#b) { height: auto !important; min-height: 38px !important; gap: 3px !important; }
-  .hdr-title { font-size: 1.38rem; }
-  [class*="st-key-hdr_tools_"]:not(#a):not(#b) { gap: 6px !important; row-gap: 7px !important; }
+  .editorial-brand-anchor.hdr-title-wrap:not(#a):not(#b) { height: auto !important; min-height: 32px !important; gap: 2px !important; }
+  .hdr-title { font-size: 1.28rem; }
+  [class*="st-key-hdr_tools_"]:not(#a):not(#b) { gap: 5px !important; row-gap: 5px !important; }
+  [class*="st-key-hdr_tools_"] .stButton button:not(#a):not(#b),
+  [class*="st-key-hdr_tools_"] [data-testid="stPopover"] button:not(#a):not(#b) { height: 32px !important; min-height: 32px !important; }
+  [class*="st-key-btn_sync_"] button:not(#a):not(#b),
+  [class*="st-key-btn_theme_"] button:not(#a):not(#b),
+  .st-key-btn_x_admin button:not(#a):not(#b) { width: 32px !important; min-width: 32px !important; max-width: 32px !important; height: 32px !important; min-height: 32px !important; }
+  [class*="st-key-hdr_time_"]:not(#a):not(#b) { height: 32px !important; padding: 2px !important; }
+  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] button:not(#a):not(#b),
+  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b) { height: 28px !important; min-height: 28px !important; }
   [class*="st-key-btn_srch_"] button[kind="secondary"] [data-testid="stMarkdownContainer"] { display: none !important; }
-  [class*="st-key-btn_srch_"] button[kind="secondary"]:not(#a):not(#b) { width: 36px !important; min-width: 36px !important; padding: 0 !important; }
+  [class*="st-key-btn_srch_"] button[kind="secondary"]:not(#a):not(#b) { width: 32px !important; min-width: 32px !important; padding: 0 !important; }
   div[data-testid="stLayoutWrapper"]:has(> [class*="st-key-hdr_time_"]),
   div[data-testid="stElementContainer"]:has(> [class*="st-key-hdr_time_"]),
   [class*="st-key-hdr_time_"]:not(#a):not(#b) { order: 10 !important; flex: 0 0 100% !important; width: 100% !important; justify-content: space-between !important; }
   [class*="st-key-hdr_time_"] > div:first-child { flex: 1 1 auto !important; }
   [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] [role="radiogroup"] { width: 100% !important; justify-content: space-between !important; }
-  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] button:not(#a):not(#b) { flex: 1 1 0 !important; padding: 0 6px !important; }
+  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] button:not(#a):not(#b) { flex: 1 1 0 !important; padding: 0 4px !important; font-size: 0.72rem !important; }
+}
+/* Collapse zero-height style & height=0 html wrappers so they do not add 16px flex gaps above headers */
+div[data-testid="stElementContainer"]:has(style):not(:has(p, span, a, button, input, svg, img, h1, h2, h3, h4, table, canvas, iframe)),
+div[data-testid="stElementContainer"]:has(> iframe[height="0"]),
+div[data-testid="stElementContainer"]:has(> iframe.stIFrame[style*="height: 0"]) {
+  display: none !important;
 }
 """
 APPLE_DESIGN_SYSTEM_CSS = _append_css(APPLE_DESIGN_SYSTEM_CSS, _TB2_CSS)
@@ -3710,16 +3716,16 @@ _FIELD_CSS = """
 """
 
 _RAIL_TOGGLE_CSS = """
-/* ===== Collapsible floating pill rail: docked footer toggle inside pill when open, compact corner pill when collapsed ===== */
+/* ===== Top-docked collapse control inside floating pill when expanded, top-left floating pill when collapsed ===== */
 #rail-toggle {
   position: fixed;
-  top: auto;
-  bottom: calc(var(--rail-gap, 10px) + 10px + env(safe-area-inset-bottom, 0px));
+  top: calc(var(--rail-gap, 10px) + 11px + env(safe-area-inset-top, 0px));
+  bottom: auto;
   left: calc(max(var(--rail-gap, 10px), env(safe-area-inset-left, 0px)) + var(--rail-w, 76px) / 2 - 15px);
-  width: 30px; height: 28px; padding: 0; border: 0; border-radius: 9px;
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 10px;
   background: transparent; color: var(--label-3, #6E6E73); box-shadow: none;
   display: grid; place-items: center; cursor: pointer; z-index: 1000001;
-  transition: left .22s ease, bottom .22s ease, background-color .15s ease, color .15s ease;
+  transition: left .22s ease, top .22s ease, background-color .15s ease, color .15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 #rail-toggle:hover { background: var(--fill, rgba(0, 0, 0, 0.06)); color: var(--label, #1d1d1f); }
@@ -3739,15 +3745,8 @@ html[data-rail="collapsed"] #rail-toggle {
 html[data-rail="collapsed"] #rail-toggle .rt-arr { transform: rotate(180deg); }
 html[data-rail="collapsed"] .st-key-app_nav_seg:not(#a):not(#b):not(#c) { transform: translateX(calc(-100% - 28px)); box-shadow: none !important; opacity: 0; pointer-events: none; }
 html[data-rail="collapsed"] div[data-testid="stMainBlockContainer"], html[data-rail="collapsed"] .block-container { padding-left: 16px !important; padding-top: 3.2rem !important; }
-@media (max-height: 520px) {
-  .st-key-app_nav_seg:not(#a):not(#b):not(#c) { padding-bottom: 12px !important; }
-  html:not([data-rail="collapsed"]) #rail-toggle {
-    top: calc(var(--rail-gap, 10px) + 12px); bottom: auto;
-    left: calc(max(var(--rail-gap, 10px), env(safe-area-inset-left, 0px)) + var(--rail-w, 76px) - 12px);
-    width: 24px; height: 24px; border-radius: 50%;
-    background: var(--rail-bg, #fff); border: 1px solid var(--rail-border, rgba(0,0,0,0.08));
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  }
+@media (max-width: 640px) {
+  #rail-toggle { top: calc(var(--rail-gap, 5px) + 9px + env(safe-area-inset-top, 0px)); width: 28px; height: 28px; left: calc(max(var(--rail-gap, 5px), env(safe-area-inset-left, 0px)) + var(--rail-w, 62px) / 2 - 14px); }
 }
 @media (prefers-reduced-motion: reduce) { #rail-toggle, #rail-toggle .rt-arr, .st-key-app_nav_seg { transition: none !important; } }
 """

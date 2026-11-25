@@ -3531,9 +3531,9 @@ _ws_counts = {
 }
 
 _WS_TAB_META = {
-    "Live Feed": (":material/newspaper:", "All"),
-    "Nepali Media": (":material/landscape:", "Nepali"),
-    "Indian Press": (":material/public:", "India"),
+    "Live Feed": (":material/newspaper:", "Stream"),
+    "Nepali Media": (":material/landscape:", "Portals"),
+    "Indian Press": (":material/public:", "Outlets"),
     "Social Media": (":material/forum:", "Social"),
     "X": (":material/forum:", "Social"),
     "Analytics & Export": (":material/ios_share:", "Export"),
@@ -3742,9 +3742,9 @@ def _render_brand_sync() -> None:
             parts.append(f'<span class="hdr-sep">·</span><span>{html.escape(_src_txt)}</span>')
         meta_inner = "".join(parts)
     _titles = {
-        "Live Feed": "All Feeds",
-        "Nepali Media": "Nepali Media",
-        "Indian Press": "Indian Press",
+        "Live Feed": "Unified Stream",
+        "Nepali Media": "National Portals",
+        "Indian Press": "Indian Outlets",
         "Social Media": "Social Media",
         "X": "Social Media",
         "Analytics & Export": "Analytics & Export",
