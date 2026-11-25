@@ -3637,6 +3637,11 @@ _TB2_CSS = """
   background: transparent !important; color: var(--label-3) !important; font-size: 0.75rem !important; font-weight: 600 !important;
 }
 [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b):hover { color: var(--label) !important; }
+@media (min-width: 641px) {
+  [class*="st-key-hdr_time_"]:not([class*="st-key-hdr_time_custom_"]) [data-testid="stPopover"] button [data-testid="stMarkdownContainer"] {
+    display: none !important;
+  }
+}
 [class*="st-key-hdr_time_custom_"] [data-testid="stPopover"] button:not(#a):not(#b) {
   background: var(--hdr-seg-active-bg) !important; color: var(--hdr-seg-active-fg) !important;
   box-shadow: var(--hdr-seg-active-shadow) !important; font-weight: 650 !important; padding: 0 9px !important;
@@ -3669,27 +3674,75 @@ _TB2_CSS = """
 @media (max-width: 640px) {
   div[data-testid="stLayoutWrapper"]:has(> [class*="st-key-hdr_shell_"]),
   div[data-testid="stElementContainer"]:has(> [class*="st-key-hdr_shell_"]) {
-    margin: 0 -6px 4px -6px !important; padding: 4px 6px 8px 6px !important;
+    margin: 0 -6px 4px -6px !important; padding: 5px 6px 6px 6px !important;
   }
-  .editorial-brand-anchor.hdr-title-wrap:not(#a):not(#b) { height: auto !important; min-height: 32px !important; gap: 2px !important; }
-  .hdr-title { font-size: 1.28rem; }
-  [class*="st-key-hdr_tools_"]:not(#a):not(#b) { gap: 5px !important; row-gap: 5px !important; }
+  [class*="st-key-hdr_bar_"]:not(#a):not(#b) {
+    flex-wrap: nowrap !important; gap: 6px !important; align-items: center !important;
+  }
+  [class*="st-key-hdr_left_"]:not(#a):not(#b) {
+    flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; height: auto !important;
+  }
+  .editorial-brand-anchor.hdr-title-wrap:not(#a):not(#b) {
+    width: 100% !important; max-width: 100% !important; height: auto !important; min-height: 28px !important;
+    gap: 1px !important; justify-content: center !important; overflow: hidden !important;
+  }
+  .hdr-title-row { max-width: 100% !important; gap: 4px !important; align-items: baseline !important; }
+  .hdr-title {
+    font-size: 0.98rem !important; line-height: 1.15 !important;
+    white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; min-width: 0 !important;
+  }
+  .hdr-count, .hdr-sources { display: none !important; }
+  .hdr-title-wrap .live-status-inline.sync-inline {
+    font-size: 0.68rem !important; gap: 4px !important; max-width: 100% !important; overflow: hidden !important;
+  }
+  .sync-dot { width: 6px !important; height: 6px !important; }
+
+  /* 1-Row Ultra-Compact right toolbar */
+  [class*="st-key-hdr_tools_"]:not(#a):not(#b) {
+    flex: 0 0 auto !important; width: auto !important; justify-content: flex-end !important;
+    flex-wrap: nowrap !important; gap: 4px !important; row-gap: 4px !important;
+  }
   [class*="st-key-hdr_tools_"] .stButton button:not(#a):not(#b),
-  [class*="st-key-hdr_tools_"] [data-testid="stPopover"] button:not(#a):not(#b) { height: 32px !important; min-height: 32px !important; }
+  [class*="st-key-hdr_tools_"] [data-testid="stPopover"] button:not(#a):not(#b) {
+    height: 28px !important; min-height: 28px !important;
+  }
   [class*="st-key-btn_sync_"] button:not(#a):not(#b),
   [class*="st-key-btn_theme_"] button:not(#a):not(#b),
-  .st-key-btn_x_admin button:not(#a):not(#b) { width: 32px !important; min-width: 32px !important; max-width: 32px !important; height: 32px !important; min-height: 32px !important; }
-  [class*="st-key-hdr_time_"]:not(#a):not(#b) { height: 32px !important; padding: 2px !important; }
-  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] button:not(#a):not(#b),
-  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b) { height: 28px !important; min-height: 28px !important; }
-  [class*="st-key-btn_srch_"] button[kind="secondary"] [data-testid="stMarkdownContainer"] { display: none !important; }
-  [class*="st-key-btn_srch_"] button[kind="secondary"]:not(#a):not(#b) { width: 32px !important; min-width: 32px !important; padding: 0 !important; }
-  div[data-testid="stLayoutWrapper"]:has(> [class*="st-key-hdr_time_"]),
-  div[data-testid="stElementContainer"]:has(> [class*="st-key-hdr_time_"]),
-  [class*="st-key-hdr_time_"]:not(#a):not(#b) { order: 10 !important; flex: 0 0 100% !important; width: 100% !important; justify-content: space-between !important; }
-  [class*="st-key-hdr_time_"] > div:first-child { flex: 1 1 auto !important; }
-  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] [role="radiogroup"] { width: 100% !important; justify-content: space-between !important; }
-  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"] button:not(#a):not(#b) { flex: 1 1 0 !important; padding: 0 4px !important; font-size: 0.72rem !important; }
+  .st-key-btn_x_admin button:not(#a):not(#b) {
+    width: 28px !important; min-width: 28px !important; max-width: 28px !important; height: 28px !important; min-height: 28px !important;
+  }
+  [class*="st-key-btn_srch_"] button[kind="secondary"] [data-testid="stMarkdownContainer"],
+  [class*="st-key-pop_flt_"] button:not(#a):not(#b) [data-testid="stMarkdownContainer"] { display: none !important; }
+  [class*="st-key-btn_srch_"] button[kind="secondary"]:not(#a):not(#b),
+  [class*="st-key-pop_flt_"] button:not(#a):not(#b) {
+    width: 28px !important; min-width: 28px !important; max-width: 28px !important; padding: 0 !important;
+    justify-content: center !important;
+  }
+  [class*="st-key-pop_flt_"] button:not(#a):not(#b) > div > div[aria-hidden="true"] { display: none !important; }
+
+  /* Collapse timeframe segmented bar into the single compact popover pill (e.g. 12h ▾) */
+  [class*="st-key-hdr_time_"]:not(#a):not(#b) {
+    order: 0 !important; flex: 0 0 auto !important; width: auto !important; height: 28px !important;
+    padding: 0 !important; background: transparent !important;
+  }
+  [class*="st-key-hdr_time_"] > div:has(div[data-testid="stButtonGroup"]),
+  [class*="st-key-hdr_time_"] div[data-testid="stButtonGroup"]:not(#a):not(#b) { display: none !important; }
+  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b) {
+    width: auto !important; min-width: 0 !important;
+    height: 28px !important; min-height: 28px !important; padding: 0 7px 0 9px !important;
+    background: var(--tint-soft) !important; color: var(--tint) !important;
+    border-radius: 999px !important; font-size: 0.72rem !important; font-weight: 650 !important;
+  }
+  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b) > div { gap: 1px !important; }
+  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b) * {
+    color: var(--tint) !important; font-size: 0.72rem !important;
+  }
+  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button:not(#a):not(#b) span[data-has-shortcut] > span:first-child {
+    display: none !important;
+  }
+  [class*="st-key-hdr_time_"] [data-testid="stPopover"] button [data-testid="stIconMaterial"] {
+    font-size: 0.9rem !important; width: 14px !important; height: 14px !important;
+  }
 }
 /* Collapse zero-height style & height=0 html wrappers so they do not add 16px flex gaps above headers */
 div[data-testid="stElementContainer"]:has(style):not(:has(p, span, a, button, input, svg, img, h1, h2, h3, h4, table, canvas, iframe)),

@@ -3739,7 +3739,7 @@ def _render_brand_sync() -> None:
             parts.append('<span class="hdr-live-word">Live</span><span class="hdr-sep">·</span>')
         parts.append(f'<span>{html.escape(label)}</span>')
         if _src_txt:
-            parts.append(f'<span class="hdr-sep">·</span><span>{html.escape(_src_txt)}</span>')
+            parts.append(f'<span class="hdr-sep hdr-sources">·</span><span class="hdr-sources">{html.escape(_src_txt)}</span>')
         meta_inner = "".join(parts)
     _titles = {
         "Live Feed": "Unified Stream",
@@ -4119,7 +4119,7 @@ def _render_time_capsule(ws_suffix: str) -> None:
             label_visibility="collapsed",
             width="content",
         )
-        pop_label = cur_preset if is_extra_tf else ""
+        pop_label = cur_preset
         pop_icon = ":material/schedule:" if cur_preset == "2h" else ":material/date_range:"
         with st.popover(pop_label, icon=pop_icon, key=f"pop_time_{ws_suffix}", help=f"{window_label} · Custom range & reset", width="content"):
             st.segmented_control(
