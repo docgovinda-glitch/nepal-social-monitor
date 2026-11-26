@@ -1004,6 +1004,15 @@ def _render_article_tags_html(item: Dict[str, Any], is_indian: bool = False) -> 
     return f'<div class="chip-row">{chips}</div>'
 
 
+def _translation_engine_badge_html(item: Dict[str, Any]) -> str:
+    """Renders a subtle non-intrusive badge when an item was translated via Google Translate, IndicTrans2, or NLLB-200."""
+    eng = str((item or {}).get("translation_engine") or "").strip()
+    if not eng:
+        return ""
+    esc = html.escape(eng)
+    return f'<span class="lang-label" title="Translated via {esc}">Translated via {esc}</span>'
+
+
 def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, show_tags: bool = True) -> str:
     raw_source = (item.get("source") or "Unknown").strip()
     source_name = html.escape(raw_source)
@@ -1053,12 +1062,13 @@ def render_apple_article_card(item: Dict[str, Any], is_indian: bool = False, sho
     # PHASE 1: Add card type color stripe
     stripe_class = "feed-card-stripe--india" if is_indian else "feed-card-stripe--nepal"
 
+    tr_badge_html = _translation_engine_badge_html(item)
     return (
         f'<div class="feed-card-inner">'
         f'<div class="feed-card-stripe {stripe_class}"></div>'
         f'<article class="apple-news-card accent--{accent}">'
         f'<header class="apple-card-meta">{source_tag}{get_badge_html(cat)}{review_flag}'
-        f'{time_badge_html(item.get("relative_time", "Recent"), item.get("exact_time", ""))}</header>'
+        f'{time_badge_html(item.get("relative_time", "Recent"), item.get("exact_time", ""))}{tr_badge_html}</header>'
         f'<h3 class="apple-card-title"><a href="{link}" target="_blank" rel="noopener noreferrer">{html.escape(display_title)}</a></h3>'
         f'{native_title_html}'
         f'{summary_html}{sec_tags_html}'
@@ -1118,6 +1128,7 @@ def render_apple_x_post_card(p: Dict[str, Any], show_footer: bool = True, sent_t
         f'<span class="x-author-handle">{plat_badge}{handle} · <span class="x-type-badge">{author_type}</span></span></div></div>'
         f'<div class="x-post-header__meta">{get_badge_html(p.get("structured_category", "Others"))}'
         f'{time_badge_html(p.get("relative_time", "Recent"), p.get("exact_time", ""))}'
+        f'{_translation_engine_badge_html(p)}'
         + (f'<span class="hl-chip hl-chip--ok" title="{html.escape(sent_title, quote=True)}">{_HL_CHECK_SVG}</span>' if sent_title else "<!--sent-->")
         + f'</div>'
         f'</header>'
@@ -1807,6 +1818,14 @@ def _show_read_in_app_dialog() -> None:
             sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
 
         st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
+        _rd_eng = str(fulltext_data.get("translation_engine") or "").strip()
+        if is_en_view and _rd_eng:
+            st.markdown(
+                f'<div class="share-modal-head"><span class="share-modal-pills">'
+                f'<span class="lang-label" title="Translated via {html.escape(_rd_eng, quote=True)}">Translated via {html.escape(_rd_eng)}</span>'
+                f'</span></div>',
+                unsafe_allow_html=True,
+            )
 
         if read_draft and read_draft.get("is_editing"):
             st.markdown(
@@ -2352,11 +2371,16 @@ def _show_share_dialog() -> None:
         sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
 
     st.markdown('<div class="share-modal-anchor"></div>', unsafe_allow_html=True)
+    _sh_eng = str(generated.get("translation_engine") or "").strip()
     _min_chips = (
         ('<span class="share-draft-pill share-draft-pill--unsaved" title="Unsaved changes">●</span>' if has_unsaved else "")
         + (
             f'<span class="share-draft-pill share-draft-pill--sent" title="Sent to {html.escape(str(persisted_sent.get("group_name") or "WhatsApp"), quote=True)} {html.escape(_format_wa_sent_time(persisted_sent.get("sent_at")) or "", quote=True)}">✓ Sent</span>'
             if persisted_sent else ""
+        )
+        + (
+            f'<span class="lang-label" title="Translated via {html.escape(_sh_eng, quote=True)}">Translated via {html.escape(_sh_eng)}</span>'
+            if _sh_eng else ""
         )
     )
     if _min_chips:
