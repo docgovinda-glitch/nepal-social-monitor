@@ -53,6 +53,14 @@ class TranslationLRUCache:
             logger.info(f"Diskcache unavailable or directory unwriteable ({exc}); using in-memory LRU cache.")
             self._disk_cache = None
 
+    def _put_mem(self, key: str, value: str) -> None:
+        """Inserts/updates a key in the bounded L1 memory cache without evicting from L2 diskcache."""
+        if key in self._mem_cache:
+            self._mem_cache.move_to_end(key)
+        self._mem_cache[key] = value
+        while len(self._mem_cache) > self.maxsize:
+            self._mem_cache.popitem(last=False)
+
     def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
             if key not in self._mem_cache:
@@ -60,7 +68,7 @@ class TranslationLRUCache:
                     try:
                         val = self._disk_cache.get(key, default=None)
                         if val is not None:
-                            self._mem_cache[key] = val
+                            self._put_mem(key, val)
                             return val
                     except Exception:
                         pass
@@ -86,7 +94,7 @@ class TranslationLRUCache:
                     try:
                         val = self._disk_cache.get(key, default=None)
                         if val is not None:
-                            self._mem_cache[key] = val
+                            self._put_mem(key, val)
                             return val
                     except Exception:
                         pass
@@ -96,16 +104,7 @@ class TranslationLRUCache:
 
     def __setitem__(self, key: str, value: str) -> None:
         with self._lock:
-            if key in self._mem_cache:
-                self._mem_cache.move_to_end(key)
-            self._mem_cache[key] = value
-            if len(self._mem_cache) > self.maxsize:
-                evicted_key, _ = self._mem_cache.popitem(last=False)
-                if self._disk_cache is not None:
-                    try:
-                        self._disk_cache.delete(evicted_key)
-                    except Exception:
-                        pass
+            self._put_mem(key, value)
             if self._disk_cache is not None:
                 try:
                     self._disk_cache.set(key, value)
@@ -159,8 +158,14 @@ atexit.register(_TRANSLATION_CACHE.close)
 ENABLE_LOCAL_TRANSLATION_FALLBACK = (
     os.getenv("ENABLE_LOCAL_TRANSLATION_FALLBACK", "false").lower() in ("true", "1", "yes")
 )
-# "google" (default): Google first, local NLLB as fallback. "local": local NLLB first, Google as backup.
+# "google" (default): Google first, local MT as fallback. "local": local MT first, Google as backup.
 TRANSLATION_PRIMARY = os.getenv("TRANSLATION_PRIMARY", "google").strip().lower()
+# Local MT engine: "nllb" (default lightweight CTranslate2-nllb-200-int8) or "indictrans2"
+LOCAL_MT_ENGINE = os.getenv("LOCAL_MT_ENGINE", "nllb").strip().lower()
+INDICTRANS2_MODEL_ID = os.getenv(
+    "INDICTRANS2_MODEL_ID", "adalat-ai/ct2-rotary-indictrans2-indic-en-dist-200M"
+).strip()
+HF_TOKEN = (os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_HUB_TOKEN") or "").strip()
 CIRCUIT_BREAKER_THRESHOLD = int(os.getenv("TRANSLATION_CIRCUIT_BREAKER_THRESHOLD", "3"))
 CIRCUIT_BREAKER_COOLDOWN_SECS = int(os.getenv("TRANSLATION_CIRCUIT_COOLDOWN_SECS", "600"))
 
@@ -209,6 +214,8 @@ def record_translation_success() -> None:
 
 _LOCAL_MODEL = None
 _LOCAL_MODEL_LOCK = threading.Lock()
+_LOCAL_IT2_MODEL = None
+_LOCAL_IT2_LOCK = threading.Lock()
 
 
 def _load_local_nllb_model():
@@ -249,8 +256,8 @@ def _load_local_nllb_model():
                 raise
 
 
-def _translate_with_local_model(text: str, source_lang: str = "ne") -> str:
-    """Translates text using local NLLB model on CPU when circuit breaker is active or endpoints fail."""
+def _translate_with_nllb_model(text: str, source_lang: str = "ne") -> str:
+    """Translates text using local NLLB-200 model on CPU."""
     if not text:
         return ""
     try:
@@ -294,6 +301,226 @@ def _translate_with_local_model(text: str, source_lang: str = "ne") -> str:
         return text
 
 
+class _FallbackVocabTokenizer:
+    """Lightweight greedy subword tokenizer/detokenizer using CTranslate2 source_vocabulary.json when sentencepiece is unavailable."""
+
+    def __init__(self, vocab_list: List[str]):
+        self._vocab = set(vocab_list)
+        self._max_len = max((len(t) for t in vocab_list), default=16)
+
+    def encode(self, text: str, out_type=str) -> List[str]:
+        toks: List[str] = []
+        # Split punctuation and digit runs cleanly so multi-digit numbers aren't greedily truncated
+        for word in re.findall(r"[0-9]+|[^\s0-9.,!?;:()\[\]\"']+|[.,!?;:()\[\]\"']", text or ""):
+            if word.isdigit():
+                toks.append("▁")
+                for d in word:
+                    toks.append(d if d in self._vocab else "<unk>")
+                continue
+            s = "▁" + word
+            i = 0
+            n = len(s)
+            while i < n:
+                matched = None
+                upper = min(n, i + self._max_len)
+                for j in range(upper, i, -1):
+                    cand = s[i:j]
+                    if cand in self._vocab:
+                        matched = cand
+                        break
+                if matched is not None:
+                    toks.append(matched)
+                    i += len(matched)
+                else:
+                    toks.append("<unk>")
+                    i += 1
+        return toks
+
+    def decode(self, tokens: List[str]) -> str:
+        return "".join(tokens).replace("▁", " ").strip()
+
+
+def _find_ct2_model_dir(root_dir: str) -> str:
+    """Finds the directory containing model.bin (handles nested layouts like indic-en-200m-ct2/ctranslate2_model)."""
+    if os.path.isfile(os.path.join(root_dir, "model.bin")):
+        return root_dir
+    for cur_root, _, files in os.walk(root_dir):
+        if "model.bin" in files:
+            return cur_root
+    return ""
+
+
+def _clean_it2_decoded_text(text: str) -> str:
+    """Strips residual special/language tokens and normalizes punctuation spacing from IndicTrans2 output."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"(?:</s>|<s>|<unk>|<blank>|<pad>|\b(?:npi_Deva|hin_Deva|eng_Latn)\b)", " ", text)
+    cleaned = re.sub(r"\s+([.,!?;:%\)\]])", r"\1", cleaned)
+    cleaned = re.sub(r"([\(\[])\s+", r"\1", cleaned)
+    return re.sub(r"[ \t]+", " ", cleaned).strip()
+
+
+def _load_local_indictrans2_model():
+    """
+    Lazy-loads IndicTrans2 (npi_Deva/hin_Deva -> eng_Latn).
+    Option A (preferred lightweight CPU/GPU): CTranslate2 + SentencePiece (e.g. adalat-ai/ct2-rotary-indictrans2-indic-en-dist-200M).
+    Option B (PyTorch/HF fallback): transformers AutoModelForSeq2SeqLM (+ optional IndicTransToolkit) with HF_TOKEN for gated repos.
+    """
+    global _LOCAL_IT2_MODEL
+    if _LOCAL_IT2_MODEL is not None:
+        return _LOCAL_IT2_MODEL
+    with _LOCAL_IT2_LOCK:
+        if _LOCAL_IT2_MODEL is not None:
+            return _LOCAL_IT2_MODEL
+        model_id = os.getenv("INDICTRANS2_MODEL_ID", INDICTRANS2_MODEL_ID).strip()
+        hf_token = (os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_HUB_TOKEN") or HF_TOKEN).strip() or None
+        logger.info(f"Lazy-loading local IndicTrans2 model ({model_id})...")
+
+        # Option A: CTranslate2 + SentencePiece (zero PyTorch required)
+        if not model_id.startswith("ai4bharat/"):
+            try:
+                import ctranslate2
+                if os.path.isdir(model_id):
+                    root_dir = model_id
+                else:
+                    from huggingface_hub import snapshot_download
+                    root_dir = snapshot_download(repo_id=model_id, token=hf_token)
+
+                ct2_dir = _find_ct2_model_dir(root_dir)
+                if ct2_dir:
+                    translator = ctranslate2.Translator(ct2_dir, device="cpu", compute_type="int8")
+                    src_sp_candidates = [
+                        os.path.join(ct2_dir, "vocab", "model.SRC"),
+                        os.path.join(ct2_dir, "model.SRC"),
+                        os.path.join(ct2_dir, "sentencepiece.bpe.model"),
+                    ]
+                    tgt_sp_candidates = [
+                        os.path.join(ct2_dir, "vocab", "model.TGT"),
+                        os.path.join(ct2_dir, "model.TGT"),
+                        os.path.join(ct2_dir, "sentencepiece.bpe.model"),
+                    ]
+                    src_sp_path = next((p for p in src_sp_candidates if os.path.isfile(p)), "")
+                    tgt_sp_path = next((p for p in tgt_sp_candidates if os.path.isfile(p)), "")
+
+                    sp_src = None
+                    sp_tgt = None
+                    try:
+                        import sentencepiece as spm
+                        if src_sp_path:
+                            sp_src = spm.SentencePieceProcessor(model_file=src_sp_path)
+                        if tgt_sp_path:
+                            sp_tgt = spm.SentencePieceProcessor(model_file=tgt_sp_path)
+                    except ImportError:
+                        logger.info("sentencepiece not installed; using source_vocabulary.json fallback tokenizer.")
+
+                    if sp_src is None:
+                        src_vocab_json = os.path.join(ct2_dir, "source_vocabulary.json")
+                        if os.path.isfile(src_vocab_json):
+                            with open(src_vocab_json, "r", encoding="utf-8") as vf:
+                                sp_src = _FallbackVocabTokenizer(json.load(vf))
+                    if sp_tgt is None:
+                        sp_tgt = _FallbackVocabTokenizer([])
+
+                    if sp_src is not None:
+                        _LOCAL_IT2_MODEL = ("ct2", translator, sp_src, sp_tgt)
+                        logger.info(f"Loaded CTranslate2 IndicTrans2 model from {ct2_dir}.")
+                        return _LOCAL_IT2_MODEL
+            except Exception as exc:
+                logger.warning(f"CTranslate2 IndicTrans2 load failed ({exc}); checking HuggingFace/PyTorch fallback...")
+
+        # Option B: HuggingFace transformers (+ optional IndicTransToolkit)
+        try:
+            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+            tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
+            mod = AutoModelForSeq2SeqLM.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
+            mod.eval()
+            ip = None
+            try:
+                from IndicTransToolkit import IndicProcessor
+                ip = IndicProcessor(inference=True)
+            except Exception:
+                ip = None
+            _LOCAL_IT2_MODEL = ("hf", mod, tok, ip)
+            logger.info(f"Loaded HuggingFace IndicTrans2 model ({model_id}).")
+            return _LOCAL_IT2_MODEL
+        except Exception as exc:
+            logger.error(f"All IndicTrans2 loaders failed for {model_id}: {type(exc).__name__}: {exc}")
+            raise
+
+
+_DEVANAGARI_DIGITS_TRANS = str.maketrans("०१२३४५६७८९", "0123456789")
+
+
+def _using_local_indictrans2() -> bool:
+    """Returns True when local IndicTrans2 is the active translation path (local primary or open circuit breaker)."""
+    engine = os.getenv("LOCAL_MT_ENGINE", LOCAL_MT_ENGINE).strip().lower()
+    primary = os.getenv("TRANSLATION_PRIMARY", TRANSLATION_PRIMARY).strip().lower()
+    return ENABLE_LOCAL_TRANSLATION_FALLBACK and engine == "indictrans2" and (primary == "local" or is_circuit_breaker_open())
+
+
+def _translate_with_indictrans2_batch(texts: List[str], source_lang: str = "ne") -> List[str]:
+    """Translates a list of texts using IndicTrans2, falling back gracefully to NLLB-200 on error."""
+    if not texts:
+        return []
+    src_tag = "hin_Deva" if source_lang == "hi" else "npi_Deva"
+    tgt_tag = "eng_Latn"
+    norm_texts = [(t or "").translate(_DEVANAGARI_DIGITS_TRANS) for t in texts]
+    try:
+        model_obj = _load_local_indictrans2_model()
+        kind = model_obj[0]
+
+        if kind == "ct2":
+            translator = model_obj[1]
+            sp_src = model_obj[2]
+            sp_tgt = model_obj[3] if len(model_obj) > 3 else sp_src
+            tokenized_inputs = [
+                [src_tag, tgt_tag] + sp_src.encode(t, out_type=str) + ["</s>"]
+                for t in norm_texts
+            ]
+            results = translator.translate_batch(
+                tokenized_inputs,
+                beam_size=4,
+                max_decoding_length=256,
+            )
+            out_list: List[str] = []
+            _skip_toks = {"</s>", "<s>", "<unk>", "<blank>", "<pad>", src_tag, tgt_tag}
+            for orig, res in zip(texts, results):
+                hyp = res.hypotheses[0] if getattr(res, "hypotheses", None) else []
+                clean_hyp = [tok for tok in hyp if tok not in _skip_toks]
+                decoded = _clean_it2_decoded_text(sp_tgt.decode(clean_hyp)) if clean_hyp else ""
+                out_list.append(decoded or orig)
+            return out_list
+
+        # HuggingFace / PyTorch path
+        _, mod, tok, ip = model_obj
+        import torch
+        if ip is not None:
+            prepped = ip.preprocess_batch(texts, src_lang=src_tag, tgt_lang=tgt_tag)
+        else:
+            prepped = [f"{src_tag} {tgt_tag} {t}" for t in texts]
+        inputs = tok(prepped, truncation=True, padding="longest", return_tensors="pt", return_attention_mask=True)
+        with torch.no_grad():
+            generated = mod.generate(**inputs, use_cache=True, min_length=0, max_length=256, num_beams=4)
+        decoded_batch = tok.batch_decode(generated, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+        if ip is not None:
+            return [_clean_it2_decoded_text(x) or orig for x, orig in zip(ip.postprocess_batch(decoded_batch, lang=tgt_tag), texts)]
+        return [_clean_it2_decoded_text(x) or orig for x, orig in zip(decoded_batch, texts)]
+    except Exception as exc:
+        logger.warning(f"IndicTrans2 batch translation failed ({type(exc).__name__}: {exc}); falling back to NLLB-200.")
+        return [_translate_with_nllb_model(t, source_lang=source_lang) for t in texts]
+
+
+def _translate_with_local_model(text: str, source_lang: str = "ne") -> str:
+    """Translates text using the configured local MT engine (nllb default, or opt-in indictrans2)."""
+    if not text:
+        return ""
+    engine = os.getenv("LOCAL_MT_ENGINE", LOCAL_MT_ENGINE).strip().lower()
+    if engine == "indictrans2":
+        res = _translate_with_indictrans2_batch([text], source_lang=source_lang)
+        return res[0] if res else text
+    return _translate_with_nllb_model(text, source_lang=source_lang)
+
+
 # High-priority entity mapping for pre-translation preservation
 _HIGH_PRIORITY_ENTITY_RULES = [
     # Compound / High-specificity organizations & locations first
@@ -317,9 +544,24 @@ _HIGH_PRIORITY_ENTITY_RULES = [
     (r"(?:गगन\s*थापा|गगनकुमार\s*थापा)", "Gagan Thapa"),
     (r"(?:कुलमान\s*घिसिङ)", "Kulman Ghising"),
     (r"(?:नेपाल\s*विद्युत\s*प्राधिकरण|विद्युत\s*प्राधिकरण)", "Nepal Electricity Authority"),
+    # Titles, honorifics & additional key institutions
+    (r"(?:प्रधानमन्त्री)", "Prime Minister"),
+    (r"(?:राष्ट्रपति)", "President"),
+    (r"(?:अर्थमन्त्री)", "Finance Minister"),
+    (r"(?:गृहमन्त्री)", "Home Minister"),
+    (r"(?:मुख्यमन्त्री)", "Chief Minister"),
+    (r"(?:सभामुख)", "Speaker"),
+    (r"(?:माननीय)", "Hon."),
+    (r"(?:प्रतिनिधिसभा|प्रतिनिधि\s*सभा)", "House of Representatives"),
+    (r"(?:संसद|संसद्)", "Parliament"),
+    (r"(?:नेप्से)", "NEPSE"),
+    (r"(?:सेबोन)", "SEBON"),
+    (r"(?:नेपाल\s*प्रहरी)", "Nepal Police"),
+    (r"(?:नेपाली\s*सेना)", "Nepali Army"),
 ]
 
-_POSTPOSITION_CHARS = "मालेलाईकोकाकीबाटदेखिसँगसंगभित्रतर्फविरुद्धसहित"
+# Longest-match-first alternation of Nepali postpositions so multi-char suffixes detach cleanly
+_POSTPOSITION_PATTERN = r"(?:विरुद्ध|भित्र|देखि|सहित|लाई|लाइ|बाट|तर्फ|सँग|संग|मा|ले|को|का|की)"
 
 
 def mask_entities_for_translation(text: str) -> Tuple[str, Dict[str, str]]:
@@ -336,7 +578,7 @@ def mask_entities_for_translation(text: str) -> Tuple[str, Dict[str, str]]:
     idx = 1
 
     for pat, en_name in _HIGH_PRIORITY_ENTITY_RULES:
-        full_pat = re.compile(pat + rf"(?P<post>[{_POSTPOSITION_CHARS}])?", re.UNICODE)
+        full_pat = re.compile(pat + rf"(?P<post>{_POSTPOSITION_PATTERN})?", re.UNICODE)
 
         def _repl(m: re.Match) -> str:
             nonlocal idx
@@ -499,6 +741,7 @@ _ENGLISH_PROPER_NOUN_PATTERNS = [
     (re.compile(r"\b(?:Singhadarbar|Singha\s+Darbar|Lion\s+Palace)\b", re.I), "Singha Durbar"),
     (re.compile(r"\b(?:Shital\s+Niwas|Cold\s+Residence)\b", re.I), "Sheetal Niwas"),
     (re.compile(r"\bNepalese\b"), "Nepali"),
+    (re.compile(r"\bNep(?:se|es)\b", re.I), "NEPSE"),
     (re.compile(r"\b1\s+million\s+gifts\b", re.I), "Rs 1 million prize"),
     (re.compile(r"\b10\s+lakhs?\b", re.I), "Rs 1 million"),
     (re.compile(r"\b(\d+)\s+lakh\s+prize\b", re.I), r"Rs \1 lakh prize"),
@@ -590,6 +833,30 @@ def detect_text_language(text: str, declared_lang: str = "") -> str:
     return "en"
 
 
+def _devanagari_count(text: str) -> int:
+    """Counts Devanagari Unicode characters in text."""
+    return sum(1 for ch in (text or "") if "\u0900" <= ch <= "\u097f")
+
+
+def _translation_succeeded(src: str, out: str) -> bool:
+    """
+    Returns True if translation produced a non-empty changed output and either
+    eliminated Devanagari or reduced Devanagari count substantially (tolerating
+    an occasional untranslatable token/acronym in bilingual text).
+    """
+    s_clean = (src or "").strip()
+    o_clean = (out or "").strip()
+    if not o_clean or o_clean == s_clean:
+        return False
+    src_deva = _devanagari_count(s_clean)
+    if src_deva == 0:
+        return True
+    out_deva = _devanagari_count(o_clean)
+    if out_deva == 0:
+        return True
+    return src_deva >= 8 and out_deva <= max(2, int(src_deva * 0.25))
+
+
 def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -> str:
     """Zero-key translation failover across working POST endpoints on translate.googleapis.com with circuit breaker & tenacity."""
     global _CLIENT_ROTATION_IDX
@@ -631,7 +898,7 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
                 else:
                     if isinstance(data, list) and data and isinstance(data[0], list):
                         out = "".join(seg[0] for seg in data[0] if seg and seg[0])
-                if out and out.strip() and out.strip() != clean_chunk and not _has_devanagari(out):
+                if out and _translation_succeeded(clean_chunk, out):
                     return out.strip()
         return None
 
@@ -673,9 +940,18 @@ def _translate_chunk_with_failover(chunk: str, sl_code: str, timeout: int = 8) -
 
 
 def _translate_batch_group(items: List[str], sl_code: str, timeout: int = 10) -> List[str]:
-    """Translates a small aligned batch via newline-delimited POST, recursively halving if line counts drift."""
+    """Translates a small aligned batch via newline-delimited POST, or native batching when using local IndicTrans2."""
     if not items:
         return []
+    engine = os.getenv("LOCAL_MT_ENGINE", LOCAL_MT_ENGINE).strip().lower()
+    if (
+        ENABLE_LOCAL_TRANSLATION_FALLBACK
+        and engine == "indictrans2"
+        and (TRANSLATION_PRIMARY == "local" or is_circuit_breaker_open())
+    ):
+        batch_out = _translate_with_indictrans2_batch(items, source_lang=sl_code)
+        if batch_out and len(batch_out) == len(items):
+            return batch_out
     payload = "\n".join(items)
     translated = _translate_chunk_with_failover(payload, sl_code=sl_code, timeout=timeout)
     if translated == payload and _has_devanagari(payload):
@@ -715,7 +991,10 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
             results[idx] = _TRANSLATION_CACHE[cache_key]
             continue
         prepped = _normalize_devanagari_before_translation(clean) if source_lang != "hi" else clean
-        masked, mmap = mask_entities_for_translation(prepped)
+        if _using_local_indictrans2():
+            masked, mmap = prepped, {}
+        else:
+            masked, mmap = mask_entities_for_translation(prepped)
         one_line = re.sub(r"[\r\n\t]+", " ", masked)
         one_line = re.sub(r"\s+", " ", one_line).strip()
         pending.append((idx, cache_key, one_line, clean, mmap))
@@ -748,7 +1027,7 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
         for k, src_line, tr_line, mmap in zip(batch_keys, batch_strs, translated_strs, batch_mmaps):
             restored = restore_entities_after_translation(tr_line, mmap)
             norm_tr = normalize_english_proper_nouns(restored)
-            if norm_tr and not _has_devanagari(norm_tr) and tr_line != src_line:
+            if norm_tr and _translation_succeeded(src_line, tr_line):
                 _TRANSLATION_CACHE[k] = norm_tr
 
     for idx, ckey, one_line, orig, mmap in pending:
@@ -774,8 +1053,11 @@ def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", fo
     prepped = _normalize_devanagari_before_translation(clean) if source_lang == "ne" else clean
     sl_code = source_lang if source_lang in ("ne", "hi", "auto") else "ne"
 
-    # Pre-translation entity masking
-    masked_prepped, mask_map = mask_entities_for_translation(prepped)
+    # Pre-translation entity masking (skipped when routing directly to IndicTrans2, which translates entities natively)
+    if _using_local_indictrans2():
+        masked_prepped, mask_map = prepped, {}
+    else:
+        masked_prepped, mask_map = mask_entities_for_translation(prepped)
 
     chunks = []
     if len(masked_prepped) <= 2500:
@@ -802,13 +1084,13 @@ def _translate_ne_to_en(text: str, timeout: int = 8, source_lang: str = "ne", fo
     any_failed = False
     for chunk in chunks:
         tr = _translate_chunk_with_failover(chunk, sl_code=sl_code, timeout=timeout)
-        if _has_devanagari(tr) and tr == chunk:
+        if not _translation_succeeded(chunk, tr):
             any_failed = True
         restored = restore_entities_after_translation(tr, mask_map)
         translated_chunks.append(normalize_english_proper_nouns(restored))
 
     result = "\n\n".join(translated_chunks).strip()
-    if not any_failed and not _has_devanagari(result):
+    if not any_failed and _translation_succeeded(clean, result):
         _TRANSLATION_CACHE[cache_key] = result
     return result
 
@@ -960,8 +1242,8 @@ def _trim_clean_sentence(text: str, limit: int = 460) -> str:
     return trimmed
 
 
-def _extract_native_salient_sentences(title: str, body: str, max_sentences: int = 2) -> str:
-    """Pre-selects 2 clean, salient Devanagari sentences before machine translation to minimize API load."""
+def _extract_native_salient_sentences(title: str, body: str, max_sentences: int = 4, max_chars: int = 900) -> str:
+    """Pre-selects up to 4 clean, salient Devanagari sentences before machine translation so LexRank has multi-sentence candidates."""
     scoped = _scope_top_paragraphs(body, max_paras=8, title=title)
     cleaned = clean_journalistic_text(scoped, title=title)
     if not cleaned:
@@ -994,22 +1276,31 @@ def _extract_native_salient_sentences(title: str, body: str, max_sentences: int 
 
     lead = candidates[0]
     lead_tokens = set(re.findall(r"[\u0900-\u097F0-9a-zA-Z]{2,}", (clean_t + " " + lead).lower()))
-    best_idx = 1
-    best_score = -1.0
-    for idx in range(1, min(len(candidates), 6)):
+    scored: List[Tuple[float, int]] = []
+    for idx in range(1, min(len(candidates), 10)):
         c = candidates[idx]
         c_tokens = set(re.findall(r"[\u0900-\u097F0-9a-zA-Z]{2,}", c.lower()))
         overlap = len(lead_tokens & c_tokens) / max(1, len(c_tokens))
         has_digits = 0.25 if re.search(r"[0-9०-९]", c) else 0.0
         len_bonus = 0.15 if 8 <= len(c.split()) <= 35 else 0.0
         score = overlap + has_digits + len_bonus - (0.04 * idx)
-        if score > best_score:
-            best_score = score
-            best_idx = idx
+        scored.append((score, idx))
 
-    picked = [lead, candidates[best_idx]]
-    joined = " ".join(picked).strip()
-    if len(joined) > 520:
+    scored.sort(key=lambda x: x[0], reverse=True)
+    picked_indices = [0]
+    cur_len = len(lead)
+    for _, idx in scored:
+        if len(picked_indices) >= max_sentences:
+            break
+        cand = candidates[idx]
+        if cur_len + 1 + len(cand) > max_chars:
+            continue
+        picked_indices.append(idx)
+        cur_len += 1 + len(cand)
+
+    picked_indices.sort()
+    joined = " ".join(candidates[i] for i in picked_indices).strip()
+    if len(joined) > max_chars:
         return lead[:480].strip()
     return joined
 
@@ -1303,7 +1594,7 @@ def enrich_articles_with_english_summaries(
             source_text = raw_title
 
         if _has_devanagari(source_text):
-            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=2)
+            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=4)
             if not compact_native:
                 compact_native = raw_title
             target_list = pending_hi_texts if lang_code == "hi" else pending_ne_texts
@@ -1512,7 +1803,7 @@ def generate_on_demand_news_brief(
 
     if _has_devanagari(source_text) or lang_code in ("ne", "hi", "auto"):
         if _has_devanagari(source_text):
-            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=2)
+            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=4)
             if not compact_native:
                 compact_native = raw_title
             english_body = _translate_ne_to_en(compact_native, source_lang=lang_code, force_translate=True)
@@ -1521,7 +1812,17 @@ def generate_on_demand_news_brief(
     else:
         english_body = normalize_english_proper_nouns(source_text)
 
-    if _has_devanagari(english_body) or (_has_devanagari(raw_title) and _has_devanagari(headline_en)):
+    if not _translation_succeeded(source_text, english_body) and _has_devanagari(source_text):
+        return {
+            "ok": False,
+            "error": "Translation service temporarily unavailable. Please try again.",
+            "headline_english": "",
+            "content": "",
+            "source_url": source_url,
+            "formatted_text": "",
+            "lang": lang_code,
+        }
+    if _has_devanagari(raw_title) and not _translation_succeeded(raw_title, headline_en):
         return {
             "ok": False,
             "error": "Translation service temporarily unavailable. Please try again.",
@@ -1575,9 +1876,17 @@ _WIRE_PROFILE_FALLBACKS = {
 
 
 def _build_x_profile_line(post: Dict[str, Any]) -> str:
-    """Builds a concise one-line X account profile brief from Supabase x_accounts, directory, or post metadata."""
-    raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").split(" ")[0].strip()
+    """Builds a concise one-line social account profile brief from Supabase x_accounts, directory, or post metadata."""
+    raw_h_field = (post.get("raw_handle") or post.get("handle") or "").strip()
+    if "facebook.com/" in raw_h_field.lower():
+        raw_h = raw_h_field.rstrip("/").split("/")[-1].lstrip("@").split(" ")[0].strip()
+    else:
+        raw_h = raw_h_field.lstrip("@").split(" ")[0].strip()
     h_low = raw_h.lower()
+    is_fb = (
+        str(post.get("platform") or "").strip().lower() == "facebook"
+        or "facebook.com" in str(post.get("link") or "").lower()
+    )
     author_name = (post.get("author_name") or "").strip()
     role = (post.get("profile_brief") or post.get("role") or "").strip()
     if role.lower() in _GENERIC_X_ROLES:
@@ -1624,7 +1933,10 @@ def _build_x_profile_line(post: Dict[str, Any]) -> str:
         if at_val.lower() not in _GENERIC_X_ROLES:
             role = at_val
 
-    who = f"{author_name} (@{raw_h})" if (author_name and raw_h) else (author_name or (f"@{raw_h}" if raw_h else ""))
+    if is_fb:
+        who = author_name or raw_h
+    else:
+        who = f"{author_name} (@{raw_h})" if (author_name and raw_h) else (author_name or (f"@{raw_h}" if raw_h else ""))
     if who and role:
         return f"Profile: {who} — {role}"
     if who:
@@ -1637,13 +1949,17 @@ def generate_on_demand_x_content(
     on_progress: Optional[Callable[[str, float], None]] = None,
 ) -> Dict[str, Any]:
     """
-    On-demand user-initiated X post processor.
-    - English X posts: returns the complete original post text untouched (no summarization/rewriting).
-    - Non-English X posts (Nepali, Hindi, etc.): translates the complete post preserving line breaks and tone.
+    On-demand user-initiated X/Facebook post processor.
+    - English social posts: returns the complete original post text untouched (no summarization/rewriting).
+    - Non-English social posts (Nepali, Hindi, etc.): translates the complete post in batch preserving line breaks and tone.
     """
     raw_text = (post.get("text") or post.get("title") or "").strip()
     source_url = (post.get("link") or "").strip()
-    if not source_url:
+    is_fb = (
+        str(post.get("platform") or "").strip().lower() == "facebook"
+        or "facebook.com" in source_url.lower()
+    )
+    if not source_url and not is_fb:
         raw_h = (post.get("raw_handle") or post.get("handle") or "").lstrip("@").strip()
         sid = str(post.get("id") or "").strip()
         if raw_h and sid:
@@ -1651,24 +1967,33 @@ def generate_on_demand_x_content(
 
     lang_code = detect_text_language(raw_text)
     if lang_code == "en":
-        _emit_progress(on_progress, "Retrieving complete English X post…", 0.7)
+        _emit_progress(on_progress, "Retrieving complete English post…", 0.7)
         content = raw_text
     else:
-        _emit_progress(on_progress, "Translating X post to English…", 0.35)
-        # Translate line-by-line preserving original paragraph & line-break structure
+        _emit_progress(on_progress, "Translating post to English…", 0.35)
         lines = raw_text.splitlines()
-        translated_lines: List[str] = []
-        total_lines = max(1, len(lines))
-        for idx, ln in enumerate(lines, start=1):
+        non_empty_indices: List[int] = []
+        non_empty_texts: List[str] = []
+        for idx, ln in enumerate(lines):
             stripped = ln.strip()
-            if not stripped:
-                translated_lines.append("")
-                continue
-            tr_ln = _translate_ne_to_en(stripped, source_lang=lang_code, force_translate=True)
-            translated_lines.append(tr_ln)
-            _emit_progress(on_progress, f"Translating line {idx} of {total_lines}…", 0.35 + 0.55 * (idx / total_lines))
+            if stripped:
+                non_empty_indices.append(idx)
+                non_empty_texts.append(stripped)
+
+        translated_lines = list(lines)
+        if non_empty_texts:
+            if lang_code == "auto":
+                tr_batch = [
+                    _translate_ne_to_en(t, source_lang="auto", force_translate=True)
+                    for t in non_empty_texts
+                ]
+            else:
+                tr_batch = _translate_batch_to_en(non_empty_texts, source_lang=lang_code, timeout=10)
+            for idx, tr_ln in zip(non_empty_indices, tr_batch):
+                translated_lines[idx] = tr_ln
+        _emit_progress(on_progress, "Finalizing translated post…", 0.9)
         content = "\n".join(translated_lines).strip()
-        if not content or (_has_devanagari(raw_text) and _has_devanagari(content)):
+        if not content or (_has_devanagari(raw_text) and not _translation_succeeded(raw_text, content)):
             return {
                 "ok": False,
                 "error": "Translation service temporarily unavailable. Please try again.",
@@ -1798,15 +2123,18 @@ def extract_on_demand_full_article(
         if lang_code == "en" and not _has_devanagari(original_text):
             translated_text = original_text
         else:
-            src_paras = [p for p in original_text.split("\n\n") if p.strip()]
-            total_p = max(1, len(src_paras))
-            tr_paras: List[str] = []
-            for idx, p in enumerate(src_paras, start=1):
-                _emit_progress(on_progress, f"Translating paragraph {idx} of {total_p}…", 0.22 + 0.73 * (idx / total_p))
-                tr_p = _translate_ne_to_en(p, timeout=10, source_lang=lang_code, force_translate=True)
-                tr_paras.append(tr_p)
+            src_paras = [p.strip() for p in original_text.split("\n\n") if p.strip()]
+            _emit_progress(on_progress, f"Translating {len(src_paras)} paragraph(s) to English…", 0.55)
+            if lang_code == "auto":
+                tr_paras = [
+                    _translate_ne_to_en(p, timeout=10, source_lang="auto", force_translate=True)
+                    for p in src_paras
+                ]
+            else:
+                tr_paras = _translate_batch_to_en(src_paras, source_lang=lang_code, timeout=10)
+            _emit_progress(on_progress, "Finalizing translated article…", 0.92)
             translated_text = "\n\n".join(tr_paras).strip()
-            if not translated_text or (_has_devanagari(original_text) and _has_devanagari(translated_text)):
+            if not translated_text or (_has_devanagari(original_text) and not _translation_succeeded(original_text, translated_text)):
                 translated_text = ""
                 tr_error = "Translation service temporarily unavailable. Please try again."
 

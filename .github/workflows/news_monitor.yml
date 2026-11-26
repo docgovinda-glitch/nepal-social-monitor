@@ -30,7 +30,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-nllb-ct2-int8-v1
+          key: hf-mt-ct2-indictrans2-v1
+          restore-keys: |
+            hf-nllb-ct2-int8-v1
 
       - name: Rolling SQLite Translation Cache
         uses: actions/cache@v4
@@ -45,6 +47,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-backend.txt
 
+      - name: IndicTrans2 & SentencePiece Smoke Check
+        env:
+          ENABLE_LOCAL_TRANSLATION_FALLBACK: "true"
+          LOCAL_MT_ENGINE: "indictrans2"
+          INDICTRANS2_MODEL_ID: "adalat-ai/ct2-rotary-indictrans2-indic-en-dist-200M"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          import sentencepiece as spm
+          import nepal_summarizer as summ
+          model_obj = summ._load_local_indictrans2_model()
+          assert model_obj[0] == 'ct2', f'Expected ct2 backend, got {model_obj[0]}'
+          assert not isinstance(model_obj[2], summ._FallbackVocabTokenizer), 'Expected SentencePiece model.SRC'
+          assert not isinstance(model_obj[3], summ._FallbackVocabTokenizer), 'Expected SentencePiece model.TGT'
+          samples = [
+              'प्रधानमन्त्रीले आज संसदमा नयाँ आर्थिक विधेयक प्रस्तुत गरेका छन्।',
+              'नेप्से परिसूचक आज २८ अंकले बढेर २७५० मा पुगेको छ।',
+          ]
+          out = summ._translate_with_indictrans2_batch(samples, source_lang='ne')
+          print('CI Smoke Output:', out)
+          assert '2750' in out[1], f'Expected 2750 in output, got: {out[1]}'
+          "
+
       - name: Run single news monitoring cycle
         env:
           SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
@@ -55,6 +80,9 @@ jobs:
           SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
           ENABLE_LOCAL_TRANSLATION_FALLBACK: "true"
           TRANSLATION_PRIMARY: "google"  # change to "local" to use CTranslate2 first
+          LOCAL_MT_ENGINE: "indictrans2"
+          INDICTRANS2_MODEL_ID: "adalat-ai/ct2-rotary-indictrans2-indic-en-dist-200M"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
           TRANSLATION_CACHE_DIR: ${{ github.workspace }}/.cache/translation_cache
           GREEN_API_URL: ${{ secrets.GREEN_API_URL }}
           GREEN_API_ID_INSTANCE: ${{ secrets.GREEN_API_ID_INSTANCE }}

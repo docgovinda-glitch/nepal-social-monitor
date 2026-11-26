@@ -1001,7 +1001,8 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         # 3) In-App Reader translates headline AND full body, and single-click Copy formats Headline + Body + Link
         with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
              mock.patch("nepal_fetcher.extract_article_full_text", return_value=""), \
-             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_translate):
+             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_translate), \
+             mock.patch("nepal_summarizer._translate_batch_to_en", side_effect=lambda texts, **kw: [_fake_translate(t, **kw) for t in texts]):
             rd_tr = summ.extract_on_demand_full_article(ne_item, translate_to_english=True)
 
         self.assertTrue(rd_tr["ok"])
@@ -1041,7 +1042,8 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
 
         with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
              mock.patch("nepal_fetcher.extract_article_full_text", return_value=""), \
-             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_hi_translate):
+             mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_hi_translate), \
+             mock.patch("nepal_summarizer._translate_batch_to_en", side_effect=lambda texts, **kw: [_fake_hi_translate(t, **kw) for t in texts]):
             brief_hi = summ.generate_on_demand_news_brief(hi_item)
             rd_hi = summ.extract_on_demand_full_article(hi_item, translate_to_english=True)
 
@@ -1544,22 +1546,33 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertNotIn("__ENT", restored)
 
     def test_bounded_translation_lru_cache(self):
+        import tempfile, shutil
         import nepal_summarizer as summ
 
-        cache = summ.TranslationLRUCache(maxsize=3)
-        cache["k1"] = "val1"
-        cache["k2"] = "val2"
-        cache["k3"] = "val3"
-        self.assertEqual(len(cache), 3)
+        tmp_dir = os.path.join(tempfile.gettempdir(), "test_perf_bounded_lru")
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        cache = None
+        try:
+            cache = summ.TranslationLRUCache(maxsize=3, cache_dir=tmp_dir)
+            cache["k1"] = "val1"
+            cache["k2"] = "val2"
+            cache["k3"] = "val3"
+            self.assertEqual(len(cache), 3)
 
-        _ = cache["k1"]
+            _ = cache["k1"]
 
-        cache["k4"] = "val4"
-        self.assertEqual(len(cache), 3)
-        self.assertIn("k1", cache)
-        self.assertNotIn("k2", cache)
-        self.assertIn("k3", cache)
-        self.assertIn("k4", cache)
+            cache["k4"] = "val4"
+            self.assertEqual(len(cache), 3)
+            self.assertIn("k1", cache._mem_cache)
+            self.assertNotIn("k2", cache._mem_cache)
+            self.assertIn("k3", cache._mem_cache)
+            self.assertIn("k4", cache._mem_cache)
+            # L2 diskcache retains evicted k2
+            self.assertIn("k2", cache)
+        finally:
+            if cache is not None:
+                cache.close()
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def test_translation_circuit_breaker_and_fallback(self):
         import nepal_summarizer as summ
