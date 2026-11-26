@@ -360,6 +360,7 @@ from nepal_news_store import (
     PREDEFINED_9_CATEGORIES,
     CORE_8_CATEGORIES,
     record_whatsapp_sent,
+    record_whatsapp_sent_batch,
     get_whatsapp_sent_map,
 )
 from components.infinite_feed import render_infinite_feed_component
@@ -1404,6 +1405,38 @@ def _render_source_link_html(url: str, inline: bool = False) -> str:
     )
 
 
+def _render_related_links_html(related_links: List[Dict[str, str]]) -> str:
+    """Renders same-stream Related media links inside the WhatsApp Share modal preview."""
+    if not related_links:
+        return ""
+    chips: List[str] = []
+    for rel in related_links:
+        if not isinstance(rel, dict):
+            continue
+        r_url = (rel.get("url") or "").strip()
+        r_src = (rel.get("source") or "").strip()
+        if not r_url or not r_url.startswith("http"):
+            continue
+        r_title = (rel.get("title") or r_url).strip()
+        esc_url = html.escape(r_url, quote=True)
+        esc_lbl = html.escape(r_src or r_url)
+        esc_ttl = html.escape(r_title, quote=True)
+        chips.append(
+            f'<a href="{esc_url}" target="_blank" rel="noopener noreferrer" class="source-link-chip" title="{esc_ttl}">'
+            f'<span>{esc_lbl}</span>'
+            f'<span class="source-link-arrow">↗</span>'
+            f'</a>'
+        )
+    if not chips:
+        return ""
+    return (
+        f'<div class="unified-brief-box__related">'
+        f'<span class="source-lbl">Related:</span>'
+        f'<div class="related-links-list">{"".join(chips)}</div>'
+        f'</div>'
+    )
+
+
 def _commit_share_draft(draft: Dict[str, Any], new_text: str, new_headline: Optional[str] = None) -> None:
     """Commits edited headline/body text to the versioned Share draft without altering original AI output or sending."""
     clean = (new_text or "").strip()
@@ -2111,6 +2144,7 @@ def _render_share_send_fragment(
     ver: int,
     saved_formatted: str,
     targets: Any = None,
+    is_x: bool = False,
 ) -> None:
     draft = st.session_state.get("share_drafts", {}).get(cache_id, {})
     sent_ids = st.session_state.setdefault("whatsapp_sent_ids", set())
@@ -2163,19 +2197,31 @@ def _render_share_send_fragment(
                 wa_res["group_name"] = dest_name
                 st.session_state.setdefault("wa_item_status", {})[cache_id] = wa_res
                 if wa_res.get("ok") and wa_res.get("accepted"):
+                    sent_targets = _collect_sent_targets_for_share(
+                        cache_id=cache_id,
+                        item_link=item_link,
+                        is_x=is_x,
+                        draft=draft,
+                        saved_formatted=saved_formatted,
+                    )
+                    msg_id_str = str(wa_res.get("id_message") or "")
                     try:
-                        record_whatsapp_sent(
-                            item_key=cache_id,
-                            group_id=selected_gid,
-                            group_name=dest_name,
-                            id_message=str(wa_res.get("id_message") or ""),
-                            item_link=item_link,
-                        )
+                        record_whatsapp_sent_batch([
+                            {
+                                "item_key": t_key,
+                                "group_id": selected_gid,
+                                "group_name": dest_name,
+                                "id_message": msg_id_str,
+                                "item_link": t_link,
+                            }
+                            for t_key, t_link in sent_targets
+                        ])
                         _get_wa_sent_map.clear()
                     except Exception as log_exc:
                         wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
-                    sent_ids.add(cache_id)
-                    _mark_feed_card_sent(cache_id, dest_name)
+                    for t_key, _ in sent_targets:
+                        sent_ids.add(t_key)
+                    _mark_feed_cards_sent(sent_targets, dest_name)
                     st.session_state["active_modal"] = None
                     st.rerun()
                 else:
@@ -2261,6 +2307,7 @@ def _show_share_dialog() -> None:
     if not is_x and "news.google.com" in (src_url or "").lower():
         src_url = item_link
     profile_line = (generated.get("profile_line") or "").strip()
+    related_links = [] if is_x else list(generated.get("related_links") or [])
     gen_headline = "" if is_x else (generated.get("headline_english") or item.get("headline_english") or item.get("title") or "").strip()
     draft = st.session_state["share_drafts"].get(cache_id)
     if not draft:
@@ -2274,6 +2321,7 @@ def _show_share_dialog() -> None:
             "draft_content": init_text,
             "profile_line": profile_line,
             "source_url": src_url,
+            "related_links": related_links,
             "version": 1,
             "saved_at": "",
             "is_editing": False,
@@ -2286,6 +2334,8 @@ def _show_share_dialog() -> None:
             draft["original_headline"] = gen_headline
             draft["saved_headline"] = gen_headline
             draft["draft_headline"] = gen_headline
+        if not is_x and "related_links" not in draft:
+            draft["related_links"] = related_links
         if not is_x and "news.google.com" in (draft.get("source_url") or "").lower():
             draft["source_url"] = src_url
 
@@ -2308,6 +2358,7 @@ def _show_share_dialog() -> None:
     active_headline = current_draft_headline if (not is_x and current_draft_headline != saved_headline) else saved_headline
     active_text = current_draft_text if current_draft_text != saved_text else saved_text
     eff_profile = (draft.get("profile_line") or profile_line or "").strip()
+    eff_related = [] if is_x else list(draft.get("related_links") or related_links or [])
 
     from nepal_summarizer import format_english_brief_payload
 
@@ -2318,6 +2369,7 @@ def _show_share_dialog() -> None:
                 brief=body_txt,
                 source_url=src_url,
                 whatsapp_bold=True,
+                related_links=eff_related,
             )
         pts = [body_txt] if body_txt else []
         if eff_profile:
@@ -2433,12 +2485,14 @@ def _show_share_dialog() -> None:
     )
     profile_html = f'<div class="unified-brief-box__profile">{html.escape(eff_profile)}</div>' if eff_profile else ""
     src_html = _render_source_link_html(src_url)
+    related_html = _render_related_links_html(eff_related) if not is_x else ""
     st.markdown(
         f'<div class="unified-brief-box">'
         f'{headline_html}'
         f'<div class="unified-brief-box__body">{html.escape(active_text)}</div>'
         f'{profile_html}'
         f'{src_html}'
+        f'{related_html}'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -2544,6 +2598,7 @@ def _show_share_dialog() -> None:
             ver=ver,
             saved_formatted=saved_formatted,
             targets=_wa_targets if _multi_wa else None,
+            is_x=is_x,
         )
 
 
@@ -2717,8 +2772,57 @@ def _safe_http_url(raw_url: str) -> str:
     return ""
 
 
-def _mark_feed_card_sent(cache_id: str, group_name: str) -> None:
-    """Shows the sent tick on the card right away by patching the stored feed HTML and forcing a full re-send."""
+def _collect_sent_targets_for_share(
+    cache_id: str,
+    item_link: str,
+    is_x: bool,
+    draft: Optional[Dict[str, Any]],
+    saved_formatted: str,
+) -> List[tuple]:
+    """Collects (cache_id, link) for the primary item and any Related: links present in saved_formatted."""
+    targets: List[tuple] = []
+    seen_keys: set = set()
+    if cache_id:
+        targets.append((cache_id, item_link or ""))
+        seen_keys.add(cache_id)
+    if is_x or not isinstance(draft, dict) or not saved_formatted:
+        return targets
+
+    for rel in (draft.get("related_links") or []):
+        if not isinstance(rel, dict):
+            continue
+        rel_url = (rel.get("url") or "").strip()
+        if not rel_url or rel_url not in saved_formatted:
+            continue
+        rel_cid = _compute_item_uid(
+            {
+                "canonical_id": rel.get("canonical_id") or "",
+                "link": rel_url,
+                "title": rel.get("title") or "",
+            },
+            "global",
+        )
+        if rel_cid and rel_cid not in seen_keys:
+            targets.append((rel_cid, rel_url))
+            seen_keys.add(rel_cid)
+    return targets
+
+
+def _mark_feed_cards_sent(sent_items: List[tuple], group_name: str) -> None:
+    """Marks all matching primary and Related: feed cards as sent in session_state feed_sessions."""
+    if not sent_items:
+        return
+    target_keys = {k for k, _ in sent_items if k}
+    target_urls: set = set()
+    try:
+        from nepal_news_store import normalize_canonical_url
+    except Exception:
+        normalize_canonical_url = lambda u: (u or "").strip().rstrip("/")
+    for _, u in sent_items:
+        nu = normalize_canonical_url(u) if u else ""
+        if nu:
+            target_urls.add(nu)
+
     chip = (
         f'<span class="hl-chip hl-chip--ok" title="Sent to {html.escape(group_name or "WhatsApp", quote=True)}">{_HL_CHECK_SVG}</span>'
     )
@@ -2727,7 +2831,9 @@ def _mark_feed_card_sent(cache_id: str, group_name: str) -> None:
             continue
         changed = False
         for uid, row in (sess.get("items_by_uid") or {}).items():
-            if _compute_item_uid(row, "global") != cache_id:
+            row_key = _compute_item_uid(row, "global")
+            row_url = normalize_canonical_url(row.get("link") or row.get("canonical_url") or "")
+            if row_key not in target_keys and (not row_url or row_url not in target_urls):
                 continue
             marker = f'data-uid="{uid}"'
             for b in sess.get("batches", []):
@@ -2743,6 +2849,11 @@ def _mark_feed_card_sent(cache_id: str, group_name: str) -> None:
                     changed = True
         if changed:
             sess["_mounted_nav_seq"] = -1
+
+
+def _mark_feed_card_sent(cache_id: str, group_name: str) -> None:
+    """Shows the sent tick on the card right away by patching the stored feed HTML and forcing a full re-send."""
+    _mark_feed_cards_sent([(cache_id, "")], group_name)
 
 
 def _build_card_wrapper_html(

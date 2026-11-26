@@ -805,7 +805,7 @@ _FINITE_VERB_RE = re.compile(
     r"demanded|warned|urged|decided|arrested|launched|issued|passed|failed|increased|decreased|"
     r"honored|honoured|celebrated|visited|met|addressed|directed|formed|appointed|suspended|"
     r"investigated|found|showed|revealed|confirmed|denied|rejected|agreed|proposed|began|ended|"
-    r"continues|continued|remained|became|become|took|made|gave|got|went|came|rose|fell|hit|"
+    r"continues|continued|remained|became|become|took|made|gave|got|went|came|rose|fell|hit|set|cut|put|"
     r"[a-z]{3,}ed|[a-z]{3,}ing)\b",
     re.IGNORECASE,
 )
@@ -912,6 +912,18 @@ def _set_last_engine(engine: str) -> None:
 
 def _get_last_engine(default: str = "") -> str:
     return getattr(_LAST_ENGINE_TLS, "engine", "") or default
+
+
+def _set_last_batch_cache_stats(hits: int, misses: int) -> None:
+    _LAST_ENGINE_TLS.batch_cache_hits = int(hits)
+    _LAST_ENGINE_TLS.batch_cache_misses = int(misses)
+
+
+def _get_last_batch_cache_stats() -> Tuple[int, int]:
+    return (
+        int(getattr(_LAST_ENGINE_TLS, "batch_cache_hits", 0)),
+        int(getattr(_LAST_ENGINE_TLS, "batch_cache_misses", 0)),
+    )
 
 
 def _translate_chunk_with_failover_meta(chunk: str, sl_code: str, timeout: int = 8) -> Tuple[str, str]:
@@ -1048,11 +1060,14 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
     """Translates a list of Devanagari texts in batched POST requests with entity masking, updating _TRANSLATION_CACHE."""
     if not texts:
         _set_last_engine("")
+        _set_last_batch_cache_stats(0, 0)
         return []
     sl_code = "hi" if source_lang == "hi" else "ne"
     results: List[str] = [""] * len(texts)
     pending: List[tuple] = []  # (idx, cache_key, one_line_prepped, clean, mask_map)
     used_engines: List[str] = []
+    cache_hits = 0
+    cache_misses = 0
 
     for idx, raw in enumerate(texts):
         clean = (raw or "").strip()
@@ -1067,7 +1082,9 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
             results[idx] = c_val
             if c_eng:
                 used_engines.append(c_eng)
+            cache_hits += 1
             continue
+        cache_misses += 1
         prepped = _normalize_devanagari_before_translation(clean) if source_lang != "hi" else clean
         if _using_local_indictrans2():
             masked, mmap = prepped, {}
@@ -1117,12 +1134,14 @@ def _translate_batch_to_en(texts: List[str], source_lang: str = "ne", timeout: i
             results[idx] = orig
 
     _set_last_engine(used_engines[-1] if used_engines else "")
+    _set_last_batch_cache_stats(cache_hits, cache_misses)
     return results
 
 
 def _translate_batch_to_en_with_meta(texts: List[str], source_lang: str = "ne", timeout: int = 10) -> Tuple[List[str], str]:
     """Translates a batch of texts and returns (translated_list, engine_code)."""
     _set_last_engine("")
+    _set_last_batch_cache_stats(0, 0)
     out = _translate_batch_to_en(texts, source_lang=source_lang, timeout=timeout)
     eng = _get_last_engine(default=("google" if any(_has_devanagari(t or "") for t in (texts or [])) else ""))
     return out, eng
@@ -1253,6 +1272,75 @@ def _tokenize_content_words(text: str) -> List[str]:
     return [w for w in words if len(w) >= 2 and w not in _STOPWORDS]
 
 
+def _is_valid_sentence(s: str) -> bool:
+    """Checks sentence/clause validity: length bounds, Latin capitalization, and English finite verb."""
+    if not s:
+        return False
+    if not _has_devanagari(s) and s[0].islower():
+        return False
+    word_count = len(s.split())
+    if word_count < 7 or word_count > 55:
+        return False
+    if not _has_devanagari(s) and not _FINITE_VERB_RE.search(s):
+        return False
+    return True
+
+
+_CLAUSE_BOUNDARY_RE = re.compile(
+    r"\s*(?:;|—)\s*|,\s+(?:which|while|although)\s+|\s+(?:तर|भने)\s+",
+    re.IGNORECASE,
+)
+
+
+def _split_clauses_quote_aware(text: str) -> List[str]:
+    """Splits a long sentence on major clause boundaries only outside open single/double quotes."""
+    matches = list(_CLAUSE_BOUNDARY_RE.finditer(text))
+    if not matches:
+        return [text]
+
+    in_straight_double = False
+    in_smart_double = False
+    in_straight_single = False
+    in_smart_single = False
+
+    def _is_quoted_mask(s: str) -> List[bool]:
+        nonlocal in_straight_double, in_smart_double, in_straight_single, in_smart_single
+        mask = [False] * len(s)
+        n = len(s)
+        for i, ch in enumerate(s):
+            prev_ch = s[i - 1] if i > 0 else " "
+            next_ch = s[i + 1] if i + 1 < n else " "
+            if ch == '"':
+                in_straight_double = not in_straight_double
+            elif ch == "“":
+                in_smart_double = True
+            elif ch == "”":
+                in_smart_double = False
+            elif ch == "‘":
+                in_smart_single = True
+            elif ch == "’":
+                if in_smart_single and not next_ch.isalnum():
+                    in_smart_single = False
+            elif ch == "'":
+                if not in_straight_single and not prev_ch.isalnum():
+                    in_straight_single = True
+                elif in_straight_single and not next_ch.isalnum():
+                    in_straight_single = False
+            mask[i] = in_straight_double or in_smart_double or in_straight_single or in_smart_single
+        return mask
+
+    quoted = _is_quoted_mask(text)
+    parts: List[str] = []
+    last_idx = 0
+    for m in matches:
+        if quoted[m.start()]:
+            continue
+        parts.append(text[last_idx:m.start()])
+        last_idx = m.end()
+    parts.append(text[last_idx:])
+    return parts
+
+
 def _split_sentences(text: str) -> List[str]:
     """Splits cleaned text into well-formed sentences without slicing inside numbers, English abbreviations, or Devanagari abbreviations."""
     # Protect common English and Devanagari abbreviations
@@ -1268,16 +1356,15 @@ def _split_sentences(text: str) -> List[str]:
         restored = _DANGLING_LEAD_PREFIX_RE.sub("", restored).strip()
         if not restored:
             continue
-        # Ensure first char is capitalized for English Latin text; allow Devanagari Unicode
-        if not _has_devanagari(restored) and restored[0].islower():
+        if len(restored.split()) > 55:
+            clauses = _split_clauses_quote_aware(restored)
+            for clause in clauses:
+                c = clause.strip(" \t\n\r,;—–-")
+                if _is_valid_sentence(c):
+                    sents.append(c)
             continue
-        word_count = len(restored.split())
-        if word_count < 7 or word_count > 55:
-            continue
-        # Filter bare image captions / noun phrases lacking a finite verb in English text
-        if not _has_devanagari(restored) and not _FINITE_VERB_RE.search(restored):
-            continue
-        sents.append(restored)
+        if _is_valid_sentence(restored):
+            sents.append(restored)
     return sents
 
 
@@ -1355,8 +1442,37 @@ def _trim_clean_sentence(text: str, limit: int = 460) -> str:
     return trimmed
 
 
-def _extract_native_salient_sentences(title: str, body: str, max_sentences: int = 4, max_chars: int = 900) -> str:
-    """Pre-selects up to 4 clean, salient Devanagari sentences before machine translation so LexRank has multi-sentence candidates."""
+def _clamp_salient_max_chars(val: int) -> int:
+    """Clamps the pre-translation character budget to a safe [400, 3000] range."""
+    return max(400, min(3000, int(val)))
+
+
+def _get_salient_char_budget() -> int:
+    """Resolves NATIVE_SALIENT_MAX_CHARS from env (if set) or module default, clamped to [400, 3000]."""
+    raw = os.getenv("NATIVE_SALIENT_MAX_CHARS", "")
+    if raw.strip():
+        try:
+            return _clamp_salient_max_chars(int(raw))
+        except ValueError:
+            pass
+    return _clamp_salient_max_chars(NATIVE_SALIENT_MAX_CHARS)
+
+
+NATIVE_SALIENT_MAX_SENTENCES = max(1, int(os.getenv("NATIVE_SALIENT_MAX_SENTENCES", "7")))
+NATIVE_SALIENT_MAX_CHARS = _clamp_salient_max_chars(int(os.getenv("NATIVE_SALIENT_MAX_CHARS", "1500")))
+
+
+def _extract_native_salient_sentences(
+    title: str,
+    body: str,
+    max_sentences: Optional[int] = None,
+    max_chars: Optional[int] = None,
+) -> str:
+    """Pre-selects up to 7 clean, salient Devanagari sentences before machine translation so LexRank has multi-sentence candidates."""
+    if max_sentences is None:
+        max_sentences = NATIVE_SALIENT_MAX_SENTENCES
+    if max_chars is None:
+        max_chars = _get_salient_char_budget()
     scoped = _scope_top_paragraphs(body, max_paras=8, title=title)
     cleaned = clean_journalistic_text(scoped, title=title)
     if not cleaned:
@@ -1390,7 +1506,7 @@ def _extract_native_salient_sentences(title: str, body: str, max_sentences: int 
     lead = candidates[0]
     lead_tokens = set(re.findall(r"[\u0900-\u097F0-9a-zA-Z]{2,}", (clean_t + " " + lead).lower()))
     scored: List[Tuple[float, int]] = []
-    for idx in range(1, min(len(candidates), 10)):
+    for idx in range(1, min(len(candidates), 12)):
         c = candidates[idx]
         c_tokens = set(re.findall(r"[\u0900-\u097F0-9a-zA-Z]{2,}", c.lower()))
         overlap = len(lead_tokens & c_tokens) / max(1, len(c_tokens))
@@ -1437,6 +1553,20 @@ def _needs_body_scrape(art: Dict[str, Any]) -> bool:
     )
 
 
+def _word_bigrams(tokens: List[str]) -> set:
+    """Returns adjacent word bigram strings from a token list."""
+    return {f"{tokens[i]} {tokens[i + 1]}" for i in range(len(tokens) - 1)}
+
+
+def _extract_fact_markers(sent: str) -> set:
+    """Extracts numeric figures, units, and institutional terms for novelty scoring."""
+    low = sent.lower()
+    nums = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", low))
+    units = set(re.findall(r"\b(?:rs|usd|million|billion|crore|lakh|mw|km|percent|%)\b", low))
+    insts = {term for term in _INSTITUTIONAL_TERMS if term in low}
+    return nums | units | insts
+
+
 def generate_lexrank_english_summary(
     title: str,
     full_text: str,
@@ -1445,8 +1575,8 @@ def generate_lexrank_english_summary(
 ) -> str:
     """
     Lead-Anchored Hybrid LexRank + Journalistic Salience Summarizer.
-    Scores paragraph-scoped sentences by graph centrality, lead position, factual density,
-    and topical alignment against the headline, producing a clean 2-sentence executive brief.
+    Scores paragraph-scoped sentences by unigram+bigram graph centrality, lead position,
+    factual density, and topical alignment against the headline, producing a clean 2-sentence executive brief.
     """
     clean_title = normalize_english_proper_nouns(clean_journalistic_text(title))
     scoped_body = _scope_top_paragraphs(full_text, max_paras=8, title=clean_title)
@@ -1470,22 +1600,27 @@ def generate_lexrank_english_summary(
             return joined
         return _trim_clean_sentence(sentences[0], limit=max(max_chars, 500))
 
-    # Build TF-IDF vectors for LexRank
+    # Build unigram + bigram TF-IDF vectors for LexRank
     sent_tokens = [_tokenize_content_words(s) for s in sentences]
     sent_sets = [set(toks) for toks in sent_tokens]
+    sent_bigrams = [_word_bigrams(toks) for toks in sent_tokens]
+    tfidf_tokens = [
+        toks + [f"{toks[i]} {toks[i + 1]}" for i in range(len(toks) - 1)]
+        for toks in sent_tokens
+    ]
     n_sents = len(sentences)
     title_tokens = set(_tokenize_content_words(clean_title))
     lead_tokens = sent_sets[0] | title_tokens
 
     df: Counter = Counter()
-    for s_set in sent_sets:
-        for w in s_set:
+    for t_list in tfidf_tokens:
+        for w in set(t_list):
             df[w] += 1
 
     tfidf_vecs: List[Dict[str, float]] = []
-    for toks in sent_tokens:
-        tf = Counter(toks)
-        total = len(toks) or 1
+    for t_list in tfidf_tokens:
+        tf = Counter(t_list)
+        total = len(t_list) or 1
         vec = {}
         for w, count in tf.items():
             idf = math.log((n_sents + 1) / (df[w] + 1)) + 1.0
@@ -1517,8 +1652,14 @@ def generate_lexrank_english_summary(
         lex_scores = new_scores
 
     max_lex = max(lex_scores) or 1.0
+    if n_sents < 8:
+        w_lex, w_pos, w_fact, w_title = 0.25, 0.35, 0.25, 0.15
+    else:
+        w_lex, w_pos, w_fact, w_title = 0.40, 0.30, 0.20, 0.10
 
     scored_indices = []
+    score_by_idx: Dict[int, float] = {}
+    sent_facts: List[set] = []
     for idx, sent in enumerate(sentences):
         lex_norm = lex_scores[idx] / max_lex
         pos_weight = 1.0 / math.sqrt(idx + 1)
@@ -1528,6 +1669,7 @@ def generate_lexrank_english_summary(
         has_unit = 1.0 if re.search(r"\b(?:rs|usd|million|billion|crore|lakh|mw|km|percent|%)\b", low_s) else 0.0
         inst_hits = sum(1 for term in _INSTITUTIONAL_TERMS if term in low_s)
         fact_density = min(1.0, 0.35 * has_num + 0.35 * has_unit + 0.15 * inst_hits)
+        sent_facts.append(_extract_fact_markers(sent))
 
         overlap = _jaccard_overlap(sent_sets[idx], title_tokens)
         topical_link = 1.0 if (sent_sets[idx] & lead_tokens) else 0.0
@@ -1539,49 +1681,71 @@ def generate_lexrank_english_summary(
             title_align = 0.2 if topical_link else -0.4
 
         total_score = (
-            0.40 * lex_norm
-            + 0.30 * pos_weight
-            + 0.20 * fact_density
-            + 0.10 * title_align
+            w_lex * lex_norm
+            + w_pos * pos_weight
+            + w_fact * fact_density
+            + w_title * title_align
         )
         scored_indices.append((total_score, idx))
+        score_by_idx[idx] = total_score
 
     # Anchor sentence 1 on the stronger of the first 2 sentences to guarantee lead coherence
     lead_candidates = [x for x in scored_indices if x[1] in (0, 1)]
     lead_candidates.sort(key=lambda x: x[0], reverse=True)
     selected_indices: List[int] = [lead_candidates[0][1]] if lead_candidates else [0]
 
-    # Pick highest-scoring non-redundant supporting sentence sharing topical continuity
-    # Uses RapidFuzz token_set_ratio to penalize paraphrased/duplicate sentences cleanly
-    scored_indices.sort(key=lambda x: x[0], reverse=True)
-    for _, cand_idx in scored_indices:
-        if len(selected_indices) >= max_sentences:
+    # Pick highest-scoring non-redundant supporting sentences via MMR + bigram/RapidFuzz diversity
+    try:
+        import rapidfuzz.fuzz as fuzz
+    except Exception:
+        fuzz = None
+
+    sent_word_counts = [len(s.split()) for s in sentences]
+
+    while len(selected_indices) < max_sentences:
+        selected_facts = set().union(*(sent_facts[i] for i in selected_indices))
+        best_mmr: Optional[Tuple[float, float, int]] = None
+        for cand_idx in range(n_sents):
+            if cand_idx in selected_indices:
+                continue
+            cand_sent = sentences[cand_idx]
+            cand_set = sent_sets[cand_idx]
+            if not (cand_set & lead_tokens):
+                continue
+
+            is_dup = False
+            max_unigram_overlap = 0.0
+            for sel_i in selected_indices:
+                sel_sent = sentences[sel_i]
+                if fuzz is not None:
+                    if fuzz.token_set_ratio(cand_sent, sel_sent) > 68:
+                        is_dup = True
+                        break
+                else:
+                    if _jaccard_overlap(cand_set, sent_sets[sel_i]) > 0.58:
+                        is_dup = True
+                        break
+                bigram_threshold = 0.45 if min(sent_word_counts[cand_idx], sent_word_counts[sel_i]) <= 11 else 0.35
+                if _jaccard_overlap(sent_bigrams[cand_idx], sent_bigrams[sel_i]) > bigram_threshold:
+                    is_dup = True
+                    break
+                uni_ov = _jaccard_overlap(cand_set, sent_sets[sel_i])
+                if uni_ov > max_unigram_overlap:
+                    max_unigram_overlap = uni_ov
+
+            if is_dup:
+                continue
+
+            new_fact_bonus = 1.0 if (sent_facts[cand_idx] - selected_facts) else 0.0
+            base_score = score_by_idx[cand_idx]
+            mmr_score = base_score - 0.15 * max_unigram_overlap + 0.10 * new_fact_bonus
+            key = (mmr_score, base_score, -cand_idx)
+            if best_mmr is None or key > best_mmr:
+                best_mmr = key
+
+        if best_mmr is None:
             break
-        if cand_idx in selected_indices:
-            continue
-        cand_sent = sentences[cand_idx]
-        cand_set = sent_sets[cand_idx]
-
-        is_dup = False
-        for sel_i in selected_indices:
-            sel_sent = sentences[sel_i]
-            # RapidFuzz similarity check
-            try:
-                import rapidfuzz.fuzz as fuzz
-                sim_ratio = fuzz.token_set_ratio(cand_sent, sel_sent)
-                if sim_ratio > 68:
-                    is_dup = True
-                    break
-            except Exception:
-                if _jaccard_overlap(cand_set, sent_sets[sel_i]) > 0.58:
-                    is_dup = True
-                    break
-
-        if is_dup:
-            continue
-        if not (cand_set & lead_tokens):
-            continue
-        selected_indices.append(cand_idx)
+        selected_indices.append(-best_mmr[2])
 
     # Always re-sort selected sentences back into original chronological order
     selected_indices.sort()
@@ -1653,7 +1817,10 @@ def enrich_articles_with_english_summaries(
     if not to_process:
         return articles
 
+    t_total_start = time.perf_counter()
+
     # Stage 1: Concurrently fetch missing/truncated article bodies from source URLs
+    t_scrape_start = time.perf_counter()
     scrape_targets = [art for art in to_process if _needs_body_scrape(art)]
     if scrape_targets:
         def _scrape_one(art: Dict[str, Any]):
@@ -1669,8 +1836,10 @@ def enrich_articles_with_english_summaries(
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, 12)) as ex:
             list(ex.map(_scrape_one, scrape_targets))
+    scrape_ms = (time.perf_counter() - t_scrape_start) * 1000.0
 
-    # Stage 2: Prepare native headlines + compact 2-sentence bodies grouped by source language
+    # Stage 2: Prepare native headlines + compact salient bodies grouped by source language
+    t_extract_start = time.perf_counter()
     pending_ne_texts: List[str] = []
     pending_hi_texts: List[str] = []
     title_jobs: List[tuple] = []  # (art_idx, lang_code, list_idx)
@@ -1707,7 +1876,7 @@ def enrich_articles_with_english_summaries(
             source_text = raw_title
 
         if _has_devanagari(source_text):
-            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=4)
+            compact_native = _extract_native_salient_sentences(raw_title, source_text)
             if not compact_native:
                 compact_native = raw_title
             target_list = pending_hi_texts if lang_code == "hi" else pending_ne_texts
@@ -1715,10 +1884,28 @@ def enrich_articles_with_english_summaries(
             target_list.append(compact_native)
         else:
             en_bodies[idx] = normalize_english_proper_nouns(source_text)
+    extract_ms = (time.perf_counter() - t_extract_start) * 1000.0
 
-    # Stage 3: Batched HTTP POST translation across 4 rotating endpoints
-    tr_ne, eng_ne = _translate_batch_to_en_with_meta(pending_ne_texts, source_lang="ne") if pending_ne_texts else ([], "")
-    tr_hi, eng_hi = _translate_batch_to_en_with_meta(pending_hi_texts, source_lang="hi") if pending_hi_texts else ([], "")
+    # Stage 3: Batched HTTP POST translation across rotating endpoints
+    t_mt_start = time.perf_counter()
+    cache_hits = 0
+    cache_misses = 0
+    if pending_ne_texts:
+        tr_ne, eng_ne = _translate_batch_to_en_with_meta(pending_ne_texts, source_lang="ne")
+        h_ne, m_ne = _get_last_batch_cache_stats()
+        cache_hits += h_ne
+        cache_misses += m_ne
+    else:
+        tr_ne, eng_ne = [], ""
+
+    if pending_hi_texts:
+        tr_hi, eng_hi = _translate_batch_to_en_with_meta(pending_hi_texts, source_lang="hi")
+        h_hi, m_hi = _get_last_batch_cache_stats()
+        cache_hits += h_hi
+        cache_misses += m_hi
+    else:
+        tr_hi, eng_hi = [], ""
+    mt_ms = (time.perf_counter() - t_mt_start) * 1000.0
 
     art_engines: Dict[int, str] = {}
     for idx, lang_code, pos in title_jobs:
@@ -1737,6 +1924,7 @@ def enrich_articles_with_english_summaries(
         art_engines[idx] = eng_hi if lang_code == "hi" else eng_ne
 
     # Stage 4: Final LexRank summarization & safe assignment (only persist clean English)
+    t_lex_start = time.perf_counter()
     for idx, art in enumerate(to_process):
         headline_en = en_titles.get(idx, "")
         if headline_en and not _has_devanagari(headline_en):
@@ -1759,6 +1947,23 @@ def enrich_articles_with_english_summaries(
         )
         if english_brief and not _has_devanagari(english_brief) and not english_brief.endswith("..."):
             art["summary"] = english_brief
+    lexrank_ms = (time.perf_counter() - t_lex_start) * 1000.0
+    total_ms = (time.perf_counter() - t_total_start) * 1000.0
+    avg_per_article_ms = total_ms / len(to_process)
+
+    logger.info(
+        "enrich_batch_metrics count=%d scrape_ms=%.2f extract_ms=%.2f mt_ms=%.2f "
+        "lexrank_ms=%.2f total_ms=%.2f avg_per_article_ms=%.2f cache_hits=%d cache_misses=%d",
+        len(to_process),
+        scrape_ms,
+        extract_ms,
+        mt_ms,
+        lexrank_ms,
+        total_ms,
+        avg_per_article_ms,
+        cache_hits,
+        cache_misses,
+    )
 
     return articles
 
@@ -1776,10 +1981,11 @@ def format_english_brief_payload(
     brief: str,
     source_url: str = "",
     whatsapp_bold: bool = True,
+    related_links: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """
     Formats a 3-part English Brief (Headline, Brief, Link) with clean visual separation
-    for WhatsApp sharing and single-click copy.
+    for WhatsApp sharing and single-click copy, plus optional same-stream Related links.
     Ensures Google News redirect URLs are resolved to their canonical publisher source.
     """
     hl = re.sub(r"\s+", " ", (headline or "").strip()).strip("*").strip()
@@ -1803,7 +2009,292 @@ def format_english_brief_payload(
         parts.append(body)
     if url:
         parts.append(f"Read Original Source: {url}")
+    if related_links:
+        rel_lines: List[str] = []
+        for rel in related_links:
+            if not isinstance(rel, dict):
+                continue
+            r_url = (rel.get("url") or "").strip()
+            r_src = (rel.get("source") or "").strip()
+            if r_url:
+                rel_lines.append(f"- {r_src}: {r_url}" if r_src else f"- {r_url}")
+        if rel_lines:
+            parts.append("Related:\n" + "\n".join(rel_lines))
     return "\n\n".join(parts)
+
+
+_NEPALI_RELATED_STOPWORDS = frozenset({
+    "र", "को", "का", "की", "मा", "ले", "लाई", "बाट", "द्वारा", "सँग", "निम्ति",
+    "लागि", "गरेको", "गरेकी", "गरेका", "भएको", "भएका", "भएकी", "हुने", "गर्ने",
+    "छ", "छन्", "थियो", "थिए", "हो", "हुन्", "तथा", "एवं", "वा", "तर", "भने",
+    "पनि", "नै", "अनुसार", "जनाएको", "बताएको", "भनिएको", "यो", "त्यो", "यस",
+    "त्यस", "एक", "दुई", "गते", "साल", "रासस",
+})
+_WIRE_MARKERS = frozenset({"रासस", "rss", "ani", "pti", "reuters", "afp"})
+_DEVA_DIGITS_TRANS = str.maketrans("०१२३४५६७८९", "0123456789")
+
+
+def _is_social_item(item: Dict[str, Any]) -> bool:
+    if not isinstance(item, dict):
+        return True
+    if "raw_handle" in item or "handle" in item:
+        return True
+    plat = str(item.get("platform") or "").strip().lower()
+    if plat in ("x", "facebook"):
+        return True
+    feed_type = str(item.get("_feed_type") or item.get("stream") or "").strip().lower()
+    return feed_type == "x"
+
+
+def _resolve_news_stream(item: Dict[str, Any]) -> str:
+    """Resolves strict 'Nepali' or 'English' stream; returns '' if ambiguous, Hindi, or social."""
+    if _is_social_item(item):
+        return ""
+    title = (item.get("title") or "").strip()
+    summary = (item.get("summary") or "").strip()
+    combined = f"{title} {summary}".strip()
+    decl = (item.get("language") or "").strip().lower()
+    detected = detect_text_language(combined, declared_lang=decl)
+
+    if detected == "hi" or decl in ("hindi", "hi"):
+        return ""
+    if decl in ("nepali", "ne"):
+        if detected == "ne" or _has_devanagari(combined):
+            return "Nepali"
+        return ""
+    if decl in ("english", "en"):
+        if detected == "en" and not _has_devanagari(title):
+            return "English"
+        return ""
+    if detected == "ne":
+        return "Nepali"
+    if detected == "en" and not _has_devanagari(combined):
+        return "English"
+    return ""
+
+
+def _tokenize_stream_text(text: str, stream_lang: str) -> List[str]:
+    """Tokenizes meaningful content words for Nepali or English story matching."""
+    norm = (text or "").translate(_DEVA_DIGITS_TRANS)
+    if stream_lang == "Nepali":
+        deva_words = [
+            w for w in re.findall(r"[\u0900-\u097f]{2,}", norm)
+            if w not in _NEPALI_RELATED_STOPWORDS and w not in _WIRE_MARKERS
+        ]
+        ascii_words = [
+            w for w in _tokenize_content_words(norm)
+            if w not in _WIRE_MARKERS
+        ]
+        return deva_words + ascii_words
+    return [w for w in _tokenize_content_words(norm) if w not in _WIRE_MARKERS]
+
+
+def _canonical_url_dedup_key(url: str) -> str:
+    clean = (url or "").strip()
+    if not clean:
+        return ""
+    try:
+        from nepal_news_store import normalize_canonical_url
+        clean = normalize_canonical_url(clean)
+    except Exception:
+        pass
+    try:
+        from urllib.parse import urlparse, urlunparse
+        p = urlparse(clean)
+        host = p.netloc.lower()
+        for prefix in ("www.", "m."):
+            if host.startswith(prefix):
+                host = host[len(prefix):]
+        return urlunparse((p.scheme.lower(), host, p.path.rstrip("/"), p.params, p.query, ""))
+    except Exception:
+        return clean.rstrip("/").lower()
+
+
+def _select_direct_publisher_url(cand: Dict[str, Any]) -> str:
+    """
+    Returns a normalized direct publisher URL (preferring canonical_url, falling back to link).
+    Returns '' if no valid URL exists or if the URL is an unresolved news.google.com wrapper.
+    """
+    from urllib.parse import urlparse
+    for raw_val in (cand.get("canonical_url"), cand.get("link")):
+        raw = (raw_val or "").strip()
+        if not raw or not raw.startswith("http"):
+            continue
+        try:
+            from nepal_news_store import normalize_canonical_url
+            norm = normalize_canonical_url(raw)
+        except Exception:
+            norm = raw
+        if not norm or not norm.startswith("http"):
+            continue
+        host = urlparse(norm).netloc.lower()
+        if "news.google.com" in host or "news.google.com/" in norm.lower():
+            continue
+        return norm
+    return ""
+
+
+def find_related_same_stream_articles(
+    item: Dict[str, Any],
+    candidates: Optional[List[Dict[str, Any]]] = None,
+    max_results: int = 3,
+    window_hours: Optional[int] = None,
+) -> List[Dict[str, str]]:
+    """
+    Finds matching coverage of the same story from other media houses strictly within the
+    same language stream ('Nepali' <-> 'Nepali', 'English' <-> 'English').
+    Excludes social media posts, self/duplicate canonical URLs, and same-outlet duplicates.
+    """
+    if _is_social_item(item):
+        return []
+    target_stream = _resolve_news_stream(item)
+    if target_stream not in ("Nepali", "English"):
+        return []
+
+    if candidates is None:
+        try:
+            from nepal_news_store import get_related_stream_candidates
+            candidates = get_related_stream_candidates(
+                item=item,
+                stream_lang=target_stream,
+                window_hours=window_hours,
+                limit=250,
+            )
+        except Exception:
+            candidates = []
+
+    if not candidates:
+        return []
+
+    item_source = (item.get("source") or "").strip().lower()
+    item_cid = (item.get("canonical_id") or "").strip()
+    excluded_urls = {
+        k for k in (
+            _canonical_url_dedup_key(item.get("link") or ""),
+            _canonical_url_dedup_key(item.get("canonical_url") or ""),
+        ) if k
+    }
+
+    item_title = (item.get("title") or "").strip()
+    item_summary = (item.get("summary") or "").strip()
+    item_hl_en = (item.get("headline_english") or "").strip()
+    item_title_tokens = _tokenize_stream_text(item_title, target_stream)
+    item_all_text = f"{item_title} {item_summary}".strip()
+    if target_stream == "English" and item_hl_en:
+        item_all_text = f"{item_all_text} {item_hl_en}".strip()
+    item_all_tokens = _tokenize_stream_text(item_all_text, target_stream)
+    item_title_set = set(item_title_tokens)
+    item_all_set = set(item_all_tokens)
+    if len(item_all_set) < 2:
+        return []
+
+    item_bigrams = {
+        f"{item_all_tokens[i]}_{item_all_tokens[i + 1]}"
+        for i in range(len(item_all_tokens) - 1)
+    }
+    item_nums = set(re.findall(r"\b\d+(?:\.\d+)?\b", item_all_text.translate(_DEVA_DIGITS_TRANS)))
+
+    scored: List[Tuple[float, float, Dict[str, str]]] = []
+    for cand in candidates:
+        if not isinstance(cand, dict) or _is_social_item(cand):
+            continue
+        if _resolve_news_stream(cand) != target_stream:
+            continue
+
+        cand_source = (cand.get("source") or "").strip()
+        if not cand_source or (item_source and cand_source.lower() == item_source):
+            continue
+        cand_cid = (cand.get("canonical_id") or "").strip()
+        if item_cid and cand_cid and cand_cid == item_cid:
+            continue
+
+        cand_url = _select_direct_publisher_url(cand)
+        if not cand_url:
+            continue
+        cand_url_key = _canonical_url_dedup_key(cand_url)
+        if not cand_url_key or cand_url_key in excluded_urls:
+            continue
+        raw_link_key = _canonical_url_dedup_key(cand.get("link") or "")
+        if raw_link_key and raw_link_key in excluded_urls:
+            continue
+
+        cand_title = (cand.get("title") or "").strip()
+        cand_summary = (cand.get("summary") or "").strip()
+        cand_hl_en = (cand.get("headline_english") or "").strip()
+        cand_title_tokens = _tokenize_stream_text(cand_title, target_stream)
+        cand_all_text = f"{cand_title} {cand_summary}".strip()
+        if target_stream == "English" and cand_hl_en:
+            cand_all_text = f"{cand_all_text} {cand_hl_en}".strip()
+        cand_all_tokens = _tokenize_stream_text(cand_all_text, target_stream)
+        cand_title_set = set(cand_title_tokens)
+        cand_all_set = set(cand_all_tokens)
+        if len(cand_all_set) < 2:
+            continue
+
+        shared_all = item_all_set & cand_all_set
+        if len(shared_all) < 2:
+            continue
+
+        title_sim = _jaccard_overlap(item_title_set, cand_title_set)
+        full_sim = _jaccard_overlap(item_all_set, cand_all_set)
+        min_title_len = min(len(item_title_set), len(cand_title_set))
+        title_containment = (len(item_title_set & cand_title_set) / min_title_len) if min_title_len > 0 else 0.0
+
+        cand_bigrams = {
+            f"{cand_all_tokens[i]}_{cand_all_tokens[i + 1]}"
+            for i in range(len(cand_all_tokens) - 1)
+        }
+        bigram_sim = _jaccard_overlap(item_bigrams, cand_bigrams)
+        cand_nums = set(re.findall(r"\b\d+(?:\.\d+)?\b", cand_all_text.translate(_DEVA_DIGITS_TRANS)))
+        num_sim = _jaccard_overlap(item_nums, cand_nums) if (item_nums and cand_nums) else 0.0
+
+        weighted_score = (
+            0.45 * max(title_sim, 0.85 * title_containment)
+            + 0.30 * full_sim
+            + 0.15 * bigram_sim
+            + 0.10 * num_sim
+        )
+        if weighted_score < 0.32:
+            continue
+
+        pub_dt = cand.get("published_dt")
+        try:
+            recency_ts = float(pub_dt.timestamp()) if hasattr(pub_dt, "timestamp") else 0.0
+        except Exception:
+            recency_ts = 0.0
+        is_indian_cand = (
+            str(cand.get("_feed_type") or cand.get("stream") or "").strip().lower() in ("indian", "indian press")
+            or ("nepal_relevance_score" in cand)
+        )
+        scored.append((
+            weighted_score,
+            recency_ts,
+            {
+                "source": cand_source,
+                "url": cand_url,
+                "title": cand_title,
+                "canonical_id": cand_cid,
+                "canonical_url": (cand.get("canonical_url") or cand_url).strip(),
+                "table": "indian_media_articles" if is_indian_cand else "articles",
+            },
+        ))
+
+    scored.sort(key=lambda x: (-x[0], -x[1], x[2]["source"].lower()))
+    results: List[Dict[str, str]] = []
+    seen_sources = set()
+    seen_urls = set(excluded_urls)
+    eff_max = max(1, int(max_results or 3))
+    for _, _, entry in scored:
+        src_key = entry["source"].lower()
+        url_key = _canonical_url_dedup_key(entry["url"])
+        if src_key in seen_sources or url_key in seen_urls:
+            continue
+        seen_sources.add(src_key)
+        seen_urls.add(url_key)
+        results.append(entry)
+        if len(results) >= eff_max:
+            break
+    return results
 
 
 def format_reader_copy_payload(
@@ -1925,7 +2416,7 @@ def generate_on_demand_news_brief(
 
     if _has_devanagari(source_text) or lang_code in ("ne", "hi", "auto"):
         if _has_devanagari(source_text):
-            compact_native = _extract_native_salient_sentences(raw_title, source_text, max_sentences=4)
+            compact_native = _extract_native_salient_sentences(raw_title, source_text)
             if not compact_native:
                 compact_native = raw_title
             english_body, body_eng = _translate_ne_to_en_with_meta(compact_native, source_lang=lang_code, force_translate=True)
@@ -1969,11 +2460,17 @@ def generate_on_demand_news_brief(
 
     _emit_progress(on_progress, "Ready", 1.0)
     final_headline = headline_en or normalize_english_proper_nouns(raw_title)
+    related_links: List[Dict[str, str]] = []
+    try:
+        related_links = find_related_same_stream_articles(work, max_results=3)
+    except Exception:
+        related_links = []
     formatted = format_english_brief_payload(
         headline=final_headline,
         brief=brief,
         source_url=source_url,
         whatsapp_bold=True,
+        related_links=related_links,
     )
     return {
         "ok": True,
@@ -1981,6 +2478,7 @@ def generate_on_demand_news_brief(
         "headline_english": final_headline,
         "content": brief,
         "source_url": source_url,
+        "related_links": related_links,
         "formatted_text": formatted,
         "lang": lang_code,
         "translation_engine": format_translation_engine_label(used_engine_code),

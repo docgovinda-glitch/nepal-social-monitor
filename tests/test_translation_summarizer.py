@@ -190,6 +190,198 @@ class TestSummarizationWindowAndLexRank(unittest.TestCase):
         self.assertIn("Nepal and India signed a new power trade agreement today.", res["content"])
         self.assertEqual(res["headline_english"], "Nepal and India sign power agreement")
 
+    def test_long_compound_sentence_rescued_via_clause_splitting(self):
+        long_en = (
+            "The Supreme Court issued an interim order today halting the controversial highway expansion "
+            "project across the protected wetland corridor in Lalitpur district after local residents and "
+            "conservationists filed a joint writ petition citing severe environmental damage; Nepal Electricity "
+            "Authority separately announced that high-voltage transmission line upgrades along the eastern "
+            "industrial corridor will proceed on schedule this quarter without any interruption."
+        )
+        self.assertGreater(len(long_en.split()), 55)
+        en_sents = summ._split_sentences(long_en)
+        self.assertEqual(len(en_sents), 2)
+        self.assertTrue(en_sents[0].startswith("The Supreme Court issued"))
+        self.assertTrue(en_sents[1].startswith("Nepal Electricity Authority separately announced"))
+
+        long_ne = (
+            "नेपाल राष्ट्र बैंकले आज सार्वजनिक गरेको नयाँ मौद्रिक नीतिले वाणिज्य बैंकहरूको तरलता व्यवस्थापन "
+            "र कर्जा प्रवाहमा दीर्घकालीन सन्तुलन कायम गर्ने लक्ष्य राखेको छ तर निजी क्षेत्रका उद्योगीहरूले "
+            "बैंकको ब्याजदर अझै अपेक्षित रूपमा घट्न नसकेको भन्दै उत्पादनमूलक तथा निर्यातमुखी क्षेत्रमा "
+            "सहुलियतपूर्ण कर्जाको माग दोहोर्‍याएका छन् भने अर्थ मन्त्रालयले आगामी त्रैमासिकमा पुँजीगत खर्च "
+            "र विकास निर्माण कार्य तीव्र बनाउने प्रतिबद्धता व्यक्त गरेको छ।"
+        )
+        self.assertGreater(len(long_ne.split()), 55)
+        ne_sents = summ._split_sentences(long_ne)
+        self.assertEqual(len(ne_sents), 3)
+        self.assertIn("नेपाल राष्ट्र बैंकले", ne_sents[0])
+        self.assertIn("निजी क्षेत्रका उद्योगीहरूले", ne_sents[1])
+        self.assertIn("अर्थ मन्त्रालयले", ne_sents[2])
+
+    def test_devanagari_late_index_factual_sentence_survives_and_appears_in_brief(self):
+        # Sentences 1..3 are low-fact filler; sentence at index 5 has high-value numbers & institutional terms
+        body = (
+            "सरकारले आज राजधानीमा विशेष कार्यक्रम आयोजना गरी नयाँ आर्थिक कार्ययोजना सार्वजनिक गरेको छ। "
+            "कार्यक्रममा विभिन्न क्षेत्रका प्रतिनिधिहरूको उल्लेखनीय उपस्थिति रहेको आयोजकले जनाएको छ। "
+            "सहभागीहरूले समसामयिक विषयमा आ-आफ्ना धारणा राखेका थिए। "
+            "छलफलका क्रममा विविध पक्षमा सामान्य विचार विमर्श भएको बताइएको छ। "
+            "अधिकांश वक्ताहरूले कार्यक्रमको महत्त्वबारे सामान्य चर्चा गरेका थिए। "
+            "कार्ययोजनाअनुसार अर्थ मन्त्रालयले ७५ अर्ब रुपैयाँको विशेष कोषमार्फत १२ प्रतिशत ब्याज अनुदान र ५०० मेगावाट सौर्य ऊर्जा उत्पादन लक्ष्य स्वीकृत गरेको छ। "
+            "अन्त्यमा आयोजकले सबै सहभागीलाई धन्यवाद ज्ञापन गरेको थियो।"
+        )
+        extracted = summ._extract_native_salient_sentences("नयाँ आर्थिक कार्ययोजना सार्वजनिक", body)
+        self.assertIn("७५ अर्ब", extracted)
+        self.assertIn("५०० मेगावाट", extracted)
+
+        item = {
+            "title": "नयाँ आर्थिक कार्ययोजना सार्वजनिक",
+            "full_content": body,
+            "link": "",
+            "language": "Nepali",
+        }
+
+        def _fake_tr(txt, **kw):
+            if len(txt) < 60:
+                return "Government unveils new economic action plan"
+            return (
+                "The government unveiled a new economic action plan at a special event in the capital today. "
+                "Representatives from various sectors attended the event according to the organizers. "
+                "Participants shared their general views on contemporary issues during the session. "
+                "Under the action plan, the Finance Ministry approved a Rs 75 billion special fund with 12 percent interest subsidy and a 500 MW solar power target."
+            )
+
+        with mock.patch("nepal_summarizer._translate_ne_to_en", side_effect=_fake_tr):
+            res = summ.generate_on_demand_news_brief(item)
+
+        self.assertTrue(res["ok"])
+        self.assertIn("Rs 75 billion", res["content"])
+        self.assertIn("500 MW", res["content"])
+
+    def test_short_article_adaptive_weights_no_disconnected_graph_degradation(self):
+        # 5 sentences (< 8) where later sentences have weak graph overlap but strong facts/title alignment
+        title = "Nepal Rastra Bank updates monetary policy"
+        body = (
+            "Nepal Rastra Bank unveiled its quarterly monetary policy review in Kathmandu today. "
+            "The central bank maintained the policy rate at 5.5 percent for the current fiscal quarter. "
+            "Commercial banks must keep a minimum liquidity ratio of 20 percent under the directive. "
+            "Officials noted that annual consumer inflation eased to 4.1 percent last month. "
+            "Business chambers welcomed the stable interest corridor ahead of the festival season."
+        )
+        brief = summ.generate_lexrank_english_summary(title, body, max_sentences=2, max_chars=450)
+        self.assertTrue(brief)
+        self.assertIn("Nepal Rastra Bank unveiled its quarterly monetary policy review", brief)
+        # Sentence 2 should be a factual early sentence rather than failing due to sparse graph
+        self.assertTrue("5.5 percent" in brief or "20 percent" in brief or "4.1 percent" in brief)
+        self.assertLessEqual(len(brief), 450)
+
+    def test_mmr_bigram_diversity_rejects_near_paraphrase_for_distinct_entity(self):
+        title = "Supreme Court hears hydropower project petition"
+        body = (
+            "The Supreme Court began hearings on the Upper Karnali hydropower project petition in Kathmandu today. "
+            "The Supreme Court heard arguments on the Upper Karnali hydropower project dispute in Kathmandu today. "
+            "The Energy Ministry confirmed that Rs 45 billion in foreign investment remains committed to the 900 MW project."
+        )
+        brief = summ.generate_lexrank_english_summary(title, body, max_sentences=2, max_chars=450)
+        self.assertIn("Upper Karnali hydropower project petition", brief)
+        # Near-paraphrase sentence 2 must be rejected in favor of sentence 3 with distinct entity + numbers
+        self.assertNotIn("heard arguments on the Upper Karnali", brief)
+        self.assertIn("900 MW", brief)
+
+    def test_quote_aware_clause_splitting_preserves_quoted_boundaries(self):
+        long_quoted = (
+            'Prime Minister told reporters, "We will review the electricity tariff; however, no final rate '
+            'has been fixed — and stakeholder consultations will continue throughout this week" before departing '
+            "for Pokhara to attend the provincial energy summit; Nepal Electricity Authority separately confirmed "
+            "that Rs 12 billion in high-voltage transmission upgrades will begin immediately across three eastern districts."
+        )
+        self.assertGreater(len(long_quoted.split()), 55)
+        sents = summ._split_sentences(long_quoted)
+        self.assertEqual(len(sents), 2)
+        # Quoted semicolon and em-dash must remain intact inside the first clause
+        self.assertIn("tariff; however, no final rate has been fixed — and stakeholder consultations", sents[0])
+        self.assertTrue(sents[1].startswith("Nepal Electricity Authority separately confirmed"))
+
+    def test_short_sentence_length_calibrated_bigram_guard_retains_sentence_two(self):
+        title = "Nepal Rastra Bank policy update"
+        # Sentence 2 is <= 11 words, shares "Nepal Rastra" and "Rastra Bank" bigrams (~0.36-0.40 Jaccard)
+        # with Sentence 1, but introduces a new numeric figure (5.5%) and must be retained.
+        body = (
+            "Nepal Rastra Bank issued new liquidity rules in Kathmandu. "
+            "Nepal Rastra Bank set rates at 5.5 percent."
+        )
+        # Also test via >= 3 sentences so LexRank diversity loop executes
+        body_3 = (
+            "Nepal Rastra Bank issued new liquidity rules in Kathmandu. "
+            "Nepal Rastra Bank set rates at 5.5 percent. "
+            "Commercial lenders welcomed the clarity for quarterly treasury planning."
+        )
+        brief_2 = summ.generate_lexrank_english_summary(title, body, max_sentences=2, max_chars=450)
+        self.assertIn("5.5 percent", brief_2)
+
+        brief_3 = summ.generate_lexrank_english_summary(title, body_3, max_sentences=2, max_chars=450)
+        self.assertIn("Nepal Rastra Bank issued new liquidity rules", brief_3)
+        self.assertIn("5.5 percent", brief_3)
+
+    def test_enrich_batch_metrics_and_salient_char_budget_guardrail(self):
+        # Verify clamping of NATIVE_SALIENT_MAX_CHARS env overrides to [400, 3000]
+        with mock.patch.dict(os.environ, {"NATIVE_SALIENT_MAX_CHARS": "100"}):
+            self.assertEqual(summ._get_salient_char_budget(), 400)
+        with mock.patch.dict(os.environ, {"NATIVE_SALIENT_MAX_CHARS": "9999"}):
+            self.assertEqual(summ._get_salient_char_budget(), 3000)
+        with mock.patch.dict(os.environ, {"NATIVE_SALIENT_MAX_CHARS": "1500"}):
+            self.assertEqual(summ._get_salient_char_budget(), 1500)
+
+        articles = [
+            {
+                "title": "नेपालमा नयाँ ऊर्जा योजना",
+                "full_content": (
+                    "नेपाल सरकारले आज ५० अर्ब रुपैयाँको नयाँ ऊर्जा योजना स्वीकृत गरेको छ। "
+                    "ऊर्जा मन्त्रालयका अनुसार आगामी वर्ष ५०० मेगावाट बिजुली उत्पादन गरिनेछ।"
+                ),
+                "link": "",
+                "language": "Nepali",
+            }
+        ]
+        cache_dir = os.path.join(tempfile.gettempdir(), "test_metrics_cache")
+        shutil.rmtree(cache_dir, ignore_errors=True)
+        test_cache = summ.TranslationLRUCache(maxsize=16, cache_dir=cache_dir)
+        try:
+            with mock.patch.dict(os.environ, {"NATIVE_SALIENT_MAX_CHARS": "5000"}), \
+                 mock.patch("nepal_summarizer._TRANSLATION_CACHE", test_cache), \
+                 mock.patch(
+                     "nepal_summarizer._translate_batch_group_meta",
+                     return_value=(
+                         [
+                             "New energy plan in Nepal",
+                             "Nepal government approved a Rs 50 billion energy plan today. The Energy Ministry said 500 MW will be generated next year.",
+                         ],
+                         "indictrans2",
+                     ),
+                 ), \
+                 self.assertLogs("nepal_summarizer", level="INFO") as cm:
+                out = summ.enrich_articles_with_english_summaries(articles, max_workers=2)
+
+            self.assertEqual(out[0]["headline_english"], "New energy plan in Nepal")
+            self.assertIn("Rs 50 billion", out[0]["summary"])
+            metric_lines = [line for line in cm.output if "enrich_batch_metrics" in line]
+            self.assertEqual(len(metric_lines), 1)
+            line = metric_lines[0]
+            for key in (
+                "count=1",
+                "scrape_ms=",
+                "extract_ms=",
+                "mt_ms=",
+                "lexrank_ms=",
+                "total_ms=",
+                "avg_per_article_ms=",
+                "cache_hits=0",
+                "cache_misses=2",
+            ):
+                self.assertIn(key, line)
+        finally:
+            test_cache.close()
+            shutil.rmtree(cache_dir, ignore_errors=True)
+
 
 class TestIndicTrans2CloudRouting(unittest.TestCase):
     def test_indictrans2_ct2_routing_token_format_and_cleanup(self):

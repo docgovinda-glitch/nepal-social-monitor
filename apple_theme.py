@@ -1085,6 +1085,24 @@ APPLE_DESIGN_SYSTEM_CSS = "<style>\n" + _DESIGN_TOKENS_CSS + _PHASE1_ENHANCEMENT
         gap: 8px;
         flex-wrap: wrap;
     }
+    .unified-brief-box__related {
+        font-size: 0.78rem;
+        line-height: 1.4;
+        color: #64748B;
+        padding-top: 8px;
+        margin-top: 8px;
+        border-top: 1px dashed rgba(15, 23, 42, 0.08);
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .related-links-list {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
     .source-lbl {
         font-weight: 600;
         color: #64748B;

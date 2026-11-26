@@ -77,6 +77,14 @@ Under the **"📈 Analytics & CSV Export"** tab:
 
 ---
 
+## ⚙️ Environment Configuration
+Optional environment variables for brief summarization and WhatsApp same-stream `Related:` lookup:
+- `RELATED_STREAM_WINDOW_HOURS` (default `6`): Time window in hours (`±N` hours around `published_dt`) for matching same-stream `Related:` coverage.
+- `NATIVE_SALIENT_MAX_SENTENCES` (default `7`): Maximum salient sentences extracted from Devanagari articles prior to translation.
+- `NATIVE_SALIENT_MAX_CHARS` (default `1500`, clamped `[400, 3000]`): Maximum character budget for native salient sentence extraction.
+
+---
+
 ## 🔁 To Launch Anytime:
 ```bash
 cd /Users/pobpkf/.gemini/antigravity/scratch/nepal-social-monitor

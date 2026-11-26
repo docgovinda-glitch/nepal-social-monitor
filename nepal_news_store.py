@@ -2576,6 +2576,8 @@ def is_candidate_handle_allowed(handle: str, name: str = "") -> bool:
     return True
 
 
+
+
 def _is_candidate_credible(
     followers_count: int = 0,
     is_blue_verified: bool = False,
@@ -2588,6 +2590,8 @@ def _is_candidate_credible(
     if followers_count > 0:
         if followers_count >= 2000:
             return True
+
+
         if is_blue_verified and account_created_at is not None:
             try:
                 now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -2613,6 +2617,8 @@ def _is_candidate_credible(
         except Exception:
             pass
     return True
+
+
 
 
 def record_discovery_signals(signals: List[Dict[str, Any]]) -> int:
@@ -4231,6 +4237,52 @@ def record_whatsapp_sent(
     return True
 
 
+def record_whatsapp_sent_batch(entries: List[Dict[str, Any]]) -> int:
+    """Persists a batch of WhatsApp-shared items in a single upsert round-trip."""
+    if not entries:
+        return 0
+    deduped: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        key = str(entry.get("item_key") or "").strip()
+        if not key or key in deduped:
+            continue
+        deduped[key] = entry
+    if not deduped:
+        return 0
+
+    values_sql: List[str] = []
+    for key, entry in deduped.items():
+        values_sql.append(
+            f"({esc_sql(key)}, "
+            f"{esc_sql(entry.get('group_id') or '')}, "
+            f"{esc_sql(entry.get('group_name') or 'WhatsApp')}, "
+            f"{esc_sql(entry.get('id_message') or '')}, "
+            f"{esc_sql(entry.get('item_link') or '')}, "
+            "NOW())"
+        )
+    sql = (
+        "INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_at) "
+        f"VALUES {', '.join(values_sql)} "
+        "ON CONFLICT (item_key) DO UPDATE SET "
+        "group_id = EXCLUDED.group_id, "
+        "group_name = EXCLUDED.group_name, "
+        "id_message = EXCLUDED.id_message, "
+        "item_link = EXCLUDED.item_link, "
+        "sent_at = NOW();"
+    )
+    try:
+        query_supabase(sql)
+    except Exception as exc:
+        if "whatsapp_sent_log" in str(exc).lower():
+            ensure_whatsapp_sent_log_table()
+            query_supabase(sql)
+        else:
+            raise
+    return len(deduped)
+
+
 def get_whatsapp_sent_map(limit: int = 1000) -> Dict[str, Dict[str, Any]]:
     """Returns a mapping of item_key -> sent metadata without unconditional DDL checks."""
     sql = (
@@ -4251,6 +4303,109 @@ def get_whatsapp_sent_map(limit: int = 1000) -> Dict[str, Dict[str, Any]]:
         if key:
             sent_map[key] = row
     return sent_map
+
+
+def get_related_stream_window_hours(default: int = 6) -> int:
+    """Returns the lookback/lookahead window in hours for same-stream related coverage."""
+    raw = (get_env_variable("RELATED_STREAM_WINDOW_HOURS", str(default), allow_st_secrets=False) or str(default)).strip()
+    try:
+        val = int(raw)
+        return val if val > 0 else default
+    except Exception:
+        return default
+
+
+def _normalize_dt_utc(raw_val: Any) -> Optional[datetime.datetime]:
+    """Normalizes a datetime or timestamp string to timezone-aware UTC; returns None if missing/unparseable."""
+    if not raw_val:
+        return None
+    if isinstance(raw_val, datetime.datetime):
+        dt = raw_val.replace(tzinfo=NEPAL_TZ) if raw_val.tzinfo is None else raw_val
+        return dt.astimezone(datetime.timezone.utc)
+    parsed = _parse_npt_wallclock_ts(raw_val)
+    if parsed is None:
+        return None
+    return parsed.astimezone(datetime.timezone.utc)
+
+
+def get_related_stream_candidates(
+    item: Dict[str, Any],
+    stream_lang: str,
+    window_hours: Optional[int] = None,
+    limit: int = 250,
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves same-language candidate articles from Supabase within ±window_hours (default 6h)
+    of the target article's published_dt, excluding the target article's own source and any
+    rows with NULL/missing/unparseable published_dt.
+    Returns [] on invalid stream or any database error so the WhatsApp modal never blocks.
+    """
+    if not isinstance(item, dict):
+        return []
+    lang_norm = (stream_lang or "").strip()
+    if lang_norm not in ("Nepali", "English"):
+        return []
+
+    eff_window = int(window_hours) if (window_hours is not None and int(window_hours) > 0) else get_related_stream_window_hours(6)
+    eff_limit = max(1, min(int(limit or 250), 500))
+
+    try:
+        ref_utc = _normalize_dt_utc(item.get("published_dt"))
+        if ref_utc is None:
+            ref_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        ref_npt = ref_utc.astimezone(NEPAL_TZ)
+        start_dt = ref_npt - datetime.timedelta(hours=eff_window)
+        end_dt = ref_npt + datetime.timedelta(hours=eff_window)
+        cur_source = (item.get("source") or "").strip()
+
+        stream_val = str(item.get("_feed_type") or item.get("stream") or "").strip().lower()
+        is_indian = stream_val in ("indian", "indian press") or ("nepal_relevance_score" in item)
+
+        if is_indian:
+            clauses = _build_indian_where(
+                eff_status="substantive",
+                start_dt=start_dt,
+                end_dt=end_dt,
+                language=lang_norm,
+            )
+            clauses.append("published_dt IS NOT NULL")
+            if cur_source:
+                clauses.append(f"source != {esc_sql(cur_source)}")
+            sql = (
+                f"SELECT {INDIAN_FEED_COLUMNS} FROM indian_media_articles "
+                f"WHERE {' AND '.join(clauses)} "
+                f"ORDER BY published_dt DESC, canonical_id DESC LIMIT {eff_limit};"
+            )
+            rows = _hydrate_indian_rows(query_supabase(sql))
+        else:
+            clauses = _build_articles_where(
+                start_dt=start_dt,
+                end_dt=end_dt,
+                language=lang_norm,
+            )
+            clauses.append("published_dt IS NOT NULL")
+            if cur_source:
+                clauses.append(f"source != {esc_sql(cur_source)}")
+            sql = (
+                f"SELECT {ARTICLE_FEED_COLUMNS} FROM articles "
+                f"WHERE {' AND '.join(clauses)} "
+                f"ORDER BY published_dt DESC, canonical_id DESC LIMIT {eff_limit};"
+            )
+            rows = _hydrate_article_rows(query_supabase(sql))
+
+        max_delta_secs = eff_window * 3600
+        filtered: List[Dict[str, Any]] = []
+        for row in rows:
+            cand_utc = _normalize_dt_utc(row.get("published_dt"))
+            if cand_utc is None:
+                continue
+            if abs((cand_utc - ref_utc).total_seconds()) <= max_delta_secs:
+                filtered.append(row)
+        return filtered
+    except Exception:
+        return []
+
 
 
 
