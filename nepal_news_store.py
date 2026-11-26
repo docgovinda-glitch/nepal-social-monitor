@@ -2961,6 +2961,17 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
         if canon_pid != str(p.get("id", "")).strip():
             p = dict(p)
             p["id"] = canon_pid
+        if plat == "facebook":
+            raw_h_chk = str(p.get("raw_handle") or p.get("handle") or "").lstrip("@").strip().lower()
+            if raw_h_chk and raw_h_chk != "nepal_social":
+                try:
+                    from nepal_social_scanner import _is_matching_facebook_entry
+                    acc_chk = {"handle": raw_h_chk, "name": str(p.get("author_name") or raw_h_chk)}
+                    src_t = "Facebook" if "news.google.com" in link.lower() else ""
+                    if not _is_matching_facebook_entry(link, str(p.get("title") or p.get("text") or ""), acc_chk, source_title=src_t):
+                        continue
+                except Exception:
+                    pass
         normalized_posts.append(p)
 
     if not normalized_posts:

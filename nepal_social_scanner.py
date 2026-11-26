@@ -202,8 +202,9 @@ def _clean_syndication_text(raw_text: str) -> str:
     text = re.sub(r"<[^>]+>", " ", str(raw_text))
     # Unescape HTML entities (&nbsp;, &amp;, &#39;, &quot;, etc.)
     text = html.unescape(text)
-    # Strip common syndication platform suffixes
-    text = re.sub(r"\s*-\s*(?:Facebook|X|Twitter|Google News)$", "", text, flags=re.I)
+    # Strip common syndication platform suffixes (with or without hyphen)
+    text = re.sub(r"\s*[-–|·]\s*(?:Facebook|X|Twitter|Google News)$", "", text, flags=re.I)
+    text = re.sub(r"\s+Facebook$", "", text, flags=re.I)
     # Normalize whitespaces
     text = re.sub(r"\s+", " ", text).strip()
     return text
@@ -439,15 +440,19 @@ def _is_matching_facebook_entry(link: str, title: str, acc: Dict[str, Any], sour
     combined_low = f"{title_low} {source_low}".strip()
 
     if "news.google.com/rss/articles/" in norm_link:
-        # Google News RSS wraps target URLs; require Facebook source (if provided) and target name/handle/alias match
+        # Google News RSS wraps target URLs; require Facebook source (if provided) and target handle or author-header match
         if source_low and "facebook" not in source_low and "fb.com" not in source_low:
             return False
         if handle and len(handle) >= 3 and re.search(rf"(?:^|[^a-z0-9_]){re.escape(handle)}(?:$|[^a-z0-9_])", combined_low):
             return True
-        if name and len(name) >= 3 and name in combined_low:
-            return True
-        if any(al in combined_low for al in nepali_aliases):
-            return True
+        for target_name in ([name] if name and len(name) >= 3 else []) + nepali_aliases:
+            if (
+                title_low == target_name
+                or re.match(rf"^{re.escape(target_name)}(?:\s|$|[-–:|·,])", title_low)
+                or re.search(rf"[-–|·]\s*{re.escape(target_name)}$", title_low)
+                or target_name in source_low
+            ):
+                return True
         return False
 
     if "facebook.com" not in norm_link and "fb.com" not in norm_link:

@@ -336,13 +336,14 @@ def get_x_author_avatar_html(
     Displays real profile avatar image with fallback to author initials on avatar_bg,
     adorned with an official mini-X badge in the bottom-right corner.
     """
+    plat = str(p.get("platform") or ("facebook" if "facebook.com" in str(p.get("link", "")).lower() else "x")).lower()
     clean_handle = (p.get("raw_handle") or p.get("handle") or "").lstrip("@").strip()
-    raw_initials = p.get("initials") or (clean_handle[:2].upper() if clean_handle else "X")
+    raw_initials = p.get("initials") or (clean_handle[:2].upper() if clean_handle else ("FB" if plat == "facebook" else "X"))
     initials = html.escape(raw_initials)
-    avatar_bg = html.escape(p.get("avatar_bg") or "#1D9BF0", quote=True)
+    avatar_bg = html.escape(p.get("avatar_bg") or ("#1877F2" if plat == "facebook" else "#1D9BF0"), quote=True)
     avatar_url = (p.get("avatar_url") or "").strip()
     if not avatar_url and clean_handle:
-        avatar_url = f"https://unavatar.io/x/{clean_handle}"
+        avatar_url = f"https://unavatar.io/facebook/{clean_handle}" if plat == "facebook" else f"https://unavatar.io/x/{clean_handle}"
 
     esc_url = html.escape(avatar_url, quote=True) if avatar_url else ""
     card_cls = "acct-card-rich__avatar" if is_acct_card else "x-avatar"
@@ -350,11 +351,16 @@ def get_x_author_avatar_html(
     fb_cls = "acct-card-rich__avatar-fb" if is_acct_card else "x-avatar-fb"
 
     img_tag = f'<img src="{esc_url}" alt="" class="{img_cls}" loading="lazy" />' if esc_url else ""
+    badge_html = (
+        '<span class="x-avatar-platform-badge" style="background:#1877F2; color:#fff; font-size:0.55rem; font-weight:800;" title="Facebook">f</span>'
+        if plat == "facebook"
+        else f'<span class="x-avatar-platform-badge" title="X (Twitter)">{_X_MINI_SVG}</span>'
+    )
 
     return (
         f'<div class="{card_cls}" style="background:{avatar_bg};">'
         f'{img_tag}'
         f'<span class="{fb_cls}">{initials}</span>'
-        f'<span class="x-avatar-platform-badge" title="X (Twitter)">{_X_MINI_SVG}</span>'
+        f'{badge_html}'
         f'</div>'
     )

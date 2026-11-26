@@ -852,6 +852,35 @@ class TestSocialMediaUnification(unittest.TestCase):
             {"platform": "facebook", "handle": "balenOfficial", "name": "Balen Shah"},
             source_title="Facebook",
         ))
+        # Reject third-party news sentence mentioning the politician's name mid-sentence
+        self.assertFalse(scanner._is_matching_facebook_entry(
+            "https://news.google.com/rss/articles/CBMi6wFBVV95cUxOcGlP",
+            "Energy Minister Biraj Bhakta Shrestha said the planned 14-kilowatt electricity project could not start",
+            {"platform": "facebook", "handle": "BirajBhaktaOfficial", "name": "Biraj Bhakta Shrestha"},
+            source_title="Facebook",
+        ))
+        # Strip trailing standalone 'Facebook' and render FB avatar badge for Facebook posts
+        self.assertEqual(scanner._clean_syndication_text("He has urged officials to repair it using w Facebook"), "He has urged officials to repair it using w")
+        from media_logos import get_x_author_avatar_html
+        fb_av = get_x_author_avatar_html({"platform": "facebook", "raw_handle": "BirajBhaktaOfficial", "initials": "BB"})
+        self.assertIn('title="Facebook"', fb_av)
+        self.assertNotIn('title="X (Twitter)"', fb_av)
+
+        # Defense-in-depth: save_x_posts() rejects misattributed individual Facebook posts
+        misattributed_fb = {
+            "id": "fb_bad_save_guard",
+            "platform": "facebook",
+            "raw_handle": "BirajBhaktaOfficial",
+            "handle": "BirajBhaktaOfficial",
+            "author_name": "Biraj Bhakta Shrestha",
+            "title": "Energy Minister Biraj Bhakta Shrestha said the project could not start",
+            "text": "Energy Minister Biraj Bhakta Shrestha said the project could not start",
+            "link": "https://news.google.com/rss/articles/CBMi6wFBVV95cUxOcGlP",
+            "is_real_api": False,
+        }
+        with mock.patch("nepal_news_store.query_supabase") as m_guard:
+            self.assertEqual(store.save_x_posts([misattributed_fb]), 0)
+        m_guard.assert_not_called()
 
 
 if __name__ == "__main__":
