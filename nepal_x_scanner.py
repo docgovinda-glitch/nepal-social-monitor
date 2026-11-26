@@ -68,43 +68,128 @@ def _decode_snowflake_dt(sid: str) -> Optional[datetime.datetime]:
 # Unified List of Verified Monitored Nepali Accounts Frequently Posting
 # on Topics Relating to the 8 Structured Categories
 # =====================================================================
-from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY
+try:
+    from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY as _PRIMARY_SOCIAL_DIR
+except Exception:
+    _PRIMARY_SOCIAL_DIR = []
+
+try:
+    from nepal_verified_x_directory import VERIFIED_NEPAL_X_DIRECTORY
+except Exception:
+    VERIFIED_NEPAL_X_DIRECTORY = []
+
+_BASE_X_ACCOUNTS_SOURCE: List[Dict[str, Any]] = (
+    [a for a in _PRIMARY_SOCIAL_DIR if str(a.get("platform") or "x").lower() == "x"]
+    if _PRIMARY_SOCIAL_DIR
+    else list(VERIFIED_NEPAL_X_DIRECTORY)
+)
 
 # Canonical, unified verified X directory
 TOP_NEPAL_X_ACCOUNTS: List[Dict[str, Any]] = [
     {**acc, "type": acc.get("category", "Civil Society and Public Voices"), "verified": True}
-    for acc in VERIFIED_NEPAL_X_DIRECTORY
+    for acc in _BASE_X_ACCOUNTS_SOURCE
 ]
 
-# Fast O(1) handle lookup map
+# Fast O(1) handle lookup map (seeded from nepal_social_directory.py, with legacy fallback)
 ACCOUNT_BY_HANDLE: Dict[str, Dict[str, Any]] = {
     acc.get("handle", "").lower().strip().lstrip("@"): {
         **acc,
         "type": acc.get("category", "Civil Society and Public Voices"),
-        "verified": True
+        "verified": True,
     }
-    for acc in VERIFIED_NEPAL_X_DIRECTORY
+    for acc in _BASE_X_ACCOUNTS_SOURCE
     if acc.get("handle")
 }
+
+_ACCOUNT_MAP_CACHE: Dict[str, Any] = {"ts": 0.0, "data": None}
+_PORTAL_X_HANDLE_SET_CACHE: Optional[frozenset] = None
+
+
+def _get_portal_x_handle_set() -> frozenset:
+    """Returns lowercase X handles configured as portal x_handle / x_boost_handle."""
+    global _PORTAL_X_HANDLE_SET_CACHE
+    if _PORTAL_X_HANDLE_SET_CACHE is not None:
+        return _PORTAL_X_HANDLE_SET_CACHE
+    try:
+        from nepal_config import TOP_NEPAL_NEWS_PORTALS
+        handles = set()
+        for portal in TOP_NEPAL_NEWS_PORTALS:
+            for field in ("x_handle", "x_boost_handle"):
+                h = (portal.get(field) or "").lstrip("@").strip().lower()
+                if h:
+                    handles.add(h)
+        _PORTAL_X_HANDLE_SET_CACHE = frozenset(handles)
+    except Exception:
+        _PORTAL_X_HANDLE_SET_CACHE = frozenset()
+    return _PORTAL_X_HANDLE_SET_CACHE
+
+
+def _get_account_by_handle_map(ttl_seconds: int = 300) -> Dict[str, Dict[str, Any]]:
+    """
+    Returns a handle_lower -> account dict map synced from live Supabase x_accounts (platform='x')
+    and nepal_social_directory.py, falling back to nepal_verified_x_directory.py only when unavailable.
+    """
+    now = time.time()
+    cached = _ACCOUNT_MAP_CACHE.get("data")
+    if cached is not None and (now - float(_ACCOUNT_MAP_CACHE.get("ts") or 0.0)) < ttl_seconds:
+        return cached
+
+    merged: Dict[str, Dict[str, Any]] = dict(ACCOUNT_BY_HANDLE)
+    try:
+        from nepal_news_store import get_all_x_accounts
+        db_accounts = get_all_x_accounts(enabled_only=False, platform="x")
+        if db_accounts:
+            for a in db_accounts:
+                if str(a.get("platform") or "x").lower() != "x":
+                    continue
+                h = str(a.get("handle") or "").lstrip("@").strip().lower()
+                if h:
+                    merged[h] = {
+                        **a,
+                        "type": a.get("category", "Civil Society and Public Voices"),
+                        "verified": a.get("verification_status", "verified") == "verified",
+                    }
+    except Exception:
+        pass
+
+    if not merged and VERIFIED_NEPAL_X_DIRECTORY:
+        merged = {
+            acc.get("handle", "").lower().strip().lstrip("@"): {
+                **acc,
+                "type": acc.get("category", "Civil Society and Public Voices"),
+                "verified": True,
+            }
+            for acc in VERIFIED_NEPAL_X_DIRECTORY
+            if acc.get("handle")
+        }
+
+    _ACCOUNT_MAP_CACHE["data"] = merged
+    _ACCOUNT_MAP_CACHE["ts"] = now
+    return merged
 
 
 def get_monitored_x_accounts(enabled_only: bool = True) -> List[Dict[str, Any]]:
     """
-    Dynamically retrieves enabled monitored accounts from Supabase cloud database,
-    falling back to nepal_social_directory (1,000+ non-governmental critical voices).
+    Dynamically retrieves enabled monitored X accounts (platform == 'x') from Supabase cloud
+    database, falling back to nepal_social_directory.py (and nepal_verified_x_directory.py only
+    when nepal_social_directory is unavailable).
     """
     try:
         from nepal_news_store import get_all_x_accounts
-        db_accounts = get_all_x_accounts(enabled_only=enabled_only)
-        if db_accounts and len(db_accounts) >= 50:
-            formatted = []
-            for a in db_accounts:
-                formatted.append({
+        db_accounts = get_all_x_accounts(enabled_only=enabled_only, platform="x")
+        x_only = [
+            a for a in (db_accounts or [])
+            if str(a.get("platform") or "x").lower() == "x"
+        ]
+        if x_only and len(x_only) >= 50:
+            return [
+                {
                     **a,
                     "type": a.get("category", "Civil Society and Public Voices"),
-                    "verified": a.get("verification_status") == "verified"
-                })
-            return formatted
+                    "verified": a.get("verification_status") == "verified",
+                }
+                for a in x_only
+            ]
     except Exception:
         pass
 
@@ -113,7 +198,8 @@ def get_monitored_x_accounts(enabled_only: bool = True) -> List[Dict[str, Any]]:
         return [
             {**a, "type": a.get("category", "Civil Society and Public Voices"), "verified": True}
             for a in VERIFIED_NEPAL_SOCIAL_DIRECTORY
-            if (not enabled_only or a.get("enabled", 1) in (1, True, "1"))
+            if str(a.get("platform") or "x").lower() == "x"
+            and (not enabled_only or a.get("enabled", 1) in (1, True, "1"))
         ]
     except Exception:
         return [
@@ -231,6 +317,39 @@ def format_relative_time(pub_dt: datetime.datetime, now_npt: datetime.datetime) 
         return pub_dt.strftime("%b %d")
 
 
+_NEPAL_X_RELEVANCE_RE = re.compile(
+    r"(\bnepal\b|\bnepali\b|\bnepalese\b|\bkathmandu\b|\bpokhara\b|\bmadhesh\b|\bterai\b|"
+    r"\bkalapani\b|\blipulekh\b|\bsusta\b|\bkerung\b|\btatopani\b|\bsaarc\b|\bbimstec\b|"
+    r"\bhumla\b|\blumbini\b|\bjanakpur\b|\bbirgunj\b|\bbiratnagar\b|\bsingha durbar\b|"
+    r"\bbaluwatar\b|\bsheetal niwas\b|\boli\b|\bprachanda\b|\bdeuba\b|\bbalen\b|\bgagan\b|"
+    r"\brabi lamichhane\b|\bswarnim\b|\bck raut\b|\bkulman\b|\bharka\b|\bnrb\b|\bnepse\b|"
+    r"[\u0900-\u097F])",
+    re.IGNORECASE,
+)
+
+
+def _is_substantive_unmapped_x_post(clean_text: str) -> bool:
+    """
+    Filters noise from unmapped 'Public X Voice' tweets: requires minimum non-URL/mention/hashtag
+    substance, explicit Nepal/regional relevance, and news/policy relevance via is_news_post().
+    """
+    stripped = re.sub(r"https?://\S+", " ", clean_text or "")
+    stripped = re.sub(r"[@#][A-Za-z0-9_]+", " ", stripped)
+    stripped = re.sub(r"\s+", " ", stripped).strip()
+    if len(stripped) < 25 or len(stripped.split()) < 6:
+        return False
+
+    if not _NEPAL_X_RELEVANCE_RE.search(clean_text or ""):
+        return False
+
+    try:
+        from nepal_social_scanner import is_news_post
+        is_news, _, _ = is_news_post("", clean_text)
+        return bool(is_news)
+    except Exception:
+        return True
+
+
 def _enrich_tweet_by_id(
     sid: str,
     fallback_title: str = "",
@@ -329,11 +448,37 @@ def _enrich_tweet_by_id(
     clean_text = re.sub(r"\s*-\s*(?:X|Twitter|on X: .*)$", "", raw_text).strip()
     clean_text = re.sub(r"^[^:]+ on X:\s*\"?", "", clean_text).rstrip("\"").strip()
 
+    acc_map = _get_account_by_handle_map()
     acc = (
         known_account
         if known_account and clean_handle.lower() == known_account.get("handle", "").lower().lstrip("@")
-        else ACCOUNT_BY_HANDLE.get(clean_handle.lower())
+        else acc_map.get(clean_handle.lower())
     )
+    is_portal_bridge = clean_handle.lower() in _get_portal_x_handle_set()
+    is_protected_account = bool(acc) or is_portal_bridge
+    if not is_protected_account and not _is_substantive_unmapped_x_post(clean_text):
+        return None
+    if is_protected_account and not is_portal_bridge:
+        stripped = re.sub(r"https?://\S+", " ", clean_text or "")
+        stripped = re.sub(r"[@#][A-Za-z0-9_]+", " ", stripped)
+        stripped = re.sub(r"\s+", " ", stripped).strip()
+        if len(stripped) < 15:
+            return None
+        if len(clean_text) < 120:
+            try:
+                from nepal_social_scanner import _GREETING_PATTERNS, _NEWS_KEYWORDS_DEV, _NEWS_KEYWORDS_EN
+                has_greeting = any(re.search(pat, clean_text, re.IGNORECASE) for pat in _GREETING_PATTERNS)
+                if has_greeting:
+                    text_low = clean_text.lower()
+                    has_news_kw = (
+                        any(kw != "नेपाल" and kw in clean_text for kw in _NEWS_KEYWORDS_DEV)
+                        or any(kw != "nepal" and kw in text_low for kw in _NEWS_KEYWORDS_EN)
+                    )
+                    if not has_news_kw:
+                        return None
+            except Exception:
+                pass
+
     if acc:
         author_name = acc["name"]
         author_type = acc.get("type", "Verified Voice")
@@ -419,8 +564,58 @@ def _enrich_tweet_by_id(
     if card_url and card_url not in expanded_urls:
         expanded_urls.append(card_url)
 
+    discovery_signals: List[Dict[str, Any]] = []
+    if acc:
+        src_low = clean_handle.lower()
+        seen_cands = set()
+        acc_created_raw = None
+        if isinstance(quoted, dict):
+            qu = quoted.get("user") or {}
+            qh = str(qu.get("screen_name") or "").lstrip("@").strip()
+            qh_low = qh.lower()
+            if qh_low and qh_low != src_low and qh_low not in acc_map and qh_low not in _get_portal_x_handle_set():
+                seen_cands.add(qh_low)
+                discovery_signals.append({
+                    "platform": "x",
+                    "handle": qh,
+                    "candidate_name": qu.get("name") or qh,
+                    "signal_type": "co_mention",
+                    "source_handle": src_low,
+                    "post_id": str(sid),
+                    "engagement": likes + (retweets * 2),
+                    "followers_count": int(qu.get("followers_count") or 0),
+                    "is_blue_verified": bool(qu.get("is_blue_verified") or qu.get("verified")),
+                    "account_created_at": qu.get("created_at") or acc_created_raw,
+                    "nepal_relevant": bool(_NEPAL_X_RELEVANCE_RE.search(clean_text)),
+                })
+        for m_obj in (entities.get("user_mentions") or []):
+            if not isinstance(m_obj, dict):
+                continue
+            mh = str(m_obj.get("screen_name") or "").lstrip("@").strip()
+            mh_low = mh.lower()
+            if not mh_low or mh_low in seen_cands or mh_low == src_low:
+                continue
+            if mh_low in acc_map or mh_low in _get_portal_x_handle_set():
+                continue
+            seen_cands.add(mh_low)
+            discovery_signals.append({
+                "platform": "x",
+                "handle": mh,
+                "candidate_name": m_obj.get("name") or mh,
+                "signal_type": "co_mention",
+                "source_handle": src_low,
+                "post_id": str(sid),
+                "engagement": likes + (retweets * 2),
+                "followers_count": 0,
+                "is_blue_verified": False,
+                "account_created_at": None,
+                "nepal_relevant": bool(_NEPAL_X_RELEVANCE_RE.search(clean_text)),
+            })
+
+    clean_sid = str(sid).strip()
+    canon_id = clean_sid if clean_sid.startswith("x_") else f"x_{clean_sid}"
     return {
-        "id": sid,
+        "id": canon_id,
         "is_real_api": True,
         "author_name": author_name,
         "handle": disp_handle,
@@ -447,6 +642,7 @@ def _enrich_tweet_by_id(
         "expanded_urls": expanded_urls,
         "card_title": card_title,
         "card_description": card_description,
+        "_discovery_signals": discovery_signals,
     }
 
 
@@ -537,6 +733,7 @@ def _discover_profile_tweet_candidates(
         for a in active_accounts
         if a.get("handle")
     }
+    acc_map = _get_account_by_handle_map()
 
     def _fetch_profile_ids(acc: Dict[str, Any]):
         h = acc["handle"].lstrip("@")
@@ -555,8 +752,8 @@ def _discover_profile_tweet_candidates(
                     alow = author_h.lower()
                     if alow == h_low:
                         by_sid[sid] = acc
-                    elif alow in active_by_handle or alow in ACCOUNT_BY_HANDLE:
-                        by_sid.setdefault(sid, active_by_handle.get(alow) or ACCOUNT_BY_HANDLE[alow])
+                    elif alow in active_by_handle or alow in acc_map:
+                        by_sid.setdefault(sid, active_by_handle.get(alow) or acc_map[alow])
 
                 if not by_sid and len(r.text) < 100000 and attempt == 0:
                     time.sleep(0.25)
@@ -855,11 +1052,15 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, on_progress=None) ->
     enriched = _run_pool_bounded(_worker_enrich, enrich_items, max_workers=24, timeout_secs=20.0, on_item=on_progress)
 
     all_posts: List[Dict[str, Any]] = []
+    batch_signals: List[Dict[str, Any]] = []
     seen_ids = set()
     seen_texts = set()
     for p in enriched:
         if not p or not p.get("text"):
             continue
+        sigs = p.pop("_discovery_signals", None)
+        if sigs:
+            batch_signals.extend(sigs)
         sid = p.get("id")
         norm = p["text"][:40].lower()
         if sid and sid not in seen_ids and norm not in seen_texts:
@@ -867,10 +1068,17 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, on_progress=None) ->
             seen_texts.add(norm)
             all_posts.append(p)
 
-    # Advance the unified 10-account circular social loop (Facebook + X news posts)
+    if batch_signals:
+        try:
+            from nepal_news_store import record_discovery_signals
+            record_discovery_signals(batch_signals)
+        except Exception:
+            pass
+
+    # Advance the unified circular social loop (Facebook + X news posts)
     try:
         from nepal_social_scanner import scan_social_batch
-        social_posts, _ = scan_social_batch(batch_size=10)
+        social_posts, _ = scan_social_batch(batch_size=25)
         for sp in (social_posts or []):
             sid = sp.get("id")
             norm = sp.get("text", "")[:40].lower()

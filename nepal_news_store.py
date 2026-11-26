@@ -2453,7 +2453,7 @@ _X_PROFILE_CACHE: Dict[str, Any] = {"ts": 0.0, "data": {}}
 
 
 def get_x_profile_brief_map(ttl_seconds: int = 300) -> Dict[str, Dict[str, str]]:
-    """Returns a cached handle_lower -> {name, profile_brief} map from Supabase x_accounts."""
+    """Returns a cached handle_lower -> {name, profile_brief} map from Supabase x_accounts (with directory fallback)."""
     now = time.time()
     if _X_PROFILE_CACHE["data"] and (now - float(_X_PROFILE_CACHE["ts"])) < ttl_seconds:
         return _X_PROFILE_CACHE["data"]
@@ -2462,13 +2462,23 @@ def get_x_profile_brief_map(ttl_seconds: int = 300) -> Dict[str, Dict[str, str]]
         "FROM x_accounts;"
     )
     out: Dict[str, Dict[str, str]] = {}
-    for r in rows:
+    for r in rows or []:
         h = str(r.get("handle") or "").lstrip("@").strip().lower()
         if h:
             out[h] = {
                 "name": str(r.get("name") or "").strip(),
                 "profile_brief": str(r.get("profile_brief") or "").strip(),
             }
+    if not out:
+        try:
+            from nepal_social_directory import DIRECTORY_BY_HANDLE
+            for h, acc in DIRECTORY_BY_HANDLE.items():
+                out[h] = {
+                    "name": str(acc.get("name") or "").strip(),
+                    "profile_brief": str(acc.get("profile_brief") or acc.get("role") or "").strip(),
+                }
+        except Exception:
+            pass
     if out:
         _X_PROFILE_CACHE["data"] = out
         _X_PROFILE_CACHE["ts"] = now
@@ -2539,6 +2549,351 @@ def verify_x_profile_connectivity(handle: str) -> Tuple[bool, str]:
         return False, f"Network error checking profile: {ex}"
 
 
+_CANDIDATE_DENYLIST_HANDLES = frozenset({
+    "grok", "x_nepal", "nepal_social", "twitter", "x", "support", "help",
+})
+_CANDIDATE_SPAM_PATTERN = re.compile(
+    r"(?:parody|fanclub|giveaway|airdrop|casino|betting|crypto|onlyfans|porn|\bbot\b|\d{5,}$)",
+    re.IGNORECASE,
+)
+_NEPAL_CANDIDATE_RE = re.compile(
+    r"(\bnepal\b|\bnepali\b|\bkathmandu\b|\bpokhara\b|\bmadhesh\b|\bterai\b|"
+    r"\bkalapani\b|\blipulekh\b|\boli\b|\bprachanda\b|\bdeuba\b|\bbalen\b|"
+    r"\brabi\b|\bgagan\b|[\u0900-\u097F])",
+    re.IGNORECASE,
+)
+
+
+def is_candidate_handle_allowed(handle: str, name: str = "") -> bool:
+    """Applies denylist and spam/bot heuristics to candidate handles."""
+    norm_h = normalize_x_handle(handle)
+    if not norm_h or len(norm_h) < 3:
+        return False
+    if norm_h in _CANDIDATE_DENYLIST_HANDLES:
+        return False
+    if _CANDIDATE_SPAM_PATTERN.search(norm_h) or (name and _CANDIDATE_SPAM_PATTERN.search(name)):
+        return False
+    return True
+
+
+def _is_candidate_credible(
+    followers_count: int = 0,
+    is_blue_verified: bool = False,
+    account_created_at: Any = None,
+    nepal_relevant_ratio: float = 1.0,
+) -> bool:
+    """Enforces credibility gates (followers/verification/age and Nepal relevance ratio)."""
+    if nepal_relevant_ratio < 0.5:
+        return False
+    if followers_count > 0:
+        if followers_count >= 2000:
+            return True
+        if is_blue_verified and account_created_at is not None:
+            try:
+                now_utc = datetime.datetime.now(datetime.timezone.utc)
+                created_dt = (
+                    account_created_at.astimezone(datetime.timezone.utc)
+                    if isinstance(account_created_at, datetime.datetime)
+                    else datetime.datetime.fromisoformat(str(account_created_at).replace("Z", "+00:00")).astimezone(datetime.timezone.utc)
+                )
+                return (now_utc - created_dt).days >= 180
+            except Exception:
+                return False
+        return False
+    if account_created_at is not None:
+        try:
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            created_dt = (
+                account_created_at.astimezone(datetime.timezone.utc)
+                if isinstance(account_created_at, datetime.datetime)
+                else datetime.datetime.fromisoformat(str(account_created_at).replace("Z", "+00:00")).astimezone(datetime.timezone.utc)
+            )
+            if (now_utc - created_dt).days < 180 and not is_blue_verified:
+                return False
+        except Exception:
+            pass
+    return True
+
+
+def record_discovery_signals(signals: List[Dict[str, Any]]) -> int:
+    """Batch-records unique co-mention/quote discovery signals into x_account_discovery_signals."""
+    if not signals:
+        return 0
+    deduped: Dict[Tuple[str, str, str, str, str], Dict[str, Any]] = {}
+    for sig in signals:
+        h = normalize_x_handle(sig.get("handle", ""))
+        if not h or not is_candidate_handle_allowed(h, sig.get("candidate_name", "")):
+            continue
+        plat = str(sig.get("platform") or "x").lower().strip()
+        stype = str(sig.get("signal_type") or "co_mention").strip()
+        src = normalize_x_handle(sig.get("source_handle", ""))
+        pid = str(sig.get("post_id") or "").strip()[:64]
+        key = (plat, h, stype, src, pid)
+        if key not in deduped:
+            deduped[key] = {
+                "platform": plat,
+                "handle": h,
+                "candidate_name": str(sig.get("candidate_name") or h)[:255],
+                "signal_type": stype,
+                "source_handle": src,
+                "post_id": pid,
+                "engagement": int(sig.get("engagement") or 0),
+                "followers_count": int(sig.get("followers_count") or 0),
+                "is_blue_verified": bool(sig.get("is_blue_verified", False)),
+                "account_created_at": sig.get("account_created_at"),
+                "nepal_relevant": bool(sig.get("nepal_relevant", False)),
+            }
+    if not deduped:
+        return 0
+
+    rows_sql = []
+    for s in deduped.values():
+        acct_created = esc_sql(s["account_created_at"]) if s["account_created_at"] else "NULL"
+        rows_sql.append(
+            f"({esc_sql(s['platform'])}, {esc_sql(s['handle'])}, {esc_sql(s['candidate_name'])}, "
+            f"{esc_sql(s['signal_type'])}, {esc_sql(s['source_handle'])}, {esc_sql(s['post_id'])}, "
+            f"{s['engagement']}, {s['followers_count']}, {esc_sql(s['is_blue_verified'])}, "
+            f"{acct_created}, {esc_sql(s['nepal_relevant'])}, NOW())"
+        )
+    sql = f"""
+    INSERT INTO x_account_discovery_signals (
+        platform, handle, candidate_name, signal_type, source_handle, post_id,
+        engagement, followers_count, is_blue_verified, account_created_at, nepal_relevant, created_at
+    ) VALUES {", ".join(rows_sql)}
+    ON CONFLICT (platform, LOWER(handle), signal_type, LOWER(source_handle), post_id) DO NOTHING
+    RETURNING id;
+    """
+    res = query_supabase(sql)
+    return len(res) if res else 0
+
+
+def evaluate_and_enqueue_candidates(max_pending: int = 50, ttl_days: int = 30) -> Dict[str, int]:
+    """
+    Evaluates rolling-window co-mentions (14d >= 3 distinct monitored sources), Bing RSS
+    high-signal handles (7d >= 3 posts & MAX(engagement_score) >= 50), and 48h topic spikes
+    (>= 2 posts with engagement_score >= 100), enforcing denylist, credibility, 30-day TTL
+    cleanup, and a 50-row pending_verification cap.
+    """
+    expired_res = query_supabase(
+        "DELETE FROM x_accounts "
+        "WHERE verification_status = 'pending_verification' AND enabled = 0 "
+        f"AND discovered_at < NOW() - INTERVAL '{int(ttl_days)} days' RETURNING handle;"
+    )
+    query_supabase(
+        f"DELETE FROM x_account_discovery_signals WHERE created_at < NOW() - INTERVAL '{int(ttl_days)} days';"
+    )
+
+    pending_rows = query_supabase(
+        "SELECT COUNT(*) AS n FROM x_accounts WHERE verification_status = 'pending_verification';"
+    )
+    current_pending = int((pending_rows[0].get("n") if pending_rows else 0) or 0)
+    remaining_slots = max(0, int(max_pending) - current_pending)
+    if remaining_slots == 0:
+        return {"expired": len(expired_res or []), "enqueued": 0, "pending_total": current_pending}
+
+    existing_rows = query_supabase("SELECT COALESCE(platform, 'x') AS platform, LOWER(handle) AS h FROM x_accounts;")
+    existing_keys = {(str(r.get("platform") or "x").lower(), str(r.get("h") or "").lower()) for r in (existing_rows or [])}
+
+    candidates: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+    def _register_candidate(plat: str, handle: str, name: str, source: str, score: float,
+                            followers: int = 0, blue: bool = False, created_at: Any = None, rel_ratio: float = 1.0):
+        norm_h = normalize_x_handle(handle)
+        if not norm_h or (plat, norm_h) in existing_keys:
+            return
+        if not is_candidate_handle_allowed(norm_h, name):
+            return
+        if not _is_candidate_credible(followers, blue, created_at, rel_ratio):
+            return
+        key = (plat, norm_h)
+        prev = candidates.get(key)
+        if prev is None or score > prev["discovery_score"]:
+            candidates[key] = {
+                "platform": plat,
+                "handle": norm_h,
+                "name": (name or norm_h).strip(),
+                "discovery_source": source,
+                "discovery_score": round(float(score), 2),
+            }
+
+    # 1. 14-day co-mentions (>= 3 distinct monitored sources)
+    co_rows = query_supabase("""
+        SELECT
+            COALESCE(platform, 'x') AS platform,
+            LOWER(handle) AS h,
+            MAX(candidate_name) AS name,
+            COUNT(DISTINCT LOWER(source_handle)) AS distinct_sources,
+            MAX(followers_count) AS followers_count,
+            BOOL_OR(is_blue_verified) AS is_blue_verified,
+            MIN(account_created_at) AS account_created_at,
+            AVG(CASE WHEN nepal_relevant THEN 1.0 ELSE 0.0 END) AS rel_ratio
+        FROM x_account_discovery_signals
+        WHERE signal_type = 'co_mention'
+          AND created_at >= NOW() - INTERVAL '14 days'
+        GROUP BY COALESCE(platform, 'x'), LOWER(handle)
+        HAVING COUNT(DISTINCT LOWER(source_handle)) >= 3
+        ORDER BY distinct_sources DESC
+        LIMIT 50;
+    """)
+    for r in (co_rows or []):
+        _register_candidate(
+            plat=str(r.get("platform") or "x").lower(),
+            handle=str(r.get("h") or ""),
+            name=str(r.get("name") or ""),
+            source="co_mention",
+            score=float(r.get("distinct_sources") or 0) * 20.0,
+            followers=int(r.get("followers_count") or 0),
+            blue=bool(r.get("is_blue_verified")),
+            created_at=r.get("account_created_at"),
+            rel_ratio=float(r.get("rel_ratio") if r.get("rel_ratio") is not None else 1.0),
+        )
+
+    # 2. 7-day Bing RSS high-signal handles (>= 3 posts & MAX(engagement_score) >= 50)
+    bing_rows = query_supabase("""
+        SELECT
+            LOWER(raw_handle) AS h,
+            MAX(author_name) AS name,
+            COUNT(*) AS post_cnt,
+            MAX(COALESCE(engagement_score, 0)) AS max_eng,
+            BOOL_OR(COALESCE(verified, FALSE)) AS is_ver,
+            STRING_AGG(LEFT(COALESCE(text, ''), 200), ' || ') AS sample_texts
+        FROM x_posts
+        WHERE author_type = 'Public X Voice'
+          AND published_dt >= NOW() - INTERVAL '7 days'
+        GROUP BY LOWER(raw_handle)
+        HAVING COUNT(*) >= 3 AND MAX(COALESCE(engagement_score, 0)) >= 50
+        ORDER BY max_eng DESC, post_cnt DESC
+        LIMIT 50;
+    """)
+    for r in (bing_rows or []):
+        texts = [t.strip() for t in str(r.get("sample_texts") or "").split(" || ") if t.strip()]
+        rel_ratio = (sum(1 for t in texts if _NEPAL_CANDIDATE_RE.search(t)) / len(texts)) if texts else 1.0
+        _register_candidate(
+            plat="x",
+            handle=str(r.get("h") or ""),
+            name=str(r.get("name") or ""),
+            source="bing_high_signal",
+            score=float(r.get("post_cnt") or 0) * 10.0 + min(50.0, float(r.get("max_eng") or 0) / 20.0),
+            blue=bool(r.get("is_ver")),
+            rel_ratio=rel_ratio,
+        )
+
+    # 3. 48-hour topic spikes (>= 2 posts with engagement_score >= 100)
+    spike_rows = query_supabase("""
+        SELECT
+            LOWER(raw_handle) AS h,
+            MAX(author_name) AS name,
+            COUNT(*) FILTER (WHERE COALESCE(engagement_score, 0) >= 100) AS spike_cnt,
+            MAX(COALESCE(engagement_score, 0)) AS max_eng,
+            BOOL_OR(COALESCE(verified, FALSE)) AS is_ver,
+            STRING_AGG(LEFT(COALESCE(text, ''), 200), ' || ') AS sample_texts
+        FROM x_posts
+        WHERE author_type = 'Public X Voice'
+          AND published_dt >= NOW() - INTERVAL '48 hours'
+        GROUP BY LOWER(raw_handle)
+        HAVING COUNT(*) FILTER (WHERE COALESCE(engagement_score, 0) >= 100) >= 2
+        ORDER BY spike_cnt DESC, max_eng DESC
+        LIMIT 50;
+    """)
+    for r in (spike_rows or []):
+        texts = [t.strip() for t in str(r.get("sample_texts") or "").split(" || ") if t.strip()]
+        rel_ratio = (sum(1 for t in texts if _NEPAL_CANDIDATE_RE.search(t)) / len(texts)) if texts else 1.0
+        _register_candidate(
+            plat="x",
+            handle=str(r.get("h") or ""),
+            name=str(r.get("name") or ""),
+            source="topic_spike",
+            score=float(r.get("spike_cnt") or 0) * 25.0 + min(50.0, float(r.get("max_eng") or 0) / 20.0),
+            blue=bool(r.get("is_ver")),
+            rel_ratio=rel_ratio,
+        )
+
+    if not candidates:
+        return {"expired": len(expired_res or []), "enqueued": 0, "pending_total": current_pending}
+
+    selected = sorted(candidates.values(), key=lambda c: c["discovery_score"], reverse=True)[:remaining_slots]
+    vals_sql = []
+    for c in selected:
+        h = c["handle"]
+        plat = c["platform"]
+        name = c["name"]
+        purl = f"https://www.facebook.com/{h}" if plat == "facebook" else f"https://x.com/{h}"
+        initials = "".join(w[0].upper() for w in name.split()[:2] if w) or h[:2].upper()
+        vals_sql.append(
+            f"({esc_sql(h)}, {esc_sql(name)}, {esc_sql(purl)}, 'Civil Society and Public Voices', "
+            f"'Automated Discovery', 'Discovered Nepal Voice', 'Discovered Nepal Voice', "
+            f"{esc_sql('Auto-discovered candidate (' + c['discovery_source'] + ')')}, 'pending_verification', "
+            f"{esc_sql(purl)}, 'N/A', '#0284c7', {esc_sql(initials)}, 0, 'pending', NULL, {esc_sql(plat)}, "
+            f"{esc_sql(c['discovery_source'])}, {c['discovery_score']}, NOW(), NOW(), NOW())"
+        )
+
+    ins_res = query_supabase(f"""
+        INSERT INTO x_accounts (
+            handle, name, profile_url, category, subcategory, role, profile_brief, relevance,
+            verification_status, source_url, followers, avatar_bg, initials,
+            enabled, connection_status, last_verified_at, platform,
+            discovery_source, discovery_score, discovered_at, created_at, updated_at
+        ) VALUES {", ".join(vals_sql)}
+        ON CONFLICT (platform, handle) DO NOTHING
+        RETURNING handle;
+    """)
+    enqueued_cnt = len(ins_res) if ins_res else 0
+    if enqueued_cnt:
+        _clear_x_caches()
+    return {
+        "expired": len(expired_res or []),
+        "enqueued": enqueued_cnt,
+        "pending_total": current_pending + enqueued_cnt,
+    }
+
+
+def promote_pending_x_account(
+    handle: str,
+    platform: Optional[str] = None,
+    max_weekly_promotions: int = 10,
+) -> Tuple[bool, str]:
+    """
+    Promotes a pending_verification account to verified (enabled=1), enforcing a rolling
+    7-day cap of <= max_weekly_promotions (default 10).
+    """
+    norm_h = normalize_x_handle(handle)
+    if not norm_h:
+        return False, "Invalid handle."
+
+    cap_rows = query_supabase(
+        "SELECT COUNT(*) AS n FROM x_accounts WHERE promoted_at >= NOW() - INTERVAL '7 days';"
+    )
+    weekly_count = int((cap_rows[0].get("n") if cap_rows else 0) or 0)
+    if weekly_count >= int(max_weekly_promotions):
+        return False, f"Weekly promotion cap ({int(max_weekly_promotions)} per 7 days) reached."
+
+    plat_clause = ""
+    if platform and platform.lower() not in ("all", "all platforms"):
+        plat_clean = "facebook" if "facebook" in platform.lower() else "x"
+        plat_clause = f"AND COALESCE(platform, 'x') = {esc_sql(plat_clean)}"
+
+    rows = query_supabase(f"""
+        UPDATE x_accounts
+        SET verification_status = 'verified',
+            enabled = 1,
+            promoted_at = NOW(),
+            last_verified_at = NOW(),
+            updated_at = NOW()
+        WHERE LOWER(handle) = {esc_sql(norm_h)} {plat_clause}
+        RETURNING *;
+    """)
+    if not rows:
+        return False, "Account not found in database."
+
+    _clear_x_caches()
+    try:
+        from nepal_social_directory import sync_account_to_memory
+        sync_account_to_memory(rows[0])
+    except Exception:
+        pass
+    return True, "Promoted to Verified"
+
+
 # ==============================================================================
 # X POSTS STORAGE & RETRIEVAL (SUPABASE POSTGRESQL)
 # ==============================================================================
@@ -2551,34 +2906,136 @@ def get_x_post_refresh_map(post_ids: List[str]) -> Dict[str, Optional[datetime.d
     clean_ids = [str(pid).strip() for pid in (post_ids or []) if str(pid).strip()]
     if not clean_ids:
         return {}
+    query_ids = list(dict.fromkeys(
+        pid_var
+        for pid in clean_ids
+        for pid_var in ([pid, f"x_{pid}"] if re.match(r"^\d{15,22}$", pid) else [pid])
+    ))
     out: Dict[str, Optional[datetime.datetime]] = {}
-    for i in range(0, len(clean_ids), 1000):
-        chunk = clean_ids[i:i + 1000]
+    for i in range(0, len(query_ids), 1000):
+        chunk = query_ids[i:i + 1000]
         in_sql = ", ".join(esc_sql(pid) for pid in chunk)
         rows = query_supabase(f"SELECT id, updated_at FROM x_posts WHERE id IN ({in_sql});")
         for r in rows or []:
             pid = str(r.get("id") or "").strip()
             if pid:
                 out[pid] = r.get("updated_at")
+                if pid.startswith("x_") and pid[2:].isdigit():
+                    out.setdefault(pid[2:], r.get("updated_at"))
     return out
+
+
+def canonicalize_social_post_id(post_id: Any, platform: str = "x") -> str:
+    """Canonicalizes bare numeric X status IDs (<sid>) to x_<sid> so scanners and store match."""
+    pid = str(post_id or "").strip()
+    if not pid:
+        return ""
+    plat = (platform or "x").strip().lower()
+    if plat == "x" and re.match(r"^\d{15,22}$", pid):
+        return f"x_{pid}"
+    return pid
 
 
 def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
     """
     Batches upsert operations for X posts into the Supabase PostgreSQL 'x_posts' table.
-    Deduplicates by post id before chunking and enforces conflict resolution on unique post id.
+    Canonicalizes X status IDs, deduplicates by post id, normalized canonical URL, and
+    recent handle+text prefix before chunking, and enforces conflict resolution on unique post id.
     """
     if not posts:
         return 0
 
+    normalized_posts: List[Dict[str, Any]] = []
+    for p in posts:
+        link = str(p.get("link") or "").strip()
+        plat = str(p.get("platform") or ("facebook" if "facebook.com" in link.lower() else "x")).lower()
+        canon_pid = canonicalize_social_post_id(p.get("id", ""), platform=plat)
+        if not canon_pid:
+            continue
+        if canon_pid != str(p.get("id", "")).strip():
+            p = dict(p)
+            p["id"] = canon_pid
+        normalized_posts.append(p)
+
+    if not normalized_posts:
+        return 0
+
+    ordered_posts = sorted(
+        normalized_posts,
+        key=lambda p: (
+            0 if p.get("is_real_api", True) else 1,
+            0 if re.match(r"^(?:x|fb)_\d+$", str(p.get("id") or "")) else 1,
+        ),
+    )
+
+    _num_id_re = re.compile(r"^(?:x|fb)_\d+$")
     deduped_posts: List[Dict[str, Any]] = []
     seen_pids = set()
-    for p in posts:
+    seen_urls = set()
+    seen_handle_prefixes: Dict[Tuple[str, str], str] = {}
+    for p in ordered_posts:
         pid = str(p.get("id", "")).strip()
         if not pid or pid in seen_pids:
             continue
+        link = str(p.get("link") or "").strip()
+        norm_url = normalize_canonical_url(link).lower() if link else ""
+        raw_h = str(p.get("raw_handle") or p.get("handle") or "").lstrip("@").strip().lower()
+        txt_pref = re.sub(r"\s+", " ", str(p.get("text") or "").strip().lower())[:120]
+        if norm_url and norm_url in seen_urls:
+            continue
+        if raw_h and len(txt_pref) >= 20 and (raw_h, txt_pref) in seen_handle_prefixes:
+            prev_pid = seen_handle_prefixes[(raw_h, txt_pref)]
+            if not (_num_id_re.match(pid) and _num_id_re.match(prev_pid)):
+                continue
         seen_pids.add(pid)
+        if norm_url:
+            seen_urls.add(norm_url)
+        if raw_h and len(txt_pref) >= 20:
+            seen_handle_prefixes.setdefault((raw_h, txt_pref), pid)
         deduped_posts.append(p)
+
+    if not deduped_posts:
+        return 0
+
+    # Cross-batch deduplication against recent 48h rows in x_posts (allow same-id metric updates)
+    try:
+        recent_rows = query_supabase(
+            "SELECT id, LOWER(COALESCE(raw_handle, '')) AS rh, COALESCE(link, '') AS link, "
+            "LEFT(LOWER(REGEXP_REPLACE(COALESCE(text, ''), '\\s+', ' ', 'g')), 120) AS txt_pref "
+            "FROM x_posts WHERE published_dt >= NOW() - INTERVAL '48 hours';"
+        )
+        if recent_rows:
+            db_url_to_id: Dict[str, str] = {}
+            db_hp_to_id: Dict[Tuple[str, str], str] = {}
+            for rr in recent_rows:
+                rid = str(rr.get("id") or "").strip()
+                if not rid:
+                    continue
+                rlink = str(rr.get("link") or "").strip()
+                if rlink:
+                    db_url_to_id.setdefault(normalize_canonical_url(rlink).lower(), rid)
+                rrh = str(rr.get("rh") or "").lstrip("@").strip().lower()
+                rtpref = re.sub(r"\s+", " ", str(rr.get("txt_pref") or "").strip().lower())[:120]
+                if rrh and len(rtpref) >= 20:
+                    db_hp_to_id.setdefault((rrh, rtpref), rid)
+
+            filtered_posts: List[Dict[str, Any]] = []
+            for p in deduped_posts:
+                pid = str(p.get("id", "")).strip()
+                link = str(p.get("link") or "").strip()
+                norm_url = normalize_canonical_url(link).lower() if link else ""
+                raw_h = str(p.get("raw_handle") or p.get("handle") or "").lstrip("@").strip().lower()
+                txt_pref = re.sub(r"\s+", " ", str(p.get("text") or "").strip().lower())[:120]
+                if norm_url and norm_url in db_url_to_id and db_url_to_id[norm_url] != pid:
+                    continue
+                if raw_h and len(txt_pref) >= 20 and (raw_h, txt_pref) in db_hp_to_id:
+                    existing_rid = db_hp_to_id[(raw_h, txt_pref)]
+                    if existing_rid != pid and not (_num_id_re.match(pid) and _num_id_re.match(existing_rid)):
+                        continue
+                filtered_posts.append(p)
+            deduped_posts = filtered_posts
+    except Exception:
+        pass
 
     if not deduped_posts:
         return 0
@@ -2645,6 +3102,7 @@ def save_x_posts(posts: List[Dict[str, Any]], batch_size: int = 250) -> int:
                 engagement_score = EXCLUDED.engagement_score,
                 structured_category = EXCLUDED.structured_category,
                 sentiment = EXCLUDED.sentiment,
+                is_real_api = (x_posts.is_real_api OR EXCLUDED.is_real_api),
                 platform = EXCLUDED.platform,
                 updated_at = NOW()
             RETURNING 1
@@ -2690,9 +3148,9 @@ def get_stored_x_posts(
         platform=platform,
     )
     metric_col_map = {
-        "Most engagement": "COALESCE(engagement_score, 0)",
-        "Most liked": "COALESCE(likes, 0)",
-        "Most reposted": "COALESCE(retweets, 0)",
+        "Most engagement": "CASE WHEN COALESCE(is_real_api, FALSE) THEN COALESCE(engagement_score, 0) ELSE -1 END",
+        "Most liked": "CASE WHEN COALESCE(is_real_api, FALSE) THEN COALESCE(likes, 0) ELSE -1 END",
+        "Most reposted": "CASE WHEN COALESCE(is_real_api, FALSE) THEN COALESCE(retweets, 0) ELSE -1 END",
     }
     metric_col = metric_col_map.get(sort_mode)
     if cursor_dt is not None and cursor_id is not None:
@@ -2908,7 +3366,7 @@ def get_stored_live_feed_page(
             category=category_filter, start_dt=start_dt, end_dt=end_dt,
             search_query=search_query, snapshot_ingested_at=snapshot_ingested_at,
             cursor_dt=cursor_dt, cursor_id=cursor_id,
-            sort_mode="Newest", limit=limit,
+            sort_mode="Newest", exclude_media_houses=True, limit=limit,
         )
         for r in rows:
             r["_feed_type"] = "x"
@@ -3078,9 +3536,9 @@ def _build_workspace_page_sql(
             exclude_media_houses=True, platform=platform,
         )
         metric_col_map = {
-            "Most engagement": "COALESCE(engagement_score, 0)",
-            "Most liked": "COALESCE(likes, 0)",
-            "Most reposted": "COALESCE(retweets, 0)",
+            "Most engagement": "CASE WHEN COALESCE(is_real_api, FALSE) THEN COALESCE(engagement_score, 0) ELSE -1 END",
+            "Most liked": "CASE WHEN COALESCE(is_real_api, FALSE) THEN COALESCE(likes, 0) ELSE -1 END",
+            "Most reposted": "CASE WHEN COALESCE(is_real_api, FALSE) THEN COALESCE(retweets, 0) ELSE -1 END",
         }
         metric_col = metric_col_map.get(sort_mode)
         if cursor_dt is not None and cursor_id is not None:

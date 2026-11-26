@@ -1585,10 +1585,21 @@ def _build_x_profile_line(post: Dict[str, Any]) -> str:
 
     if not role and h_low:
         try:
-            from nepal_verified_x_directory import DIRECTORY_BY_HANDLE
+            from nepal_news_store import get_x_profile_brief_map
+            db_acc = get_x_profile_brief_map().get(h_low)
+            if db_acc:
+                role = (db_acc.get("profile_brief") or "").strip()
+                if not author_name:
+                    author_name = (db_acc.get("name") or "").strip()
+        except Exception:
+            pass
+
+    if not role and h_low:
+        try:
+            from nepal_social_directory import DIRECTORY_BY_HANDLE
             acc = DIRECTORY_BY_HANDLE.get(h_low)
             if acc:
-                role = (acc.get("role") or acc.get("category") or "").strip()
+                role = (acc.get("profile_brief") or acc.get("role") or acc.get("category") or "").strip()
                 if not author_name:
                     author_name = (acc.get("name") or "").strip()
         except Exception:
@@ -1596,12 +1607,12 @@ def _build_x_profile_line(post: Dict[str, Any]) -> str:
 
     if not role and h_low:
         try:
-            from nepal_news_store import get_x_profile_brief_map
-            db_acc = get_x_profile_brief_map().get(h_low)
-            if db_acc:
-                role = (db_acc.get("profile_brief") or "").strip()
+            from nepal_verified_x_directory import DIRECTORY_BY_HANDLE
+            acc = DIRECTORY_BY_HANDLE.get(h_low)
+            if acc:
+                role = (acc.get("role") or acc.get("category") or "").strip()
                 if not author_name:
-                    author_name = (db_acc.get("name") or "").strip()
+                    author_name = (acc.get("name") or "").strip()
         except Exception:
             pass
 

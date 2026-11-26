@@ -301,8 +301,10 @@ _MONITOR_THREAD = None
 _STOP_EVENT = threading.Event()
 _LAST_X_SCAN_TIME = 0.0
 _LAST_INDIAN_SCAN_TIME = 0.0
+_LAST_CANDIDATE_EVAL_TIME = 0.0
 X_SCAN_INTERVAL_SECS = 15 * 60  # Automatically scan X every 15 minutes
 INDIAN_SCAN_INTERVAL_SECS = 15 * 60  # Automatically poll 34 Indian outlets every 15 minutes
+CANDIDATE_EVAL_INTERVAL_SECS = 60 * 60  # Evaluate pending_verification discovery candidates hourly
 STREAM_STAGGER_SECS = 6 * 60  # Stagger Indian Press and X scanner by 6 minutes so streams never collide
 
 _MANUAL_SYNC_LOCK = threading.Lock()
@@ -585,6 +587,23 @@ def _compute_staggered_due_streams(
     return run_indian, run_x, last_indian_ts, last_x_ts
 
 
+def _maybe_run_candidate_discovery(now_sec: Optional[float] = None) -> Optional[Dict[str, int]]:
+    """Runs hourly automated candidate discovery evaluation when due."""
+    global _LAST_CANDIDATE_EVAL_TIME
+    cur = time.time() if now_sec is None else float(now_sec)
+    if (cur - _LAST_CANDIDATE_EVAL_TIME) < CANDIDATE_EVAL_INTERVAL_SECS:
+        return None
+    _LAST_CANDIDATE_EVAL_TIME = cur
+    try:
+        from nepal_news_store import evaluate_and_enqueue_candidates
+        res = evaluate_and_enqueue_candidates()
+        logger.info(f"Hourly candidate discovery evaluation: {res}")
+        return res
+    except Exception as exc:
+        logger.warning(f"Candidate discovery evaluation failed: {format_exc(exc)}")
+        return None
+
+
 def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
     """Background continuous loop that checks and ingests Nepali portals, Indian press, and X posts."""
     global _LAST_X_SCAN_TIME, _LAST_INDIAN_SCAN_TIME
@@ -674,6 +693,7 @@ def _monitoring_daemon_loop(stop_ev: Optional[threading.Event] = None):
                                 logger.warning(f"Monitoring loop {label} cycle timed out after 90s; continuing.")
                 finally:
                     pool.shutdown(wait=False, cancel_futures=True)
+                _maybe_run_candidate_discovery(now_sec)
             finally:
                 _INGEST_RUN_LOCK.release()
 

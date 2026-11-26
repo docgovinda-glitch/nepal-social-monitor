@@ -343,6 +343,7 @@ from nepal_news_store import (
     get_x_account_kpis,
     set_x_account_enabled,
     upsert_single_x_account,
+    promote_pending_x_account,
     delete_x_account,
     verify_x_profile_connectivity,
     normalize_x_handle,
@@ -893,7 +894,7 @@ def get_active_x_posts(start_dt: datetime.datetime = None, end_dt: datetime.date
     now_curr = datetime.datetime.now(NEPAL_TZ)
     eff_end = end_dt if end_dt is not None else now_curr
     try:
-        posts = get_stored_x_posts(start_dt=start_dt, end_dt=eff_end, limit=int(limit))
+        posts = get_stored_x_posts(start_dt=start_dt, end_dt=eff_end, exclude_media_houses=True, limit=int(limit))
     except Exception:
         return []
     if start_dt is not None:
@@ -1073,10 +1074,16 @@ def _render_x_metrics_html(p: Dict[str, Any]) -> str:
         senti_class = "x-sentiment-positive"
     else:
         senti_class = ""
-    metrics = "".join(
-        f'<span class="x-metric-item" title="{label}">{icon} {compact_number(int(p.get(key, 0) or 0))}</span>'
-        for key, icon, label in (("likes", "♥", "Likes"), ("retweets", "↻", "Reposts"), ("replies", "💬", "Replies"), ("impressions", "◉", "Views"))
-    )
+    likes = int(p.get("likes", 0) or 0)
+    retweets = int(p.get("retweets", 0) or 0)
+    replies = int(p.get("replies", 0) or 0)
+    if not p.get("is_real_api", True) and likes == 0 and retweets == 0 and replies == 0:
+        metrics = '<span class="x-metric-item" title="Syndicated RSS post; engagement metrics unavailable">RSS / Metrics N/A</span>'
+    else:
+        metrics = "".join(
+            f'<span class="x-metric-item" title="{label}">{icon} {compact_number(int(p.get(key, 0) or 0))}</span>'
+            for key, icon, label in (("likes", "♥", "Likes"), ("retweets", "↻", "Reposts"), ("replies", "💬", "Replies"), ("impressions", "◉", "Views"))
+        )
     return f'<div class="x-metrics-group">{metrics}<span class="x-sentiment-badge {senti_class}">{html.escape(sentiment)}</span></div>'
 
 
@@ -2955,7 +2962,10 @@ def _extract_next_cursor(workspace: str, rows: List[Dict[str, Any]], sort_mode: 
         return (pdt, last.get("_stream_rank", 1), str(last.get("_cursor_id") or last.get("canonical_id") or last.get("id") or ""))
     if workspace == "x":
         m_key = {"Most engagement": "engagement_score", "Most liked": "likes", "Most reposted": "retweets"}.get(sort_mode)
-        m_val = int(last.get(m_key, 0) or 0) if m_key else None
+        if m_key:
+            m_val = int(last.get(m_key, 0) or 0) if last.get("is_real_api", True) else -1
+        else:
+            m_val = None
         return (m_val, pdt, str(last.get("id") or ""))
     return (pdt, str(last.get("canonical_id") or ""))
 
@@ -4973,10 +4983,12 @@ def render_x_section() -> None:
                             st.caption(f"Profile: {pa.get('role') or pa.get('profile_brief')}")
                         with pc2:
                             if st.button("Promote to Verified", key=f"btn_promote_{pa_plat}_{ph}", width="stretch"):
-                                pa["verification_status"] = "verified"
-                                upsert_single_x_account(pa)
-                                st.toast(f"Promoted {ph} to Verified!", icon=":material/verified:")
-                                st.rerun()
+                                ok_prom, prom_msg = promote_pending_x_account(ph, platform=pa_plat)
+                                if ok_prom:
+                                    st.toast(f"Promoted {ph} to Verified!", icon=":material/verified:")
+                                    st.rerun()
+                                else:
+                                    st.warning(prom_msg)
                         with pc3:
                             if st.button("Remove", key=f"btn_remove_{pa_plat}_{ph}", width="stretch", type="secondary"):
                                 delete_x_account(ph, platform=pa_plat)

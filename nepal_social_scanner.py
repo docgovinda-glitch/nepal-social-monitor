@@ -14,6 +14,7 @@ Key Constraints & Guardrails:
      and Open Graph metadata. Zero credentialed scraping.
 """
 
+import hashlib
 import json
 import os
 import time
@@ -39,7 +40,7 @@ from nepal_social_directory import VERIFIED_NEPAL_SOCIAL_DIRECTORY, DIRECTORY_BY
 
 _SOCIAL_HTTP_LOCAL = threading.local()
 _BATCH_CURSOR_LOCK = threading.Lock()
-_CURRENT_ACCOUNT_CURSOR = 0
+_CURRENT_ACCOUNT_CURSOR: Optional[int] = None
 
 # Canonical 8 Structured Categories
 CANONICAL_CATEGORIES = [
@@ -208,6 +209,27 @@ def _clean_syndication_text(raw_text: str) -> str:
     return text
 
 
+def _deterministic_social_post_id(
+    platform: str,
+    link: str,
+    title: str = "",
+    status_id: str = "",
+) -> str:
+    """Generates a deterministic, restart-safe post ID from normalized canonical URL or status ID."""
+    plat = (platform or "x").lower().strip()
+    prefix = "fb" if plat == "facebook" else "x"
+    if status_id:
+        return f"{prefix}_{str(status_id).strip()}"
+    try:
+        from nepal_news_store import normalize_canonical_url
+        norm_url = normalize_canonical_url(link or "")
+    except Exception:
+        norm_url = (link or "").strip().rstrip("/")
+    seed = f"{plat}:{norm_url}" if norm_url else f"{plat}:title:{(title or '').strip().lower()[:80]}"
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:20]
+    return f"{prefix}_{digest}"
+
+
 def _format_post_rel_time(pub_dt: datetime.datetime, now_npt: datetime.datetime) -> str:
     """Formats human-friendly relative time string."""
     diff = now_npt - pub_dt
@@ -313,10 +335,12 @@ def _fetch_x_account_posts(acc: Dict[str, Any], hours_cutoff: int = 48) -> List[
                     continue
 
                 m_sid = re.search(r"/status/(\d{16,22})", link)
-                sid = m_sid.group(1) if m_sid else abs(hash(link + clean_title[:30]))
+                pid = _deterministic_social_post_id(
+                    "x", link, clean_title, status_id=(m_sid.group(1) if m_sid else "")
+                )
 
                 posts.append({
-                    "id": f"x_{sid}",
+                    "id": pid,
                     "platform": "x",
                     "handle": handle,
                     "raw_handle": handle,
@@ -329,17 +353,17 @@ def _fetch_x_account_posts(acc: Dict[str, Any], hours_cutoff: int = 48) -> List[
                     "text": body_text,
                     "headline_english": clean_title[:90],
                     "structured_category": cat,
-                    "likes": 42,
-                    "retweets": 11,
-                    "replies": 7,
-                    "impressions": 650,
-                    "engagement_score": 64,
+                    "likes": 0,
+                    "retweets": 0,
+                    "replies": 0,
+                    "impressions": 0,
+                    "engagement_score": 0,
                     "published_dt": pub_dt,
                     "relative_time": _format_post_rel_time(pub_dt, now_npt),
                     "exact_time": pub_dt.strftime("%I:%M %p"),
                     "link": link,
                     "sentiment": "Neutral",
-                    "is_real_api": True,
+                    "is_real_api": False,
                     "ingested_at": now_npt,
                     "updated_at": now_npt
                 })
@@ -349,125 +373,202 @@ def _fetch_x_account_posts(acc: Dict[str, Any], hours_cutoff: int = 48) -> List[
     return posts
 
 
-def _fetch_facebook_page_posts(acc: Dict[str, Any], hours_cutoff: int = 48) -> List[Dict[str, Any]]:
-    """Fetches public Facebook posts for a page/profile strictly from the last 48 hours."""
-    posts = []
+_FB_NEPALI_NAME_ALIASES: Dict[str, List[str]] = {
+    "balenofficial": ["बालेन शाह", "बालेन्द्र शाह"],
+    "harkasampang2022": ["हर्क साम्पाङ"],
+    "gopalhamalofficial": ["गोपाल हमाल"],
+    "chiribabumaharjanofficial": ["चिरीबाबु महर्जन"],
+    "renudahalofficial": ["रेनु दाहाल"],
+    "sunitadangolofficial": ["सुनिता डंगोल"],
+    "kpsharmaoli": ["केपी शर्मा ओली", "केपी ओली"],
+    "cmprachanda": ["प्रचण्ड", "पुष्पकमल दाहाल"],
+    "sherbahadurdeubaofficial": ["शेरबहादुर देउवा"],
+    "thapagk": ["गगन थापा", "गगनकुमार थापा"],
+    "bishwoprakashsharma": ["विश्वप्रकाश शर्मा"],
+    "rabilamichhane": ["रवि लामिछाने"],
+    "swarnim.wagle": ["स्वर्णिम वाग्ले"],
+    "drckraut": ["सीके राउत"],
+    "drbaburambhattarai": ["बाबुराम भट्टराई"],
+    "rajendralingdenofficial": ["राजेन्द्र लिङ्देन"],
+    "madhavkumarnepalofficial": ["माधवकुमार नेपाल"],
+    "upendrayadavofficial": ["उपेन्द्र यादव"],
+    "sumanashresthanepal": ["सुमना श्रेष्ठ"],
+    "sobitagautamofficial": ["सोबिता गौतम"],
+    "pradeeppaudelofficial": ["प्रदीप पौडेल"],
+    "shekharkoiralaofficial": ["शेखर कोइराला"],
+    "onlinekhabar": ["अनलाइनखबर"],
+    "setopati": ["सेतोपाटी"],
+    "kantipuronline": ["कान्तिपुर"],
+    "ratopationline": ["रातोपाटी"],
+    "nagariknews": ["नागरिक न्यूज"],
+    "annapurnapost": ["अन्नपूर्ण पोस्ट"],
+    "nayapatrika": ["नयाँ पत्रिका"],
+    "ecnofficial": ["निर्वाचन आयोग"],
+    "nepalpolicephq": ["नेपाल प्रहरी"],
+    "100064557167145": ["रुटिन अफ नेपाल बन्द"],
+    "1434940019": ["विष्णु रिजाल"],
+}
+
+
+def _get_facebook_name_aliases(acc: Dict[str, Any]) -> List[str]:
+    """Returns Nepali (Devanagari) name aliases for a monitored Facebook account."""
+    handle = str(acc.get("handle") or "").lstrip("@").strip().lower()
+    aliases: List[str] = []
+    extra = acc.get("name_ne")
+    if isinstance(extra, str) and extra.strip():
+        aliases.append(extra.strip())
+    for al in _FB_NEPALI_NAME_ALIASES.get(handle, []):
+        if al not in aliases:
+            aliases.append(al)
+    return aliases
+
+
+def _is_matching_facebook_entry(link: str, title: str, acc: Dict[str, Any], source_title: str = "") -> bool:
+    """Ensures a syndication RSS entry actually belongs to the target Facebook page/profile."""
+    raw_link = (link or "").strip()
+    try:
+        from nepal_news_store import normalize_canonical_url
+        norm_link = normalize_canonical_url(raw_link).lower()
+    except Exception:
+        norm_link = raw_link.lower()
+    handle = str(acc.get("handle") or "").lstrip("@").strip().lower()
+    name = str(acc.get("name") or "").strip().lower()
+    nepali_aliases = [a.lower() for a in _get_facebook_name_aliases(acc) if len(a) >= 2]
+    title_low = (title or "").lower()
+    source_low = (source_title or "").lower()
+    combined_low = f"{title_low} {source_low}".strip()
+
+    if "news.google.com/rss/articles/" in norm_link:
+        # Google News RSS wraps target URLs; require Facebook source (if provided) and target name/handle/alias match
+        if source_low and "facebook" not in source_low and "fb.com" not in source_low:
+            return False
+        if handle and len(handle) >= 3 and re.search(rf"(?:^|[^a-z0-9_]){re.escape(handle)}(?:$|[^a-z0-9_])", combined_low):
+            return True
+        if name and len(name) >= 3 and name in combined_low:
+            return True
+        if any(al in combined_low for al in nepali_aliases):
+            return True
+        return False
+
+    if "facebook.com" not in norm_link and "fb.com" not in norm_link:
+        return False
+    if handle and re.search(rf"(?:^|[/?=&]){re.escape(handle)}(?:$|[/?&#])", norm_link):
+        return True
+    if name and len(name) >= 3 and name in title_low:
+        return True
+    if any(al in title_low for al in nepali_aliases):
+        return True
+    return False
+
+
+def _build_facebook_post_from_entry(
+    entry: Any,
+    acc: Dict[str, Any],
+    now_npt: datetime.datetime,
+    cutoff_dt: datetime.datetime,
+    author_type: str,
+) -> Optional[Dict[str, Any]]:
+    """Parses and validates a single RSS entry for a monitored Facebook page/profile."""
     handle = acc.get("handle", "")
     name = acc.get("name", handle)
+    pub_dt = _parse_entry_dt(entry, now_npt)
+    if pub_dt < cutoff_dt or pub_dt > now_npt + datetime.timedelta(minutes=15):
+        return None
+
+    raw_title = getattr(entry, "title", "")
+    summary = getattr(entry, "summary", "")
+    link = getattr(entry, "link", f"https://www.facebook.com/{handle}")
+    src_obj = getattr(entry, "source", None)
+    source_title = (src_obj.get("title", "") if isinstance(src_obj, dict) else getattr(src_obj, "title", "")) or ""
+
+    clean_title = _clean_syndication_text(raw_title)
+    clean_summary = _clean_syndication_text(summary)
+    body_text = clean_summary if len(clean_summary) > 25 else clean_title
+
+    if not _is_matching_facebook_entry(link, clean_title, acc, source_title=source_title):
+        return None
+
+    is_news, _, cat = is_news_post(clean_title, body_text)
+    if not is_news:
+        return None
+
+    pid = _deterministic_social_post_id("facebook", link, clean_title)
+    norm_handle = handle or name.replace(" ", "").lower()
+    return {
+        "id": pid,
+        "platform": "facebook",
+        "handle": norm_handle,
+        "raw_handle": norm_handle,
+        "author_name": name,
+        "author_type": author_type,
+        "role": acc.get("role", ""),
+        "avatar_bg": acc.get("avatar_bg", "#1877F2"),
+        "initials": acc.get("initials", "FB"),
+        "title": clean_title[:90],
+        "text": body_text,
+        "headline_english": clean_title[:90],
+        "structured_category": cat,
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "impressions": 0,
+        "engagement_score": 0,
+        "published_dt": pub_dt,
+        "relative_time": _format_post_rel_time(pub_dt, now_npt),
+        "exact_time": pub_dt.strftime("%I:%M %p"),
+        "link": link,
+        "sentiment": "Neutral",
+        "is_real_api": False,
+        "ingested_at": now_npt,
+        "updated_at": now_npt,
+    }
+
+
+def _fetch_facebook_page_posts(acc: Dict[str, Any], hours_cutoff: int = 48) -> List[Dict[str, Any]]:
+    """Fetches public Facebook posts for a page/profile strictly from the last 48 hours."""
+    posts: List[Dict[str, Any]] = []
+    seen_pids = set()
+    handle = str(acc.get("handle", "") or "").lstrip("@").strip()
+    name = str(acc.get("name", handle) or "").strip()
     if not handle and not name:
         return posts
 
     now_npt = datetime.datetime.now(NEPAL_TZ)
     cutoff_dt = now_npt - datetime.timedelta(hours=hours_cutoff)
+    author_type = acc.get("type") or acc.get("category") or "Politicians"
 
-    # Google News Syndication for Facebook posts published in the last 48 hours
-    q_url = f"https://news.google.com/rss/search?q={urllib.parse.quote(f'site:facebook.com \"{name}\" when:2d')}&hl=en-US&gl=US&ceid=US:en"
+    # Nepal-edition Google News Syndication combining exact handle path, English name, and Nepali alias
+    aliases = _get_facebook_name_aliases(acc)
+    name_clause = f'("{name}" OR "{aliases[0]}")' if aliases else f'"{name}"'
+    if handle and not handle.isdigit():
+        g_query = f'(site:facebook.com/{handle} OR (site:facebook.com {name_clause})) when:2d'
+    else:
+        g_query = f'site:facebook.com {name_clause} when:2d'
+    q_url = f"https://news.google.com/rss/search?q={urllib.parse.quote(g_query)}&hl=en-IN&gl=NP&ceid=NP:en"
     try:
         feed = feedparser.parse(q_url)
-        for entry in feed.entries[:5]:
-            pub_dt = _parse_entry_dt(entry, now_npt)
-            if pub_dt < cutoff_dt or pub_dt > now_npt + datetime.timedelta(minutes=15):
-                continue
-
-            raw_title = getattr(entry, "title", "")
-            summary = getattr(entry, "summary", "")
-            link = getattr(entry, "link", f"https://www.facebook.com/{handle}")
-
-            clean_title = _clean_syndication_text(raw_title)
-            clean_summary = _clean_syndication_text(summary)
-            body_text = clean_summary if len(clean_summary) > 25 else clean_title
-
-            is_news, _, cat = is_news_post(clean_title, body_text)
-            if not is_news:
-                continue
-
-            pid = f"fb_{abs(hash(link + clean_title[:40]))}"
-            posts.append({
-                "id": pid,
-                "platform": "facebook",
-                "handle": handle or name.replace(" ", "").lower(),
-                "raw_handle": handle or name.replace(" ", "").lower(),
-                "author_name": name,
-                "author_type": acc.get("category", "Politicians"),
-                "role": acc.get("role", ""),
-                "avatar_bg": acc.get("avatar_bg", "#1877F2"),
-                "initials": acc.get("initials", "FB"),
-                "title": clean_title[:90],
-                "text": body_text,
-                "headline_english": clean_title[:90],
-                "structured_category": cat,
-                "likes": 140,
-                "retweets": 38,
-                "replies": 26,
-                "impressions": 1950,
-                "engagement_score": 216,
-                "published_dt": pub_dt,
-                "relative_time": _format_post_rel_time(pub_dt, now_npt),
-                "exact_time": pub_dt.strftime("%I:%M %p"),
-                "link": link,
-                "sentiment": "Neutral",
-                "is_real_api": True,
-                "ingested_at": now_npt,
-                "updated_at": now_npt
-            })
+        for entry in feed.entries[:8]:
+            post = _build_facebook_post_from_entry(entry, acc, now_npt, cutoff_dt, author_type)
+            if post and post["id"] not in seen_pids:
+                seen_pids.add(post["id"])
+                posts.append(post)
     except Exception:
         pass
 
-    # Bing News RSS syndication fallback for recent official notices and press releases
+    # Bing News RSS syndication fallback strictly scoped to site:facebook.com
     if not posts:
         try:
-            b_query = f"{name} Nepal"
+            b_query = f'site:facebook.com "{name}"'
             bing_url = f"https://www.bing.com/news/search?q={urllib.parse.quote(b_query)}&format=rss"
             sess = _get_social_http_session()
             resp = sess.get(bing_url, verify=False, timeout=8)
             if resp.status_code == 200:
                 b_feed = feedparser.parse(resp.text)
                 for entry in b_feed.entries[:5]:
-                    pub_dt = _parse_entry_dt(entry, now_npt)
-                    if pub_dt < cutoff_dt or pub_dt > now_npt + datetime.timedelta(minutes=15):
-                        continue
-
-                    raw_title = getattr(entry, "title", "")
-                    summary = getattr(entry, "summary", "")
-                    link = getattr(entry, "link", f"https://www.facebook.com/{handle}")
-
-                    clean_title = _clean_syndication_text(raw_title)
-                    clean_summary = _clean_syndication_text(summary)
-                    body_text = clean_summary if len(clean_summary) > 25 else clean_title
-
-                    is_news, _, cat = is_news_post(clean_title, body_text)
-                    if not is_news:
-                        continue
-
-                    pid = f"fb_{abs(hash(link + clean_title[:40]))}"
-                    posts.append({
-                        "id": pid,
-                        "platform": "facebook",
-                        "handle": handle or name.replace(" ", "").lower(),
-                        "raw_handle": handle or name.replace(" ", "").lower(),
-                        "author_name": name,
-                        "author_type": acc.get("category", "Government Agencies of Nepal"),
-                        "role": acc.get("role", ""),
-                        "avatar_bg": acc.get("avatar_bg", "#1877F2"),
-                        "initials": acc.get("initials", "FB"),
-                        "title": clean_title[:90],
-                        "text": body_text,
-                        "headline_english": clean_title[:90],
-                        "structured_category": cat,
-                        "likes": 165,
-                        "retweets": 44,
-                        "replies": 32,
-                        "impressions": 2400,
-                        "engagement_score": 252,
-                        "published_dt": pub_dt,
-                        "relative_time": _format_post_rel_time(pub_dt, now_npt),
-                        "exact_time": pub_dt.strftime("%I:%M %p"),
-                        "link": link,
-                        "sentiment": "Neutral",
-                        "is_real_api": True,
-                        "ingested_at": now_npt,
-                        "updated_at": now_npt
-                    })
+                    post = _build_facebook_post_from_entry(entry, acc, now_npt, cutoff_dt, author_type)
+                    if post and post["id"] not in seen_pids:
+                        seen_pids.add(post["id"])
+                        posts.append(post)
         except Exception:
             pass
 
@@ -579,7 +680,7 @@ def backfill_social_feeds_48h(hours: int = 48, max_workers: int = 12) -> Dict[st
                         avatar_bg = acc.get("avatar_bg", avatar_bg)
                         break
 
-                pid = f"{plat}_{abs(hash(link + clean_title[:40]))}"
+                pid = _deterministic_social_post_id(plat, link, clean_title)
                 topic_posts.append({
                     "id": pid,
                     "platform": plat,
@@ -594,17 +695,17 @@ def backfill_social_feeds_48h(hours: int = 48, max_workers: int = 12) -> Dict[st
                     "text": body_text,
                     "headline_english": clean_title[:90],
                     "structured_category": cat if cat != "Others" else default_cat,
-                    "likes": 88,
-                    "retweets": 22,
-                    "replies": 14,
-                    "impressions": 1100,
-                    "engagement_score": 132,
+                    "likes": 0,
+                    "retweets": 0,
+                    "replies": 0,
+                    "impressions": 0,
+                    "engagement_score": 0,
                     "published_dt": pub_dt,
                     "relative_time": _format_post_rel_time(pub_dt, now_npt),
                     "exact_time": pub_dt.strftime("%I:%M %p"),
                     "link": link,
                     "sentiment": "Neutral",
-                    "is_real_api": True,
+                    "is_real_api": False,
                     "ingested_at": now_npt,
                     "updated_at": now_npt
                 })
@@ -657,11 +758,11 @@ def backfill_social_feeds_48h(hours: int = 48, max_workers: int = 12) -> Dict[st
     }
 
 
-def scan_social_batch(batch_size: int = 10, offset: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
+def scan_social_batch(batch_size: int = 25, offset: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
     """
-    Ingests exactly batch_size (default 10) accounts/profiles/pages at a time
-    in a continuous circular loop to maintain high accuracy and prevent rate limiting.
-    Returns (harvested_posts, next_offset).
+    Ingests batch_size (default 25) accounts/profiles/pages at a time
+    in a continuous circular loop using a time-slotted initial cursor so
+    restarts do not reset to index 0. Returns (harvested_posts, next_offset).
     """
     global _CURRENT_ACCOUNT_CURSOR
 
@@ -673,6 +774,9 @@ def scan_social_batch(batch_size: int = 10, offset: Optional[int] = None) -> Tup
         if offset is not None:
             cur_idx = offset % len(accounts)
         else:
+            if _CURRENT_ACCOUNT_CURSOR is None:
+                slot = int(time.time() // 900)
+                _CURRENT_ACCOUNT_CURSOR = (slot * batch_size) % len(accounts)
             cur_idx = _CURRENT_ACCOUNT_CURSOR % len(accounts)
 
         end_idx = cur_idx + batch_size
@@ -686,7 +790,7 @@ def scan_social_batch(batch_size: int = 10, offset: Optional[int] = None) -> Tup
         if offset is None:
             _CURRENT_ACCOUNT_CURSOR = next_cursor
 
-    # Execute concurrent ingestion for this specific 10-account batch
+    # Execute concurrent ingestion for this batch
     batch_posts: List[Dict[str, Any]] = []
 
     def _worker(acc: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -696,7 +800,7 @@ def scan_social_batch(batch_size: int = 10, offset: Optional[int] = None) -> Tup
         else:
             return _fetch_x_account_posts(acc, hours_cutoff=48)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(target_batch))) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(12, len(target_batch))) as pool:
         futures = {pool.submit(_worker, acc): acc for acc in target_batch}
         for fut in concurrent.futures.as_completed(futures):
             try:
