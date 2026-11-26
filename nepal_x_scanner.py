@@ -693,6 +693,61 @@ def _load_existing_x_refresh_map(candidate_sids: List[str]) -> Dict[str, Optiona
         return {}
 
 
+def _get_portal_x_accounts() -> List[Dict[str, Any]]:
+    """
+    Builds X discovery account entries for all x_handle / x_boost_handle portals in
+    TOP_NEPAL_NEWS_PORTALS so portal X bridges and boosts keep ingesting even when a
+    portal's X handle is excluded from the curated social directory.
+    """
+    from nepal_config import TOP_NEPAL_NEWS_PORTALS
+
+    portal_accounts: List[Dict[str, Any]] = []
+    seen = set()
+    for portal in TOP_NEPAL_NEWS_PORTALS:
+        for field in ("x_handle", "x_boost_handle"):
+            raw_h = (portal.get(field) or "").lstrip("@").strip()
+            if not raw_h:
+                continue
+            h_low = raw_h.lower()
+            if h_low in seen:
+                continue
+            seen.add(h_low)
+            existing = ACCOUNT_BY_HANDLE.get(h_low)
+            if existing:
+                portal_accounts.append(existing)
+            else:
+                name = portal.get("name") or raw_h
+                portal_accounts.append({
+                    "handle": raw_h,
+                    "name": name,
+                    "category": "Media Houses and News Outlets",
+                    "type": "Media Houses and News Outlets",
+                    "role": portal.get("category", "News Outlet"),
+                    "avatar_bg": "#b91c1c",
+                    "initials": "".join(w[0].upper() for w in name.split()[:2]) or raw_h[:2].upper(),
+                    "platform": "x",
+                    "enabled": 1,
+                    "verified": True,
+                })
+    return portal_accounts
+
+
+def _with_portal_x_accounts(accounts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Returns `accounts` augmented with any portal X bridge/boost handles not already present."""
+    merged = list(accounts)
+    seen = {
+        str(a.get("handle") or "").lstrip("@").strip().lower()
+        for a in merged
+        if a.get("handle") and str(a.get("platform") or "x").lower() == "x"
+    }
+    for p_acc in _get_portal_x_accounts():
+        h_low = str(p_acc.get("handle") or "").lstrip("@").strip().lower()
+        if h_low and h_low not in seen:
+            merged.append(p_acc)
+            seen.add(h_low)
+    return merged
+
+
 def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
     """
     Directly harvests and enriches fresh, real-time live tweets across all
@@ -703,7 +758,7 @@ def harvest_tweets_from_nepali_accounts() -> List[Dict[str, Any]]:
     if not active_accounts:
         active_accounts = TOP_NEPAL_X_ACCOUNTS
 
-    dedup_items = _discover_profile_tweet_candidates(active_accounts, timeout_secs=16.0)
+    dedup_items = _discover_profile_tweet_candidates(_with_portal_x_accounts(active_accounts), timeout_secs=16.0)
     if not dedup_items:
         return []
 
@@ -741,13 +796,14 @@ def scan_popular_nepal_x_posts(force_refresh: bool = False, on_progress=None) ->
     active_accounts = get_monitored_x_accounts(enabled_only=True)
     if not active_accounts:
         active_accounts = TOP_NEPAL_X_ACCOUNTS
+    discovery_accounts = _with_portal_x_accounts(active_accounts)
 
     # Run account profile harvesting and Bing RSS discovery concurrently
     profile_candidates: Dict[str, Dict[str, Any]] = {}
     bing_candidates: List[Tuple[str, str, str, str]] = []
     disc_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
     try:
-        f_profiles = disc_pool.submit(_discover_profile_tweet_candidates, active_accounts, 18.0)
+        f_profiles = disc_pool.submit(_discover_profile_tweet_candidates, discovery_accounts, 18.0)
         f_bing = disc_pool.submit(_discover_bing_tweet_candidates, 12.0)
         try:
             profile_candidates = f_profiles.result(timeout=26.0) or {}

@@ -9,19 +9,62 @@ import unittest
 from unittest import mock
 import datetime
 
+import nepal_config as cfg
 import nepal_social_directory as sd
 import nepal_social_scanner as scanner
 import nepal_news_store as store
+import nepal_x_scanner as xs
 from nepal_config import NEPAL_TZ
 
 
 class TestSocialMediaUnification(unittest.TestCase):
 
     def test_directory_volume_and_integrity(self):
-        """Verifies directory contains strictly audited, authentic voices with zero fabrication."""
+        """Verifies curated directory keeps strictly the live 242 authentic accounts with zero duplicates."""
         accounts = sd.VERIFIED_NEPAL_SOCIAL_DIRECTORY
-        self.assertGreaterEqual(len(accounts), 380, "Directory must have at least 380 authentic accounts")
-        
+        self.assertEqual(len(accounts), 242, "Curated directory must match the live 242 accounts")
+        self.assertEqual(sum(1 for a in accounts if a.get("platform") == "facebook"), 58)
+        self.assertEqual(sum(1 for a in accounts if a.get("platform") == "x"), 184)
+
+        # Verify zero duplicate (platform, handle) entries
+        plat_handles = [(a.get("platform", "x").lower(), a.get("handle", "").lstrip("@").lower()) for a in accounts]
+        self.assertEqual(len(plat_handles), len(set(plat_handles)), "Duplicate (platform, handle) found in directory")
+
+        # Verify directory-only pruned handles and superseded Facebook duplicates are absent
+        self.assertNotIn("x:rato_pati", sd.DIRECTORY_BY_PLATFORM_HANDLE)
+        self.assertNotIn("x:techpananp", sd.DIRECTORY_BY_PLATFORM_HANDLE)
+        self.assertNotIn("facebook:12khari", sd.DIRECTORY_BY_PLATFORM_HANDLE)
+        for dup_fb in (
+            "facebook:bijaykumar.official",
+            "facebook:prembaniyaofficial",
+            "facebook:gyanendrashahiofficial",
+            "facebook:ndrrma.nepal",
+            "facebook:nepalpolicehq",
+        ):
+            self.assertNotIn(dup_fb, sd.DIRECTORY_BY_PLATFORM_HANDLE)
+
+        # Verify newly onboarded accounts across all 4 groups
+        for key in (
+            "x:bishnurijal1",
+            "facebook:1434940019",
+            "x:arjunnarasingha",
+            "x:khusbu_oli",
+            "x:jagdishkharel1",
+            "x:hark_sampang",
+            "x:lama_ram1",
+            "x:birat_anupam",
+            "x:tikaramyatri",
+            "facebook:100064557167145",
+            "facebook:routineofnepalipolitics",
+            "facebook:24ghantanepal",
+            "x:nonext_question",
+            "x:tanujapandey_",
+            "facebook:100066949059540",
+            "x:sidhant",
+            "x:siddhantvm",
+        ):
+            self.assertIn(key, sd.DIRECTORY_BY_PLATFORM_HANDLE, f"Missing expected account {key}")
+
         # Verify Balen Shah handles are authentic real-world URLs
         balen_fb = sd.DIRECTORY_BY_PLATFORM_HANDLE.get("facebook:balenofficial")
         self.assertIsNotNone(balen_fb, "Balen Shah Facebook must exist in directory")
@@ -92,16 +135,96 @@ class TestSocialMediaUnification(unittest.TestCase):
         # Test KPI fallback
         with mock.patch("nepal_news_store.query_supabase", return_value=[]):
             kpis = store.get_x_account_kpis()
-            self.assertGreaterEqual(kpis.get("total_discovered", 0), 380)
+            self.assertEqual(kpis.get("total_discovered", 0), 242)
             self.assertIn("Politicians", kpis.get("by_category", {}))
 
     def test_landing_page_source_counts(self):
-        """Verifies _source_counts accurately returns social media accounts >= 380."""
+        """Verifies _source_counts accurately returns the live 242 social media accounts."""
         from app import _source_counts
         np_c, ind_c, soc_c = _source_counts()
         self.assertGreater(np_c, 0, "Nepali press count should be > 0")
         self.assertGreater(ind_c, 0, "Indian press count should be > 0")
-        self.assertGreaterEqual(soc_c, 380, "Social media account count must reflect the vetted accounts")
+        self.assertGreaterEqual(soc_c, 242, "Social media account count must reflect the vetted accounts")
+
+    def test_portal_x_bridges_and_boosts_preserved_beyond_curated_directory(self):
+        """Verifies portal X bridge/boost handles remain active even when omitted from the 207 curated directory."""
+        import nepal_fetcher as fetcher
+
+        expected_portal_handles = {
+            (p.get("x_handle") or p.get("x_boost_handle")).lstrip("@").strip().lower()
+            for p in cfg.TOP_NEPAL_NEWS_PORTALS
+            if p.get("x_handle") or p.get("x_boost_handle")
+        }
+        self.assertEqual(len(expected_portal_handles), 10)
+        self.assertIn("rato_pati", expected_portal_handles)
+        self.assertIn("techpananp", expected_portal_handles)
+
+        # Curated directory intentionally omits directory-only portal boost handles
+        curated_keys = {a["handle"].lower() for a in sd.VERIFIED_NEPAL_SOCIAL_DIRECTORY}
+        self.assertNotIn("rato_pati", curated_keys)
+        self.assertNotIn("techpananp", curated_keys)
+
+        # _with_portal_x_accounts preserves all 10 portal X handles for scanner discovery
+        merged = xs._with_portal_x_accounts(sd.VERIFIED_NEPAL_SOCIAL_DIRECTORY)
+        merged_x_handles = {
+            a["handle"].lstrip("@").strip().lower()
+            for a in merged
+            if str(a.get("platform") or "x").lower() == "x"
+        }
+        self.assertTrue(expected_portal_handles.issubset(merged_x_handles))
+        rato_acc = next(a for a in merged if a["handle"].lower() == "rato_pati")
+        tech_acc = next(a for a in merged if a["handle"].lower() == "techpananp")
+        self.assertEqual(rato_acc.get("type"), "Media Houses and News Outlets")
+        self.assertEqual(tech_acc.get("type"), "Media Houses and News Outlets")
+
+        # scan_popular_nepal_x_posts passes portal boost handles into profile candidate discovery
+        seen_discovery_handles = set()
+
+        def _fake_discover(accounts, timeout_secs=18.0):
+            seen_discovery_handles.update(
+                a["handle"].lstrip("@").strip().lower() for a in accounts if a.get("handle")
+            )
+            return {}
+
+        with mock.patch("nepal_x_scanner.get_monitored_x_accounts", return_value=list(sd.VERIFIED_NEPAL_SOCIAL_DIRECTORY)), \
+             mock.patch("nepal_x_scanner._discover_profile_tweet_candidates", side_effect=_fake_discover), \
+             mock.patch("nepal_x_scanner._discover_bing_tweet_candidates", return_value=[]), \
+             mock.patch("nepal_social_scanner.scan_social_batch", return_value=([], 0)), \
+             mock.patch("nepal_news_store.save_x_posts", return_value=0), \
+             mock.patch("nepal_fetcher.bridge_x_portals_to_articles", return_value=0):
+            xs.scan_popular_nepal_x_posts(force_refresh=True)
+
+        self.assertTrue(expected_portal_handles.issubset(seen_discovery_handles))
+
+        # boost_x_portals_to_articles still boosts Ratopati & TechPana posts
+        now_npt = datetime.datetime(2026, 11, 26, 9, 45, 0, tzinfo=NEPAL_TZ)
+        sample_x_posts = [
+            {
+                "id": "99001",
+                "raw_handle": "Rato_pati",
+                "text": "संसद् बैठकमा बजेटबारे छलफल सुरु https://t.co/rp1",
+                "published_dt": now_npt - datetime.timedelta(minutes=5),
+                "expanded_urls": ["https://www.ratopati.com/story/499001/parliament-budget"],
+            },
+            {
+                "id": "99002",
+                "raw_handle": "TechPanaNP",
+                "text": "नेपालमा नयाँ साइबर सुरक्षा नीति लागू हुँदै https://t.co/tp1",
+                "published_dt": now_npt - datetime.timedelta(minutes=4),
+                "expanded_urls": ["https://techpana.com/2026/160999/cyber-security-policy"],
+            },
+        ]
+        boosted_calls = []
+        with mock.patch("nepal_fetcher.get_existing_article_urls", return_value={}), \
+             mock.patch("nepal_fetcher.batch_fetch_full_content"), \
+             mock.patch(
+                 "nepal_fetcher.batch_upsert_articles",
+                 side_effect=lambda arts, sname, **kw: boosted_calls.append((sname, arts, kw)) or {"ingested": len(arts)},
+             ):
+            cnt = fetcher.boost_x_portals_to_articles(x_posts=sample_x_posts, now_npt=now_npt)
+
+        self.assertEqual(cnt, 2)
+        self.assertEqual({sname for sname, _, _ in boosted_calls}, {"Ratopati", "TechPana"})
 
     def test_upsert_social_account_defaults_and_sync(self):
         """Verifies upsert_single_x_account gracefully defaults omitted fields and syncs to memory."""
