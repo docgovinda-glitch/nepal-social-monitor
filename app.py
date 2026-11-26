@@ -1819,13 +1819,6 @@ def _show_read_in_app_dialog() -> None:
 
         st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
         _rd_eng = str(fulltext_data.get("translation_engine") or "").strip()
-        if is_en_view and _rd_eng:
-            st.markdown(
-                f'<div class="share-modal-head"><span class="share-modal-pills">'
-                f'<span class="lang-label" title="Translated via {html.escape(_rd_eng, quote=True)}">Translated via {html.escape(_rd_eng)}</span>'
-                f'</span></div>',
-                unsafe_allow_html=True,
-            )
 
         if read_draft and read_draft.get("is_editing"):
             st.markdown(
@@ -1892,7 +1885,8 @@ def _show_read_in_app_dialog() -> None:
         reader_title = html.escape(shown_title)
         reader_src = html.escape((item.get("source") or "").strip())
         reader_time = html.escape((item.get("exact_time") or item.get("relative_time") or "").strip())
-        meta_parts = [p for p in (reader_src, reader_time) if p]
+        _rd_eng_meta = f"Translated via {html.escape(_rd_eng)}" if (is_en_view and _rd_eng) else ""
+        meta_parts = [p for p in (reader_src, reader_time, _rd_eng_meta) if p]
         reader_meta_html = f'<div class="fulltext-reader-box__meta">{" · ".join(meta_parts)}</div>' if meta_parts else ""
 
         body_paras = [p.strip() for p in re.split(r"\n\s*\n", (shown_text or "").strip()) if p.strip()]
