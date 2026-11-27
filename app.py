@@ -4139,16 +4139,20 @@ def _render_greenapi_config_form(
     """Shared Green API credential form."""
     from auth_store import upsert_user_greenapi_config
 
+    _ga_flash = st.session_state.pop("_ga_saved_flash", None)
+    if _ga_flash:
+        st.success(_ga_flash)
+
     with st.form(form_key, clear_on_submit=False):
         ga_url = st.text_input(
             "Green API URL",
-            value=existing_cfg.get("api_url") or "https://7105.api.greenapi.com",
-            placeholder="https://7105.api.greenapi.com",
+            value=existing_cfg.get("api_url") or "",
+            placeholder="Auto-detected from idInstance if blank (e.g. https://7107.api.greenapi.com)",
         )
         ga_id = st.text_input(
             "idInstance",
             value=existing_cfg.get("id_instance") or "",
-            placeholder="e.g. 7105123456",
+            placeholder="e.g. 7107123456",
         )
         ga_tok = st.text_input(
             "apiTokenInstance",
@@ -4160,19 +4164,21 @@ def _render_greenapi_config_form(
         saved_ga = st.form_submit_button(save_label, type="primary", width="stretch")
 
     if saved_ga:
+        clean_id = (ga_id or "").strip()
+        clean_url = (ga_url or "").strip().rstrip("/")
+        if not clean_url and len(clean_id) >= 4 and clean_id[:4].isdigit():
+            clean_url = f"https://{clean_id[:4]}.api.greenapi.com"
         upsert_user_greenapi_config(
             user_id=target_uid,
-            api_url=ga_url,
-            id_instance=ga_id,
+            api_url=clean_url,
+            id_instance=clean_id,
             token_instance=ga_tok,
             sending_enabled=ga_en,
             admin_id=actor_uid,
         )
         st.session_state.pop("_user_greenapi_cfg_cache", None)
-        st.success("Green API settings saved.")
-
-
-    """Shared Green API credential form."""
+        st.session_state["_ga_saved_flash"] = "Green API settings saved."
+        st.rerun()
 
 
 def _fmt_rail_badge(count: Any) -> str:
