@@ -4203,8 +4203,12 @@ def ensure_whatsapp_sent_log_table() -> None:
         group_name TEXT DEFAULT 'WhatsApp',
         id_message TEXT DEFAULT '',
         item_link TEXT DEFAULT '',
+        sent_by_user_id INTEGER,
+        sent_by_username TEXT DEFAULT '',
         sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     );
+    ALTER TABLE whatsapp_sent_log ADD COLUMN IF NOT EXISTS sent_by_user_id INTEGER;
+    ALTER TABLE whatsapp_sent_log ADD COLUMN IF NOT EXISTS sent_by_username TEXT DEFAULT '';
     """
     query_supabase(sql)
     _WA_SENT_TABLE_ENSURED = True
@@ -4216,18 +4220,23 @@ def record_whatsapp_sent(
     group_name: str,
     id_message: str,
     item_link: str = "",
+    sent_by_user_id: Optional[int] = None,
+    sent_by_username: str = "",
 ) -> bool:
     """Persists a successful WhatsApp share to Supabase so all users see the sent notice."""
     if not item_key:
         return False
+    uid_sql = str(int(sent_by_user_id)) if sent_by_user_id is not None else "NULL"
     sql = f"""
-    INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_at)
+    INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_by_user_id, sent_by_username, sent_at)
     VALUES (
         {esc_sql(item_key)},
         {esc_sql(group_id or '')},
         {esc_sql(group_name or 'WhatsApp')},
         {esc_sql(id_message or '')},
         {esc_sql(item_link or '')},
+        {uid_sql},
+        {esc_sql(sent_by_username or '')},
         NOW()
     )
     ON CONFLICT (item_key) DO UPDATE SET
@@ -4235,12 +4244,17 @@ def record_whatsapp_sent(
         group_name = EXCLUDED.group_name,
         id_message = EXCLUDED.id_message,
         item_link = EXCLUDED.item_link,
+        sent_by_user_id = EXCLUDED.sent_by_user_id,
+        sent_by_username = EXCLUDED.sent_by_username,
         sent_at = NOW();
     """
     try:
         query_supabase(sql)
     except Exception as exc:
-        if "whatsapp_sent_log" in str(exc).lower():
+        err_l = str(exc).lower()
+        if "whatsapp_sent_log" in err_l or "sent_by_user_id" in err_l or "sent_by_username" in err_l:
+            global _WA_SENT_TABLE_ENSURED
+            _WA_SENT_TABLE_ENSURED = False
             ensure_whatsapp_sent_log_table()
             query_supabase(sql)
         else:
@@ -4248,7 +4262,11 @@ def record_whatsapp_sent(
     return True
 
 
-def record_whatsapp_sent_batch(entries: List[Dict[str, Any]]) -> int:
+def record_whatsapp_sent_batch(
+    entries: List[Dict[str, Any]],
+    sent_by_user_id: Optional[int] = None,
+    sent_by_username: str = "",
+) -> int:
     """Persists a batch of WhatsApp-shared items in a single upsert round-trip."""
     if not entries:
         return 0
@@ -4265,28 +4283,38 @@ def record_whatsapp_sent_batch(entries: List[Dict[str, Any]]) -> int:
 
     values_sql: List[str] = []
     for key, entry in deduped.items():
+        uid_val = entry.get("sent_by_user_id", sent_by_user_id)
+        uid_sql = str(int(uid_val)) if uid_val is not None else "NULL"
+        uname_val = str(entry.get("sent_by_username") or sent_by_username or "")
         values_sql.append(
             f"({esc_sql(key)}, "
             f"{esc_sql(entry.get('group_id') or '')}, "
             f"{esc_sql(entry.get('group_name') or 'WhatsApp')}, "
             f"{esc_sql(entry.get('id_message') or '')}, "
             f"{esc_sql(entry.get('item_link') or '')}, "
+            f"{uid_sql}, "
+            f"{esc_sql(uname_val)}, "
             "NOW())"
         )
     sql = (
-        "INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_at) "
+        "INSERT INTO whatsapp_sent_log (item_key, group_id, group_name, id_message, item_link, sent_by_user_id, sent_by_username, sent_at) "
         f"VALUES {', '.join(values_sql)} "
         "ON CONFLICT (item_key) DO UPDATE SET "
         "group_id = EXCLUDED.group_id, "
         "group_name = EXCLUDED.group_name, "
         "id_message = EXCLUDED.id_message, "
         "item_link = EXCLUDED.item_link, "
+        "sent_by_user_id = EXCLUDED.sent_by_user_id, "
+        "sent_by_username = EXCLUDED.sent_by_username, "
         "sent_at = NOW();"
     )
     try:
         query_supabase(sql)
     except Exception as exc:
-        if "whatsapp_sent_log" in str(exc).lower():
+        err_l = str(exc).lower()
+        if "whatsapp_sent_log" in err_l or "sent_by_user_id" in err_l or "sent_by_username" in err_l:
+            global _WA_SENT_TABLE_ENSURED
+            _WA_SENT_TABLE_ENSURED = False
             ensure_whatsapp_sent_log_table()
             query_supabase(sql)
         else:
@@ -4297,13 +4325,16 @@ def record_whatsapp_sent_batch(entries: List[Dict[str, Any]]) -> int:
 def get_whatsapp_sent_map(limit: int = 1000) -> Dict[str, Dict[str, Any]]:
     """Returns a mapping of item_key -> sent metadata without unconditional DDL checks."""
     sql = (
-        "SELECT item_key, group_id, group_name, id_message, item_link, sent_at "
+        "SELECT item_key, group_id, group_name, id_message, item_link, sent_by_user_id, sent_by_username, sent_at "
         f"FROM whatsapp_sent_log ORDER BY sent_at DESC LIMIT {int(limit)};"
     )
     try:
         rows = query_supabase(sql)
     except Exception as exc:
-        if "whatsapp_sent_log" in str(exc).lower():
+        err_l = str(exc).lower()
+        if "whatsapp_sent_log" in err_l or "sent_by_user_id" in err_l or "sent_by_username" in err_l:
+            global _WA_SENT_TABLE_ENSURED
+            _WA_SENT_TABLE_ENSURED = False
             ensure_whatsapp_sent_log_table()
             rows = query_supabase(sql)
         else:

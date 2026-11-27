@@ -596,14 +596,15 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
             at = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=45)
             at.run()
             self.assertEqual(len(at.exception), 0)
-            # Unauthenticated gate: shows password input, renders no feed, defers heavy stores
-            self.assertEqual(len(at.text_input), 1)
+            # Unauthenticated gate: shows sign-in inputs, renders no feed, defers heavy stores
+            self.assertGreaterEqual(len(at.text_input), 2)
             self.assertFalse(at.session_state["authenticated"] if "authenticated" in at.session_state else False)
             self.assertEqual(recorded, [])
 
             # Authenticate cleanly -> initial mount sends batch [0] and FEED_CARD_CSS (~7.8 KB, not 64 KB)
             recorded.clear()
-            at.text_input[0].set_value("PIC@55")
+            at.text_input[0].set_value("admin")
+            at.text_input[1].set_value("PIC@55")
             at.button[0].click().run()
             self.assertEqual(len(at.exception), 0)
             self.assertTrue(at.session_state["authenticated"])
@@ -674,7 +675,8 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
 
         at = AppTest.from_file(str(PROJECT_ROOT / "app.py"), default_timeout=45)
         at.run()
-        at.text_input[0].set_value("PIC@55")
+        at.text_input[0].set_value("admin")
+        at.text_input[1].set_value("PIC@55")
         at.button[0].click().run()
 
         live_sess = at.session_state["feed_sessions"]["live"]

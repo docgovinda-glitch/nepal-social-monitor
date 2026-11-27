@@ -172,9 +172,115 @@ def _auth_stats_html() -> str:
     )
 
 
+def _get_current_user() -> Dict[str, Any]:
+    """Returns the currently authenticated user dict from session_state."""
+    u = st.session_state.get("current_user")
+    if isinstance(u, dict) and u.get("username"):
+        return u
+    return {"id": 0, "username": "admin", "display_name": "Administrator", "role": "admin", "status": "approved"}
+
+
+def _get_current_user_greenapi_config() -> Optional[Dict[str, Any]]:
+    """Loads the logged-in user's assigned Green API config (cached in session_state)."""
+    u = _get_current_user()
+    uid = int(u.get("id") or 0)
+    cache = st.session_state.get("_user_greenapi_cfg_cache")
+    if isinstance(cache, dict) and cache.get("_uid") == uid:
+        return cache.get("cfg")
+    cfg = None
+    if uid > 0:
+        try:
+            from auth_store import get_user_greenapi_config
+            cfg = get_user_greenapi_config(uid)
+        except Exception:
+            cfg = None
+        if cfg is None:
+            # Explicit empty config so unassigned DB users never fall back to global env credentials
+            cfg = {"api_url": "", "id_instance": "", "token_instance": "", "sending_enabled": False}
+    elif str(u.get("role") or "") == "admin":
+        # Offline/test fallback for bootstrap admin when DB is not reachable
+        cfg = None
+    st.session_state["_user_greenapi_cfg_cache"] = {"_uid": uid, "cfg": cfg}
+    return cfg
+
+
+def _bootstrap_admin_session(app_pwd: str) -> Dict[str, Any]:
+    """Resolves or creates the bootstrap admin user for key-based or fallback login."""
+    try:
+        from auth_store import bootstrap_admin_user
+        row = bootstrap_admin_user(app_pwd)
+        if row:
+            return {
+                "id": int(row["id"]),
+                "username": str(row["username"]),
+                "display_name": str(row.get("display_name") or "Administrator"),
+                "role": "admin",
+                "status": "approved",
+            }
+    except Exception:
+        pass
+    return {"id": 0, "username": "admin", "display_name": "Administrator", "role": "admin", "status": "approved"}
+
+
+def _sync_session_cookie_js() -> None:
+    """Writes or clears the signed session cookie in the browser when requested."""
+    pending_tok = st.session_state.pop("_pending_session_cookie", None)
+    clear_cookie = st.session_state.pop("_clear_session_cookie", False)
+    if not pending_tok and not clear_cookie:
+        return
+    try:
+        import streamlit.components.v1 as components
+        from auth_store import SESSION_COOKIE_NAME, SESSION_TTL_SECONDS
+        if clear_cookie:
+            js = f'<script>document.cookie = "{SESSION_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax";</script>'
+        else:
+            safe_tok = str(pending_tok).replace('"', "").replace(";", "")
+            js = f'<script>document.cookie = "{SESSION_COOKIE_NAME}={safe_tok}; path=/; max-age={SESSION_TTL_SECONDS}; SameSite=Lax";</script>'
+        components.html(js, height=0, width=0)
+    except Exception:
+        pass
+
+
+def _perform_logout() -> None:
+    """Clears authentication state, marks session logged out, and schedules cookie removal."""
+    st.session_state["authenticated"] = False
+    st.session_state["_logged_out"] = True
+    st.session_state["_clear_session_cookie"] = True
+    st.session_state["app_nav_section"] = "Live Feed"
+    st.session_state.pop("current_user", None)
+    st.session_state.pop("_user_greenapi_cfg_cache", None)
+    st.session_state.pop("_pending_session_cookie", None)
+    try:
+        st.rerun()
+    except Exception:
+        pass
+
+
+def _get_current_user_first_name() -> str:
+    """Returns only the logged-in user's first name for display & attribution."""
+    u = _get_current_user()
+    raw = str(u.get("display_name") or u.get("username") or "").strip()
+    return raw.split()[0] if raw else ""
+
+
 def check_password() -> bool:
-    """Returns True if the user entered the correct password or has a persisted session cookie/token."""
+    """Returns True if the user is authenticated via session, signed cookie, or login form."""
     if st.session_state.get("authenticated", False):
+        cur_u = st.session_state.get("current_user") or {}
+        uid = int(cur_u.get("id") or 0)
+        now_ts = time.time()
+        last_chk = float(st.session_state.get("_last_auth_recheck") or 0.0)
+        if uid > 0 and (now_ts - last_chk) >= 30.0:
+            st.session_state["_last_auth_recheck"] = now_ts
+            try:
+                from auth_store import get_user_by_id
+                fresh_u = get_user_by_id(uid)
+                if fresh_u is None:
+                    _perform_logout()
+                else:
+                    st.session_state["current_user"] = fresh_u
+            except Exception:
+                pass
         return True
 
     app_pwd = _get_app_password()
@@ -186,65 +292,126 @@ def check_password() -> bool:
         )
         st.stop()
 
+    if st.session_state.get("_clear_session_cookie"):
+        _sync_session_cookie_js()
+
     query_key = st.query_params.get("key", "")
-    if query_key and hmac.compare_digest(query_key, app_pwd):
+    if query_key and not st.session_state.get("_logged_out") and hmac.compare_digest(query_key, app_pwd):
         st.session_state["authenticated"] = True
+        st.session_state["current_user"] = _bootstrap_admin_session(app_pwd)
         return True
+
+    # Attempt restore from signed browser cookie (unless user explicitly logged out)
+    if not st.session_state.get("_logged_out"):
+        try:
+            from auth_store import SESSION_COOKIE_NAME, get_user_by_id, verify_session_token
+            cookie_tok = (st.context.cookies.get(SESSION_COOKIE_NAME) or "").strip() if hasattr(st, "context") else ""
+            if cookie_tok:
+                payload = verify_session_token(cookie_tok)
+                if payload:
+                    restored_user = get_user_by_id(int(payload["uid"]))
+                    if restored_user:
+                        st.session_state["authenticated"] = True
+                        st.session_state["current_user"] = restored_user
+                        return True
+        except Exception:
+            pass
 
     auth_slot = st.empty()
     with auth_slot.container():
         st.markdown(AUTH_CSS + theme_override_css(_THEME_MODE), unsafe_allow_html=True)
-        with st.form("auth_form", clear_on_submit=False):
+        with st.container(key="auth_split_card"):
             c_left, c_right = st.columns([1.08, 1], gap=None)
-            with c_left:
-                st.markdown(f"""
-                <div class="auth-split-left">
-                    <div class="auth-split-top">
-                        <div class="auth-live-pill"><span class="auth-live-dot"></span> LIVE MONITORING · NPT</div>
-                        <div class="auth-header__title">Monitor &amp; Analytics</div>
-                        <div class="auth-header__subtitle">Unified intelligence across Nepali newsrooms, Indian press, and verified social voices.</div>
-                    </div>
-                    {_auth_stats_html()}
+        with c_left:
+            st.markdown(f"""
+            <div class="auth-split-left">
+                <div class="auth-split-top">
+                    <div class="auth-live-pill"><span class="auth-live-dot"></span> LIVE MONITORING · NPT</div>
+                    <div class="auth-header__title">Monitor &amp; Analytics</div>
+                    <div class="auth-header__subtitle">Unified intelligence across Nepali newsrooms, Indian press, and verified social voices.</div>
                 </div>
-                """, unsafe_allow_html=True)
-            with c_right:
-                st.markdown("""
-                <div class="auth-split-right-head">
-                    <div class="auth-header__icon-ring">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                    </div>
-                    <div class="auth-right-title">Workspace Access</div>
-                    <div class="auth-right-sub">Enter passcode to continue</div>
+                {_auth_stats_html()}
+            </div>
+            """, unsafe_allow_html=True)
+        with c_right:
+            st.markdown("""
+            <div class="auth-split-right-head">
+                <div class="auth-header__icon-ring">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
                 </div>
-                """, unsafe_allow_html=True)
-                pwd = st.text_input("Password", type="password", placeholder="Enter password", label_visibility="collapsed")
-                submit = st.form_submit_button("Unlock Workspace", icon=":material/arrow_forward:", width="stretch", type="primary")
-                st.markdown(
-                    '<div class="auth-footer">'
-                    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-                    'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
-                    '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>'
-                    '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
-                    '</svg>'
-                    'Secure access · Authorised users only'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
+                <div class="auth-right-title">Workspace Access</div>
+                <div class="auth-right-sub">Sign in or request an account</div>
+            </div>
+            """, unsafe_allow_html=True)
+            tab_signin, tab_signup = st.tabs(["Sign In", "Request Access"])
+            with tab_signin:
+                with st.form("auth_form", clear_on_submit=False):
+                    uname = st.text_input("First Name", placeholder="First Name (or admin)", key="auth_username")
+                    pwd = st.text_input("Password", type="password", placeholder="Password", key="auth_password")
+                    remember = st.checkbox("Remember me on this browser", value=True, key="auth_remember")
+                    submit = st.form_submit_button("Unlock Workspace", icon=":material/arrow_forward:", width="stretch", type="primary")
+                st.caption("Forgot password? Ask an administrator to reset it under **Settings → All Users**.")
+                if submit:
+                    from auth_store import authenticate_user, create_session_token
+                    user_obj, err_msg = authenticate_user(uname, pwd, fallback_admin_password=app_pwd)
+                    if user_obj:
+                        st.session_state["authenticated"] = True
+                        st.session_state["current_user"] = user_obj
+                        st.session_state["_last_auth_recheck"] = time.time()
+                        st.session_state.pop("_logged_out", None)
+                        st.session_state.pop("_clear_session_cookie", None)
+                        if remember and int(user_obj.get("id") or 0) > 0:
+                            st.session_state["_pending_session_cookie"] = create_session_token(
+                                user_id=int(user_obj["id"]),
+                                username=str(user_obj["username"]),
+                                role=str(user_obj["role"]),
+                            )
+                        auth_slot.empty()
+                        return True
+                    else:
+                        st.error(err_msg or "Invalid first name or password.")
 
-        if submit:
-            if pwd and hmac.compare_digest(pwd.strip(), app_pwd):
-                st.session_state["authenticated"] = True
-                auth_slot.empty()
-                return True
-            else:
-                st.error("Incorrect password. Please try again.")
+            with tab_signup:
+                with st.form("signup_form", clear_on_submit=True):
+                    su_first = st.text_input("First Name*", placeholder="e.g. Sita", key="su_first_name")
+                    su_mid = st.text_input("Middle Name (Optional)", placeholder="Optional", key="su_middle_name")
+                    su_last = st.text_input("Surname*", placeholder="e.g. Sharma", key="su_surname")
+                    su_pwd1 = st.text_input("Password", type="password", placeholder="Min 6 characters", key="su_pwd1")
+                    su_pwd2 = st.text_input("Confirm Password", type="password", placeholder="Repeat password", key="su_pwd2")
+                    su_submit = st.form_submit_button("Request Access", icon=":material/person_add:", width="stretch")
+                if su_submit:
+                    if not (su_first or "").strip() or not (su_last or "").strip():
+                        st.error("Please enter both First Name and Surname.")
+                    elif su_pwd1 != su_pwd2:
+                        st.error("Passwords do not match.")
+                    else:
+                        from auth_store import register_user
+                        full_name = " ".join(p.strip() for p in (su_first, su_mid, su_last) if (p or "").strip())
+                        ok_reg, reg_msg = register_user("", full_name, su_pwd1)
+                        if ok_reg:
+                            st.success(reg_msg)
+                        else:
+                            st.error(reg_msg)
+
+            st.markdown(
+                '<div class="auth-footer">'
+                '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+                '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>'
+                '<path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+                '</svg>'
+                'Secure access · Admin-approved accounts'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
     st.stop()
 
 
 check_password()
+_sync_session_cookie_js()
 
 # Deferred UI & fast DB store imports (scrapers/translators/GreenAPI stay lazy-loaded until needed)
 import streamlit.components.v1 as components
@@ -1601,11 +1768,14 @@ def _render_read_send_fragment(
                     source_url=ft_src,
                     whatsapp_bold=True,
                 )
+                _cur_u = _get_current_user()
+                _user_wa_cfg = _get_current_user_greenapi_config()
                 wa_res = send_wa_group_message(
                     chat_id=selected_gid,
                     message=wa_payload,
                     session_approved=True,
                     sent_registry=st.session_state.setdefault("wa_sent_registry", set()),
+                    config=_user_wa_cfg,
                 )
                 wa_res["group_name"] = dest_name
                 st.session_state.setdefault("wa_item_status", {})[cache_id] = wa_res
@@ -1617,6 +1787,8 @@ def _render_read_send_fragment(
                             group_name=dest_name,
                             id_message=str(wa_res.get("id_message") or ""),
                             item_link=item_link,
+                            sent_by_user_id=int(_cur_u.get("id") or 0) or None,
+                            sent_by_username=_get_current_user_first_name(),
                         )
                         _get_wa_sent_map.clear()
                     except Exception as log_exc:
@@ -1847,8 +2019,11 @@ def _show_read_in_app_dialog() -> None:
             gname_esc = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
             ts_str = _format_wa_sent_time(persisted_sent.get("sent_at"))
             msg_id_esc = html.escape(str(persisted_sent.get("id_message") or ""))
+            by_raw = str(persisted_sent.get("sent_by_username") or "").strip()
+            by_first = html.escape(by_raw.split()[0]) if by_raw else ""
+            by_txt = f" by {by_first}" if by_first else ""
             ts_txt = f" · {html.escape(ts_str)}" if ts_str else ""
-            sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
+            sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{by_txt}{ts_txt}</span>'
 
         st.markdown('<div class="read-modal-anchor"></div>', unsafe_allow_html=True)
         _rd_eng = str(fulltext_data.get("translation_engine") or "").strip()
@@ -2188,11 +2363,14 @@ def _render_share_send_fragment(
         else:
             with st.spinner(_busy("send", dest_name)):
                 from whatsapp_greenapi import send_group_message as send_wa_group_message
+                _cur_u = _get_current_user()
+                _user_wa_cfg = _get_current_user_greenapi_config()
                 wa_res = send_wa_group_message(
                     chat_id=selected_gid,
                     message=saved_formatted,
                     session_approved=True,
                     sent_registry=st.session_state.setdefault("wa_sent_registry", set()),
+                    config=_user_wa_cfg,
                 )
                 wa_res["group_name"] = dest_name
                 st.session_state.setdefault("wa_item_status", {})[cache_id] = wa_res
@@ -2206,16 +2384,20 @@ def _render_share_send_fragment(
                     )
                     msg_id_str = str(wa_res.get("id_message") or "")
                     try:
-                        record_whatsapp_sent_batch([
-                            {
-                                "item_key": t_key,
-                                "group_id": selected_gid,
-                                "group_name": dest_name,
-                                "id_message": msg_id_str,
-                                "item_link": t_link,
-                            }
-                            for t_key, t_link in sent_targets
-                        ])
+                        record_whatsapp_sent_batch(
+                            [
+                                {
+                                    "item_key": t_key,
+                                    "group_id": selected_gid,
+                                    "group_name": dest_name,
+                                    "id_message": msg_id_str,
+                                    "item_link": t_link,
+                                }
+                                for t_key, t_link in sent_targets
+                            ],
+                            sent_by_user_id=int(_cur_u.get("id") or 0) or None,
+                            sent_by_username=_get_current_user_first_name(),
+                        )
                         _get_wa_sent_map.clear()
                     except Exception as log_exc:
                         wa_res["log_warning"] = f"Sent, but failed to update history log: {type(log_exc).__name__}"
@@ -2413,8 +2595,11 @@ def _show_share_dialog() -> None:
         gname_esc = html.escape(str(persisted_sent.get("group_name") or "WhatsApp"))
         ts_str = _format_wa_sent_time(persisted_sent.get("sent_at"))
         msg_id_esc = html.escape(str(persisted_sent.get("id_message") or ""))
+        by_raw = str(persisted_sent.get("sent_by_username") or "").strip()
+        by_first = html.escape(by_raw.split()[0]) if by_raw else ""
+        by_txt = f" by {by_first}" if by_first else ""
         ts_txt = f" · {html.escape(ts_str)}" if ts_str else ""
-        sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{ts_txt}</span>'
+        sent_pill = f'<span class="share-draft-pill share-draft-pill--sent" title="Message ID: {msg_id_esc}">✓ Sent to {gname_esc}{by_txt}{ts_txt}</span>'
 
     st.markdown('<div class="share-modal-anchor"></div>', unsafe_allow_html=True)
     _sh_eng = str(generated.get("translation_engine") or "").strip()
@@ -3509,6 +3694,8 @@ NAV_ITEMS = [
     ("Social Media", "💬"),
     ("Analytics & Export", "📈"),
     ("System Health", "🩺"),
+    ("Settings", "⚙️"),
+    ("Log out", "🚪"),
 ]
 _NAV_ICON_MAP = dict(NAV_ITEMS)
 _NAV_ICON_MAP["X"] = "💬"
@@ -3677,6 +3864,8 @@ _WS_TAB_META = {
     "X": (":material/forum:", "Social"),
     "Analytics & Export": (":material/ios_share:", "Export"),
     "System Health": (":material/monitor_heart:", "Health"),
+    "Settings": (":material/settings:", "Settings"),
+    "Log out": (":material/logout:", "Log out"),
 }
 
 
@@ -3687,6 +3876,12 @@ def _ws_seg_label(name: str) -> str:
 
 def _on_ws_seg_change() -> None:
     chosen = st.session_state.get("app_nav_seg") or "Live Feed"
+    if chosen == "Log out":
+        st.session_state["app_nav_section"] = "Live Feed"
+        st.session_state["app_nav_seg"] = "Live Feed"
+        st.query_params["nav"] = "Live Feed"
+        _perform_logout()
+        return
     _select_workspace(chosen)
 
 
@@ -3931,6 +4126,53 @@ def _render_theme_button(ws_suffix: str) -> None:
                  help=f"Appearance · {mode.capitalize()}"):
         _cycle_theme()
         st.rerun()  # full-app rerun: this button lives inside a fragment, and the theme CSS is applied at the top of the script
+
+
+def _render_greenapi_config_form(
+    target_uid: int,
+    actor_uid: int,
+    form_key: str,
+    existing_cfg: Dict[str, Any],
+    enable_label: str = "Enable WhatsApp sending",
+    save_label: str = "Save Settings",
+) -> None:
+    """Shared Green API credential form."""
+    from auth_store import upsert_user_greenapi_config
+
+    with st.form(form_key, clear_on_submit=False):
+        ga_url = st.text_input(
+            "Green API URL",
+            value=existing_cfg.get("api_url") or "https://7105.api.greenapi.com",
+            placeholder="https://7105.api.greenapi.com",
+        )
+        ga_id = st.text_input(
+            "idInstance",
+            value=existing_cfg.get("id_instance") or "",
+            placeholder="e.g. 7105123456",
+        )
+        ga_tok = st.text_input(
+            "apiTokenInstance",
+            value="",
+            type="password",
+            placeholder=("Token saved — leave blank to keep existing" if existing_cfg.get("token_instance") else "Enter apiTokenInstance"),
+        )
+        ga_en = st.checkbox(enable_label, value=bool(existing_cfg.get("sending_enabled", False)))
+        saved_ga = st.form_submit_button(save_label, type="primary", width="stretch")
+
+    if saved_ga:
+        upsert_user_greenapi_config(
+            user_id=target_uid,
+            api_url=ga_url,
+            id_instance=ga_id,
+            token_instance=ga_tok,
+            sending_enabled=ga_en,
+            admin_id=actor_uid,
+        )
+        st.session_state.pop("_user_greenapi_cfg_cache", None)
+        st.success("Green API settings saved.")
+
+
+    """Shared Green API credential form."""
 
 
 def _fmt_rail_badge(count: Any) -> str:
@@ -4442,9 +4684,9 @@ def _toolbar_columns(ws_suffix: str, defaults: Dict[str, Any], only_theme: bool 
                 if admin:
                     st.button(
                         "",
-                        icon=":material/admin_panel_settings:",
+                        icon=":material/group_add:",
                         key="btn_x_admin",
-                        help="Directory & Admin",
+                        help="Directory & Onboard",
                         width="content",
                         on_click=lambda: st.session_state.update({"x_subview_active_tab": "Admin"}),
                     )
@@ -4705,9 +4947,9 @@ def render_x_section() -> None:
             st.button("", icon=":material/arrow_back:", key="btn_x_back", help="Back to feed", on_click=_x_go, args=("Live Feed",), width="stretch")
         with _sg:
             st.segmented_control(
-                "Social Media admin",
+                "Social Media directory",
                 options=["Directory", "Admin"],
-                format_func=lambda o: ":material/groups: Directory" if o == "Directory" else ":material/admin_panel_settings: Admin",
+                format_func=lambda o: ":material/groups: Directory" if o == "Directory" else ":material/person_add: Onboard",
                 default=x_subview,
                 key="x_admin_seg",
                 on_change=lambda: _x_go(st.session_state.get("x_admin_seg") or "Directory"),
@@ -5020,135 +5262,93 @@ def render_x_section() -> None:
     # SUBVIEW 3: DISCOVERY & ACCOUNT ADMIN (CHIEF ADMIN)
     # -------------------------------------------------------------
     elif x_subview == "Admin":
-        st.markdown("""
+        _is_sm_admin = str(_get_current_user().get("role") or "") == "admin"
+        _console_title = "Onboard Social Media Account"
+        _console_sub = (
+            "Add and verify authentic Nepal-related voices across Facebook & X directly into monitoring."
+            if _is_sm_admin
+            else "Submit new authentic Nepal-related voices across Facebook & X. Submitted accounts are queued for administrator approval."
+        )
+        st.markdown(f"""
         <div style="background:var(--surface); border:1px solid var(--separator); border-radius:var(--r-md); padding:16px 20px; margin-bottom:18px;">
-            <h3 style="margin:0 0 6px 0; font-size:1.1rem; font-weight:700;">Account Discovery & Verification Console</h3>
+            <h3 style="margin:0 0 6px 0; font-size:1.1rem; font-weight:700;">{_console_title}</h3>
             <p style="margin:0; font-size:0.84rem; color:var(--label-2);">
-                Continuous intelligence expansion pipeline for the Chief Admin. Rigorously research, verify, test reachability,
-                and onboard new authentic Nepal-related voices across Facebook & X.
+                {_console_sub}
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-        admin_tab1, admin_tab2, admin_tab3 = st.tabs([
-            ":material/person_add: Onboard",
-            f":material/hourglass_top: Pending · {pending_acc_count}",
-            ":material/shield: Audit"
-        ])
+        _flash_ob = st.session_state.pop("_onboard_flash", None)
+        if _flash_ob:
+            st.success(_flash_ob)
 
-        with admin_tab1:
-            st.subheader("Add Nepal Social Media Account (Facebook & X)")
-            with st.form("form_add_x_account", clear_on_submit=False):
-                af_c1, af_c2 = st.columns(2)
-                with af_c1:
-                    new_platform = st.selectbox("Platform*", ["Facebook", "X (Twitter)"], key="onboard_platform_select")
-                    new_handle = st.text_input("Handle or Page Slug (without @ or URL)*", placeholder="e.g. onlinekhabar or BasantaBasnet")
-                    new_cat = st.selectbox("Canonical Monitoring Sector*", CANONICAL_X_CATEGORIES)
-                with af_c2:
-                    new_name = st.text_input("Full Display Name*", placeholder="e.g. Basanta Basnet")
-                    new_role = st.text_input("Profile*", placeholder="e.g. Editor, OnlineKhabar (onlinekhabar.com)")
-                    new_subcat = st.text_input("Subcategory", placeholder="e.g. Journalists & Commentators / Digital Media")
+        st.subheader("Add Nepal Social Media Account (Facebook & X)")
+        with st.form("form_add_x_account", clear_on_submit=False):
+            af_c1, af_c2 = st.columns(2)
+            with af_c1:
+                new_platform = st.selectbox("Platform*", ["Facebook", "X (Twitter)"], key="onboard_platform_select")
+                new_handle = st.text_input("Handle or Page Slug (without @ or URL)*", placeholder="e.g. onlinekhabar or BasantaBasnet")
+                new_cat = st.selectbox("Canonical Monitoring Sector*", CANONICAL_X_CATEGORIES)
+            with af_c2:
+                new_name = st.text_input("Full Display Name*", placeholder="e.g. Basanta Basnet")
+                new_role = st.text_input("Profile*", placeholder="e.g. Editor, OnlineKhabar (onlinekhabar.com)")
+                new_subcat = st.text_input("Subcategory", placeholder="e.g. Journalists & Commentators / Digital Media")
 
-                btn_add_acc = st.form_submit_button("Save & Integrate Account into Monitoring Network", type="primary", width="stretch")
+            submit_lbl = (
+                "Save & Integrate Account into Monitoring Network"
+                if _is_sm_admin
+                else "Submit Account for Verification"
+            )
+            btn_add_acc = st.form_submit_button(submit_lbl, type="primary", width="stretch")
 
-                if btn_add_acc:
-                    norm_h = normalize_x_handle(new_handle)
-                    if not norm_h or not new_name.strip() or not new_role.strip():
-                        st.error("Please fill in all required fields (Platform, Handle/Slug, Display Name, and Profile).")
-                    else:
-                        plat_code = "facebook" if "facebook" in new_platform.lower() else "x"
-                        profile_url = f"https://www.facebook.com/{norm_h}" if plat_code == "facebook" else f"https://x.com/{norm_h}"
+            if btn_add_acc:
+                norm_h = normalize_x_handle(new_handle)
+                if not norm_h or not new_name.strip() or not new_role.strip():
+                    st.error("Please fill in all required fields (Platform, Handle/Slug, Display Name, and Profile).")
+                else:
+                    plat_code = "facebook" if "facebook" in new_platform.lower() else "x"
+                    profile_url = f"https://www.facebook.com/{norm_h}" if plat_code == "facebook" else f"https://x.com/{norm_h}"
 
-                        # Check duplicate
-                        existing_accs = get_all_x_accounts(search=norm_h, platform=plat_code)
-                        duplicate = any(normalize_x_handle(ex.get("handle","")) == norm_h for ex in existing_accs)
-                        if duplicate:
-                            st.info(f"Account {norm_h} ({plat_code.title()}) already exists in the database. Updating profile...")
+                    existing_accs = get_all_x_accounts(search=norm_h, platform=plat_code)
+                    duplicate = any(normalize_x_handle(ex.get("handle", "")) == norm_h for ex in existing_accs)
+                    if duplicate:
+                        if not _is_sm_admin:
+                            st.warning(f"Account {norm_h} ({plat_code.title()}) already exists in the directory.")
+                            return
+                        st.info(f"Account {norm_h} ({plat_code.title()}) already exists in the database. Updating profile...")
 
-                        # Reachability
-                        is_ok, reach_msg = True, "Reachable"
-                        if plat_code == "x":
-                            is_ok, reach_msg = verify_x_profile_connectivity(norm_h)
+                    is_ok, reach_msg = True, "Reachable"
+                    if plat_code == "x":
+                        is_ok, reach_msg = verify_x_profile_connectivity(norm_h)
 
-                        acc_payload = {
-                            "platform": plat_code,
-                            "handle": norm_h,
-                            "name": new_name.strip(),
-                            "profile_url": profile_url,
-                            "category": new_cat,
-                            "subcategory": new_subcat.strip() or "General",
-                            "role": new_role.strip(),
-                            "profile_brief": new_role.strip(),
-                            "relevance": f"Monitored {plat_code.title()} voice: {new_name.strip()} ({new_role.strip()})",
-                            "verification_status": "verified",
-                            "source_url": profile_url,
-                            "followers": "N/A",
-                            "avatar_bg": "#1877f2" if plat_code == "facebook" else "#0f172a",
-                            "initials": "".join([w[0].upper() for w in new_name.split()[:2]]) or "NP",
-                            "enabled": 1,
-                            "connection_status": "connected" if is_ok else "unreachable",
-                            "last_verified_at": datetime.datetime.now(NEPAL_TZ).isoformat()
-                        }
-                        saved = upsert_single_x_account(acc_payload)
-                        if saved:
-                            st.success(f"Successfully integrated {new_name.strip()} ({plat_code.title()}) into monitoring! Status: {reach_msg}")
-                            st.rerun()
+                    acc_payload = {
+                        "platform": plat_code,
+                        "handle": norm_h,
+                        "name": new_name.strip(),
+                        "profile_url": profile_url,
+                        "category": new_cat,
+                        "subcategory": new_subcat.strip() or "General",
+                        "role": new_role.strip(),
+                        "profile_brief": new_role.strip(),
+                        "relevance": f"Monitored {plat_code.title()} voice: {new_name.strip()} ({new_role.strip()})",
+                        "verification_status": "verified" if _is_sm_admin else "pending_verification",
+                        "source_url": profile_url,
+                        "followers": "N/A",
+                        "avatar_bg": "#1877f2" if plat_code == "facebook" else "#0f172a",
+                        "initials": "".join([w[0].upper() for w in new_name.split()[:2]]) or "NP",
+                        "enabled": 1 if _is_sm_admin else 0,
+                        "connection_status": "connected" if is_ok else "unreachable",
+                        "last_verified_at": datetime.datetime.now(NEPAL_TZ).isoformat(),
+                    }
+                    saved = upsert_single_x_account(acc_payload)
+                    if saved:
+                        if _is_sm_admin:
+                            st.session_state["_onboard_flash"] = f"Successfully integrated {new_name.strip()} ({plat_code.title()}) into monitoring! Status: {reach_msg}"
                         else:
-                            st.error(f"Failed to save account {norm_h} into database.")
-
-        with admin_tab2:
-            st.subheader("Review Pending Verification Candidates")
-            pending_accounts = get_all_x_accounts(verification_status="pending_verification")
-            if not pending_accounts:
-                st.info("No accounts currently pending verification. All monitored accounts are verified!")
-            else:
-                for pa in pending_accounts:
-                    ph = pa.get("handle")
-                    pa_plat = pa.get("platform", "x")
-                    with st.container(border=True):
-                        pc1, pc2, pc3 = st.columns([3, 1, 1])
-                        with pc1:
-                            st.markdown(f"**{pa.get('name')}** (`{ph}`) · *{pa.get('category')}* · `{pa_plat.title()}`")
-                            st.caption(f"Profile: {pa.get('role') or pa.get('profile_brief')}")
-                        with pc2:
-                            if st.button("Promote to Verified", key=f"btn_promote_{pa_plat}_{ph}", width="stretch"):
-                                ok_prom, prom_msg = promote_pending_x_account(ph, platform=pa_plat)
-                                if ok_prom:
-                                    st.toast(f"Promoted {ph} to Verified!", icon=":material/verified:")
-                                    st.rerun()
-                                else:
-                                    st.warning(prom_msg)
-                        with pc3:
-                            if st.button("Remove", key=f"btn_remove_{pa_plat}_{ph}", width="stretch", type="secondary"):
-                                delete_x_account(ph, platform=pa_plat)
-                                st.toast(f"Removed candidate {ph}", icon=":material/delete:")
-                                st.rerun()
-
-        with admin_tab3:
-            st.subheader("Batch Network Reachability Audit")
-            st.caption("Checks live reachability across monitored social media handles to detect suspended, renamed, or inaccessible profiles.")
-            audit_sector = st.selectbox("Select Sector to Audit", ["All Sectors"] + CANONICAL_X_CATEGORIES, key="audit_sector_select")
-            if st.button("Run Reachability Audit", icon=":material/speed:", type="primary"):
-                with st.spinner("Pinging social media profile endpoints..."):
-                    target_audit = get_all_x_accounts(category=(None if audit_sector == "All Sectors" else audit_sector), limit=30)
-                    audit_results = []
-                    for ta in target_audit:
-                        t_handle = ta.get("handle")
-                        t_plat = ta.get("platform", "x")
-                        ok, msg = True, "Reachable"
-                        if t_plat == "x":
-                            ok, msg = verify_x_profile_connectivity(t_handle)
-                        audit_results.append({
-                            "Platform": t_plat.title(),
-                            "Handle": f"@{t_handle}" if t_plat == "x" else f"fb/{t_handle}",
-                            "Name": ta.get("name"),
-                            "Sector": ta.get("category"),
-                            "Accessible": "✅ Reachable" if ok else "❌ Unreachable",
-                            "Details": msg
-                        })
-                    import pandas as pd
-                    st.dataframe(pd.DataFrame(audit_results), use_container_width=True)
-                    st.success(f"Audit completed for {len(audit_results)} profiles!")
+                            st.session_state["_onboard_flash"] = f"Submitted {new_name.strip()} ({plat_code.title()}) for admin approval! Status: {reach_msg}"
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to save account {norm_h} into database.")
 
 
 # ==========================================
@@ -5802,4 +6002,333 @@ def render_system_health_section() -> None:
 if selected_nav == "System Health":
     _toolbar_columns("hl", {}, only_theme=True)
     render_system_health_section()
+
+
+def _render_change_password_form(uid: int, key_prefix: str) -> None:
+    """Renders a self-service Change Password form for the logged-in user."""
+    st.markdown("#### Change Password")
+    if uid <= 0:
+        st.info("Password is managed by `APP_PASSWORD` in fallback mode.")
+        return
+    with st.form(f"{key_prefix}_chpwd_form_{uid}", clear_on_submit=True):
+        cur_p = st.text_input("Current Password", type="password", key=f"{key_prefix}_curp_{uid}")
+        new_p1 = st.text_input("New Password", type="password", placeholder="Min 6 characters", key=f"{key_prefix}_newp1_{uid}")
+        new_p2 = st.text_input("Confirm New Password", type="password", placeholder="Repeat new password", key=f"{key_prefix}_newp2_{uid}")
+        ch_sub = st.form_submit_button("Update Password", icon=":material/lock_reset:")
+    if ch_sub:
+        if new_p1 != new_p2:
+            st.error("New passwords do not match.")
+        else:
+            from auth_store import change_own_password
+            ok_c, msg_c = change_own_password(uid, cur_p, new_p1)
+            if ok_c:
+                st.success(msg_c)
+            else:
+                st.error(msg_c)
+
+
+def render_settings_section() -> None:
+    cur_u = _get_current_user()
+    uid = int(cur_u.get("id") or 0)
+    uname = str(cur_u.get("username") or "user")
+    dname = str(cur_u.get("display_name") or uname)
+    role = str(cur_u.get("role") or "user")
+    is_admin = role == "admin"
+
+    wa_cfg = _get_current_user_greenapi_config()
+    if wa_cfg and wa_cfg.get("id_instance"):
+        ga_badge = f"Green API #{wa_cfg['id_instance']} · {'Enabled' if wa_cfg.get('sending_enabled') else 'Disabled'}"
+        ga_color = "#34C759" if wa_cfg.get("sending_enabled") else "#FF9F0A"
+    elif uid == 0 and is_admin:
+        ga_badge = "Green API · Server Default"
+        ga_color = "#0066CC"
+    else:
+        ga_badge = "Green API · Not Configured"
+        ga_color = "#8E8E93"
+
+    st.markdown(
+        f"""
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+                    padding:16px 20px;border-radius:16px;border:1px solid var(--separator, rgba(0,0,0,0.08));
+                    background:var(--surface, rgba(255,255,255,0.75));margin-bottom:16px;">
+            <div>
+                <div style="font-size:1.15rem;font-weight:700;color:var(--label, #1d1d1f);">
+                    {html.escape(dname)}
+                    <span style="font-size:0.78rem;font-weight:600;padding:2px 8px;border-radius:999px;
+                                 margin-left:8px;background:rgba(0,102,204,0.12);color:#0066CC;">
+                        {html.escape(role.upper())}
+                    </span>
+                </div>
+                <div style="font-size:0.84rem;color:var(--label-3, #6e6e73);margin-top:2px;">
+                    @{html.escape(uname)}
+                </div>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
+                        border:1px solid var(--separator, rgba(0,0,0,0.08));font-size:0.8rem;font-weight:600;">
+                <span style="width:8px;height:8px;border-radius:50%;background:{ga_color};display:inline-block;"></span>
+                <span>{html.escape(ga_badge)}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if not is_admin:
+        u_tab_ga, u_tab_pwd = st.tabs(["Green API", "Change Password"])
+        with u_tab_ga:
+            st.caption("Connect your own Green API instance. Messages are sent to the fixed stream WhatsApp groups.")
+            if uid <= 0:
+                st.info("Green API settings are using the server environment.")
+            else:
+                from auth_store import get_user_greenapi_config
+                existing_cfg = get_user_greenapi_config(uid) or {}
+                _render_greenapi_config_form(
+                    target_uid=uid,
+                    actor_uid=uid,
+                    form_key=f"user_ga_form_{uid}",
+                    existing_cfg=existing_cfg,
+                    enable_label="Enable WhatsApp sending for my account",
+                    save_label="Save My Green API",
+                )
+        with u_tab_pwd:
+            _render_change_password_form(uid, "user")
+        return
+
+    # Admin view: structured workspace for User Approvals, User Management, and Green API Assignments
+    from auth_store import (
+        get_user_greenapi_config,
+        list_users,
+        reset_user_password,
+        update_user_role,
+        update_user_status,
+    )
+
+    try:
+        users = list_users()
+    except Exception as exc:
+        st.error(f"Could not load users: {type(exc).__name__}")
+        return
+
+    pending_users = [u for u in users if str(u.get("status")) == "pending"]
+    approved_users = [u for u in users if str(u.get("status")) == "approved"]
+    disabled_users = [u for u in users if str(u.get("status")) == "disabled"]
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Accounts", len(users))
+    m2.metric("Pending Approval", len(pending_users))
+    m3.metric("Approved", len(approved_users))
+    m4.metric("Green API Ready", sum(1 for u in approved_users if u.get("id_instance") and u.get("sending_enabled")))
+
+    pending_lbl = f"Pending Approvals ({len(pending_users)})" if pending_users else "Pending Approvals"
+    tab_pending, tab_users, tab_sm, tab_mine, tab_chpwd = st.tabs([
+        pending_lbl,
+        f"All Users ({len(users)})",
+        "Social Media (Pending & Audit)",
+        "Green API",
+        "Change Password",
+    ])
+
+    with tab_pending:
+        if not pending_users:
+            st.success("No pending access requests right now.", icon=":material/check_circle:")
+        else:
+            for u in pending_users:
+                p_uid = int(u["id"])
+                with st.container(border=True):
+                    c1, c2, c3 = st.columns([3.5, 1, 1], vertical_alignment="center")
+                    c1.markdown(
+                        f"**{html.escape(str(u.get('display_name') or u['username']))}** "
+                        f"(`@{html.escape(str(u['username']))}`)"
+                    )
+                    if c2.button("Approve", key=f"set_app_{p_uid}", type="primary", icon=":material/check:", width="stretch"):
+                        update_user_status(p_uid, "approved", uid)
+                        st.rerun()
+                    if c3.button("Reject", key=f"set_rej_{p_uid}", icon=":material/close:", width="stretch"):
+                        update_user_status(p_uid, "disabled", uid)
+                        st.rerun()
+
+    with tab_users:
+        for u in users:
+            u_id = int(u["id"])
+            ustatus = str(u.get("status") or "pending")
+            urole = str(u.get("role") or "user")
+            u_dname = html.escape(str(u.get("display_name") or u["username"]))
+            u_uname = html.escape(str(u["username"]))
+
+            status_styles = {
+                "approved": ("rgba(52,199,89,0.14)", "#248A3D", "Approved"),
+                "pending": ("rgba(255,159,10,0.15)", "#B25000", "Pending"),
+                "disabled": ("rgba(255,69,58,0.14)", "#D70015", "Disabled"),
+            }
+            st_bg, st_fg, st_txt = status_styles.get(ustatus, status_styles["disabled"])
+            role_bg = "rgba(0,102,204,0.12)" if urole == "admin" else "rgba(142,142,147,0.14)"
+            role_fg = "#0066CC" if urole == "admin" else "var(--label-2, #3A3A3C)"
+            if u.get("id_instance"):
+                ga_dot = "#34C759" if u.get("sending_enabled") else "#FF9F0A"
+                ga_txt = f"Green API #{html.escape(str(u['id_instance']))} · {'On' if u.get('sending_enabled') else 'Off'}"
+            else:
+                ga_dot = "#8E8E93"
+                ga_txt = "No Green API"
+
+            with st.container(border=True):
+                if u_id == uid:
+                    c1, c4 = st.columns([4.5, 1.3], vertical_alignment="center")
+                else:
+                    c1, c2, c3, c4 = st.columns([3.4, 1.0, 1.0, 1.2], vertical_alignment="center")
+
+                c1.markdown(
+                    f"""
+                    <div style="display:flex;flex-direction:column;gap:5px;">
+                        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+                            <span style="font-size:0.96rem;font-weight:700;color:var(--label, #1D1D1F);">{u_dname}</span>
+                            <span style="font-size:0.8rem;color:var(--label-3, #6E6E73);">@{u_uname}</span>
+                            <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:{role_bg};color:{role_fg};text-transform:uppercase;">{html.escape(urole)}</span>
+                            <span style="font-size:0.7rem;font-weight:600;padding:2px 8px;border-radius:999px;background:{st_bg};color:{st_fg};">{st_txt}</span>
+                        </div>
+                        <div style="display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--label-3, #6E6E73);">
+                            <span style="width:7px;height:7px;border-radius:50%;background:{ga_dot};display:inline-block;"></span>
+                            <span>{ga_txt}</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if u_id != uid:
+                    if ustatus != "approved":
+                        if c2.button("Approve", key=f"set_en_{u_id}", type="primary", width="stretch"):
+                            update_user_status(u_id, "approved", uid)
+                            st.rerun()
+                    else:
+                        if c2.button("Disable", key=f"set_dis_{u_id}", width="stretch"):
+                            update_user_status(u_id, "disabled", uid)
+                            st.rerun()
+                    nxt_role = "admin" if urole == "user" else "user"
+                    if c3.button(f"Make {nxt_role}", key=f"set_role_{u_id}", width="stretch"):
+                        update_user_role(u_id, nxt_role)
+                        st.rerun()
+                with c4.popover("Reset Pwd", width="stretch"):
+                    new_p = st.text_input("New password", type="password", key=f"set_npwd_{u_id}")
+                    if st.button("Save Password", key=f"set_spwd_{u_id}", type="primary", width="stretch"):
+                        ok_p, msg_p = reset_user_password(u_id, new_p)
+                        if ok_p:
+                            st.success(msg_p)
+                        else:
+                            st.error(msg_p)
+
+    with tab_sm:
+        from nepal_config import CANONICAL_X_CATEGORIES
+        from nepal_news_store import (
+            delete_x_account,
+            get_all_x_accounts,
+            promote_pending_x_account,
+            verify_x_profile_connectivity,
+        )
+
+        sm_sub1, sm_sub2 = st.tabs(["Pending Verification Candidates", "Reachability Audit"])
+        with sm_sub1:
+            pending_accounts = get_all_x_accounts(verification_status="pending_verification")
+            if not pending_accounts:
+                st.info("No social media accounts currently pending verification.")
+            else:
+                for pa in pending_accounts:
+                    ph = str(pa.get("handle") or "").strip()
+                    pa_plat = str(pa.get("platform") or "x").strip().lower()
+                    is_fb = pa_plat == "facebook"
+                    default_url = f"https://www.facebook.com/{ph}" if is_fb else f"https://x.com/{ph}"
+                    prof_url = str(pa.get("profile_url") or pa.get("source_url") or "").strip() or default_url
+                    pa_name = html.escape(str(pa.get("name") or ph))
+                    pa_cat = html.escape(str(pa.get("category") or "General"))
+                    pa_role = html.escape(str(pa.get("role") or pa.get("profile_brief") or "Discovered Nepal Voice"))
+                    handle_lbl = f"fb/{html.escape(ph)}" if is_fb else f"@{html.escape(ph)}"
+                    plat_bg = "rgba(24,119,242,0.12)" if is_fb else "rgba(15,23,42,0.08)"
+                    plat_fg = "#1877F2" if is_fb else "var(--label, #1D1D1F)"
+                    plat_txt = "Facebook" if is_fb else "X"
+                    esc_url = html.escape(prof_url, quote=True)
+
+                    with st.container(border=True):
+                        pc1, pc2, pc3 = st.columns([3.2, 1.1, 0.9], vertical_alignment="center")
+                        with pc1:
+                            st.markdown(
+                                f"""
+                                <div style="display:flex;flex-direction:column;gap:5px;">
+                                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+                                        <span style="font-size:0.96rem;font-weight:700;color:var(--label, #1D1D1F);">{pa_name}</span>
+                                        <span style="font-size:0.8rem;color:var(--label-3, #6E6E73);">{handle_lbl}</span>
+                                        <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;background:{plat_bg};color:{plat_fg};">{plat_txt}</span>
+                                        <span style="font-size:0.7rem;font-weight:500;padding:2px 8px;border-radius:999px;background:rgba(142,142,147,0.12);color:var(--label-2, #3A3A3C);">{pa_cat}</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:0.78rem;color:var(--label-3, #6E6E73);">
+                                        <span>{pa_role}</span>
+                                        <a href="{esc_url}" target="_blank" rel="noopener noreferrer"
+                                           style="color:#0066CC;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                                            {html.escape(prof_url)} ↗
+                                        </a>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+                        with pc2:
+                            if st.button("Verify & Approve", key=f"set_sm_prom_{pa_plat}_{ph}", type="primary", icon=":material/verified:", width="stretch"):
+                                ok_prom, prom_msg = promote_pending_x_account(ph, platform=pa_plat)
+                                if ok_prom:
+                                    st.toast(f"Promoted {ph} to Verified!", icon=":material/verified:")
+                                    st.rerun()
+                                else:
+                                    st.warning(prom_msg)
+                        with pc3:
+                            if st.button("Remove", key=f"set_sm_rem_{pa_plat}_{ph}", icon=":material/delete_outline:", width="stretch"):
+                                delete_x_account(ph, platform=pa_plat)
+                                st.toast(f"Removed candidate {ph}", icon=":material/delete:")
+                                st.rerun()
+
+        with sm_sub2:
+            st.caption("Checks live reachability across monitored social media handles to detect suspended, renamed, or inaccessible profiles.")
+            audit_sector = st.selectbox("Select Sector to Audit", ["All Sectors"] + CANONICAL_X_CATEGORIES, key="set_audit_sector_select")
+            if st.button("Run Reachability Audit", icon=":material/speed:", key="set_btn_run_audit", type="primary"):
+                with st.spinner("Pinging social media profile endpoints..."):
+                    target_audit = get_all_x_accounts(category=(None if audit_sector == "All Sectors" else audit_sector), limit=30)
+                    audit_results = []
+                    for ta in target_audit:
+                        t_handle = ta.get("handle")
+                        t_plat = ta.get("platform", "x")
+                        ok, msg = True, "Reachable"
+                        if t_plat == "x":
+                            ok, msg = verify_x_profile_connectivity(t_handle)
+                        audit_results.append({
+                            "Platform": t_plat.title(),
+                            "Handle": f"@{t_handle}" if t_plat == "x" else f"fb/{t_handle}",
+                            "Name": ta.get("name"),
+                            "Sector": ta.get("category"),
+                            "Accessible": "✅ Reachable" if ok else "❌ Unreachable",
+                            "Details": msg,
+                        })
+                    import pandas as pd
+                    st.dataframe(pd.DataFrame(audit_results), use_container_width=True)
+                    st.success(f"Audit completed for {len(audit_results)} profiles!")
+
+    with tab_mine:
+        if uid <= 0:
+            st.info("Using server environment Green API in fallback mode.")
+        else:
+            my_cfg = get_user_greenapi_config(uid) or {}
+            _render_greenapi_config_form(
+                target_uid=uid,
+                actor_uid=uid,
+                form_key=f"set_my_ga_form_{uid}",
+                existing_cfg=my_cfg,
+                enable_label="Enable WhatsApp sending for my account",
+                save_label="Save My Green API",
+            )
+
+    with tab_chpwd:
+        _render_change_password_form(uid, "admin")
+
+
+if selected_nav == "Log out":
+    _perform_logout()
+
+if selected_nav == "Settings":
+    _toolbar_columns("st", {}, only_theme=True)
+    render_settings_section()
 

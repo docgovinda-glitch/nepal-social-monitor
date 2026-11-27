@@ -29,9 +29,25 @@ def _get_green_config() -> Dict[str, str]:
     }
 
 
-def is_configured() -> bool:
-    """Returns True if Green API URL, instance ID, and token are present server-side."""
-    cfg = _get_green_config()
+def _resolve_green_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    """Resolves a Green API config dict, falling back to server environment if omitted."""
+    if config is not None:
+        flag = config.get("sending_enabled_flag")
+        if flag is None and "sending_enabled" in config:
+            flag = "true" if config.get("sending_enabled") else "false"
+        return {
+            "api_url": str(config.get("api_url") or "").strip().rstrip("/"),
+            "id_instance": str(config.get("id_instance") or "").strip(),
+            "token_instance": str(config.get("token_instance") or "").strip(),
+            "env_chat_id": str(config.get("env_chat_id") or "").strip(),
+            "sending_enabled_flag": str(flag or "").strip().lower(),
+        }
+    return _get_green_config()
+
+
+def is_configured(config: Optional[Dict[str, Any]] = None) -> bool:
+    """Returns True if Green API URL, instance ID, and token are present."""
+    cfg = _resolve_green_config(config)
     return bool(cfg["api_url"] and cfg["id_instance"] and cfg["token_instance"])
 
 
@@ -40,15 +56,15 @@ def get_env_suggested_chat_id() -> str:
     return _get_green_config().get("env_chat_id", "")
 
 
-def is_sending_active(session_approved: bool = True) -> bool:
+def is_sending_active(session_approved: bool = True, config: Optional[Dict[str, Any]] = None) -> bool:
     """
     Returns True when Green API credentials are configured and sending is approved
-    (unless explicitly disabled via GREEN_API_SENDING_ENABLED=false).
+    (unless explicitly disabled via sending_enabled_flag='false' / GREEN_API_SENDING_ENABLED=false).
     """
-    cfg = _get_green_config()
+    cfg = _resolve_green_config(config)
     if cfg["sending_enabled_flag"] in ("0", "false", "no"):
         return False
-    return bool(session_approved and is_configured())
+    return bool(session_approved and bool(cfg["api_url"] and cfg["id_instance"] and cfg["token_instance"]))
 
 
 def _get_whatsapp_group_id(env_var: str, default: str) -> str:
@@ -90,7 +106,7 @@ def get_share_targets(is_x_post: bool = False) -> List[Dict[str, str]]:
     return [dict(SOCIAL_MEDIA_GROUP)] if is_x_post else [dict(g) for g in NEWS_SHARE_GROUPS]
 
 
-def get_destination_group(timeout: int = 10) -> Dict[str, Any]:
+def get_destination_group(timeout: int = 10, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Resolves the configured destination WhatsApp group from GREEN_API_CHAT_ID
     and retrieves its live group name via Green API getChats.
@@ -98,7 +114,7 @@ def get_destination_group(timeout: int = 10) -> Dict[str, Any]:
     env_cid = get_env_suggested_chat_id().strip()
     if not env_cid:
         return {"ok": True, **NEWS_SHARE_GROUPS[0], "error": ""}
-    grps = list_whatsapp_groups(timeout=timeout)
+    grps = list_whatsapp_groups(timeout=timeout, config=config)
     if grps.get("ok"):
         for g in grps.get("groups", []):
             if g["id"] == env_cid:
@@ -106,15 +122,15 @@ def get_destination_group(timeout: int = 10) -> Dict[str, Any]:
     return {"ok": True, "id": env_cid, "name": NEWS_SHARE_GROUPS[0]["name"], "error": ""}
 
 
-def get_instance_status(timeout: int = 8) -> Dict[str, Any]:
+def get_instance_status(timeout: int = 8, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Checks Green API instance authorization state without exposing credentials."""
-    cfg = _get_green_config()
+    cfg = _resolve_green_config(config)
     if not (cfg["api_url"] and cfg["id_instance"] and cfg["token_instance"]):
         return {
             "configured": False,
             "authorized": False,
             "state": "not_configured",
-            "error": "Green API credentials are not configured in the server environment.",
+            "error": "Green API credentials are not configured.",
         }
     endpoint = f"{cfg['api_url']}/waInstance{cfg['id_instance']}/getStateInstance/{cfg['token_instance']}"
     try:
@@ -144,9 +160,9 @@ def get_instance_status(timeout: int = 8) -> Dict[str, Any]:
         }
 
 
-def list_whatsapp_groups(timeout: int = 10) -> Dict[str, Any]:
+def list_whatsapp_groups(timeout: int = 10, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Retrieves available WhatsApp groups (@g.us) from the connected Green API instance."""
-    cfg = _get_green_config()
+    cfg = _resolve_green_config(config)
     if not (cfg["api_url"] and cfg["id_instance"] and cfg["token_instance"]):
         return {"ok": False, "groups": [], "error": "Green API credentials are not configured."}
 
@@ -180,6 +196,23 @@ def list_whatsapp_groups(timeout: int = 10) -> Dict[str, Any]:
         return {"ok": False, "groups": [], "error": "Failed to retrieve WhatsApp groups from Green API."}
 
 
+def verify_fixed_group_membership(timeout: int = 10, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Checks whether the Green API instance is a member of the fixed News and Social Media groups."""
+    res = list_whatsapp_groups(timeout=timeout, config=config)
+    fixed_targets = list(NEWS_SHARE_GROUPS) + [SOCIAL_MEDIA_GROUP]
+    if not res.get("ok"):
+        return {
+            "ok": False,
+            "error": res.get("error") or "Failed to fetch groups.",
+            "present": [],
+            "missing": [dict(t) for t in fixed_targets],
+        }
+    member_ids = {g["id"] for g in res.get("groups", [])}
+    present = [dict(t) for t in fixed_targets if t["id"] in member_ids]
+    missing = [dict(t) for t in fixed_targets if t["id"] not in member_ids]
+    return {"ok": True, "error": "", "present": present, "missing": missing}
+
+
 def build_send_dedup_key(chat_id: str, message: str) -> str:
     """Creates a deterministic key to prevent duplicate sends of the same content to the same group."""
     digest = hashlib.sha256(f"{chat_id}||{message}".encode("utf-8")).hexdigest()[:20]
@@ -192,19 +225,20 @@ def send_group_message(
     session_approved: bool = False,
     sent_registry: Optional[Set[str]] = None,
     timeout: Any = (3, 8),
+    config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Sends a single text message to a selected WhatsApp group via Green API.
-    Remains strictly inactive unless is_sending_active(session_approved) is True.
+    Remains strictly inactive unless is_sending_active(session_approved, config=config) is True.
     Distinguishes Green API queue acceptance (idMessage) from confirmed delivery.
     """
-    if not is_sending_active(session_approved=session_approved):
+    if not is_sending_active(session_approved=session_approved, config=config):
         return {
             "ok": False,
             "accepted": False,
             "status": "inactive",
             "id_message": "",
-            "error": "WhatsApp group messaging is currently inactive pending Green API setup & approval.",
+            "error": "WhatsApp group messaging is not active or not assigned for your account.",
         }
 
     target_chat = (chat_id or "").strip()
@@ -248,7 +282,7 @@ def send_group_message(
             "error": "This exact content was already sent to the selected group.",
         }
 
-    cfg = _get_green_config()
+    cfg = _resolve_green_config(config)
     endpoint = f"{cfg['api_url']}/waInstance{cfg['id_instance']}/sendMessage/{cfg['token_instance']}"
     payload = {
         "chatId": target_chat,
