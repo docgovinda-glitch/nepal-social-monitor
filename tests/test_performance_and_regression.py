@@ -992,7 +992,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertTrue(brief_ne["ok"])
         self.assertEqual(brief_ne["headline_english"], "Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?")
         self.assertIn("*Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?*\n\n", brief_ne["formatted_text"])
-        self.assertIn("\n\nRead Original Source: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html", brief_ne["formatted_text"])
+        self.assertIn("\n\nSource: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html", brief_ne["formatted_text"])
         self.assertEqual(len(brief_ne["formatted_text"].split("\n\n")), 3)
 
         # 2) English article (Indian Press / English Nepali Media) -> same 3-part WhatsApp format
@@ -1017,7 +1017,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         self.assertEqual(len(parts_en), 3)
         self.assertEqual(parts_en[0], "*India and Nepal review cross-border power transmission lines*")
         self.assertTrue(len(parts_en[1]) > 20)
-        self.assertEqual(parts_en[2], "Read Original Source: https://www.thehindu.com/news/international/india-nepal-power.ece")
+        self.assertEqual(parts_en[2], "Source: https://www.thehindu.com/news/international/india-nepal-power.ece")
 
         # 3) In-App Reader translates headline AND full body, and single-click Copy formats Headline + Body + Link
         with mock.patch("nepal_news_store.hydrate_article_full_content", return_value=None), \
@@ -1039,7 +1039,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         )
         self.assertTrue(copy_payload.startswith("Failed Series of Disaster Rehabilitation: Will It Repeat in Bhotekoshi?\n\n"))
         self.assertIn("2050 flood and 2072 earthquake", copy_payload)
-        self.assertTrue(copy_payload.endswith("\n\nRead Original Source: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html"))
+        self.assertTrue(copy_payload.endswith("\n\nSource: https://ekantipur.com/news/2026/11/19/bhotekoshi-rehab.html"))
 
         # 4) Hindi Indian Press article -> 3-part English Brief + Read modal English headline translation & Copy
         hi_item = {
@@ -1072,7 +1072,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         parts_hi = brief_hi["formatted_text"].split("\n\n")
         self.assertEqual(len(parts_hi), 3)
         self.assertEqual(parts_hi[0], "*Security arrangements tightened further along Nepal border*")
-        self.assertEqual(parts_hi[2], "Read Original Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security")
+        self.assertEqual(parts_hi[2], "Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security")
 
         self.assertTrue(rd_hi["ok"])
         self.assertEqual(rd_hi["translated_title"], "Security arrangements tightened further along Nepal border")
@@ -1084,7 +1084,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         )
         self.assertTrue(hi_copy.startswith("Security arrangements tightened further along Nepal border\n\n"))
         self.assertIn("coordination meeting", hi_copy)
-        self.assertTrue(hi_copy.endswith("\n\nRead Original Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security"))
+        self.assertTrue(hi_copy.endswith("\n\nSource: https://www.amarujala.com/uttar-pradesh/nepal-border-security"))
 
         # Verify 3-part WhatsApp payload from reader with bold headline
         hi_wa = summ.format_reader_copy_payload(
@@ -1095,7 +1095,7 @@ class AppTestEndToEndRegressionTests(unittest.TestCase):
         )
         self.assertTrue(hi_wa.startswith("*Security arrangements tightened further along Nepal border*\n\n"))
         self.assertIn("coordination meeting", hi_wa)
-        self.assertTrue(hi_wa.endswith("\n\nRead Original Source: https://www.amarujala.com/uttar-pradesh/nepal-border-security"))
+        self.assertTrue(hi_wa.endswith("\n\nSource: https://www.amarujala.com/uttar-pradesh/nepal-border-security"))
 
     def test_indian_media_classifier_boundaries_entities_and_placeholder_ts_repair(self):
         import nepal_config as cfg

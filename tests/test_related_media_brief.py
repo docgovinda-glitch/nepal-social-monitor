@@ -411,7 +411,7 @@ class TestRelatedSameStreamBrief(unittest.TestCase):
         }
         saved_fmt = (
             "*Primary*\n\nSummary body\n\n"
-            "Read Original Source: https://ekantipur.com/news/100\n\n"
+            "Source: https://ekantipur.com/news/100\n\n"
             "Related:\n- Setopati: https://www.setopati.com/politics/101"
         )
 

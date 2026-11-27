@@ -2557,7 +2557,7 @@ def _show_share_dialog() -> None:
         if eff_profile:
             pts.append(f"_{eff_profile}_")
         if src_url:
-            pts.append(f"Read Original Source: {src_url}")
+            pts.append(f"Source: {src_url}")
         return "\n\n".join(pts)
 
     saved_formatted = _fmt_payload(saved_headline, saved_text)
@@ -5481,21 +5481,86 @@ def render_export_analytics_section() -> None:
     sum3.metric("India", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Indian Press'):,}")
     sum4.metric("Social Media", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Social Media'):,}")
 
-    current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}_{len(filtered_export_items)}"
+    current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}"
     st.session_state.setdefault("editor_ver_univ", 0)
-    if st.session_state.get("last_univ_filter_sig") != current_filter_sig or "selected_links_univ" not in st.session_state:
-        st.session_state["selected_links_univ"] = {x["link"] for x in filtered_export_items}
+    st.session_state.setdefault("deselected_links_univ", set())
+    if st.session_state.get("last_univ_filter_sig") != current_filter_sig:
         st.session_state["last_univ_filter_sig"] = current_filter_sig
 
-    selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
-    st.markdown(
-        f'<div class="counter-badge" style="margin-bottom:8px;">{_ico("list", 13)} <b>{len(selected_export_items)} / {len(filtered_export_items)}</b> selected</div>',
-        unsafe_allow_html=True,
-    )
+    desel_links = st.session_state["deselected_links_univ"]
+
+    c_cnt, c_sel_all, c_clr_all, c_bulk = st.columns([2.3, 0.9, 0.9, 1.2], vertical_alignment="center")
+    counter_slot = c_cnt.empty()
+    if c_sel_all.button("Select All", icon=":material/check_box:", key="btn_univ_sel_all", width="stretch"):
+        desel_links.difference_update(x.get("link") for x in filtered_export_items if x.get("link"))
+        st.session_state["editor_ver_univ"] += 1
+        st.rerun()
+    if c_clr_all.button("Clear All", icon=":material/check_box_outline_blank:", key="btn_univ_clr_all", width="stretch"):
+        desel_links.update(x.get("link") for x in filtered_export_items if x.get("link"))
+        st.session_state["editor_ver_univ"] += 1
+        st.rerun()
+
+    with c_bulk.popover("By Category / Source", icon=":material/checklist:", width="stretch"):
+        _cat_counts: Dict[str, int] = {}
+        _src_counts: Dict[str, int] = {}
+        for _it in filtered_export_items:
+            _c = str(_it.get("category") or "Uncategorized")
+            _s = str(_it.get("source") or "Unknown")
+            _cat_counts[_c] = _cat_counts.get(_c, 0) + 1
+            _src_counts[_s] = _src_counts.get(_s, 0) + 1
+
+        _cat_keys = sorted(_cat_counts.keys())
+        if _cat_keys:
+            _sel_bulk_cat = st.selectbox(
+                "Category",
+                options=_cat_keys,
+                format_func=lambda c: f"{c} ({_cat_counts.get(c, 0)})",
+                key="univ_bulk_cat_sel",
+            )
+            _bc1, _bc2 = st.columns(2)
+            if _bc1.button("Select", key="btn_bulk_cat_sel", type="primary", width="stretch"):
+                desel_links.difference_update(
+                    x.get("link") for x in filtered_export_items
+                    if x.get("link") and str(x.get("category") or "Uncategorized") == _sel_bulk_cat
+                )
+                st.session_state["editor_ver_univ"] += 1
+                st.rerun()
+            if _bc2.button("Deselect", key="btn_bulk_cat_desel", width="stretch"):
+                desel_links.update(
+                    x.get("link") for x in filtered_export_items
+                    if x.get("link") and str(x.get("category") or "Uncategorized") == _sel_bulk_cat
+                )
+                st.session_state["editor_ver_univ"] += 1
+                st.rerun()
+
+        _src_keys = sorted(_src_counts.keys())
+        if _src_keys:
+            st.divider()
+            _sel_bulk_src = st.selectbox(
+                "Source / Outlet",
+                options=_src_keys,
+                format_func=lambda s: f"{s} ({_src_counts.get(s, 0)})",
+                key="univ_bulk_src_sel",
+            )
+            _bs1, _bs2 = st.columns(2)
+            if _bs1.button("Select", key="btn_bulk_src_sel", type="primary", width="stretch"):
+                desel_links.difference_update(
+                    x.get("link") for x in filtered_export_items
+                    if x.get("link") and str(x.get("source") or "Unknown") == _sel_bulk_src
+                )
+                st.session_state["editor_ver_univ"] += 1
+                st.rerun()
+            if _bs2.button("Deselect", key="btn_bulk_src_desel", width="stretch"):
+                desel_links.update(
+                    x.get("link") for x in filtered_export_items
+                    if x.get("link") and str(x.get("source") or "Unknown") == _sel_bulk_src
+                )
+                st.session_state["editor_ver_univ"] += 1
+                st.rerun()
 
     if not df_export.empty:
         df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
-        df_for_editor.insert(0, "Include?", [link in st.session_state["selected_links_univ"] for link in df_for_editor["Link"]])
+        df_for_editor.insert(0, "Include?", [link not in desel_links for link in df_for_editor["Link"]])
 
         col_config_univ = {
             "Include?": st.column_config.CheckboxColumn("✓", default=True, width="small"),
@@ -5514,17 +5579,20 @@ def render_export_analytics_section() -> None:
             disabled=[c for c in df_for_editor.columns if c != "Include?"],
             hide_index=True,
             width="stretch",
-            key=f"univ_editor_{st.session_state['editor_ver_univ']}_{len(df_for_editor)}"
+            key=f"univ_editor_{st.session_state['editor_ver_univ']}"
         )
 
-        sel_links = st.session_state["selected_links_univ"]
         for link, inc in zip(edited_df_univ["Link"], edited_df_univ["Include?"]):
             if inc:
-                sel_links.add(link)
+                desel_links.discard(link)
             else:
-                sel_links.discard(link)
+                desel_links.add(link)
 
-        selected_export_items = [x for x in filtered_export_items if x.get("link") in st.session_state["selected_links_univ"]]
+        selected_export_items = [x for x in filtered_export_items if x.get("link") not in desel_links]
+        counter_slot.markdown(
+            f'<div class="counter-badge" style="margin-bottom:8px;">{_ico("list", 13)} <b>{len(selected_export_items)} / {len(filtered_export_items)}</b> selected</div>',
+            unsafe_allow_html=True,
+        )
 
         st.write("")
         c_csv, c_docx = st.columns(2)

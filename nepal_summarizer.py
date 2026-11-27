@@ -2008,7 +2008,7 @@ def format_english_brief_payload(
     elif body and not hl:
         parts.append(body)
     if url:
-        parts.append(f"Read Original Source: {url}")
+        parts.append(f"Source: {url}")
     if related_links:
         rel_lines: List[str] = []
         for rel in related_links:
@@ -2328,7 +2328,7 @@ def format_reader_copy_payload(
     if body:
         parts.append(body)
     if url:
-        parts.append(f"Read Original Source: {url}")
+        parts.append(f"Source: {url}")
     return "\n\n".join(parts)
 
 
@@ -2636,7 +2636,7 @@ def generate_on_demand_x_content(
     if profile_line:
         parts.append(f"_{profile_line}_")
     if source_url:
-        parts.append(f"Read Original Source: {source_url}")
+        parts.append(f"Source: {source_url}")
     formatted = "\n\n".join(parts)
     return {
         "ok": True,
