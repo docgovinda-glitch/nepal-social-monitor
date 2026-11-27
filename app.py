@@ -5360,12 +5360,258 @@ def render_x_section() -> None:
 # ==========================================
 # SECTION 4: Analytics & Export
 # ==========================================
+_EXPORT_STOPWORDS = frozenset({
+    "the", "and", "for", "with", "from", "that", "this", "into", "over", "after",
+    "amid", "says", "said", "nepal", "nepali", "india", "indian", "govt", "government",
+    "minister", "news", "today", "report", "reports", "against", "under", "between",
+})
+
+
+def _export_title_tokens(item: Dict[str, Any]) -> Set[str]:
+    txt = f"{item.get('title') or ''} {item.get('headline_en') or ''}".lower()
+    raw = re.findall(r"[^\W_]{3,}|\d+", txt)
+    return {t for t in raw if t not in _EXPORT_STOPWORDS}
+
+
+def _group_related_export_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Groups related news items directly below the main item based on headline token overlap."""
+    if len(items) < 2:
+        return items
+    tokens_list = [_export_title_tokens(it) for it in items]
+    used = [False] * len(items)
+    grouped: List[Dict[str, Any]] = []
+    for i, main_it in enumerate(items):
+        if used[i]:
+            continue
+        used[i] = True
+        main_copy = dict(main_it)
+        main_copy["is_related_child"] = False
+        main_copy["parent_link"] = ""
+        grouped.append(main_copy)
+
+        t_main = tokens_list[i]
+        if len(t_main) < 2:
+            continue
+        dt_main = main_it.get("published_dt")
+        src_main = str(main_it.get("source") or "").strip().lower()
+        main_link = str(main_it.get("link") or "").strip()
+
+        for j in range(i + 1, len(items)):
+            if used[j]:
+                continue
+            cand_it = items[j]
+            src_cand = str(cand_it.get("source") or "").strip().lower()
+            if src_main and src_cand and src_main == src_cand:
+                continue
+            dt_cand = cand_it.get("published_dt")
+            if dt_main and dt_cand:
+                try:
+                    if abs((dt_main - dt_cand).total_seconds()) > 12 * 3600:
+                        continue
+                except Exception:
+                    pass
+            t_cand = tokens_list[j]
+            if len(t_cand) < 2:
+                continue
+            shared = t_main & t_cand
+            union_n = len(t_main | t_cand)
+            jaccard = (len(shared) / union_n) if union_n else 0.0
+            if len(shared) >= 3 or (len(shared) >= 2 and jaccard >= 0.34):
+                used[j] = True
+                child_copy = dict(cand_it)
+                child_copy["is_related_child"] = True
+                child_copy["parent_link"] = main_link
+                grouped.append(child_copy)
+    return grouped
+
+
+def _build_docx_articles_from_selection(selected_items: List[Dict[str, Any]], merge_related: bool = True) -> List[Dict[str, Any]]:
+    """
+    Converts selected export items into article dicts for generate_executive_word_digest.
+    When merge_related is True, selected child items ('↳') attach their URL to their
+    selected parent story's related_links (matching the reference digest format).
+    """
+    selected_links = {str(x.get("link") or "").strip() for x in selected_items if x.get("link")}
+    by_link: Dict[str, Dict[str, Any]] = {}
+    ordered_articles: List[Dict[str, Any]] = []
+
+    for x in selected_items:
+        link = str(x.get("link") or "").strip()
+        parent_link = str(x.get("parent_link") or "").strip()
+        if merge_related and x.get("is_related_child") and parent_link and parent_link in selected_links and parent_link in by_link:
+            parent_art = by_link[parent_link]
+            rels = parent_art.setdefault("related_links", [])
+            if link and link != parent_link and link not in rels and len(rels) < 4:
+                rels.append(link)
+            continue
+
+        item_copy = dict(x["raw_item"])
+        item_copy["stream"] = x.get("stream", "")
+        if not item_copy.get("structured_category") and x.get("category"):
+            item_copy["structured_category"] = x["category"]
+        item_copy["related_links"] = list(item_copy.get("related_links") or [])
+        if link:
+            by_link[link] = item_copy
+        ordered_articles.append(item_copy)
+
+    return ordered_articles
+
+
+@st.dialog("News Digest — View & Edit", width="large", icon=":material/edit_document:")
+def _show_digest_editor_dialog() -> None:
+    from executive_docx_exporter import (
+        SECTION_ORDER,
+        _clean_article_paragraphs,
+        _prepare_article_for_digest,
+        classify_article_to_reference_section,
+        format_editorial_source,
+        generate_executive_word_digest,
+    )
+
+    articles = st.session_state.get("docx_editor_articles") or []
+    digest_dt = st.session_state.get("docx_editor_date") or datetime.datetime.now(NEPAL_TZ)
+    digest_filename = st.session_state.get("docx_editor_filename") or "NEPAL_DAILY_NEWS_DIGEST.docx"
+
+    if not articles:
+        st.info("No stories in the current digest. Close and build the Word digest first.")
+        return
+
+    tab_prev, tab_edit = st.tabs([":material/visibility: Document Preview", ":material/edit_note: Edit Stories"])
+
+    with tab_prev:
+        date_str = f"{digest_dt.strftime('%B')} {digest_dt.day}, {digest_dt.year}"
+        sec_buckets: Dict[str, List[Dict[str, Any]]] = {s: [] for s in SECTION_ORDER}
+        for art in articles:
+            sec = classify_article_to_reference_section(art)
+            sec_buckets.setdefault(sec, []).append(_prepare_article_for_digest(art))
+
+        html_parts = [
+            '<div style="background:#FFFFFF;color:#1D1D1F;padding:28px 34px;border-radius:12px;'
+            'border:1px solid rgba(0,0,0,0.08);font-family:Georgia, \'Times New Roman\', serif;'
+            'max-height:62vh;overflow-y:auto;line-height:1.55;">',
+            '<div style="text-align:center;font-weight:700;font-size:1.15rem;letter-spacing:0.04em;">NEPAL DAILY NEWS DIGEST</div>',
+            f'<div style="text-align:center;font-weight:700;font-size:0.95rem;margin-bottom:18px;">{html.escape(date_str)}</div>',
+        ]
+        for sec in SECTION_ORDER:
+            items_in_sec = sec_buckets.get(sec) or []
+            if not items_in_sec:
+                continue
+            html_parts.append(
+                f'<div style="font-weight:700;font-size:1.0rem;margin:18px 0 10px 0;'
+                f'border-bottom:1px solid #E5E5EA;padding-bottom:4px;">{html.escape(sec)}</div>'
+            )
+            for st_item in items_in_sec:
+                hl = html.escape(str(st_item.get("title") or ""))
+                src = html.escape(str(st_item.get("source") or ""))
+                lnk = str(st_item.get("link") or "").strip()
+                rels = st_item.get("related_links") or []
+                html_parts.append(f'<div style="margin-bottom:14px;">')
+                html_parts.append(f'<div style="font-weight:700;font-style:italic;">• {hl}</div>')
+                html_parts.append(f'<div style="font-size:0.9rem;color:#3A3A3C;margin-left:14px;">({src})</div>')
+                for p_txt in st_item.get("paragraphs") or []:
+                    html_parts.append(f'<p style="margin:6px 0 6px 14px;font-size:0.93rem;">{html.escape(p_txt)}</p>')
+                if lnk:
+                    esc_l = html.escape(lnk, quote=True)
+                    html_parts.append(
+                        f'<div style="margin:4px 0 2px 14px;font-size:0.84rem;">'
+                        f'<a href="{esc_l}" target="_blank" style="color:#0066CC;">{html.escape(lnk)}</a></div>'
+                    )
+                for r_url in rels:
+                    esc_r = html.escape(r_url, quote=True)
+                    html_parts.append(
+                        f'<div style="margin:2px 0 2px 14px;font-size:0.84rem;">'
+                        f'<a href="{esc_r}" target="_blank" style="color:#0066CC;">{html.escape(r_url)}</a></div>'
+                    )
+                html_parts.append("</div>")
+        html_parts.append("</div>")
+        st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+    with tab_edit:
+        story_labels = [
+            f"{i + 1}. [{classify_article_to_reference_section(a)}] {str(a.get('title') or a.get('text') or '')[:65]} ({format_editorial_source(a.get('source', ''), a.get('link', ''))})"
+            for i, a in enumerate(articles)
+        ]
+        sel_idx = st.selectbox(
+            "Select story to edit",
+            options=list(range(len(articles))),
+            format_func=lambda idx: story_labels[idx],
+            key="docx_edit_story_idx",
+        )
+        cur_art = articles[sel_idx]
+        cur_sec = classify_article_to_reference_section(cur_art)
+        cur_title = str(cur_art.get("headline_english") or cur_art.get("title") or cur_art.get("text") or "").strip()
+        cur_src = str(cur_art.get("source") or "").strip()
+        cur_body_raw = str(cur_art.get("full_content") or cur_art.get("summary") or cur_art.get("text") or "").strip()
+        cur_body = "\n\n".join(_clean_article_paragraphs(cur_body_raw, cur_title, max_paragraphs=10))
+        cur_link = str(cur_art.get("link") or "").strip()
+        cur_rels = "\n".join(cur_art.get("related_links") or [])
+
+        with st.form(f"docx_story_edit_form_{sel_idx}", clear_on_submit=False):
+            e_c1, e_c2 = st.columns([1.2, 1])
+            new_sec = e_c1.selectbox(
+                "Digest Section",
+                options=list(SECTION_ORDER),
+                index=list(SECTION_ORDER).index(cur_sec) if cur_sec in SECTION_ORDER else 4,
+            )
+            new_src = e_c2.text_input("Source", value=cur_src)
+            new_title = st.text_input("Headline", value=cur_title)
+            new_body = st.text_area("Body Paragraphs", value=cur_body, height=200)
+            new_link = st.text_input("Main URL", value=cur_link)
+            new_rels = st.text_area("Related URLs (one per line)", value=cur_rels, height=80)
+
+            b_apply, b_del = st.columns([3, 1])
+            do_apply = b_apply.form_submit_button("Apply & Rebuild .docx", type="primary", width="stretch")
+            do_del = b_del.form_submit_button("Remove Story", width="stretch")
+
+        if do_apply:
+            updated = dict(cur_art)
+            updated["digest_section"] = new_sec
+            updated["source"] = new_src.strip() or cur_src
+            updated["title"] = new_title.strip() or cur_title
+            updated["headline_english"] = updated["title"]
+            updated["full_content"] = new_body.strip()
+            updated["summary"] = new_body.strip()
+            updated["link"] = new_link.strip()
+            updated["related_links"] = [ln.strip() for ln in new_rels.splitlines() if ln.strip()][:4]
+            articles[sel_idx] = updated
+            st.session_state["docx_editor_articles"] = articles
+            st.session_state["docx_bytes_univ"] = generate_executive_word_digest(
+                articles=articles,
+                report_date=digest_dt,
+                enrich_missing_sections=False,
+            )
+            st.success("Story updated and Word digest rebuilt.")
+            st.rerun()
+
+        if do_del:
+            articles.pop(sel_idx)
+            st.session_state["docx_editor_articles"] = articles
+            if articles:
+                st.session_state["docx_bytes_univ"] = generate_executive_word_digest(
+                    articles=articles,
+                    report_date=digest_dt,
+                    enrich_missing_sections=False,
+                )
+            st.rerun()
+
+    st.download_button(
+        label=f"Download Edited {digest_filename}",
+        icon=":material/download:",
+        data=st.session_state.get("docx_bytes_univ", b""),
+        file_name=digest_filename,
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        type="primary",
+        width="stretch",
+        key="dlg_dl_edited_docx",
+    )
+
+
 @st.fragment
 def render_export_analytics_section() -> None:
     _toolbar_columns("ex", {}, only_theme=True, show_timeframe=True)
     _render_active_search_chip()
 
-    ex_c1, ex_c2, ex_c3, ex_c4 = st.columns([1.2, 1.3, 1.1, 1.4], gap="small")
+    ex_c1, ex_c2, ex_c3, ex_c4, ex_c5 = st.columns([1.1, 1.2, 1.0, 1.0, 1.2], gap="small")
     with ex_c1:
         sel_stream = st.selectbox("Feed Source", ["All Streams", "Nepali Media", "Indian Press", "Social Media"], key="univ_stream_filter", label_visibility="collapsed")
     with ex_c2:
@@ -5373,6 +5619,8 @@ def render_export_analytics_section() -> None:
     with ex_c3:
         sel_lang = st.selectbox("News Language", [ALL_LANG_DEFAULT, "Nepali", "English", "Nepali / English"], key="univ_lang_filter", label_visibility="collapsed")
     with ex_c4:
+        sel_wa = st.selectbox("WhatsApp Status", ["All WhatsApp", "Sent to WhatsApp", "Not Sent"], key="univ_wa_filter", label_visibility="collapsed")
+    with ex_c5:
         kw_filter = st.text_input("Search Keyword", placeholder="Keyword or @handle", key="univ_kw_filter", icon=":material/search:", label_visibility="collapsed")
 
     _ana_bundle = get_cached_analytics_bundle(
@@ -5451,6 +5699,24 @@ def render_export_analytics_section() -> None:
         filtered_export_items = [x for x in filtered_export_items if x["category"] == sel_cat]
     if sel_lang != ALL_LANG_DEFAULT:
         filtered_export_items = [x for x in filtered_export_items if x["language"] == sel_lang]
+    if sel_wa != "All WhatsApp":
+        _wa_map = _get_wa_sent_map()
+        _sent_links_set = {
+            str(v.get("item_link") or "").strip()
+            for v in _wa_map.values()
+            if isinstance(v, dict) and v.get("item_link")
+        }
+        _sent_keys_set = set(_wa_map.keys()) | set(st.session_state.get("whatsapp_sent_ids") or set())
+        if sel_wa == "Sent to WhatsApp":
+            filtered_export_items = [
+                x for x in filtered_export_items
+                if (x.get("link") in _sent_links_set) or (_item_cache_id(x.get("raw_item") or x) in _sent_keys_set)
+            ]
+        else:
+            filtered_export_items = [
+                x for x in filtered_export_items
+                if (x.get("link") not in _sent_links_set) and (_item_cache_id(x.get("raw_item") or x) not in _sent_keys_set)
+            ]
     if kw_filter.strip():
         q_lower = kw_filter.strip().lower()
         filtered_export_items = [
@@ -5458,10 +5724,12 @@ def render_export_analytics_section() -> None:
             if q_lower in x["title"].lower() or q_lower in x["content"].lower() or q_lower in x["source"].lower()
         ]
 
+    filtered_export_items = _group_related_export_items(filtered_export_items)
+
     rows_data = [
         {
             "Stream": it["stream"],
-            "Headline / Text": it["title"],
+            "Headline / Text": (f"↳ {it['title']}" if it.get("is_related_child") else it["title"]),
             "English Translation": it["headline_en"],
             "Category": it["category"],
             "Source / Author": it["source"],
@@ -5481,7 +5749,19 @@ def render_export_analytics_section() -> None:
     sum3.metric("India", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Indian Press'):,}")
     sum4.metric("Social Media", f"{sum(1 for x in filtered_export_items if x['stream'] == 'Social Media'):,}")
 
-    current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{kw_filter.strip()}"
+    if not df_export.empty:
+        with st.expander("Analytics Overview", expanded=False, icon=":material/bar_chart:"):
+            an_c1, an_c2 = st.columns(2, gap="medium")
+            with an_c1:
+                st.caption("Stories by Category")
+                cat_series = df_export["Category"].value_counts().head(10)
+                st.bar_chart(cat_series, horizontal=True, height=240)
+            with an_c2:
+                st.caption("Top Sources / Outlets")
+                src_series = df_export["Source / Author"].value_counts().head(10)
+                st.bar_chart(src_series, horizontal=True, height=240)
+
+    current_filter_sig = f"{sel_stream}_{sel_cat}_{sel_lang}_{sel_wa}_{kw_filter.strip()}"
     st.session_state.setdefault("editor_ver_univ", 0)
     st.session_state.setdefault("deselected_links_univ", set())
     if st.session_state.get("last_univ_filter_sig") != current_filter_sig:
@@ -5502,26 +5782,34 @@ def render_export_analytics_section() -> None:
 
     with c_bulk.popover("Bulk Select", icon=":material/checklist:", width="stretch"):
         st.caption("Toggle an entire category or source. To uncheck individual stories, filter by Category above and use the table checkboxes.")
-        _cat_stats: Dict[str, List[str]] = {}
-        _src_stats: Dict[str, List[str]] = {}
+        _cat_stats: Dict[str, List[Dict[str, Any]]] = {}
+        _src_stats: Dict[str, List[Dict[str, Any]]] = {}
         for _it in filtered_export_items:
             _lk = _it.get("link")
             if not _lk:
                 continue
             _c = str(_it.get("category") or "Uncategorized")
             _s = str(_it.get("source") or "Unknown")
-            _cat_stats.setdefault(_c, []).append(_lk)
-            _src_stats.setdefault(_s, []).append(_lk)
+            _cat_stats.setdefault(_c, []).append(_it)
+            _src_stats.setdefault(_s, []).append(_it)
+
+        def _toggle_export_item_cb(lk: str, chk_key: str) -> None:
+            if st.session_state.get(chk_key, True):
+                desel_links.discard(lk)
+            else:
+                desel_links.add(lk)
+            st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
 
         _b_tab_cat, _b_tab_src = st.tabs(["Categories", "Sources"])
         with _b_tab_cat:
             for _idx_c, _c_name in enumerate(sorted(_cat_stats.keys())):
-                _c_links = _cat_stats[_c_name]
+                _c_items = _cat_stats[_c_name]
+                _c_links = [x["link"] for x in _c_items]
                 _c_sel_n = sum(1 for _lk in _c_links if _lk not in desel_links)
                 _c_all_on = _c_sel_n == len(_c_links)
                 _cc1, _cc2 = st.columns([3.2, 1.2], vertical_alignment="center")
                 _cc1.markdown(f"**{html.escape(_c_name)}** · `{_c_sel_n}/{len(_c_links)}`")
-                _btn_lbl = "Clear" if _c_all_on else "Select All"
+                _btn_lbl = "Clear All" if _c_all_on else "Select All"
                 if _cc2.button(_btn_lbl, key=f"btn_bulk_cat_tog_{_idx_c}", type=("secondary" if _c_all_on else "primary"), width="stretch"):
                     if _c_all_on:
                         desel_links.update(_c_links)
@@ -5529,15 +5817,30 @@ def render_export_analytics_section() -> None:
                         desel_links.difference_update(_c_links)
                     st.session_state["editor_ver_univ"] += 1
                     st.rerun()
+                with st.expander(f"Select individual items ({_c_sel_n}/{len(_c_links)})", expanded=False):
+                    for _i_idx, _c_it in enumerate(_c_items):
+                        _i_lk = _c_it["link"]
+                        _i_title = str(_c_it.get("title") or "").strip()[:85]
+                        _i_src = str(_c_it.get("source") or "").strip()
+                        _prefix = "↳ " if _c_it.get("is_related_child") else ""
+                        _chk_k = f"chk_bulk_c_{_idx_c}_{_i_idx}_{abs(hash(_i_lk)) % 100000}"
+                        st.checkbox(
+                            f"{_prefix}{_i_title} ({_i_src})",
+                            value=(_i_lk not in desel_links),
+                            key=_chk_k,
+                            on_change=_toggle_export_item_cb,
+                            args=(_i_lk, _chk_k),
+                        )
 
         with _b_tab_src:
             for _idx_s, _s_name in enumerate(sorted(_src_stats.keys())):
-                _s_links = _src_stats[_s_name]
+                _s_items = _src_stats[_s_name]
+                _s_links = [x["link"] for x in _s_items]
                 _s_sel_n = sum(1 for _lk in _s_links if _lk not in desel_links)
                 _s_all_on = _s_sel_n == len(_s_links)
                 _sc1, _sc2 = st.columns([3.2, 1.2], vertical_alignment="center")
                 _sc1.markdown(f"**{html.escape(_s_name)}** · `{_s_sel_n}/{len(_s_links)}`")
-                _s_btn_lbl = "Clear" if _s_all_on else "Select All"
+                _s_btn_lbl = "Clear All" if _s_all_on else "Select All"
                 if _sc2.button(_s_btn_lbl, key=f"btn_bulk_src_tog_{_idx_s}", type=("secondary" if _s_all_on else "primary"), width="stretch"):
                     if _s_all_on:
                         desel_links.update(_s_links)
@@ -5585,26 +5888,23 @@ def render_export_analytics_section() -> None:
         st.write("")
         c_csv, c_docx = st.columns(2)
         with c_csv:
-            csv_bytes = df_export.to_csv(index=False).encode("utf-8-sig")
+            selected_link_set = {x.get("link") for x in selected_export_items if x.get("link")}
+            df_csv_out = df_export[df_export["Link"].isin(selected_link_set)] if selected_export_items else df_export.iloc[0:0]
+            csv_bytes = df_csv_out.to_csv(index=False).encode("utf-8-sig")
             st.download_button(
-                label=f"CSV · {len(df_export):,}",
-                help="Download all records as CSV",
+                label=f"CSV · {len(selected_export_items):,}",
+                help="Download selected records as CSV",
                 icon=":material/download:",
                 data=csv_bytes,
                 file_name=f"nepal_intelligence_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
+                disabled=(len(selected_export_items) == 0),
                 width="stretch"
             )
 
         with c_docx:
             if selected_export_items:
-                raw_items_for_docx = []
-                for x in selected_export_items:
-                    item_copy = dict(x["raw_item"])
-                    item_copy["stream"] = x.get("stream", "")
-                    if not item_copy.get("structured_category") and x.get("category"):
-                        item_copy["structured_category"] = x["category"]
-                    raw_items_for_docx.append(item_copy)
+                raw_items_for_docx = _build_docx_articles_from_selection(selected_export_items, merge_related=True)
 
                 digest_dt = filter_end_dt if (filter_end_dt and not is_to_current) else datetime.datetime.now(NEPAL_TZ)
                 day_num = digest_dt.day
@@ -5614,11 +5914,14 @@ def render_export_analytics_section() -> None:
                 univ_hash = hash((tuple(x["link"] for x in selected_export_items), digest_dt.strftime("%Y-%m-%d")))
 
                 if st.session_state.get("docx_ready_hash_univ") != univ_hash:
-                    if st.button(f"Word digest · {len(selected_export_items):,}", help="Build the executive Word document", icon=":material/description:", key="btn_prep_univ_docx", width="stretch", type="primary"):
+                    if st.button(f"Word digest · {len(raw_items_for_docx):,}", help=f"Build Word digest ({len(selected_export_items)} selected, related stories merged as links)", icon=":material/description:", key="btn_prep_univ_docx", width="stretch", type="primary"):
                         with st.spinner(f"Compiling NEPAL DAILY NEWS DIGEST ({digest_dt.strftime('%B %d, %Y')}) with full body text…"):
                             from executive_docx_exporter import generate_executive_word_digest
                             from nepal_fetcher import batch_fetch_full_content
                             enriched_docx_items = batch_fetch_full_content(raw_items_for_docx, max_workers=25)
+                            st.session_state["docx_editor_articles"] = enriched_docx_items
+                            st.session_state["docx_editor_date"] = digest_dt
+                            st.session_state["docx_editor_filename"] = digest_filename
                             st.session_state["docx_bytes_univ"] = generate_executive_word_digest(
                                 articles=enriched_docx_items,
                                 report_date=digest_dt,
@@ -5627,8 +5930,9 @@ def render_export_analytics_section() -> None:
                             st.session_state["docx_ready_hash_univ"] = univ_hash
                         st.rerun()
                 else:
-                    st.download_button(
-                        label="Word digest",
+                    d_col1, d_col2 = st.columns(2, gap="small")
+                    d_col1.download_button(
+                        label="Download .docx",
                         help=digest_filename,
                         icon=":material/download:",
                         data=st.session_state["docx_bytes_univ"],
@@ -5637,6 +5941,8 @@ def render_export_analytics_section() -> None:
                         width="stretch",
                         type="primary"
                     )
+                    if d_col2.button("Preview & Edit", icon=":material/edit_document:", key="btn_preview_edit_docx", width="stretch"):
+                        _show_digest_editor_dialog()
             else:
                 st.caption(":material/info: Select rows to build the Word digest.")
     else:

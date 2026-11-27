@@ -131,6 +131,18 @@ def classify_article_to_reference_section(article: Dict[str, Any]) -> str:
       6. NEPAL-EXTERNAL
       7. ECONOMY
     """
+    explicit_sec = (article.get("digest_section") or "").strip().upper()
+    if explicit_sec in {
+        "INDIA IN NEPAL",
+        "CHINA IN NEPAL",
+        "PAKISTAN IN NEPAL",
+        "BANGLADESH IN NEPAL",
+        "NEPAL-INTERNAL POLITICS",
+        "NEPAL-EXTERNAL",
+        "ECONOMY",
+    }:
+        return explicit_sec
+
     raw_cat = (article.get("structured_category") or article.get("category") or article.get("primary_section") or "").strip().lower()
     stream = (article.get("stream") or "").strip().lower()
     title = (article.get("headline_english") or article.get("title") or article.get("text") or "").strip().lower()
