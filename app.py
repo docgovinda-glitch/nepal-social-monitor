@@ -5491,72 +5491,60 @@ def render_export_analytics_section() -> None:
 
     c_cnt, c_sel_all, c_clr_all, c_bulk = st.columns([2.3, 0.9, 0.9, 1.2], vertical_alignment="center")
     counter_slot = c_cnt.empty()
-    if c_sel_all.button("Select All", icon=":material/check_box:", key="btn_univ_sel_all", width="stretch"):
+    if c_sel_all.button("Select All", icon=":material/check_box:", key="btn_univ_sel_all", width="stretch", help="Select all rows currently shown in the table"):
         desel_links.difference_update(x.get("link") for x in filtered_export_items if x.get("link"))
         st.session_state["editor_ver_univ"] += 1
         st.rerun()
-    if c_clr_all.button("Clear All", icon=":material/check_box_outline_blank:", key="btn_univ_clr_all", width="stretch"):
+    if c_clr_all.button("Clear All", icon=":material/check_box_outline_blank:", key="btn_univ_clr_all", width="stretch", help="Unselect all rows currently shown in the table"):
         desel_links.update(x.get("link") for x in filtered_export_items if x.get("link"))
         st.session_state["editor_ver_univ"] += 1
         st.rerun()
 
-    with c_bulk.popover("By Category / Source", icon=":material/checklist:", width="stretch"):
-        _cat_counts: Dict[str, int] = {}
-        _src_counts: Dict[str, int] = {}
+    with c_bulk.popover("Bulk Select", icon=":material/checklist:", width="stretch"):
+        st.caption("Toggle an entire category or source. To uncheck individual stories, filter by Category above and use the table checkboxes.")
+        _cat_stats: Dict[str, List[str]] = {}
+        _src_stats: Dict[str, List[str]] = {}
         for _it in filtered_export_items:
+            _lk = _it.get("link")
+            if not _lk:
+                continue
             _c = str(_it.get("category") or "Uncategorized")
             _s = str(_it.get("source") or "Unknown")
-            _cat_counts[_c] = _cat_counts.get(_c, 0) + 1
-            _src_counts[_s] = _src_counts.get(_s, 0) + 1
+            _cat_stats.setdefault(_c, []).append(_lk)
+            _src_stats.setdefault(_s, []).append(_lk)
 
-        _cat_keys = sorted(_cat_counts.keys())
-        if _cat_keys:
-            _sel_bulk_cat = st.selectbox(
-                "Category",
-                options=_cat_keys,
-                format_func=lambda c: f"{c} ({_cat_counts.get(c, 0)})",
-                key="univ_bulk_cat_sel",
-            )
-            _bc1, _bc2 = st.columns(2)
-            if _bc1.button("Select", key="btn_bulk_cat_sel", type="primary", width="stretch"):
-                desel_links.difference_update(
-                    x.get("link") for x in filtered_export_items
-                    if x.get("link") and str(x.get("category") or "Uncategorized") == _sel_bulk_cat
-                )
-                st.session_state["editor_ver_univ"] += 1
-                st.rerun()
-            if _bc2.button("Deselect", key="btn_bulk_cat_desel", width="stretch"):
-                desel_links.update(
-                    x.get("link") for x in filtered_export_items
-                    if x.get("link") and str(x.get("category") or "Uncategorized") == _sel_bulk_cat
-                )
-                st.session_state["editor_ver_univ"] += 1
-                st.rerun()
+        _b_tab_cat, _b_tab_src = st.tabs(["Categories", "Sources"])
+        with _b_tab_cat:
+            for _idx_c, _c_name in enumerate(sorted(_cat_stats.keys())):
+                _c_links = _cat_stats[_c_name]
+                _c_sel_n = sum(1 for _lk in _c_links if _lk not in desel_links)
+                _c_all_on = _c_sel_n == len(_c_links)
+                _cc1, _cc2 = st.columns([3.2, 1.2], vertical_alignment="center")
+                _cc1.markdown(f"**{html.escape(_c_name)}** · `{_c_sel_n}/{len(_c_links)}`")
+                _btn_lbl = "Clear" if _c_all_on else "Select All"
+                if _cc2.button(_btn_lbl, key=f"btn_bulk_cat_tog_{_idx_c}", type=("secondary" if _c_all_on else "primary"), width="stretch"):
+                    if _c_all_on:
+                        desel_links.update(_c_links)
+                    else:
+                        desel_links.difference_update(_c_links)
+                    st.session_state["editor_ver_univ"] += 1
+                    st.rerun()
 
-        _src_keys = sorted(_src_counts.keys())
-        if _src_keys:
-            st.divider()
-            _sel_bulk_src = st.selectbox(
-                "Source / Outlet",
-                options=_src_keys,
-                format_func=lambda s: f"{s} ({_src_counts.get(s, 0)})",
-                key="univ_bulk_src_sel",
-            )
-            _bs1, _bs2 = st.columns(2)
-            if _bs1.button("Select", key="btn_bulk_src_sel", type="primary", width="stretch"):
-                desel_links.difference_update(
-                    x.get("link") for x in filtered_export_items
-                    if x.get("link") and str(x.get("source") or "Unknown") == _sel_bulk_src
-                )
-                st.session_state["editor_ver_univ"] += 1
-                st.rerun()
-            if _bs2.button("Deselect", key="btn_bulk_src_desel", width="stretch"):
-                desel_links.update(
-                    x.get("link") for x in filtered_export_items
-                    if x.get("link") and str(x.get("source") or "Unknown") == _sel_bulk_src
-                )
-                st.session_state["editor_ver_univ"] += 1
-                st.rerun()
+        with _b_tab_src:
+            for _idx_s, _s_name in enumerate(sorted(_src_stats.keys())):
+                _s_links = _src_stats[_s_name]
+                _s_sel_n = sum(1 for _lk in _s_links if _lk not in desel_links)
+                _s_all_on = _s_sel_n == len(_s_links)
+                _sc1, _sc2 = st.columns([3.2, 1.2], vertical_alignment="center")
+                _sc1.markdown(f"**{html.escape(_s_name)}** · `{_s_sel_n}/{len(_s_links)}`")
+                _s_btn_lbl = "Clear" if _s_all_on else "Select All"
+                if _sc2.button(_s_btn_lbl, key=f"btn_bulk_src_tog_{_idx_s}", type=("secondary" if _s_all_on else "primary"), width="stretch"):
+                    if _s_all_on:
+                        desel_links.update(_s_links)
+                    else:
+                        desel_links.difference_update(_s_links)
+                    st.session_state["editor_ver_univ"] += 1
+                    st.rerun()
 
     if not df_export.empty:
         df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
