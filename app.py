@@ -5373,15 +5373,36 @@ def _export_title_tokens(item: Dict[str, Any]) -> Set[str]:
     return {t for t in raw if t not in _EXPORT_STOPWORDS}
 
 
-def _group_related_export_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Groups related news items directly below the main item based on headline token overlap."""
+def _group_related_export_items(
+    items: List[Dict[str, Any]],
+    manual_parent_overrides: Optional[Dict[str, str]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Groups related news items directly below the main item based on manual parent
+    overrides (first) and headline token overlap (automatic).
+    """
     if len(items) < 2:
         return items
+    overrides = manual_parent_overrides or {}
+    link_to_idx = {str(it.get("link") or "").strip(): idx for idx, it in enumerate(items) if it.get("link")}
     tokens_list = [_export_title_tokens(it) for it in items]
+
+    # Resolve manual parent links (only when target parent exists and is not self)
+    forced_children: Dict[int, List[int]] = {}
+    is_forced_child: Set[int] = set()
+    for idx, it in enumerate(items):
+        lk = str(it.get("link") or "").strip()
+        p_lk = str(overrides.get(lk) or "").strip()
+        if p_lk and p_lk != "__NONE__" and p_lk != lk and p_lk in link_to_idx:
+            p_idx = link_to_idx[p_lk]
+            if p_idx != idx:
+                forced_children.setdefault(p_idx, []).append(idx)
+                is_forced_child.add(idx)
+
     used = [False] * len(items)
     grouped: List[Dict[str, Any]] = []
     for i, main_it in enumerate(items):
-        if used[i]:
+        if used[i] or i in is_forced_child:
             continue
         used[i] = True
         main_copy = dict(main_it)
@@ -5389,17 +5410,31 @@ def _group_related_export_items(items: List[Dict[str, Any]]) -> List[Dict[str, A
         main_copy["parent_link"] = ""
         grouped.append(main_copy)
 
+        main_link = str(main_it.get("link") or "").strip()
+
+        # First append any manually linked children
+        for c_idx in forced_children.get(i, []):
+            if used[c_idx]:
+                continue
+            used[c_idx] = True
+            child_copy = dict(items[c_idx])
+            child_copy["is_related_child"] = True
+            child_copy["parent_link"] = main_link
+            grouped.append(child_copy)
+
         t_main = tokens_list[i]
         if len(t_main) < 2:
             continue
         dt_main = main_it.get("published_dt")
         src_main = str(main_it.get("source") or "").strip().lower()
-        main_link = str(main_it.get("link") or "").strip()
 
         for j in range(i + 1, len(items)):
-            if used[j]:
+            if used[j] or j in is_forced_child:
                 continue
             cand_it = items[j]
+            cand_lk = str(cand_it.get("link") or "").strip()
+            if overrides.get(cand_lk) == "__NONE__":
+                continue
             src_cand = str(cand_it.get("source") or "").strip().lower()
             if src_main and src_cand and src_main == src_cand:
                 continue
@@ -5731,7 +5766,9 @@ def render_export_analytics_section() -> None:
             if q_lower in x["title"].lower() or q_lower in x["content"].lower() or q_lower in x["source"].lower()
         ]
 
-    filtered_export_items = _group_related_export_items(filtered_export_items)
+    st.session_state.setdefault("export_manual_parent_overrides", {})
+    _parent_overrides = st.session_state["export_manual_parent_overrides"]
+    filtered_export_items = _group_related_export_items(filtered_export_items, manual_parent_overrides=_parent_overrides)
 
     rows_data = [
         {
@@ -5890,6 +5927,23 @@ def render_export_analytics_section() -> None:
                         _cat_overrides[lk] = _chosen_c
                         st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
 
+                def _change_export_parent_cb(lk: str, p_sel_key: str) -> None:
+                    _chosen_p = st.session_state.get(p_sel_key)
+                    if _chosen_p == "__STANDALONE__":
+                        _parent_overrides[lk] = "__NONE__"
+                    elif _chosen_p:
+                        _parent_overrides[lk] = _chosen_p
+                    st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
+
+                _main_parent_candidates = [
+                    x for x in _c_items
+                    if not x.get("is_related_child") and x.get("link")
+                ]
+                _parent_label_by_link = {"__STANDALONE__": "Standalone (Main Story)"}
+                for _mc in _main_parent_candidates:
+                    _mc_lk = str(_mc["link"])
+                    _parent_label_by_link[_mc_lk] = f"{str(_mc.get('title') or '')[:60]} ({_mc.get('source') or ''})"
+
                 for _i_idx, _c_it in enumerate(_c_items):
                     _i_lk = _c_it["link"]
                     _i_title = str(_c_it.get("title") or "").strip()
@@ -5898,8 +5952,9 @@ def render_export_analytics_section() -> None:
                     _uid_h = abs(hash(_i_lk)) % 100000
                     _chk_k = f"chk_bulk_c_{_i_idx}_{_uid_h}"
                     _cat_k = f"sel_bulk_cat_{_i_idx}_{_uid_h}"
+                    _par_k = f"sel_bulk_par_{_i_idx}_{_uid_h}"
 
-                    _rc1, _rc2 = st.columns([3.4, 1.4], vertical_alignment="center")
+                    _rc1, _rc2, _rc3 = st.columns([3.0, 1.3, 0.7], vertical_alignment="center")
                     with _rc1:
                         st.checkbox(
                             f"{_prefix}{_i_title} ({_i_src})",
@@ -5919,6 +5974,21 @@ def render_export_analytics_section() -> None:
                             on_change=_change_export_cat_cb,
                             args=(_i_lk, _cat_k),
                         )
+                    with _rc3:
+                        _p_opts = ["__STANDALONE__"] + [k for k in _parent_label_by_link if k not in ("__STANDALONE__", _i_lk)]
+                        _cur_p_val = str(_c_it.get("parent_link") or "__STANDALONE__")
+                        if _cur_p_val not in _p_opts:
+                            _cur_p_val = "__STANDALONE__"
+                        with st.popover("", icon=":material/link:", help="Link as related news under a main story", width="stretch"):
+                            st.selectbox(
+                                "Group under main story",
+                                options=_p_opts,
+                                index=_p_opts.index(_cur_p_val),
+                                format_func=lambda k: _parent_label_by_link.get(k, k),
+                                key=_par_k,
+                                on_change=_change_export_parent_cb,
+                                args=(_i_lk, _par_k),
+                            )
 
         selected_export_items = [x for x in filtered_export_items if x.get("link") not in desel_links]
         counter_slot.markdown(
