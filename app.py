@@ -5710,12 +5710,12 @@ def render_export_analytics_section() -> None:
         if sel_wa == "Sent to WhatsApp":
             filtered_export_items = [
                 x for x in filtered_export_items
-                if (x.get("link") in _sent_links_set) or (_item_cache_id(x.get("raw_item") or x) in _sent_keys_set)
+                if (x.get("link") in _sent_links_set) or (_compute_item_uid(x.get("raw_item") or x, "global") in _sent_keys_set)
             ]
         else:
             filtered_export_items = [
                 x for x in filtered_export_items
-                if (x.get("link") not in _sent_links_set) and (_item_cache_id(x.get("raw_item") or x) not in _sent_keys_set)
+                if (x.get("link") not in _sent_links_set) and (_compute_item_uid(x.get("raw_item") or x, "global") not in _sent_keys_set)
             ]
     if kw_filter.strip():
         q_lower = kw_filter.strip().lower()
