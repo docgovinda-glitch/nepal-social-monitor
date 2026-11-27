@@ -5447,7 +5447,7 @@ def _build_docx_articles_from_selection(selected_items: List[Dict[str, Any]], me
 
         item_copy = dict(x["raw_item"])
         item_copy["stream"] = x.get("stream", "")
-        if not item_copy.get("structured_category") and x.get("category"):
+        if x.get("category"):
             item_copy["structured_category"] = x["category"]
         item_copy["related_links"] = list(item_copy.get("related_links") or [])
         if link:
@@ -5690,6 +5690,13 @@ def render_export_analytics_section() -> None:
             "raw_item": p,
         })
 
+    st.session_state.setdefault("export_category_overrides", {})
+    _cat_overrides = st.session_state["export_category_overrides"]
+    for _x_it in all_unified_items:
+        _ov = _cat_overrides.get(_x_it.get("link"))
+        if _ov:
+            _x_it["category"] = _ov
+
     all_unified_items.sort(key=lambda x: x.get("published_dt") or MIN_DATE, reverse=True)
 
     filtered_export_items = all_unified_items
@@ -5769,115 +5776,128 @@ def render_export_analytics_section() -> None:
 
     desel_links = st.session_state["deselected_links_univ"]
 
-    c_cnt, c_sel_all, c_clr_all, c_bulk = st.columns([2.3, 0.9, 0.9, 1.2], vertical_alignment="center")
+    c_cnt, c_sel_all, c_clr_all = st.columns([3.0, 1.0, 1.0], vertical_alignment="center")
     counter_slot = c_cnt.empty()
-    if c_sel_all.button("Select All", icon=":material/check_box:", key="btn_univ_sel_all", width="stretch", help="Select all rows currently shown in the table"):
+    if c_sel_all.button("Select All", icon=":material/check_box:", key="btn_univ_sel_all", width="stretch", help="Select all rows currently shown"):
         desel_links.difference_update(x.get("link") for x in filtered_export_items if x.get("link"))
         st.session_state["editor_ver_univ"] += 1
         st.rerun()
-    if c_clr_all.button("Clear All", icon=":material/check_box_outline_blank:", key="btn_univ_clr_all", width="stretch", help="Unselect all rows currently shown in the table"):
+    if c_clr_all.button("Clear All", icon=":material/check_box_outline_blank:", key="btn_univ_clr_all", width="stretch", help="Unselect all rows currently shown"):
         desel_links.update(x.get("link") for x in filtered_export_items if x.get("link"))
         st.session_state["editor_ver_univ"] += 1
         st.rerun()
 
-    with c_bulk.popover("Bulk Select", icon=":material/checklist:", width="stretch"):
-        st.caption("Toggle an entire category or source. To uncheck individual stories, filter by Category above and use the table checkboxes.")
-        _cat_stats: Dict[str, List[Dict[str, Any]]] = {}
-        _src_stats: Dict[str, List[Dict[str, Any]]] = {}
-        for _it in filtered_export_items:
-            _lk = _it.get("link")
-            if not _lk:
-                continue
-            _c = str(_it.get("category") or "Uncategorized")
-            _s = str(_it.get("source") or "Unknown")
-            _cat_stats.setdefault(_c, []).append(_it)
-            _src_stats.setdefault(_s, []).append(_it)
+    if not df_export.empty:
+        tab_tbl, tab_cat_org = st.tabs([":material/table_rows: Table View", ":material/folder_managed: Organize by Category"])
 
-        def _toggle_export_item_cb(lk: str, chk_key: str) -> None:
-            if st.session_state.get(chk_key, True):
-                desel_links.discard(lk)
-            else:
-                desel_links.add(lk)
-            st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
+        with tab_tbl:
+            df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
+            df_for_editor.insert(0, "Include?", [link not in desel_links for link in df_for_editor["Link"]])
 
-        _b_tab_cat, _b_tab_src = st.tabs(["Categories", "Sources"])
-        with _b_tab_cat:
+            col_config_univ = {
+                "Include?": st.column_config.CheckboxColumn("✓", default=True, width="small"),
+                "Stream": st.column_config.TextColumn("Stream", width="small"),
+                "Headline / Text": st.column_config.TextColumn("Headline", width="large"),
+                "Category": st.column_config.SelectboxColumn("Category", options=STRUCTURED_CATEGORIES, required=True, width="medium"),
+                "Source / Author": st.column_config.TextColumn("Source", width="medium"),
+                "Language": st.column_config.TextColumn("Language", width="small"),
+                "Published Date & Time": st.column_config.TextColumn("Time", width="medium"),
+                "Link": st.column_config.LinkColumn("Source Link", display_text="Open", width="small")
+            }
+
+            edited_df_univ = st.data_editor(
+                df_for_editor,
+                column_config=col_config_univ,
+                disabled=[c for c in df_for_editor.columns if c not in ("Include?", "Category")],
+                hide_index=True,
+                width="stretch",
+                key=f"univ_editor_{st.session_state['editor_ver_univ']}"
+            )
+
+            _cat_changed = False
+            for link, inc, new_c in zip(edited_df_univ["Link"], edited_df_univ["Include?"], edited_df_univ["Category"]):
+                if inc:
+                    desel_links.discard(link)
+                else:
+                    desel_links.add(link)
+                if new_c and _cat_overrides.get(link) != new_c:
+                    _orig_c = next((x["category"] for x in filtered_export_items if x.get("link") == link), None)
+                    if _orig_c != new_c:
+                        _cat_overrides[link] = new_c
+                        _cat_changed = True
+            if _cat_changed:
+                st.rerun()
+
+        with tab_cat_org:
+            st.caption("Select or clear an entire category, uncheck individual stories, or reassign a story's section/category.")
+            _cat_stats: Dict[str, List[Dict[str, Any]]] = {}
+            for _it in filtered_export_items:
+                _lk = _it.get("link")
+                if not _lk:
+                    continue
+                _c = str(_it.get("category") or "Others")
+                _cat_stats.setdefault(_c, []).append(_it)
+
+            def _toggle_export_item_cb(lk: str, chk_key: str) -> None:
+                if st.session_state.get(chk_key, True):
+                    desel_links.discard(lk)
+                else:
+                    desel_links.add(lk)
+                st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
+
+            def _change_export_cat_cb(lk: str, sel_key: str) -> None:
+                _chosen_c = st.session_state.get(sel_key)
+                if _chosen_c:
+                    _cat_overrides[lk] = _chosen_c
+                    st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
+
             for _idx_c, _c_name in enumerate(sorted(_cat_stats.keys())):
                 _c_items = _cat_stats[_c_name]
                 _c_links = [x["link"] for x in _c_items]
                 _c_sel_n = sum(1 for _lk in _c_links if _lk not in desel_links)
                 _c_all_on = _c_sel_n == len(_c_links)
-                _cc1, _cc2 = st.columns([3.2, 1.2], vertical_alignment="center")
-                _cc1.markdown(f"**{html.escape(_c_name)}** · `{_c_sel_n}/{len(_c_links)}`")
-                _btn_lbl = "Clear All" if _c_all_on else "Select All"
-                if _cc2.button(_btn_lbl, key=f"btn_bulk_cat_tog_{_idx_c}", type=("secondary" if _c_all_on else "primary"), width="stretch"):
-                    if _c_all_on:
-                        desel_links.update(_c_links)
-                    else:
-                        desel_links.difference_update(_c_links)
-                    st.session_state["editor_ver_univ"] += 1
-                    st.rerun()
-                with st.expander(f"Select individual items ({_c_sel_n}/{len(_c_links)})", expanded=False):
+
+                with st.expander(f"{_c_name} · {_c_sel_n} / {len(_c_links)} selected", expanded=False):
+                    _hc1, _hc2 = st.columns([3.5, 1.2], vertical_alignment="center")
+                    _hc1.caption(f"{len(_c_links)} story(ies) in {_c_name}")
+                    _btn_lbl = "Clear All" if _c_all_on else "Select All"
+                    if _hc2.button(_btn_lbl, key=f"btn_bulk_cat_tog_{_idx_c}", type=("secondary" if _c_all_on else "primary"), width="stretch"):
+                        if _c_all_on:
+                            desel_links.update(_c_links)
+                        else:
+                            desel_links.difference_update(_c_links)
+                        st.session_state["editor_ver_univ"] += 1
+                        st.rerun()
+
                     for _i_idx, _c_it in enumerate(_c_items):
                         _i_lk = _c_it["link"]
-                        _i_title = str(_c_it.get("title") or "").strip()[:85]
+                        _i_title = str(_c_it.get("title") or "").strip()
                         _i_src = str(_c_it.get("source") or "").strip()
                         _prefix = "↳ " if _c_it.get("is_related_child") else ""
-                        _chk_k = f"chk_bulk_c_{_idx_c}_{_i_idx}_{abs(hash(_i_lk)) % 100000}"
-                        st.checkbox(
-                            f"{_prefix}{_i_title} ({_i_src})",
-                            value=(_i_lk not in desel_links),
-                            key=_chk_k,
-                            on_change=_toggle_export_item_cb,
-                            args=(_i_lk, _chk_k),
-                        )
+                        _uid_h = abs(hash(_i_lk)) % 100000
+                        _chk_k = f"chk_bulk_c_{_idx_c}_{_i_idx}_{_uid_h}"
+                        _cat_k = f"sel_bulk_cat_{_idx_c}_{_i_idx}_{_uid_h}"
 
-        with _b_tab_src:
-            for _idx_s, _s_name in enumerate(sorted(_src_stats.keys())):
-                _s_items = _src_stats[_s_name]
-                _s_links = [x["link"] for x in _s_items]
-                _s_sel_n = sum(1 for _lk in _s_links if _lk not in desel_links)
-                _s_all_on = _s_sel_n == len(_s_links)
-                _sc1, _sc2 = st.columns([3.2, 1.2], vertical_alignment="center")
-                _sc1.markdown(f"**{html.escape(_s_name)}** · `{_s_sel_n}/{len(_s_links)}`")
-                _s_btn_lbl = "Clear All" if _s_all_on else "Select All"
-                if _sc2.button(_s_btn_lbl, key=f"btn_bulk_src_tog_{_idx_s}", type=("secondary" if _s_all_on else "primary"), width="stretch"):
-                    if _s_all_on:
-                        desel_links.update(_s_links)
-                    else:
-                        desel_links.difference_update(_s_links)
-                    st.session_state["editor_ver_univ"] += 1
-                    st.rerun()
-
-    if not df_export.empty:
-        df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
-        df_for_editor.insert(0, "Include?", [link not in desel_links for link in df_for_editor["Link"]])
-
-        col_config_univ = {
-            "Include?": st.column_config.CheckboxColumn("✓", default=True, width="small"),
-            "Stream": st.column_config.TextColumn("Stream", width="small"),
-            "Headline / Text": st.column_config.TextColumn("Headline", width="large"),
-            "Category": st.column_config.TextColumn("Category", width="small"),
-            "Source / Author": st.column_config.TextColumn("Source", width="medium"),
-            "Language": st.column_config.TextColumn("Language", width="small"),
-            "Published Date & Time": st.column_config.TextColumn("Time", width="medium"),
-            "Link": st.column_config.LinkColumn("Source Link", display_text="Open", width="small")
-        }
-
-        edited_df_univ = st.data_editor(
-            df_for_editor,
-            column_config=col_config_univ,
-            disabled=[c for c in df_for_editor.columns if c != "Include?"],
-            hide_index=True,
-            width="stretch",
-            key=f"univ_editor_{st.session_state['editor_ver_univ']}"
-        )
-
-        for link, inc in zip(edited_df_univ["Link"], edited_df_univ["Include?"]):
-            if inc:
-                desel_links.discard(link)
-            else:
-                desel_links.add(link)
+                        _rc1, _rc2 = st.columns([3.4, 1.4], vertical_alignment="center")
+                        with _rc1:
+                            st.checkbox(
+                                f"{_prefix}{_i_title} ({_i_src})",
+                                value=(_i_lk not in desel_links),
+                                key=_chk_k,
+                                on_change=_toggle_export_item_cb,
+                                args=(_i_lk, _chk_k),
+                            )
+                        with _rc2:
+                            _cur_idx = STRUCTURED_CATEGORIES.index(_c_name) if _c_name in STRUCTURED_CATEGORIES else len(STRUCTURED_CATEGORIES) - 1
+                            st.selectbox(
+                                "Section",
+                                options=STRUCTURED_CATEGORIES,
+                                index=_cur_idx,
+                                key=_cat_k,
+                                label_visibility="collapsed",
+                                on_change=_change_export_cat_cb,
+                                args=(_i_lk, _cat_k),
+                            )
 
         selected_export_items = [x for x in filtered_export_items if x.get("link") not in desel_links]
         counter_slot.markdown(
