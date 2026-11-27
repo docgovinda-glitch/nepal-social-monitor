@@ -5495,7 +5495,7 @@ def _build_docx_articles_from_selection(selected_items: List[Dict[str, Any]], me
 @st.dialog("News Digest — View & Edit", width="large", icon=":material/edit_document:")
 def _show_digest_editor_dialog() -> None:
     from executive_docx_exporter import (
-        SECTION_ORDER,
+        REFERENCE_NEWS_SECTIONS as SECTION_ORDER,
         _clean_article_paragraphs,
         _prepare_article_for_digest,
         classify_article_to_reference_section,
