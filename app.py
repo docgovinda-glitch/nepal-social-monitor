@@ -5788,9 +5788,16 @@ def render_export_analytics_section() -> None:
         st.rerun()
 
     if not df_export.empty:
-        tab_tbl, tab_cat_org = st.tabs([":material/table_rows: Table View", ":material/folder_managed: Organize by Category"])
+        st.session_state.setdefault("univ_export_view", "Table View")
+        _exp_view = st.segmented_control(
+            "Export View",
+            options=["Table View", "Organize by Category"],
+            format_func=lambda v: ":material/table_rows: Table View" if v == "Table View" else ":material/folder_managed: Organize by Category",
+            key="univ_export_view",
+            label_visibility="collapsed",
+        ) or "Table View"
 
-        with tab_tbl:
+        if _exp_view == "Table View":
             df_for_editor = df_export[["Stream", "Headline / Text", "Category", "Source / Author", "Language", "Published Date & Time", "Link"]].copy()
             df_for_editor.insert(0, "Include?", [link not in desel_links for link in df_for_editor["Link"]])
 
@@ -5828,8 +5835,8 @@ def render_export_analytics_section() -> None:
             if _cat_changed:
                 st.rerun()
 
-        with tab_cat_org:
-            st.caption("Select or clear an entire category, uncheck individual stories, or reassign a story's section/category.")
+        else:
+            st.caption("Pick a category to manage its items, toggle selection, or reassign stories to another section. You stay on this workspace until you switch.")
             _cat_stats: Dict[str, List[Dict[str, Any]]] = {}
             for _it in filtered_export_items:
                 _lk = _it.get("link")
@@ -5838,66 +5845,80 @@ def render_export_analytics_section() -> None:
                 _c = str(_it.get("category") or "Others")
                 _cat_stats.setdefault(_c, []).append(_it)
 
-            def _toggle_export_item_cb(lk: str, chk_key: str) -> None:
-                if st.session_state.get(chk_key, True):
-                    desel_links.discard(lk)
-                else:
-                    desel_links.add(lk)
-                st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
+            _sorted_cats = sorted(_cat_stats.keys())
+            if _sorted_cats:
+                _cur_active_cat = st.session_state.get("univ_active_cat")
+                if _cur_active_cat not in _sorted_cats:
+                    _cur_active_cat = _sorted_cats[0]
+                    st.session_state["univ_active_cat"] = _cur_active_cat
 
-            def _change_export_cat_cb(lk: str, sel_key: str) -> None:
-                _chosen_c = st.session_state.get(sel_key)
-                if _chosen_c:
-                    _cat_overrides[lk] = _chosen_c
+                def _cat_fmt(c_name: str) -> str:
+                    c_itms = _cat_stats.get(c_name, [])
+                    c_sel = sum(1 for x in c_itms if x["link"] not in desel_links)
+                    return f"{c_name} ({c_sel}/{len(c_itms)})"
+
+                _sel_col, _b_col1, _b_col2 = st.columns([2.8, 1.0, 1.0], vertical_alignment="center")
+                _active_cat = _sel_col.selectbox(
+                    "Category to manage",
+                    options=_sorted_cats,
+                    index=_sorted_cats.index(_cur_active_cat),
+                    format_func=_cat_fmt,
+                    key="univ_active_cat",
+                    label_visibility="collapsed",
+                )
+                _c_items = _cat_stats.get(_active_cat, [])
+                _c_links = [x["link"] for x in _c_items]
+                if _b_col1.button("Select Category", icon=":material/check_box:", key="btn_org_cat_sel_all", width="stretch"):
+                    desel_links.difference_update(_c_links)
+                    st.session_state["editor_ver_univ"] += 1
+                    st.rerun()
+                if _b_col2.button("Clear Category", icon=":material/check_box_outline_blank:", key="btn_org_cat_clr_all", width="stretch"):
+                    desel_links.update(_c_links)
+                    st.session_state["editor_ver_univ"] += 1
+                    st.rerun()
+
+                def _toggle_export_item_cb(lk: str, chk_key: str) -> None:
+                    if st.session_state.get(chk_key, True):
+                        desel_links.discard(lk)
+                    else:
+                        desel_links.add(lk)
                     st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
 
-            for _idx_c, _c_name in enumerate(sorted(_cat_stats.keys())):
-                _c_items = _cat_stats[_c_name]
-                _c_links = [x["link"] for x in _c_items]
-                _c_sel_n = sum(1 for _lk in _c_links if _lk not in desel_links)
-                _c_all_on = _c_sel_n == len(_c_links)
+                def _change_export_cat_cb(lk: str, sel_key: str) -> None:
+                    _chosen_c = st.session_state.get(sel_key)
+                    if _chosen_c:
+                        _cat_overrides[lk] = _chosen_c
+                        st.session_state["editor_ver_univ"] = int(st.session_state.get("editor_ver_univ", 0)) + 1
 
-                with st.expander(f"{_c_name} · {_c_sel_n} / {len(_c_links)} selected", expanded=False):
-                    _hc1, _hc2 = st.columns([3.5, 1.2], vertical_alignment="center")
-                    _hc1.caption(f"{len(_c_links)} story(ies) in {_c_name}")
-                    _btn_lbl = "Clear All" if _c_all_on else "Select All"
-                    if _hc2.button(_btn_lbl, key=f"btn_bulk_cat_tog_{_idx_c}", type=("secondary" if _c_all_on else "primary"), width="stretch"):
-                        if _c_all_on:
-                            desel_links.update(_c_links)
-                        else:
-                            desel_links.difference_update(_c_links)
-                        st.session_state["editor_ver_univ"] += 1
-                        st.rerun()
+                for _i_idx, _c_it in enumerate(_c_items):
+                    _i_lk = _c_it["link"]
+                    _i_title = str(_c_it.get("title") or "").strip()
+                    _i_src = str(_c_it.get("source") or "").strip()
+                    _prefix = "↳ " if _c_it.get("is_related_child") else ""
+                    _uid_h = abs(hash(_i_lk)) % 100000
+                    _chk_k = f"chk_bulk_c_{_i_idx}_{_uid_h}"
+                    _cat_k = f"sel_bulk_cat_{_i_idx}_{_uid_h}"
 
-                    for _i_idx, _c_it in enumerate(_c_items):
-                        _i_lk = _c_it["link"]
-                        _i_title = str(_c_it.get("title") or "").strip()
-                        _i_src = str(_c_it.get("source") or "").strip()
-                        _prefix = "↳ " if _c_it.get("is_related_child") else ""
-                        _uid_h = abs(hash(_i_lk)) % 100000
-                        _chk_k = f"chk_bulk_c_{_idx_c}_{_i_idx}_{_uid_h}"
-                        _cat_k = f"sel_bulk_cat_{_idx_c}_{_i_idx}_{_uid_h}"
-
-                        _rc1, _rc2 = st.columns([3.4, 1.4], vertical_alignment="center")
-                        with _rc1:
-                            st.checkbox(
-                                f"{_prefix}{_i_title} ({_i_src})",
-                                value=(_i_lk not in desel_links),
-                                key=_chk_k,
-                                on_change=_toggle_export_item_cb,
-                                args=(_i_lk, _chk_k),
-                            )
-                        with _rc2:
-                            _cur_idx = STRUCTURED_CATEGORIES.index(_c_name) if _c_name in STRUCTURED_CATEGORIES else len(STRUCTURED_CATEGORIES) - 1
-                            st.selectbox(
-                                "Section",
-                                options=STRUCTURED_CATEGORIES,
-                                index=_cur_idx,
-                                key=_cat_k,
-                                label_visibility="collapsed",
-                                on_change=_change_export_cat_cb,
-                                args=(_i_lk, _cat_k),
-                            )
+                    _rc1, _rc2 = st.columns([3.4, 1.4], vertical_alignment="center")
+                    with _rc1:
+                        st.checkbox(
+                            f"{_prefix}{_i_title} ({_i_src})",
+                            value=(_i_lk not in desel_links),
+                            key=_chk_k,
+                            on_change=_toggle_export_item_cb,
+                            args=(_i_lk, _chk_k),
+                        )
+                    with _rc2:
+                        _cur_idx = STRUCTURED_CATEGORIES.index(_active_cat) if _active_cat in STRUCTURED_CATEGORIES else len(STRUCTURED_CATEGORIES) - 1
+                        st.selectbox(
+                            "Section",
+                            options=STRUCTURED_CATEGORIES,
+                            index=_cur_idx,
+                            key=_cat_k,
+                            label_visibility="collapsed",
+                            on_change=_change_export_cat_cb,
+                            args=(_i_lk, _cat_k),
+                        )
 
         selected_export_items = [x for x in filtered_export_items if x.get("link") not in desel_links]
         counter_slot.markdown(
